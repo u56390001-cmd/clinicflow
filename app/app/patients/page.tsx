@@ -73,13 +73,41 @@ export default async function PatientsPage({
   // deliberately does not join `clinics`, so "today" is resolved here (see the
   // note at 0029 section 12). One query serves both the Today KPI and the
   // Today tab's filter.
-  const { data: todayRows } = await supabase
-    .from("appointments")
-    .select("patient_id")
-    .eq("clinic_id", clinicId)
-    .neq("status", "cancelled")
-    .gte("start_time", today.startIso)
-    .lt("start_time", today.endIso);
+  //
+  // Today's bookings and today's visit statuses are independent reads over
+  // different tables, so they run together — sequential cost was 2×250ms.
+  const [todayRes, todayVisitRes, totalResult, newThisMonthResult] =
+    await Promise.all([
+      supabase
+        .from("appointments")
+        .select("patient_id")
+        .eq("clinic_id", clinicId)
+        .neq("status", "cancelled")
+        .gte("start_time", today.startIso)
+        .lt("start_time", today.endIso),
+      // Today's live queue state: which of today's patients are still being seen
+      // (waiting / checked in / in consultation) and which ones are done. Drives
+      // the Waiting / Completed KPI cards, the Today tab's segment filter, and the
+      // token + status the list pane shows against each row.
+      supabase
+        .from("visits")
+        .select("patient_id, status, token_number")
+        .eq("clinic_id", clinicId)
+        .gte("checked_in_at", today.startIso)
+        .lt("checked_in_at", today.endIso)
+        .order("checked_in_at", { ascending: true, nullsFirst: false }),
+      supabase
+        .from("patients")
+        .select("id", { count: "exact", head: true })
+        .eq("clinic_id", clinicId),
+      supabase
+        .from("patients")
+        .select("id", { count: "exact", head: true })
+        .eq("clinic_id", clinicId)
+        .gte("created_at", monthStart.startIso),
+    ]);
+  const todayRows = todayRes.data;
+  const todayVisitRows = todayVisitRes.data;
 
   const todayPatientIds = [
     ...new Set(
@@ -88,18 +116,6 @@ export default async function PatientsPage({
         .filter((id): id is string => Boolean(id)),
     ),
   ];
-
-  // Today's live queue state: which of today's patients are still being seen
-  // (waiting / checked in / in consultation) and which ones are done. Drives
-  // the Waiting / Completed KPI cards, the Today tab's segment filter, and the
-  // token + status the list pane shows against each row.
-  const { data: todayVisitRows } = await supabase
-    .from("visits")
-    .select("patient_id, status, token_number")
-    .eq("clinic_id", clinicId)
-    .gte("checked_in_at", today.startIso)
-    .lt("checked_in_at", today.endIso)
-    .order("checked_in_at", { ascending: true, nullsFirst: false });
 
   const waitingPatientIds = [
     ...new Set(
@@ -132,18 +148,6 @@ export default async function PatientsPage({
       token: row.token_number,
     };
   }
-
-  const [totalResult, newThisMonthResult] = await Promise.all([
-    supabase
-      .from("patients")
-      .select("id", { count: "exact", head: true })
-      .eq("clinic_id", clinicId),
-    supabase
-      .from("patients")
-      .select("id", { count: "exact", head: true })
-      .eq("clinic_id", clinicId)
-      .gte("created_at", monthStart.startIso),
-  ]);
 
   const stats = {
     total: totalResult.count ?? 0,

@@ -82,20 +82,24 @@ export default async function InboxPage({
 
   let messages: WhatsappMessage[] = [];
   if (activeId) {
-    const { data } = await supabase
-      .from("whatsapp_messages")
-      .select("*")
-      .eq("conversation_id", activeId)
-      .order("sent_at", { ascending: true })
-      .limit(200);
-    messages = data ?? [];
-
-    // Opening a flagged thread clears its unread marker.
-    await supabase
-      .from("whatsapp_conversations")
-      .update({ unread_by_staff: false })
-      .eq("id", activeId)
-      .eq("unread_by_staff", true);
+    // The unread-clear update doesn't feed the messages render (the feed was
+    // already loaded above), so both writes go out together instead of
+    // stacking two sequential round trips on the critical path.
+    const [messagesRes] = await Promise.all([
+      supabase
+        .from("whatsapp_messages")
+        .select("*")
+        .eq("conversation_id", activeId)
+        .order("sent_at", { ascending: true })
+        .limit(200),
+      // Opening a flagged thread clears its unread marker.
+      supabase
+        .from("whatsapp_conversations")
+        .update({ unread_by_staff: false })
+        .eq("id", activeId)
+        .eq("unread_by_staff", true),
+    ]);
+    messages = messagesRes.data ?? [];
   }
 
   const current =

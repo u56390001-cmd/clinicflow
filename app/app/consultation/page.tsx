@@ -49,15 +49,18 @@ export default async function ConsultationPage({
     );
   }
 
-  // find the logged-in user's doctor record
-  const doctor = await findDoctorForUser(supabase, access.clinic.id);
-
-  // fetch the waiting list (scoped to this doctor if multi-doctor)
-  const waitingList = await fetchDoctorWaitingList(
-    supabase,
-    access.clinic.id,
-    doctor?.id ?? null,
-  );
+  // The waiting list and this user's doctor record are independent reads, so
+  // they run together — each round trip to Supabase costs ~250ms from here,
+  // and the old sequential chain paid for it six times over. The list comes
+  // back unscoped and is filtered on the raw `doctor_id` column below, which
+  // is exactly what `eq("doctor_id", …)` did server-side.
+  const [doctor, unscopedWaitingList] = await Promise.all([
+    findDoctorForUser(supabase, access.clinic.id),
+    fetchDoctorWaitingList(supabase, access.clinic.id, null),
+  ]);
+  const waitingList = doctor
+    ? unscopedWaitingList.filter((e) => e.doctor_id === doctor.id)
+    : unscopedWaitingList;
 
   // When deep-linked with `?visit=`, open the Write Prescription screen for
   // that specific visit (e.g. from a patient record) instead of the waiting
@@ -73,23 +76,21 @@ export default async function ConsultationPage({
   let vitalsConfigs: DoctorVitalsConfigMap | undefined;
 
   if (activeVisit) {
-    consultationData = await fetchConsultationData(
-      supabase,
-      access.clinic.id,
-      activeVisit.id,
-    );
-    if (doctor) {
-      templates = await fetchPrescriptionTemplates(
-        supabase,
-        access.clinic.id,
-        doctor.id,
-      );
-    }
-    if (consultationData?.doctor) {
-      vitalsConfigs = await fetchVitalsConfigs(supabase, access.clinic.id, [
-        consultationData.doctor.id,
-      ]);
-    }
+    // Templates key off the doctor id and vitals config off the visit's own
+    // `doctor_id` column — both already known from the waiting list — so all
+    // three reads go out in one round instead of chaining three.
+    [consultationData, templates, vitalsConfigs] = await Promise.all([
+      fetchConsultationData(supabase, access.clinic.id, activeVisit.id),
+      doctor
+        ? fetchPrescriptionTemplates(supabase, access.clinic.id, doctor.id)
+        : Promise.resolve([]),
+      activeVisit.doctor_id
+        ? fetchVitalsConfigs(supabase, access.clinic.id, [activeVisit.doctor_id])
+        : Promise.resolve(undefined),
+    ]);
+    // Same guard the sequential chain had: the config is only meaningful once
+    // the consultation payload resolved its doctor row.
+    if (!consultationData?.doctor) vitalsConfigs = undefined;
   }
 
   return (

@@ -110,33 +110,39 @@ export async function fetchConsultationData(
   clinicId: string,
   visitId: string,
 ): Promise<ConsultationData | null> {
-  const { data: visit, error: visitError } = await supabase
-    .from("visits")
-    .select(`
-      *,
-      patients!visits_clinic_patient_fkey(*),
-      doctors!visits_clinic_doctor_fkey(*),
-      appointments!visits_clinic_appointment_fkey(
-        services!appointments_clinic_service_fkey(*)
-      ),
-      vitals(*)
-    `)
-    .eq("clinic_id", clinicId)
-    .eq("id", visitId)
-    .single();
+  // The visit bundle and the existing prescription key off the same inputs
+  // (clinic + visit id), so they go out together; one round trip instead of
+  // two on the page's critical path. When the visit is missing the extra
+  // prescription read is simply unused — same null return as before.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join queries return complex inferred types
+  const [{ data: visit, error: visitError }, { data: prescription }] =
+    await Promise.all([
+      supabase
+        .from("visits")
+        .select(`
+          *,
+          patients!visits_clinic_patient_fkey(*),
+          doctors!visits_clinic_doctor_fkey(*),
+          appointments!visits_clinic_appointment_fkey(
+            services!appointments_clinic_service_fkey(*)
+          ),
+          vitals(*)
+        `)
+        .eq("clinic_id", clinicId)
+        .eq("id", visitId)
+        .single(),
+      supabase
+        .from("prescriptions")
+        .select("*")
+        .eq("clinic_id", clinicId)
+        .eq("visit_id", visitId)
+        .single(),
+    ]);
 
   if (visitError || !visit) return null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join queries return complex inferred types
   const v = visit as Record<string, any>;
-
-  // fetch existing prescription for this visit
-  const { data: prescription } = await supabase
-    .from("prescriptions")
-    .select("*")
-    .eq("clinic_id", clinicId)
-    .eq("visit_id", visitId)
-    .single();
 
   // Phase 22 — pre-consultation answers collected during/after booking,
   // joined with their question text and ordered like the clinic configured.
@@ -195,8 +201,13 @@ export async function findDoctorForUser(
   supabase: SupabaseClient<Database>,
   clinicId: string,
 ): Promise<Doctor | null> {
-  const { data: userRes } = await supabase.auth.getUser();
-  const userId = userRes?.user?.id;
+  // `getClaims()` validates the session JWT locally (signature + expiry) and
+  // yields the same `sub` the doctors lookup needs — `getUser()` adds a full
+  // round trip to the Auth server on the page's critical path for nothing
+  // more. Works from both the server client (page) and browser client (the
+  // Write Prescription overlay).
+  const { data: claimsRes } = await supabase.auth.getClaims();
+  const userId = claimsRes?.claims?.sub;
   if (!userId) return null;
 
   const { data: doctor } = await supabase
