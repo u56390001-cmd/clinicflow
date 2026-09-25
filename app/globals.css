@@ -1,42 +1,115 @@
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    color-scheme: light;
+
+    /**
+     * Live height of the sticky app header, republished by
+     * `AppHeaderShell` once it has been measured. Anything positioned below the
+     * header reads this instead of guessing — the fallback covers the first
+     * paint, before hydration.
+     */
+    --app-header-h: 4rem;
+  }
+
+  /**
+   * Full-bleed app routes. `app/app/layout.tsx` caps <main> at max-w-5xl, which
+   * is right for single-column pages but too narrow for the master-detail EMR
+   * workspace (a 33% left pane would fall under its 360px minimum). A route
+   * opts out by putting `data-app-wide` on its layout root.
+   *
+   * Done in CSS rather than by making the shell a client component so the app
+   * layout stays server-rendered. Browsers without :has() just keep the
+   * 1024px cap — cramped, never broken.
+   */
+  main:has(> [data-app-wide]) {
+    max-width: none;
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+  }
+
+  html,
+  body {
+    @apply h-full;
+  }
+
+  body {
+    @apply bg-app font-sans text-text-primary antialiased;
+  }
+
+  ::selection {
+    @apply bg-primary/20 text-primary;
+  }
+
+  *:focus-visible {
+    outline: 2px solid #0d9488;
+    outline-offset: 2px;
   }
 }
 
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Soft reveal used when switching between the edit popup's form tabs. */
+  .tab-fade-in {
+    animation: tab-fade-in 0.25s ease-in-out;
+  }
+
+  /* Entrance animation used by the check-in / receipt modals (matches the
+     reference Doxmate markup: scale-in over 0.15s). */
+  .animate-scale-in {
+    animation: scale-in 0.15s ease-out;
+  }
+
+  /* Soft downward reveal used by the appointments filter panel (0.15s). */
+  .animate-fade-in-down {
+    animation: fade-in-down 0.15s ease-out;
+  }
+
+  /* Hide scrollbars while keeping native scrolling (tab strips). */
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@keyframes tab-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
+@keyframes fade-in-down {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

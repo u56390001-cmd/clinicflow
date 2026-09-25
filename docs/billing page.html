@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Billing Interface Test</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Font: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes tabFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    
+    @media (max-width: 480px) { 
+      .bill-info-grid { grid-template-columns: 1fr !important; } 
+    }
+    
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', sans-serif;
+      background: rgb(244, 243, 239);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Main Container Snippet -->
+  <div class="flex-1 overflow-y-auto transition-all duration-300" style="padding-bottom: 0px;">
+    <div style="min-height: 100vh; background: rgb(244, 243, 239); font-family: Inter, sans-serif;">
+      
+      <!-- Top Header & Metrics Banner -->
+      <div style="background: rgb(245, 247, 249); border-bottom: 0.5px solid rgb(229, 227, 219); padding: 0px 24px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 18px 0px 0px;">
+          <h1 style="font-size: 20px; font-weight: 700; color: rgb(26, 26, 26); margin: 0px;">Billing</h1>
+        </div>
+        
+        <!-- Metrics Cards Grid -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; padding: 16px 0px;">
+          
+          <!-- Card 1 -->
+          <div style="background: rgb(255, 255, 255); border: 0.5px solid rgb(229, 227, 219); border-radius: 14px; padding: 12px 16px; cursor: default; transition: box-shadow 0.18s, transform 0.18s; position: relative; overflow: hidden; box-shadow: none; transform: translateY(0px);">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px;">
+              <span style="font-size: 11.5px; color: rgb(156, 163, 175); font-weight: 600; letter-spacing: 0.02em; line-height: 1.3;">Today's Collection</span>
+              <div style="padding: 6px; border-radius: 8px; background: rgba(21, 128, 61, 0.094); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-indian-rupee" aria-hidden="true" style="color: rgb(21, 128, 61);"><path d="M6 3h12"></path><path d="M6 8h12"></path><path d="m6 13 8.5 8"></path><path d="M6 13h3"></path><path d="M9 13c6.667 0 6.667-10 0-10"></path></svg>
+              </div>
+            </div>
+            <div style="font-size: 20px; font-weight: 800; color: rgb(26, 26, 26); letter-spacing: -0.5px; line-height: 1;">₹0</div>
+            <div style="margin-top: 8px; font-size: 11px; color: rgb(21, 128, 61); font-weight: 500; display: flex; align-items: center; gap: 3px;">↑ vs yesterday</div>
+          </div>
+
+          <!-- Card 2 -->
+          <div style="background: rgb(255, 255, 255); border: 0.5px solid rgb(229, 227, 219); border-radius: 14px; padding: 12px 16px; cursor: default; transition: box-shadow 0.18s, transform 0.18s; position: relative; overflow: hidden; box-shadow: none; transform: translateY(0px);">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px;">
+              <span style="font-size: 11.5px; color: rgb(156, 163, 175); font-weight: 600; letter-spacing: 0.02em; line-height: 1.3;">Pending Amount</span>
+              <div style="padding: 6px; border-radius: 8px; background: rgba(249, 115, 22, 0.094); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clock" aria-hidden="true" style="color: rgb(249, 115, 22);"><path d="M12 6v6l4 2"></path><circle cx="12" cy="12" r="10"></circle></svg>
+              </div>
+            </div>
+            <div style="font-size: 20px; font-weight: 800; color: rgb(26, 26, 26); letter-spacing: -0.5px; line-height: 1;">₹2,000</div>
+          </div>
+
+          <!-- Card 3 -->
+          <div style="background: rgb(255, 255, 255); border: 0.5px solid rgb(229, 227, 219); border-radius: 14px; padding: 12px 16px; cursor: default; transition: box-shadow 0.18s, transform 0.18s; position: relative; overflow: hidden; box-shadow: none; transform: translateY(0px);">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px;">
+              <span style="font-size: 11.5px; color: rgb(156, 163, 175); font-weight: 600; letter-spacing: 0.02em; line-height: 1.3;">Bills Today</span>
+              <div style="padding: 6px; border-radius: 8px; background: rgba(78, 93, 181, 0.094); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-receipt" aria-hidden="true" style="color: rgb(78, 93, 181);"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path><path d="M12 17.5v-11"></path></svg>
+              </div>
+            </div>
+            <div style="font-size: 20px; font-weight: 800; color: rgb(26, 26, 26); letter-spacing: -0.5px; line-height: 1;">1</div>
+            <div style="margin-top: 8px; font-size: 11px; color: rgb(156, 163, 175); font-weight: 500; display: flex; align-items: center; gap: 3px;"> Total bills created</div>
+          </div>
+
+          <!-- Card 4 -->
+          <div style="background: rgb(255, 255, 255); border: 0.5px solid rgb(229, 227, 219); border-radius: 14px; padding: 12px 16px; cursor: default; transition: box-shadow 0.18s, transform 0.18s; position: relative; overflow: hidden; box-shadow: none; transform: translateY(0px);">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px;">
+              <span style="font-size: 11.5px; color: rgb(156, 163, 175); font-weight: 600; letter-spacing: 0.02em; line-height: 1.3;">This Month's Revenue</span>
+              <div style="padding: 6px; border-radius: 8px; background: rgba(109, 40, 217, 0.094); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wallet" aria-hidden="true" style="color: rgb(109, 40, 217);"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"></path><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"></path></svg>
+              </div>
+            </div>
+            <div style="font-size: 20px; font-weight: 800; color: rgb(26, 26, 26); letter-spacing: -0.5px; line-height: 1;">₹12,600</div>
+            <div style="margin-top: 8px; font-size: 11px; color: rgb(156, 163, 175); font-weight: 500; display: flex; align-items: center; gap: 3px;"> September 2026</div>
+          </div>
+        </div>
+
+        <!-- Filter Bar & Actions -->
+        <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid rgb(240, 239, 235); padding: 10px 0px;">
+          <div style="display: inline-flex; align-items: center; background: rgb(255, 255, 255); border-radius: 14px; padding: 5px 6px; gap: 2px;">
+            <button style="display: flex; align-items: center; gap: 6px; padding: 7px 16px; font-size: 13px; font-weight: 500; color: rgb(107, 114, 128); background: transparent; border: 1.5px solid transparent; border-radius: 8px; box-shadow: none; cursor: pointer; transition: 0.15s; white-space: nowrap;">Today</button>
+            <button style="display: flex; align-items: center; gap: 6px; padding: 7px 16px; font-size: 13px; font-weight: 600; color: rgb(26, 26, 26); background: rgb(245, 247, 249); border: 1.5px solid rgb(229, 227, 219); border-radius: 8px; box-shadow: none; cursor: pointer; transition: 0.15s; white-space: nowrap;">All Bills</button>
+            <button style="display: flex; align-items: center; gap: 6px; padding: 7px 16px; font-size: 13px; font-weight: 500; color: rgb(107, 114, 128); background: transparent; border: 1.5px solid transparent; border-radius: 8px; box-shadow: none; cursor: pointer; transition: 0.15s; white-space: nowrap;">Pending<span style="font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 20px; background: rgb(229, 227, 219); color: rgb(107, 114, 128); min-width: 20px; text-align: center;">1</span></button>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button style="display: flex; align-items: center; gap: 6px; padding: 7px 14px; border: none; border-radius: 8px; background: rgb(78, 93, 181); color: rgb(255, 255, 255); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg> Add Bill
+            </button>
+            <button style="display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid rgb(229, 227, 219); border-radius: 8px; background: rgb(255, 255, 255); cursor: pointer; color: rgb(107, 114, 128); box-shadow: rgba(0, 0, 0, 0.05) 0px 1px 2px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Content Area -->
+      <div style="padding: 20px 24px; background: rgb(245, 247, 249); min-height: 100vh;">
+        <div style="animation: 0.2s ease 0s 1 normal none running tabFadeIn;">
+          
+          <!-- Search & Controls Bar -->
+          <div style="background: rgb(255, 255, 255); border: 0.5px solid rgb(229, 227, 219); border-radius: 12px; margin-bottom: 14px; position: sticky; top: 0px; z-index: 10;">
+            <div style="display: flex; align-items: center; gap: 8px; padding: 12px 14px;">
+              <div style="display: flex; align-items: center; gap: 7px; background: rgb(245, 247, 249); border: 1px solid rgb(229, 227, 219); border-radius: 8px; padding: 7px 12px; flex: 1 1 0%;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" style="color: rgb(170, 170, 170); flex-shrink: 0;"><path d="m21 21-4.34-4.34"></path><circle cx="11" cy="11" r="8"></circle></svg>
+                <input placeholder="Search patient, phone, or bill number..." value="" style="border: none; outline: none; font-size: 12.5px; flex: 1 1 0%; background: transparent; color: rgb(55, 65, 81);">
+              </div>
+              <button style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1.5px solid rgb(229, 227, 219); background: rgb(255, 255, 255); color: rgb(55, 65, 81);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-funnel"><path d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"></path></svg>Filters
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" style="color: rgb(156, 163, 175);"><path d="m6 9 6 6 6-6"></path></svg>
+              </button>
+              <button style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; border: 1.5px solid rgb(229, 227, 219); background: rgb(255, 255, 255); font-size: 13px; font-weight: 600; color: rgb(55, 65, 81); cursor: pointer; white-space: nowrap;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download"><path d="M12 15V3"></path><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="m7 10 5 5 5-5"></path></svg> Export
+              </button>
+            </div>
+          </div>
+
+          <!-- Data Table Container -->
+          <div style="background: rgb(255, 255, 255); border: 0.5px solid rgb(229, 227, 219); border-radius: 12px; overflow: visible;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr style="background: rgb(248, 247, 243);">
+                  <th style="padding: 10px 14px; font-size: 11px; font-weight: 700; color: rgb(107, 114, 128); text-align: left; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 0.5px solid rgb(229, 227, 219); white-space: nowrap;">Bill #</th>
+                  <th style="padding: 10px 14px; font-size: 11px; font-weight: 700; color: rgb(107, 114, 128); text-align: left; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 0.5px solid rgb(229, 227, 219); white-space: nowrap;">Patient</th>
+                  <th style="padding: 10px 14px; font-size: 11px; font-weight: 700; color: rgb(107, 114, 128); text-align: left; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 0.5px solid rgb(229, 227, 219); white-space: nowrap;">Service</th>
+                  <th style="padding: 10px 14px; font-size: 11px; font-weight: 700; color: rgb(107, 114, 128); text-align: left; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 0.5px solid rgb(229, 227, 219); white-space: nowrap;">Date</th>
+                  <th style="padding: 10px 14px; font-size: 11px; font-weight: 700; color: rgb(107, 114, 128); text-align: right; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 0.5px solid rgb(229, 227, 219); white-space: nowrap;">Amount</th>
+                  <th style="padding: 10px 14px; font-size: 11px; font-weight: 700; color: rgb(107, 114, 128); text-align: left; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 0.5px solid rgb(229, 227, 219); white-space: nowrap;">Mode</th>
+                  <th style="padding: 10px 14px; font-size: 11px; font-weight: 700; color: rgb(107, 114, 128); text-align: left; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 0.5px solid rgb(229, 227, 219); white-space: nowrap;">Status</th>
+                  <th style="padding: 10px 14px; font-size: 11px; font-weight: 700; color: rgb(107, 114, 128); text-align: left; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 0.5px solid rgb(229, 227, 219); white-space: nowrap;">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Row 1 -->
+                <tr style="cursor: pointer; background: rgb(255, 255, 255);">
+                  <td style="padding: 12px 14px; border-bottom: 0.5px solid rgb(240, 239, 235); white-space: nowrap;">
+                    <span style="font-size: 12px; font-weight: 600; color: rgb(107, 114, 128);">BILL-20260922-005</span>
+                  </td>
+                  <td style="padding: 12px 14px; border-bottom: 0.5px solid rgb(240, 239, 235);">
+                    <div style="font-size: 13px; font-weight: 600; color: rgb(78, 93, 181); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap;">Bilal Kham</div>
+                  </td>
+                  <td style="padding: 12px 14px; font-size: 12px; color: rgb(107, 114, 128); border-bottom: 0.5px solid rgb(240, 239, 235); white-space: nowrap;">Consultation</td>
+                  <td style="padding: 12px 14px; font-size: 12px; color: rgb(136, 136, 136); border-bottom: 0.5px solid rgb(240, 239, 235); white-space: nowrap;">23 Sept 2026</td>
+                  <td style="padding: 12px 14px; border-bottom: 0.5px solid rgb(240, 239, 235); text-align: right; white-space: nowrap;">
+                    <span style="font-size: 14px; font-weight: 700; color: rgb(26, 26, 26);">₹2,000</span>
+                  </td>
+                  <td style="padding: 12px 14px; border-bottom: 0.5px solid rgb(240, 239, 235);"><span style="font-size: 12px; color: rgb(209, 213, 219);">—</span></td>
+                  <td style="padding: 12px 14px; border-bottom: 0.5px solid rgb(240, 239, 235);">
+                    <span style="font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: rgb(255, 247, 237); color: rgb(234, 88, 12); white-space: nowrap;">Pending</span>
+                  </td>
+                  <td style="padding: 12px 14px; border-bottom: 0.5px solid rgb(240, 239, 235);">
+                    <div style="display: flex; gap: 5px; align-items: center;">
+                      <button title="View Details" style="width: 30px; height: 30px; border-radius: 7px; border: 1px solid rgb(229, 227, 219); background: rgb(255, 255, 255); cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                      </button>
+                      <button style="width: 30px; height: 30px; border-radius: 7px; border: 1px solid rgb(229, 227, 219); background: rgb(255, 255, 255); cursor: pointer; display: flex; align-items: center; justify-content: center; color: rgb(107, 114, 128);">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ellipsis-vertical"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+
+                <!-- Row 2 -->
+                <tr style="cursor: pointer; background: rgb(255, 255, 255);">
+                  <td style="padding: 12px 14px; border-bottom: 0.5px solid rgb(240, 239, 235); white-space: nowrap;">
+                    <span style="font-size: 12px; font-weight: 600; color: rgb(107, 114, 128);">BILL-20260921-002</span>
+                  </td>
+                  <td style="padding: 12px 14px; border-bottom: 0.5px solid rgb(240, 239, 235);">
+                    <div style="font-size: 13px; font-weight: 600; color: rgb(78, 93, 181); text-decoration: underline; text-underline-offset: 2px; white-space: nowrap;">Usman</div>
+                  </td>
+                  <td style="padding: 12px 14px; font-size: 12px; color: rgb(107, 114, 128); border-bottom: 0.5px solid rgb(240, 239, 235); white-space: nowrap;">Consultation</td>
+                  <td style="padding: 12px 14px; font-size: 12px; color: rgb(136, 136, 136); border-bottom: 0.5px solid rgb(240, 239, 235); white-space: nowrap;">21 Sept 2026</td>
+                  <td style="padding: 12px 14px; border-bottom: 0.5px solid rgb(240, 239, 235); text-align: right; white-space: nowrap;">
+                    <span style="font-size: 14px; font-weight: 700; color: rgb(26, 26, 26);">₹12,600</span>
+                  </td>
+                  <td style="padding: 12px 14px; border-bottom: 0.5px solid rgb(240, 239, 235);">
+                    <div style="display: flex; align-items: center; gap: 7px;">
+                      <div style="width: 8px; height: 8px; border-radius: 50%; background: rgb(156, 163, 175); flex-shrink: 0;"></div>
+                      <span style="font-size: 12.5px; font-weight: 500; color: rgb(55, 65, 81);">cash</span>
+                    </div>
+                  </td>
+                  <td style="padding: 12px 14px; border-bottom: 0.5px solid rgb(240, 239, 235);">
+                    <span style="font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: rgb(240, 253, 244); color: rgb(22, 163, 74); white-space: nowrap;">Paid</span>
+                  </td>
+                  <td style="padding: 12px 14px; border-bottom: 0.5px solid rgb(240, 239, 235);">
+                    <div style="display: flex; gap: 5px; align-items: center;">
+                      <button title="View Details" style="width: 30px; height: 30px; border-radius: 7px; border: 1px solid rgb(229, 227, 219); background: rgb(255, 255, 255); cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                      </button>
+                      <button style="width: 30px; height: 30px; border-radius: 7px; border: 1px solid rgb(229, 227, 219); background: rgb(255, 255, 255); cursor: pointer; display: flex; align-items: center; justify-content: center; color: rgb(107, 114, 128);">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ellipsis-vertical"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <!-- Table Pagination Footer -->
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-top: 0.5px solid rgb(240, 239, 235);">
+              <span style="font-size: 12px; color: rgb(107, 114, 128);">Showing 1–2 of 2 bills</span>
+              <div style="display: flex; gap: 5px; align-items: center;">
+                <button disabled style="padding: 6px 12px; border-radius: 7px; border: 1px solid rgb(229, 227, 219); background: rgb(248, 247, 243); color: rgb(156, 163, 175); font-size: 12px; font-weight: 600; cursor: not-allowed;">← Prev</button>
+                <button style="width: 32px; height: 32px; border-radius: 7px; border: 1px solid rgb(78, 93, 181); background: rgb(238, 240, 252); color: rgb(78, 93, 181); font-size: 12px; font-weight: 700; cursor: pointer;">1</button>
+                <button disabled style="padding: 6px 12px; border-radius: 7px; border: 1px solid rgb(229, 227, 219); background: rgb(248, 247, 243); color: rgb(156, 163, 175); font-size: 12px; font-weight: 600; cursor: not-allowed;">Next →</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Summary Footer -->
+          <div style="background: rgb(255, 255, 255); border: 0.5px solid rgb(229, 227, 219); border-radius: 10px; padding: 12px 18px; margin-top: 10px; display: flex; align-items: center; gap: 28px; flex-wrap: wrap;">
+            <span style="font-size: 11.5px; font-weight: 700; color: rgb(156, 163, 175); text-transform: uppercase; letter-spacing: 0.04em;">Summary</span>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 12px; color: rgb(107, 114, 128);">Total Bills</span>
+              <span style="font-size: 13px; font-weight: 800; color: rgb(26, 26, 26);">2</span>
+            </div>
+            <div style="width: 1px; height: 16px; background: rgb(229, 227, 219);"></div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 12px; color: rgb(107, 114, 128);">Total Amount</span>
+              <span style="font-size: 13px; font-weight: 800; color: rgb(26, 26, 26);">₹14,600</span>
+            </div>
+            <div style="width: 1px; height: 16px; background: rgb(229, 227, 219);"></div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 12px; color: rgb(107, 114, 128);">Paid</span>
+              <span style="font-size: 13px; font-weight: 800; color: rgb(21, 128, 61);">₹12,600</span>
+            </div>
+            <div style="width: 1px; height: 16px; background: rgb(229, 227, 219);"></div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 12px; color: rgb(107, 114, 128);">Pending</span>
+              <span style="font-size: 13px; font-weight: 800; color: rgb(217, 119, 6);">₹2,000</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</body>
+</html>

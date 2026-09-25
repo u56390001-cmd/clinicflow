@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Edit Doctor Profile Modal</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Font: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f3f4f6;
+    }
+    .tab-fade-in {
+      animation: fadeIn 0.25s ease-in-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type=number] {
+      -moz-appearance: textfield;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-0 md:p-6">
+
+  <!-- Main Modal Container -->
+  <div class="bg-white md:rounded-2xl shadow-2xl max-w-5xl w-full md:max-h-[95vh] h-full md:h-auto overflow-hidden modal-box flex flex-col">
+    
+    <!-- ========================================================= -->
+    <!-- MOBILE VIEW (< md)                                        -->
+    <!-- ========================================================= -->
+    <div class="md:hidden flex flex-col h-full overflow-hidden bg-gray-50">
+      
+      <!-- Mobile Top Header -->
+      <div class="bg-gradient-to-b from-[#e8ecf8] to-gray-50 px-4 pt-4 pb-0 flex-shrink-0">
+        <div class="flex items-center justify-between mb-4">
+          <button type="button" class="w-9 h-9 bg-white rounded-full shadow-sm flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <p class="text-sm font-semibold text-gray-700">Edit Profile</p>
+          <div class="w-9 h-9"></div>
+        </div>
+
+        <!-- Profile Picture & Info -->
+        <div class="flex flex-col items-center pb-5">
+          <div class="relative mb-3">
+            <div class="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-md bg-indigo-100 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user w-10 h-10 text-indigo-400"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            </div>
+            <button type="button" class="absolute bottom-1 right-1 w-7 h-7 bg-[#4E5DB5] text-white rounded-full flex items-center justify-center shadow">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-upload w-3.5 h-3.5"><path d="M12 3v12"></path><path d="m17 8-5-5-5 5"></path><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path></svg>
+            </button>
+            <input accept="image/*" class="hidden" type="file">
+          </div>
+          <h2 class="text-xl font-bold text-gray-900">Zimal Fatima</h2>
+          <p class="text-sm text-gray-500 mt-0.5">Cardiology</p>
+
+          <!-- Navigation Tabs -->
+          <div class="flex w-full mt-4 border-b border-gray-200">
+            <button type="button" class="flex-1 py-2.5 text-xs font-semibold transition-colors text-[#4E5DB5] border-b-2 border-[#4E5DB5]">Details</button>
+            <button type="button" class="flex-1 py-2.5 text-xs font-semibold transition-colors text-gray-500">Pre-Consult</button>
+            <button type="button" class="flex-1 py-2.5 text-xs font-semibold transition-colors text-gray-500">Slots</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile Scrollable Body -->
+      <div class="flex-1 overflow-y-auto px-4 py-4 space-y-3 min-h-0 pb-6">
+        
+        <!-- Basic Info Card -->
+        <div class="bg-white rounded-2xl p-4 shadow-sm space-y-3">
+          <h4 class="text-sm font-semibold text-gray-800">Basic Information</h4>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Doctor Name <span class="text-red-500">*</span></label>
+            <input placeholder="Dr. John Smith" class="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#4E5DB5] text-sm" type="text" value="Zimal Fatima">
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Years of Experience <span class="text-red-500">*</span></label>
+            <input placeholder="5" min="0" max="50" class="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#4E5DB5] text-sm" type="number" value="7">
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Specialty <span class="text-red-500">*</span></label>
+            <div class="relative">
+              <button type="button" class="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#4E5DB5] bg-white text-left flex items-center justify-between text-sm">
+                <span class="text-gray-800">Cardiology</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down w-4 h-4 text-gray-400"><path d="m6 9 6 6 6-6"></path></svg>
+              </button>
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Qualification <span class="text-red-500">*</span></label>
+            <input placeholder="MBBS, MD" class="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#4E5DB5] text-sm" type="text" value="MBBS, MD">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Fee (₹) <span class="text-red-500">*</span></label>
+              <input placeholder="1000" class="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#4E5DB5] text-sm" type="number" value="2000.00">
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Consultation Type</label>
+              <button type="button" class="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-xl text-left flex items-center justify-between text-sm">
+                <span class="text-gray-900 font-medium">Both</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down w-4 h-4 text-gray-400"><path d="m6 9 6 6 6-6"></path></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contact Section Card -->
+        <div class="bg-white rounded-2xl p-4 shadow-sm space-y-3">
+          <h4 class="text-sm font-semibold text-gray-800">Contact</h4>
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-mail w-4 h-4 text-blue-600"><path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7"></path><rect x="2" y="4" width="20" height="16" rx="2"></rect></svg>
+            </div>
+            <input placeholder="doctor@example.com" class="flex-1 px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#4E5DB5] text-sm" type="email" value="zimal@example.com">
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-phone w-4 h-4 text-green-600"><path d="M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384"></path></svg>
+            </div>
+            <input placeholder="10-digit mobile number" maxlength="10" class="flex-1 px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#4E5DB5] text-sm" type="tel" value="9876543210">
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Mobile Footer Controls -->
+      <div class="flex-shrink-0 bg-white border-t border-gray-100 px-4 py-3 flex items-center gap-3">
+        <button type="button" class="flex-1 px-4 py-3 text-gray-700 bg-white border-2 border-gray-200 rounded-xl font-semibold text-sm">Cancel</button>
+        <button type="button" class="flex-1 px-4 py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 bg-gradient-to-r from-[#4E5DB5] to-[#5B6BC5] text-white">Update Doctor</button>
+      </div>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- DESKTOP VIEW (>= md)                                      -->
+    <!-- ========================================================= -->
+    <div class="hidden md:flex md:flex-col md:overflow-hidden" style="max-height: 95vh;">
+      
+      <!-- Desktop Banner Header -->
+      <div class="relative bg-gradient-to-r from-[#4E5DB5] to-[#5B6BC5] px-6 py-4 text-white flex-shrink-0">
+        <div class="absolute inset-0 bg-black bg-opacity-5"></div>
+        <div class="relative flex items-center justify-between">
+          <div class="flex items-center space-x-4">
+            <div class="relative">
+              <div class="relative cursor-pointer group">
+                <div class="w-14 h-14 rounded-2xl border-2 border-white/30 bg-white/20 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user w-8 h-8 text-white"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                </div>
+                <div class="absolute -bottom-1 -right-1 w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-md border border-gray-200">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pen-line w-3.5 h-3.5 text-[#4E5DB5]"><path d="M13 21h8"></path><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path></svg>
+                </div>
+                <input accept="image/*" class="hidden" type="file">
+              </div>
+            </div>
+            <div>
+              <h2 class="text-lg font-bold">Edit Doctor Profile</h2>
+              <p class="text-blue-100 text-xs">Update Zimal Fatima's information and availability</p>
+            </div>
+          </div>
+          <button type="button" class="p-2 hover:bg-white/20 rounded-xl transition-all duration-200 group">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x w-6 h-6 group-hover:rotate-90 transition-transform duration-200"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Desktop Body Area -->
+      <div class="overflow-y-auto flex-1 min-h-0 bg-gray-50">
+        
+        <!-- Tab Pill Navigation -->
+        <div class="flex justify-center bg-white sticky top-0 z-10 py-3 border-b border-gray-100">
+          <div class="inline-flex items-center bg-gray-100 rounded-full p-1 gap-1">
+            <button type="button" class="px-5 py-2 text-xs font-semibold rounded-full transition-all duration-200 whitespace-nowrap text-gray-500 hover:text-gray-700">Details</button>
+            <button type="button" class="px-5 py-2 text-xs font-semibold rounded-full transition-all duration-200 whitespace-nowrap bg-white text-[#4E5DB5] shadow-md">Availability & Slots</button>
+            <button type="button" class="px-5 py-2 text-xs font-semibold rounded-full transition-all duration-200 whitespace-nowrap text-gray-500 hover:text-gray-700">Vitals Configuration</button>
+          </div>
+        </div>
+
+        <!-- Tab Content Wrapper -->
+        <div class="p-6">
+          <div class="bg-[#F5F9FD] p-6 rounded-2xl border border-blue-100 tab-fade-in">
+            <h3 class="text-base font-semibold text-gray-900 mb-5 flex items-center">
+              <div class="p-2 bg-[#4E5DB5]/10 rounded-lg mr-2.5">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-calendar text-[#4E5DB5]"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path></svg>
+              </div>
+              Update Availability & Slots
+            </h3>
+
+            <!-- Consultation Method Selection -->
+            <div class="mb-6">
+              <h4 class="text-xs font-semibold text-gray-800 mb-2.5">How do you see patients?</h4>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button type="button" class="text-left p-3.5 rounded-xl border-2 transition-all border-[#4E5DB5] bg-[#4E5DB5]/5">
+                  <div class="flex items-center gap-2 mb-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clock text-[#4E5DB5]"><path d="M12 6v6l4 2"></path><circle cx="12" cy="12" r="10"></circle></svg>
+                    <span class="font-semibold text-gray-900 text-xs">One patient at a time</span>
+                  </div>
+                  <p class="text-xs text-gray-500">Each patient gets a fixed appointment slot (e.g. 10:00, 10:30)</p>
+                </button>
+                <button type="button" class="text-left p-3.5 rounded-xl border-2 transition-all border-gray-200 bg-white hover:border-gray-300">
+                  <div class="flex items-center gap-2 mb-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-users text-[#4E5DB5]"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><path d="M16 3.128a4 4 0 0 1 0 7.744"></path><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><circle cx="9" cy="7" r="4"></circle></svg>
+                    <span class="font-semibold text-gray-900 text-xs">Multiple patients at once</span>
+                  </div>
+                  <p class="text-xs text-gray-500">Patients share a time window (e.g. 10:00 to 12:00, max 6 patients)</p>
+                </button>
+              </div>
+            </div>
+
+            <!-- Working Days Selector -->
+            <div class="mb-6">
+              <h4 class="text-xs font-semibold text-gray-800 mb-2.5">Select Working Days</h4>
+              <div class="flex flex-wrap gap-2">
+                <button type="button" class="px-4 py-2 rounded-xl text-xs font-medium bg-[#4E5DB5] text-white shadow">Mon</button>
+                <button type="button" class="px-4 py-2 rounded-xl text-xs font-medium bg-white text-gray-700 border border-gray-200">Tue</button>
+                <button type="button" class="px-4 py-2 rounded-xl text-xs font-medium bg-white text-gray-700 border border-gray-200">Wed</button>
+                <button type="button" class="px-4 py-2 rounded-xl text-xs font-medium bg-white text-gray-700 border border-gray-200">Thu</button>
+                <button type="button" class="px-4 py-2 rounded-xl text-xs font-medium bg-white text-gray-700 border border-gray-200">Fri</button>
+                <button type="button" class="px-4 py-2 rounded-xl text-xs font-medium bg-white text-gray-700 border border-gray-200">Sat</button>
+                <button type="button" class="px-4 py-2 rounded-xl text-xs font-medium bg-white text-gray-700 border border-gray-200">Sun</button>
+              </div>
+            </div>
+
+            <!-- Monday Time Slot Configuration -->
+            <div class="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-2xl border border-blue-200">
+              <h5 class="font-semibold text-gray-900 text-sm mb-3">Monday Schedule</h5>
+              <div class="bg-white border border-gray-200 rounded-xl p-4 mb-4">
+                <p class="text-xs font-semibold text-gray-700 mb-2">Time Range(s)</p>
+                <div class="flex items-center gap-2">
+                  <input class="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-xs" type="time" value="09:00">
+                  <span class="text-gray-400 text-xs">to</span>
+                  <input class="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-xs" type="time" value="13:00">
+                </div>
+                <div class="grid grid-cols-2 gap-3 mt-3">
+                  <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Slot Duration (min)</label>
+                    <input class="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs" type="number" value="30">
+                  </div>
+                  <div class="flex items-end">
+                    <button type="button" class="w-full py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 flex items-center justify-center gap-1">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zap"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"></path></svg>
+                      Generate Slots
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Generated Slot Items -->
+              <div class="space-y-2">
+                <div class="bg-white border border-gray-200 rounded-lg p-2.5 flex items-center gap-2">
+                  <input class="flex-1 px-2 py-1 border border-gray-300 rounded text-xs font-medium" type="text" value="Slot A">
+                  <input class="px-2 py-1 border border-gray-300 rounded text-xs" type="time" value="09:00">
+                  <span class="text-gray-400 text-xs">–</span>
+                  <input class="px-2 py-1 border border-gray-300 rounded text-xs" type="time" value="09:30">
+                  <button type="button" class="p-1 text-red-500 hover:bg-red-50 rounded">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2"><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop Footer -->
+      <div class="flex-shrink-0 bg-white border-t border-gray-200 px-6 py-3 flex items-center justify-end gap-3">
+        <button type="button" class="px-5 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-xl font-semibold text-xs hover:bg-gray-50">Cancel</button>
+        <button type="button" class="px-5 py-2.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-[#4E5DB5] to-[#5B6BC5] text-white shadow-md hover:opacity-90">Update Doctor</button>
+      </div>
+
+    </div>
+
+  </div>
+
+</body>
+</html>

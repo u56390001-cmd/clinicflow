@@ -1,0 +1,159 @@
+<div class="flex-1 overflow-y-auto transition-all duration-300" style="padding-bottom: 0px;"><div style="display: flex; height: 100%; background: rgb(244, 243, 239); font-family: Inter, sans-serif; overflow: hidden;"><style>
+        @keyframes ping { 75%, 100% { transform: scale(2); opacity: 0; } }
+        @keyframes shimmer  { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+        @keyframes spin     { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes hourglassFlip { 0% { transform: rotate(90deg); } 40% { transform: rotate(90deg); } 50% { transform: rotate(180deg); } 90% { transform: rotate(180deg); } 100% { transform: rotate(90deg); } }
+        @keyframes slideIn  { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes pulse    { 0% { box-shadow: 0 0 0 0 rgba(245,158,11,0.4); } 70% { box-shadow: 0 0 0 4px rgba(245,158,11,0); } 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); } }
+        @keyframes tabSlideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes tabFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        @media (max-width: 768px) { .patient-list-panel { display: none !important; } }
+        * { box-sizing: border-box; }
+      </style><div class="patient-list-panel" style="width: 320px; flex-shrink: 0; background: rgb(255, 255, 255); border-right: 0.5px solid rgb(229, 227, 219); display: flex; flex-direction: column; overflow: hidden;"><div style="padding: 16px 16px 10px; border-bottom: 0.5px solid rgb(229, 227, 219);"><div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;"><div style="font-size: 15px; font-weight: 700; color: rgb(26, 26, 26);">Patients</div><button style="background: rgb(78, 93, 181); color: rgb(255, 255, 255); border-width: medium; border-style: none; border-color: currentcolor; border-image: none; border-radius: 7px; padding: 5px 11px; font-size: 12px; cursor: pointer; font-weight: 500; display: flex; align-items: center; gap: 5px;"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg> Add Patient</button></div><div style="display: flex; align-items: center; gap: 8px; background: rgb(248, 247, 243); border: 0.5px solid rgb(229, 227, 219); border-radius: 8px; padding: 6px 10px;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.3"></circle><path d="M9.5 9.5L13 13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path></svg><input placeholder="Search by name or phone..." value="" style="border-width: medium; border-style: none; border-color: currentcolor; border-image: none; background: transparent; font-size: 12.5px; outline: none; flex: 1 1 0%; color: rgb(51, 51, 51);"></div></div><div style="padding: 8px 12px 10px; border-bottom: 0.5px solid rgb(229, 227, 219); background: rgb(255, 255, 255);"><div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; animation: 0.28s cubic-bezier(0.4, 0, 0.2, 1) 0s 1 normal none running tabSlideIn;"><div style="background: rgb(248, 247, 243); border-width: medium; border-style: none; border-color: currentcolor; border-image: none; border-radius: 10px; padding: 10px 13px;"><div style="font-size: 11.5px; color: rgb(156, 163, 175); margin-bottom: 4px; font-weight: 500;">Today</div><div style="font-size: 22px; font-weight: 700; color: rgb(78, 93, 181); line-height: 1;">6</div></div><div style="background: rgb(248, 247, 243); border-width: medium; border-style: none; border-color: currentcolor; border-image: none; border-radius: 10px; padding: 10px 13px;"><div style="font-size: 11.5px; color: rgb(156, 163, 175); margin-bottom: 4px; font-weight: 500;">Waiting</div><div style="font-size: 22px; font-weight: 700; color: rgb(180, 83, 9); line-height: 1;">1</div></div><div style="background: rgb(248, 247, 243); border-width: medium; border-style: none; border-color: currentcolor; border-image: none; border-radius: 10px; padding: 10px 13px;"><div style="font-size: 11.5px; color: rgb(156, 163, 175); margin-bottom: 4px; font-weight: 500;">Completed</div><div style="font-size: 22px; font-weight: 700; color: rgb(21, 128, 61); line-height: 1;">4</div></div></div></div><div style="display: flex; border-bottom: 0.5px solid rgb(229, 227, 219);"><div style="flex: 1 1 0%; text-align: center; padding: 9px 0px; font-size: 12.5px; font-weight: 700; color: rgb(78, 93, 181); border-bottom: 2px solid rgb(78, 93, 181); cursor: pointer; transition: 0.15s; display: flex; align-items: center; justify-content: center; gap: 6px;">Today</div><div style="flex: 1 1 0%; text-align: center; padding: 9px 0px; font-size: 12.5px; font-weight: 500; color: rgb(136, 136, 136); border-bottom: 2px solid transparent; cursor: pointer; transition: 0.15s; display: flex; align-items: center; justify-content: center; gap: 6px;">All Patients</div></div><div style="display: flex; gap: 5px; padding: 8px 16px; border-bottom: 0.5px solid rgb(229, 227, 219); overflow-x: auto;"><div style="padding: 3px 11px; border-radius: 20px; font-size: 11.5px; cursor: pointer; white-space: nowrap; border: 0.5px solid rgb(78, 93, 181); background: rgb(78, 93, 181); color: rgb(255, 255, 255); transition: 0.15s;">Waiting</div><div style="padding: 3px 11px; border-radius: 20px; font-size: 11.5px; cursor: pointer; white-space: nowrap; border: 0.5px solid rgb(229, 227, 219); background: rgb(255, 255, 255); color: rgb(136, 136, 136); transition: 0.15s;">Completed</div><div style="padding: 3px 11px; border-radius: 20px; font-size: 11.5px; cursor: pointer; white-space: nowrap; border: 0.5px solid rgb(229, 227, 219); background: rgb(255, 255, 255); color: rgb(136, 136, 136); transition: 0.15s;">All</div></div><div style="flex: 1 1 0%; overflow: hidden; display: flex; flex-direction: column;"><div style="animation: 0.28s cubic-bezier(0.4, 0, 0.2, 1) 0s 1 normal none running tabSlideIn; flex: 1 1 0%; overflow-y: auto;"><div style="display: flex; flex-direction: column;"><div style=""><div style="height: 4px;"></div><div style="display: flex; align-items: center; gap: 10px; padding: 10px 16px; cursor: pointer; border-bottom: 0.5px solid rgb(240, 239, 235); background: rgb(239, 246, 255); border-right: 3px solid transparent; transition: background 0.15s;"><div style="width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; background: rgb(220, 252, 231); color: rgb(21, 128, 61);">H</div><div style="flex: 1 1 0%; min-width: 0px;"><div style="font-size: 13px; font-weight: 600; color: rgb(26, 26, 26); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px;">Hameed</div><div style="font-size: 11px; color: rgb(136, 136, 136);">Token #1</div></div><span style="font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px; background: rgb(254, 249, 195); color: rgb(133, 77, 14); border: 1px solid rgb(253, 230, 138); white-space: nowrap; display: inline-flex; align-items: center; gap: 4px;"><span style="width: 5px; height: 5px; border-radius: 50%; background: rgb(245, 158, 11); display: inline-block;"></span>Waiting</span></div></div></div></div></div></div><div style="flex: 1 1 0%; display: flex; background: rgb(244, 243, 239); overflow-y: auto; flex-direction: column;"><div style="background: rgb(255, 255, 255); padding: 20px 26px 0px; border-bottom: 0.5px solid rgb(229, 227, 219);"><div style="display: flex; align-items: flex-start; gap: 15px; padding-bottom: 14px;"><div style="width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 19px; font-weight: 700; flex-shrink: 0; background: rgb(220, 252, 231); color: rgb(21, 128, 61);">H</div><div style="flex: 1 1 0%; min-width: 0px;"><div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;"><div style="font-size: 20px; font-weight: 700; color: rgb(26, 26, 26);">Hameed</div><span style="font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; background: rgb(219, 234, 254); color: rgb(29, 78, 216); border: 1px solid rgb(191, 219, 254); display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; letter-spacing: 0.01em; line-height: 1;"><span style="width: 5px; height: 5px; border-radius: 50%; background: rgb(59, 130, 246); display: inline-block; flex-shrink: 0;"></span>First Visit</span></div><div style="font-size: 12.5px; color: rgb(136, 136, 136); margin-top: 3px;">Patient since 23 Sep 2026</div></div><div style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;"><button style="display: flex; align-items: center; gap: 6px; background: rgb(255, 255, 255); color: rgb(78, 93, 181); border: 1.5px solid rgb(78, 93, 181); border-radius: 8px; padding: 8px 16px; font-size: 12.5px; cursor: pointer; font-weight: 600; transition: background 0.15s;"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2l2 2L4 10H2V8L8 2z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path></svg>Write Prescription</button><button title="" style="display: flex; align-items: center; gap: 6px; background: rgb(22, 163, 74); color: rgb(255, 255, 255); border-width: medium; border-style: none; border-color: currentcolor; border-image: none; border-radius: 8px; padding: 8px 18px; font-size: 12.5px; cursor: pointer; font-weight: 700; box-shadow: rgba(22, 163, 74, 0.3) 0px 2px 8px; transition: background 0.2s; opacity: 1;">▶ Start Consultation</button></div></div><div style="padding-bottom: 14px;"><div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;"><div style="display: flex; align-items: center; gap: 5px; background: rgb(248, 247, 243); border: 0.5px solid rgb(229, 227, 219); border-radius: 20px; padding: 4px 11px; font-size: 12px; color: rgb(85, 85, 85);"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="4.5" r="2.5" stroke="currentColor" stroke-width="1.2"></circle><path d="M2 12c0-2.8 2.2-4.5 5-4.5s5 1.7 5 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></path></svg> male</div><div style="display: flex; align-items: center; gap: 5px; background: rgb(238, 240, 252); border: 0.5px solid rgb(199, 210, 254); border-radius: 20px; padding: 4px 11px; font-size: 12px; color: rgb(78, 93, 181); font-weight: 600;">UHID: CLI-2026-00008</div><div style="display: inline-flex; align-items: center; gap: 5px; background: rgb(248, 247, 243); border: 0.5px solid rgb(229, 227, 219); border-radius: 20px; padding: 4px 11px; font-size: 12px; color: rgb(85, 85, 85); flex-shrink: 0; white-space: nowrap; min-width: max-content;"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink: 0;"><path d="M2 1.5h2.5l1 2.5-1.5 1a6 6 0 003 3l1-1.5 2.5 1V10A1.5 1.5 0 019 11 8.5 8.5 0 011 3 1.5 1.5 0 012 1.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path></svg>+91 0316123456</div><button style="display: inline-flex; align-items: center; gap: 5px; background: rgb(255, 255, 255); color: rgb(78, 93, 181); border: 1px solid rgb(199, 210, 254); border-radius: 20px; padding: 4px 11px; font-size: 12px; cursor: pointer; font-weight: 600; flex-shrink: 0; white-space: nowrap; transition: 0.15s;"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 2l2 2L4 10H2V8L8 2z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path></svg> Edit</button></div></div></div><div style="background: rgb(255, 255, 255); border-bottom: 0.5px solid rgb(229, 227, 219); padding: 6px 26px; display: flex; align-items: center; justify-content: space-between; gap: 12px;"><div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1 1 0%; min-width: 0px;"><div style="display: flex; align-items: center; gap: 6px; background: rgb(239, 246, 255); border: 1px solid rgb(191, 219, 254); border-radius: 8px; padding: 5px 10px;"><span style="width: 7px; height: 7px; border-radius: 50%; background: rgb(59, 130, 246); flex-shrink: 0; display: inline-block;"></span><span style="font-size: 11.5px; font-weight: 700; color: rgb(29, 78, 216); white-space: nowrap;">Today · Token #1</span></div><span style="font-size: 11px; font-weight: 700; padding: 4px 11px; border-radius: 20px; white-space: nowrap; background: rgb(254, 249, 195); color: rgb(133, 77, 14); border: 1px solid rgb(253, 230, 138); display: inline-flex; align-items: center; gap: 5px;"><span style="width: 6px; height: 6px; border-radius: 50%; display: inline-block; background: rgb(245, 158, 11); animation: 1.5s ease 0s infinite normal none running pulse;"></span>Waiting</span><span style="font-size: 12px; color: rgb(55, 65, 81); font-weight: 600; white-space: nowrap;">zimal fatima</span><span style="font-size: 11px; color: rgb(209, 213, 219);">·</span><span style="font-size: 12px; color: rgb(107, 114, 128); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">—</span></div></div><div style="background: rgb(255, 255, 255); padding: 0px 26px; border-bottom: 0.5px solid rgb(229, 227, 219);"><div style="display: flex; position: relative;"><div style="position: absolute; bottom: 0px; height: 2px; background: rgb(78, 93, 181); border-radius: 2px; left: 0px; width: 102px; transition: left 0.28s cubic-bezier(0.4, 0, 0.2, 1), width 0.28s cubic-bezier(0.4, 0, 0.2, 1);"></div><div style="padding: 12px 15px; font-size: 12.5px; color: rgb(78, 93, 181); cursor: pointer; font-weight: 600; white-space: nowrap; transition: color 0.2s;">Visit History</div><div style="padding: 12px 15px; font-size: 12.5px; color: rgb(136, 136, 136); cursor: pointer; font-weight: 400; white-space: nowrap; transition: color 0.2s;">Health Info</div><div style="padding: 12px 15px; font-size: 12.5px; color: rgb(136, 136, 136); cursor: pointer; font-weight: 400; white-space: nowrap; transition: color 0.2s;">Vitals</div><div style="padding: 12px 15px; font-size: 12.5px; color: rgb(136, 136, 136); cursor: pointer; font-weight: 400; white-space: nowrap; transition: color 0.2s;">Prescriptions</div><div style="padding: 12px 15px; font-size: 12.5px; color: rgb(136, 136, 136); cursor: pointer; font-weight: 400; white-space: nowrap; transition: color 0.2s;">Documents</div><div style="padding: 12px 15px; font-size: 12.5px; color: rgb(136, 136, 136); cursor: pointer; font-weight: 400; white-space: nowrap; transition: color 0.2s;">All Appointments</div></div></div><div style="padding: 18px 26px; display: flex; gap: 10px; flex: 1 1 0%;"><div style="flex: 1 1 0%; min-width: 0px; animation: 0.22s cubic-bezier(0.4, 0, 0.2, 1) 0s 1 normal none running tabFadeIn;"><div style="display: flex; flex-direction: column; gap: 12px;"><div style="border: 1px solid rgb(221, 214, 254); border-radius: 10px; overflow: hidden; margin-bottom: 16px; background: linear-gradient(135deg, rgb(250, 245, 255) 0%, rgb(240, 249, 255) 100%);"><div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; cursor: pointer;"><div style="display: flex; align-items: center; gap: 7px;"><span style="color: rgb(124, 58, 237);"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1L7.5 5.5L12 6.5L7.5 7.5L6.5 12L5.5 7.5L1 6.5L5.5 5.5L6.5 1Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path></svg></span><span style="font-size: 12px; font-weight: 600; color: rgb(91, 33, 182);">AI Patient Summary</span><span style="font-size: 10px; background: rgb(237, 233, 254); color: rgb(109, 40, 217); padding: 1px 6px; border-radius: 6px;">Auto-generated</span></div><div style="display: flex; align-items: center; gap: 8px;"><button title="Regenerate summary" style="background: none; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; cursor: pointer; color: rgb(156, 163, 175); padding: 2px; display: flex; opacity: 1;"><span style="display: inline-block; animation: auto ease 0s 1 normal none running none;"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1.5 6.5A5 5 0 016.5 1.5a5 5 0 014.5 2.8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path><path d="M11.5 6.5A5 5 0 016.5 11.5a5 5 0 01-4.5-2.8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path><path d="M9 0.5l2 2.8-2.8.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"></path></svg></span></button><span style="color: rgb(156, 163, 175);"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 7.5L6 4.5L9 7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></span></div></div><div style="padding: 0px 14px 12px; border-top: 1px solid rgb(237, 233, 254);"><p style="font-size: 12px; color: rgb(156, 163, 175); line-height: 1.6; margin: 10px 0px 0px; font-style: italic;">Summary will be available after consultation history is created.</p></div></div><div style="text-align: center; padding: 48px 20px;"><div style="width: 48px; height: 48px; border-radius: 50%; background: rgb(243, 244, 246); display: flex; align-items: center; justify-content: center; margin: 0px auto 12px;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="3" stroke="#d1d5db" stroke-width="1.6"></rect><path d="M8 2v4M16 2v4M3 10h18M8 14h4M8 17h2" stroke="#d1d5db" stroke-width="1.6" stroke-linecap="round"></path></svg></div><div style="font-size: 14px; font-weight: 600; color: rgb(107, 114, 128); margin-bottom: 4px;">No visits recorded yet</div><div style="font-size: 12px; color: rgb(170, 170, 170); line-height: 1.5;">Start a consultation to begin recording visit history</div></div></div></div><div style="flex-shrink: 0; display: flex; flex-direction: column; gap: 14px; width: 244px;"><div style="background: rgb(255, 255, 255); border-radius: 12px; border: 0.5px solid rgb(229, 227, 219); padding: 14px 15px;"><div style="font-size: 12.5px; font-weight: 600; color: rgb(26, 26, 26); margin-bottom: 11px; display: flex; align-items: center; gap: 6px;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 11.5S1.5 8 1.5 4.5a3 3 0 015.5-1.5 3 3 0 015.5 1.5C12.5 8 7 11.5 7 11.5z" stroke="currentColor" stroke-width="1.2"></path></svg> Basic Health Info</div><div style="display: flex; justify-content: space-between; padding: 6px 0px; border-bottom: 0.5px solid rgb(240, 239, 235); font-size: 13px;"><span style="font-size: 11.5px; color: rgb(136, 136, 136);">Patient ID</span><span style="font-weight: 500; color: rgb(26, 26, 26);">CLI-2026-00008</span></div><div style="display: flex; justify-content: space-between; padding: 6px 0px; border-bottom: 0.5px solid rgb(240, 239, 235); font-size: 13px;"><span style="font-size: 11.5px; color: rgb(136, 136, 136);">Blood Group</span><span style="font-weight: 500; color: rgb(26, 26, 26);"><span style="color: rgb(220, 38, 38); font-weight: 700;">—</span></span></div><div style="display: flex; justify-content: space-between; padding: 6px 0px; border-bottom: 0.5px solid rgb(240, 239, 235); font-size: 13px;"><span style="font-size: 11.5px; color: rgb(136, 136, 136);">Height / Weight</span><span style="font-weight: 500; color: rgb(26, 26, 26);">— · —</span></div><div style="padding: 6px 0px; border-bottom: 0.5px solid rgb(240, 239, 235);"><div style="font-size: 11.5px; color: rgb(136, 136, 136); margin-bottom: 5px;">Allergies</div><div style="font-size: 11.5px; color: rgb(170, 170, 170); font-style: italic;">No allergies recorded</div></div><div style="padding: 6px 0px;"><div style="font-size: 11.5px; color: rgb(136, 136, 136); margin-bottom: 3px;">Current Meds</div><div style="font-size: 11.5px; color: rgb(55, 65, 81); font-weight: 500; line-height: 1.5;">None</div></div></div><div style="background: rgb(255, 255, 255); border-radius: 12px; border: 0.5px solid rgb(229, 227, 219); padding: 14px 15px;"><input accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" type="file" style="display: none;"><div style="font-size: 12.5px; font-weight: 600; color: rgb(26, 26, 26); margin-bottom: 11px; display: flex; align-items: center; gap: 6px;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="1" width="10" height="12" rx="2" stroke="currentColor" stroke-width="1.2"></rect><path d="M5 5h4M5 7.5h4M5 10h2.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"></path></svg> Documents</div><div style="font-size: 11.5px; color: rgb(170, 170, 170); text-align: center; padding: 10px 0px;">No documents yet</div><button style="margin-top: 10px; background: rgb(255, 255, 255); color: rgb(78, 93, 181); border: 0.5px solid rgb(30, 42, 120); border-radius: 7px; padding: 5px 10px; font-size: 11.5px; cursor: pointer; width: 100%; display: flex; align-items: center; justify-content: center; gap: 5px; font-weight: 500; opacity: 1;"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 8V2M3.5 4.5L6 2l2.5 2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path><path d="M1 9v1.5h10V9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></path></svg> Upload Document</button></div></div></div></div></div></div>
+
+
+
+    -webkit-text-size-adjust: 100%;
+    font-feature-settings: normal;
+    -webkit-tap-highlight-color: transparent;
+    font-variation-settings: normal;
+    tab-size: 4;
+    --qb-dialog-container-width: 320px;
+    --qb-dialog-container-height: 650px;
+    --qb-dialog-drag-handler-height: 16px;
+    --qb-toolbar-container-default-width: 48px;
+    --qb-comp-card-base-overflow: visible;
+    --qb-comp-card-base-background-color: transparent;
+    --qb-comp-card-base-box-shadow: none;
+    --qb-highlight-underline-thickness: 2px;
+    --qb-highlight-selected-underline-thickness: 2px;
+    --qb-highlight-underline-offset: 2px;
+    --qb-highlight-grammar-error-underline-color: #f2a6a6;
+    --qb-highlight-grammar-error-background-color: transparent;
+    --qb-highlight-grammar-error-selected-underline-color: #df2020;
+    --qb-highlight-grammar-error-selected-background-color: rgba(220, 38, 38, 0.1);
+    --qb-highlight-grammar-error-emphasized-underline-color: #df2020;
+    --qb-highlight-grammar-error-emphasized-background-color: rgba(220, 38, 38, 0.1);
+    --qb-highlight-spelling-error-underline-color: #f2a6a6;
+    --qb-highlight-spelling-error-background-color: transparent;
+    --qb-highlight-spelling-error-selected-underline-color: #df2020;
+    --qb-highlight-spelling-error-selected-background-color: rgba(220, 38, 38, 0.1);
+    --qb-highlight-spelling-error-emphasized-underline-color: #df2020;
+    --qb-highlight-spelling-error-emphasized-background-color: rgba(220, 38, 38, 0.1);
+    --qb-highlight-style-error-underline-color: #00000033;
+    --qb-highlight-style-error-background-color: transparent;
+    --qb-highlight-style-error-selected-underline-color: #b4b4b4;
+    --qb-highlight-style-error-selected-background-color: rgba(67, 67, 67, 0.1);
+    --qb-highlight-style-error-emphasized-underline-color: #b4b4b4;
+    --qb-highlight-style-error-emphasized-background-color: rgba(67, 67, 67, 0.1);
+    --qb-highlight-selection-paraphrase-word-underline-color: #0042d7;
+    --qb-highlight-selection-paraphrase-word-background-color: transparent;
+    --qb-highlight-selection-paraphrase-phrase-underline-color: #0042d7;
+    --qb-highlight-selection-paraphrase-phrase-background-color: rgb(0, 103, 197, 0.15);
+    --qb-highlight-selection-paraphrase-sentence-underline-color: transparent;
+    --qb-highlight-selection-paraphrase-sentence-background-color: rgb(0, 103, 197, 0.15);
+    --qb-highlight-selection-toolbox-word-underline-color: #00000033;
+    --qb-highlight-selection-toolbox-word-background-color: rgba(67, 67, 67, 0.1);
+    --qb-highlight-selection-toolbox-phrase-underline-color: #00000033;
+    --qb-highlight-selection-toolbox-phrase-background-color: rgb(0, 103, 197, 0.15);
+    --qb-highlight-selection-toolbox-sentence-underline-color: transparent;
+    --qb-highlight-selection-toolbox-sentence-background-color: rgb(0, 103, 197, 0.15);
+    --qb-highlight-sentence-from-hover-underline-color: transparent;
+    --qb-highlight-sentence-from-hover-background-color: rgba(67, 67, 67, 0.1);
+    --qb-highlight-word-from-hover-underline-color: transparent;
+    --qb-highlight-word-from-hover-background-color: rgba(67, 67, 67, 0.1);
+    --qb-highlight-sentence-from-caret-underline-color: #00000033;
+    --qb-highlight-sentence-from-caret-background-color: rgba(67, 67, 67, 0.1);
+    --qb-highlight-word-from-caret-underline-color: transparent;
+    --qb-highlight-word-from-caret-background-color: rgba(67, 67, 67, 0.1);
+    --qb-toolbox-onboarding-cta-pulse-color: rgba(23, 135, 51, 0.8);
+    --lt-color-gray-100: #f8f9fc;
+    --lt-color-gray-200: #f1f3f9;
+    --lt-color-gray-300: #dee3ed;
+    --lt-color-gray-400: #c2c9d6;
+    --lt-color-gray-500: #8f96a3;
+    --lt-color-gray-600: #5e636e;
+    --lt-color-gray-700: #2f3237;
+    --lt-color-gray-800: #1d1e20;
+    --lt-color-gray-900: #111213;
+    --lt-shadowDefault: 0 2px 6px -1px rgba(0, 0, 0, 0.16),0 1px 4px -1px rgba(0, 0, 0, 0.04);
+    --lt-shadowActive: 0 0 8px -2px rgba(0, 0, 0, 0.1),0 6px 20px -3px rgba(0, 0, 0, 0.2);
+    --lt-color-white: #fff !important;
+    --lt-color-black: #111213 !important;
+    --lt-color-transparent: rgba(255, 255, 255, 0) !important;
+    --lt-color-background-light: var(--lt-color-gray-100) !important;
+    --lt-color-background-default: var(--lt-color-gray-200) !important;
+    --lt-color-background-dark: var(--lt-color-gray-300) !important;
+    --lt-color-border-light: var(--lt-color-gray-200) !important;
+    --lt-color-border-default: var(--lt-color-gray-300) !important;
+    --lt-color-border-dark: var(--lt-color-gray-400) !important;
+    --lt-color-text-very-light: var(--lt-color-gray-500) !important;
+    --lt-color-text-light: var(--lt-color-gray-600) !important;
+    --lt-color-text-default: var(--lt-color-gray-700) !important;
+    --lt-color-text-dark: var(--lt-color-gray-800) !important;
+    --lt-color-overlay-default: #fff !important;
+    --lt-color-overlay-dark: #fff !important;
+    --lt-color-overlay-transparent: rgba(0, 0, 0, 0.1) !important;
+    --lt-shadow-website-overlay: 0 0 7px 0 rgba(0, 0, 0, 0.3) !important;
+    line-height: inherit;
+    -webkit-font-smoothing: antialiased;
+    font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen,Ubuntu,Cantarell,Fira Sans,Droid Sans,Helvetica Neue,sans-serif;
+    --tw-border-spacing-x: 0;
+    --tw-border-spacing-y: 0;
+    --tw-translate-x: 0;
+    --tw-translate-y: 0;
+    --tw-rotate: 0;
+    --tw-skew-x: 0;
+    --tw-skew-y: 0;
+    --tw-scale-x: 1;
+    --tw-scale-y: 1;
+    --tw-pan-x: ;
+    --tw-pan-y: ;
+    --tw-pinch-zoom: ;
+    --tw-scroll-snap-strictness: proximity;
+    --tw-gradient-from-position: ;
+    --tw-gradient-via-position: ;
+    --tw-gradient-to-position: ;
+    --tw-ordinal: ;
+    --tw-slashed-zero: ;
+    --tw-numeric-figure: ;
+    --tw-numeric-spacing: ;
+    --tw-numeric-fraction: ;
+    --tw-ring-inset: ;
+    --tw-ring-offset-width: 0px;
+    --tw-ring-offset-color: #fff;
+    --tw-ring-color: #3b82f680;
+    --tw-ring-offset-shadow: 0 0 #0000;
+    --tw-ring-shadow: 0 0 #0000;
+    --tw-shadow: 0 0 #0000;
+    --tw-shadow-colored: 0 0 #0000;
+    --tw-blur: ;
+    --tw-brightness: ;
+    --tw-contrast: ;
+    --tw-grayscale: ;
+    --tw-hue-rotate: ;
+    --tw-invert: ;
+    --tw-saturate: ;
+    --tw-sepia: ;
+    --tw-drop-shadow: ;
+    --tw-backdrop-blur: ;
+    --tw-backdrop-brightness: ;
+    --tw-backdrop-contrast: ;
+    --tw-backdrop-grayscale: ;
+    --tw-backdrop-hue-rotate: ;
+    --tw-backdrop-invert: ;
+    --tw-backdrop-opacity: ;
+    --tw-backdrop-saturate: ;
+    --tw-backdrop-sepia: ;
+    --tw-contain-size: ;
+    --tw-contain-layout: ;
+    --tw-contain-paint: ;
+    --tw-contain-style: ;
+    border: 0 solid #e5e7eb;
+    box-sizing: border-box;
+    flex: 1 1;
+    overflow-y: auto;
+    transition-property: all;
+    transition-timing-function: cubic-bezier(.4,0,.2,1);
+    transition-duration: .3s;
+    padding-bottom: 0px;

@@ -32,6 +32,23 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# dev server logs and pids
+*.log
+*.pid
+.server-pid
+
+# local editor/MCP config — holds personal access tokens
+.vscode/mcp.json
+
+# reference material, screenshots and downloaded starter kits — not app source
+/Asset/
+/Screenshot/
+/sc/
+/sc_extracted/
+/request/
+/medbook-ai-opencode-starter/
 
 # vercel
 .vercel
@@ -39,3 +56,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+certificates

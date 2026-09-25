@@ -1,0 +1,1461 @@
+<div class="flex-1 overflow-y-auto transition-all duration-300" style="padding-bottom: 0px">
+  <div class="w-full p-3 pb-24 sm:p-4 lg:p-6 lg:pb-6">
+    <div class="mx-auto w-full max-w-7xl">
+      <div class="mb-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 class="mb-1 text-xl font-bold text-gray-900 lg:text-2xl">Appointments</h1>
+            <p class="text-sm text-gray-600 lg:text-base">Manage and track patient appointments</p>
+          </div>
+          <button
+            class="rounded-full bg-[#4E5DB5] p-2.5 text-white shadow-sm transition-colors hover:bg-[#3e4b91]"
+            title="Book Consultation"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="lucide lucide-plus h-5 w-5"
+              aria-hidden="true"
+            >
+              <path d="M5 12h14"></path>
+              <path d="M12 5v14"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="mb-4 grid grid-cols-2 gap-2 lg:mb-8 lg:grid-cols-4 lg:gap-6">
+        <div class="rounded-lg border border-gray-200 bg-white p-3 shadow-sm lg:p-5">
+          <div class="flex items-center gap-2">
+            <div class="flex-shrink-0 rounded-lg bg-[#5260B5] bg-opacity-10 p-1.5">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="lucide lucide-calendar h-4 w-4 text-[#5260B5]"
+                aria-hidden="true"
+              >
+                <path d="M8 2v4"></path>
+                <path d="M16 2v4"></path>
+                <rect width="18" height="18" x="3" y="4" rx="2"></rect>
+                <path d="M3 10h18"></path>
+              </svg>
+            </div>
+            <div class="ml-1">
+              <p class="text-xs font-medium tracking-wide text-gray-500">Today</p>
+              <p class="text-xl font-bold text-gray-900">6</p>
+            </div>
+          </div>
+        </div>
+        <div class="rounded-lg border border-gray-200 bg-white p-3 shadow-sm lg:p-5">
+          <div class="flex items-center gap-2">
+            <div class="flex-shrink-0 rounded-lg bg-green-100 p-1.5">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="lucide lucide-circle-check-big h-4 w-4 text-green-600"
+                aria-hidden="true"
+              >
+                <path d="M21.801 10A10 10 0 1 1 17 3.335"></path>
+                <path d="m9 11 3 3L22 4"></path>
+              </svg>
+            </div>
+            <div class="ml-1">
+              <p class="text-xs font-medium tracking-wide text-gray-500">Confirmed</p>
+              <p class="text-xl font-bold text-gray-900">0</p>
+            </div>
+          </div>
+        </div>
+        <div class="rounded-lg border border-gray-200 bg-white p-3 shadow-sm lg:p-5">
+          <div class="flex items-center gap-2">
+            <div class="flex-shrink-0 rounded-lg bg-yellow-100 p-1.5">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="lucide lucide-circle-alert h-4 w-4 text-yellow-600"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" x2="12" y1="8" y2="12"></line>
+                <line x1="12" x2="12.01" y1="16" y2="16"></line>
+              </svg>
+            </div>
+            <div class="ml-1">
+              <p class="text-xs font-medium tracking-wide text-gray-500">Pending</p>
+              <p class="text-xl font-bold text-gray-900">4</p>
+            </div>
+          </div>
+        </div>
+        <div class="rounded-lg border border-gray-200 bg-white p-3 shadow-sm lg:p-5">
+          <div class="flex items-center gap-2">
+            <div class="flex-shrink-0 rounded-lg bg-red-100 p-1.5">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="lucide lucide-circle-x h-4 w-4 text-red-600"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="m15 9-6 6"></path>
+                <path d="m9 9 6 6"></path>
+              </svg>
+            </div>
+            <div class="ml-1">
+              <p class="text-xs font-medium tracking-wide text-gray-500">Cancelled</p>
+              <p class="text-xl font-bold text-gray-900">0</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div class="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-1.5 shadow-sm">
+          <div class="relative flex gap-1.5">
+            <div
+              class="absolute bottom-0 left-0 top-0 rounded-xl shadow-lg"
+              style="
+                background-color: rgb(78, 93, 181);
+                width: calc(50% - 3px);
+                transform: translateX(0px);
+                transition: transform 0.25s ease-out;
+                will-change: transform;
+              "
+            ></div>
+            <button
+              class="relative z-10 flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-lg transition-all"
+            >
+              Consultations</button
+            ><button
+              class="relative z-10 flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold text-gray-600 transition-all hover:bg-gray-50"
+            >
+              Services
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="w-full overflow-x-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div class="border-b border-gray-200 px-3 py-3 lg:px-6">
+          <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div class="tab-fade-right relative">
+              <div class="scrollbar-none flex gap-0 overflow-x-auto pb-1 pr-8 lg:pb-0">
+                <button
+                  class="flex-shrink-0 whitespace-nowrap border-b-2 border-transparent px-3 pb-2 text-sm font-medium capitalize text-gray-500 transition-all duration-300 ease-in-out hover:border-gray-300 hover:text-gray-700 lg:px-4"
+                >
+                  today</button
+                ><button
+                  class="flex-shrink-0 whitespace-nowrap border-b-2 border-[#5260B5] px-3 pb-2 text-sm font-medium capitalize text-[#5260B5] transition-all duration-300 ease-in-out lg:px-4"
+                >
+                  upcoming</button
+                ><button
+                  class="flex-shrink-0 whitespace-nowrap border-b-2 border-transparent px-3 pb-2 text-sm font-medium capitalize text-gray-500 transition-all duration-300 ease-in-out hover:border-gray-300 hover:text-gray-700 lg:px-4"
+                >
+                  completed</button
+                ><button
+                  class="flex-shrink-0 whitespace-nowrap border-b-2 border-transparent px-3 pb-2 text-sm font-medium capitalize text-gray-500 transition-all duration-300 ease-in-out hover:border-gray-300 hover:text-gray-700 lg:px-4"
+                >
+                  all</button
+                ><button
+                  class="flex-shrink-0 whitespace-nowrap border-b-2 border-transparent px-3 pb-2 text-sm font-medium capitalize text-gray-500 transition-all duration-300 ease-in-out hover:border-gray-300 hover:text-gray-700 lg:px-4"
+                >
+                  cancelled
+                </button>
+              </div>
+            </div>
+            <div class="flex w-full items-center gap-1.5 lg:w-auto">
+              <div class="relative flex-1 lg:flex-none">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="lucide lucide-search absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-gray-400"
+                  aria-hidden="true"
+                >
+                  <path d="m21 21-4.34-4.34"></path>
+                  <circle cx="11" cy="11" r="8"></circle></svg
+                ><input
+                  placeholder="Search..."
+                  class="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-[#5260B5] focus:outline-none focus:ring-2 focus:ring-[#5260B5] lg:w-56"
+                  type="text"
+                  value=""
+                />
+              </div>
+              <button
+                class="flex items-center space-x-2 rounded-lg border border-gray-300 px-3 py-2 text-sm transition-all duration-200 hover:scale-105 hover:bg-gray-50 active:scale-95"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="lucide lucide-funnel h-4 w-4"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"
+                  ></path></svg
+                ><span class="xs:inline hidden sm:inline">Filters</span
+                ><svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="lucide lucide-chevron-down h-3 w-3 rotate-180 transition-transform"
+                  aria-hidden="true"
+                >
+                  <path d="m6 9 6 6 6-6"></path>
+                </svg></button
+              ><button
+                class="flex items-center space-x-2 rounded-lg border border-gray-300 px-3 py-2 text-sm transition-all duration-200 hover:scale-105 hover:bg-gray-50 active:scale-95"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="lucide lucide-download h-4 w-4"
+                  aria-hidden="true"
+                >
+                  <path d="M12 15V3"></path>
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <path d="m7 10 5 5 5-5"></path></svg
+                ><span class="xs:inline hidden sm:inline">Export</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div
+          class="animate-fade-in-down hidden border-b border-gray-200 bg-gray-50 px-6 py-4 lg:block"
+          style="animation-duration: 0.15s"
+        >
+          <div class="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm lg:p-6">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 lg:gap-4">
+              <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">Doctor</label>
+                <div class="filter-dropdown-container relative">
+                  <button
+                    class="flex w-full items-center justify-between rounded-xl border border-gray-300 bg-white px-4 py-3 text-left shadow-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-md focus:border-[#4E5DB5] focus:outline-none focus:ring-2 focus:ring-[#4E5DB5] active:scale-[0.98]"
+                  >
+                    <span class="text-gray-400">All Doctors</span
+                    ><svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="lucide lucide-chevron-down h-4 w-4 text-gray-400 transition-transform duration-200"
+                      aria-hidden="true"
+                    >
+                      <path d="m6 9 6 6 6-6"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">Status</label>
+                <div class="filter-dropdown-container relative">
+                  <button
+                    class="flex w-full items-center justify-between rounded-xl border border-gray-300 bg-white px-4 py-3 text-left shadow-sm transition-all duration-200 hover:shadow-md focus:border-[#4E5DB5] focus:outline-none focus:ring-2 focus:ring-[#4E5DB5]"
+                  >
+                    <span class="text-gray-400">All Statuses</span
+                    ><svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="lucide lucide-chevron-down h-4 w-4 text-gray-400 transition-transform duration-200"
+                      aria-hidden="true"
+                    >
+                      <path d="m6 9 6 6 6-6"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">Source</label>
+                <div class="filter-dropdown-container relative">
+                  <button
+                    class="flex w-full items-center justify-between rounded-xl border border-gray-300 bg-white px-4 py-3 text-left shadow-sm transition-all duration-200 hover:shadow-md focus:border-[#4E5DB5] focus:outline-none focus:ring-2 focus:ring-[#4E5DB5]"
+                  >
+                    <span class="text-gray-400">All Sources</span
+                    ><svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="lucide lucide-chevron-down h-4 w-4 text-gray-400 transition-transform duration-200"
+                      aria-hidden="true"
+                    >
+                      <path d="m6 9 6 6 6-6"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">Date Range</label>
+                <div class="filter-dropdown-container relative" style="z-index: auto">
+                  <button
+                    class="flex w-full items-center justify-between rounded-xl border border-gray-300 bg-white px-4 py-3 text-left shadow-sm transition-all duration-200 hover:shadow-md focus:border-[#4E5DB5] focus:outline-none focus:ring-2 focus:ring-[#4E5DB5]"
+                  >
+                    <span class="text-gray-400">Select Date</span
+                    ><svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="lucide lucide-chevron-down h-4 w-4 text-gray-400 transition-transform duration-200"
+                      aria-hidden="true"
+                    >
+                      <path d="m6 9 6 6 6-6"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div class="flex items-end">
+                <button
+                  disabled=""
+                  class="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-gray-100 px-4 py-3 font-medium text-gray-400 shadow-sm transition-all duration-200"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="lucide lucide-x h-4 w-4"
+                    aria-hidden="true"
+                  >
+                    <path d="M18 6 6 18"></path>
+                    <path d="m6 6 12 12"></path></svg
+                  ><span>Clear All</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="hidden border-b border-gray-200 bg-gray-50 px-6 py-3 lg:block">
+          <div
+            class="grid grid-cols-12 gap-4 text-xs font-medium uppercase tracking-wide text-gray-500"
+          >
+            <div class="col-span-3">Patient</div>
+            <div class="col-span-2">Doctor</div>
+            <div class="col-span-3">Date &amp; Slot</div>
+            <div class="col-span-1">Token</div>
+            <div class="col-span-2">Status</div>
+            <div class="col-span-1">Actions</div>
+          </div>
+        </div>
+        <div class="divide-y divide-gray-100">
+          <div>
+            <div class="px-3 py-2 transition-colors hover:bg-gray-50 lg:hidden">
+              <div class="flex items-center gap-2">
+                <div
+                  class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#5260B5] to-[#4a56a5] text-white"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="lucide lucide-circle-user h-4 w-4"
+                    aria-hidden="true"
+                  >
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <circle cx="12" cy="10" r="3"></circle>
+                    <path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"></path>
+                  </svg>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="truncate text-sm font-semibold text-gray-900">Hameed</p>
+                    <span class="inline-flex flex-wrap items-center gap-1"
+                      ><span
+                        class="inline-flex items-center whitespace-nowrap rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700"
+                        ><svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          class="lucide lucide-clock3 lucide-clock-3 mr-1 h-3 w-3 flex-shrink-0"
+                          aria-hidden="true"
+                        >
+                          <path d="M12 6v6h4"></path>
+                          <circle cx="12" cy="12" r="10"></circle></svg
+                        >Scheduled</span
+                      ></span
+                    >
+                  </div>
+                  <div class="mt-0.5 flex items-center justify-between gap-2">
+                    <p class="truncate text-xs text-gray-500">
+                      zimal fatima · 23-09-2026 · 7:30 PM - 8:00 PM
+                    </p>
+                    <div class="flex flex-shrink-0 items-center gap-1">
+                      <span
+                        class="rounded bg-[#5260B5] bg-opacity-10 px-1.5 py-0.5 text-xs font-bold text-[#5260B5]"
+                        >—</span
+                      ><button
+                        class="rounded-lg p-1.5 text-[#5260B5] transition-colors hover:bg-[#5260B5] hover:bg-opacity-10"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          class="lucide lucide-eye h-4 w-4"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"
+                          ></path>
+                          <circle cx="12" cy="12" r="3"></circle>
+                        </svg></button
+                      ><button
+                        class="mobile-action-btn rounded-lg p-1.5 text-gray-600 transition-colors hover:bg-gray-100 focus:outline-none"
+                        data-appointment-id="6396"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          class="lucide lucide-ellipsis-vertical h-4 w-4"
+                          aria-hidden="true"
+                        >
+                          <circle cx="12" cy="12" r="1"></circle>
+                          <circle cx="12" cy="5" r="1"></circle>
+                          <circle cx="12" cy="19" r="1"></circle>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="hidden px-6 py-2.5 transition-all duration-200 hover:bg-gray-50 hover:shadow-sm lg:block"
+            >
+              <div class="grid grid-cols-12 items-center gap-4">
+                <div class="col-span-3">
+                  <div class="flex items-center space-x-3">
+                    <div
+                      class="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#5260B5] to-[#4a56a5] text-white"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="lucide lucide-circle-user h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <circle cx="12" cy="10" r="3"></circle>
+                        <path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"></path>
+                      </svg>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <p class="text-sm font-medium text-gray-900">Hameed</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-span-2"><p class="text-sm text-gray-700">zimal fatima</p></div>
+                <div class="col-span-3">
+                  <p class="text-sm font-medium text-gray-900">23-09-2026</p>
+                  <p class="mt-1 flex items-center text-xs text-gray-500">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="lucide lucide-clock mr-1 h-3 w-3"
+                      aria-hidden="true"
+                    >
+                      <path d="M12 6v6l4 2"></path>
+                      <circle cx="12" cy="12" r="10"></circle></svg
+                    >7:30 PM - 8:00 PM
+                  </p>
+                </div>
+                <div class="col-span-1">
+                  <span
+                    class="rounded bg-[#5260B5] bg-opacity-10 px-1.5 py-0.5 text-xs font-bold text-[#5260B5]"
+                    >—</span
+                  >
+                </div>
+                <div class="col-span-2">
+                  <span class="inline-flex flex-wrap items-center gap-1"
+                    ><span
+                      class="inline-flex items-center whitespace-nowrap rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700"
+                      ><svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="lucide lucide-clock3 lucide-clock-3 mr-1 h-3 w-3 flex-shrink-0"
+                        aria-hidden="true"
+                      >
+                        <path d="M12 6v6h4"></path>
+                        <circle cx="12" cy="12" r="10"></circle></svg
+                      >Scheduled</span
+                    ></span
+                  >
+                </div>
+                <div class="relative col-span-1">
+                  <div class="flex items-center justify-end space-x-1">
+                    <button
+                      class="rounded-lg p-1.5 text-[#5260B5] transition-all duration-150 hover:scale-110 hover:bg-[#5260B5] hover:bg-opacity-10 active:scale-95"
+                      title="View Details"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="lucide lucide-eye h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"
+                        ></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </svg></button
+                    ><button
+                      class="desktop-action-btn mobile-action-btn relative z-10 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-200 focus:outline-none"
+                      data-appointment-id="6396"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="lucide lucide-ellipsis-vertical h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <circle cx="12" cy="12" r="1"></circle>
+                        <circle cx="12" cy="5" r="1"></circle>
+                        <circle cx="12" cy="19" r="1"></circle>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="px-3 py-2 transition-colors hover:bg-gray-50 lg:hidden">
+              <div class="flex items-center gap-2">
+                <div
+                  class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#5260B5] to-[#4a56a5] text-white"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="lucide lucide-circle-user h-4 w-4"
+                    aria-hidden="true"
+                  >
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <circle cx="12" cy="10" r="3"></circle>
+                    <path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"></path>
+                  </svg>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="truncate text-sm font-semibold text-gray-900">Sajid</p>
+                    <span class="inline-flex flex-wrap items-center gap-1"
+                      ><span
+                        class="inline-flex items-center whitespace-nowrap rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700"
+                        ><svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          class="lucide lucide-clock3 lucide-clock-3 mr-1 h-3 w-3 flex-shrink-0"
+                          aria-hidden="true"
+                        >
+                          <path d="M12 6v6h4"></path>
+                          <circle cx="12" cy="12" r="10"></circle></svg
+                        >Scheduled</span
+                      ></span
+                    >
+                  </div>
+                  <div class="mt-0.5 flex items-center justify-between gap-2">
+                    <p class="truncate text-xs text-gray-500">
+                      zimal fatima · 23-09-2026 · 7:00 PM - 7:30 PM
+                    </p>
+                    <div class="flex flex-shrink-0 items-center gap-1">
+                      <span
+                        class="rounded bg-[#5260B5] bg-opacity-10 px-1.5 py-0.5 text-xs font-bold text-[#5260B5]"
+                        >—</span
+                      ><button
+                        class="rounded-lg p-1.5 text-[#5260B5] transition-colors hover:bg-[#5260B5] hover:bg-opacity-10"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          class="lucide lucide-eye h-4 w-4"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"
+                          ></path>
+                          <circle cx="12" cy="12" r="3"></circle>
+                        </svg></button
+                      ><button
+                        class="mobile-action-btn rounded-lg p-1.5 text-gray-600 transition-colors hover:bg-gray-100 focus:outline-none"
+                        data-appointment-id="6395"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          class="lucide lucide-ellipsis-vertical h-4 w-4"
+                          aria-hidden="true"
+                        >
+                          <circle cx="12" cy="12" r="1"></circle>
+                          <circle cx="12" cy="5" r="1"></circle>
+                          <circle cx="12" cy="19" r="1"></circle>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="hidden px-6 py-2.5 transition-all duration-200 hover:bg-gray-50 hover:shadow-sm lg:block"
+            >
+              <div class="grid grid-cols-12 items-center gap-4">
+                <div class="col-span-3">
+                  <div class="flex items-center space-x-3">
+                    <div
+                      class="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#5260B5] to-[#4a56a5] text-white"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="lucide lucide-circle-user h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <circle cx="12" cy="10" r="3"></circle>
+                        <path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"></path>
+                      </svg>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <p class="text-sm font-medium text-gray-900">Sajid</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-span-2"><p class="text-sm text-gray-700">zimal fatima</p></div>
+                <div class="col-span-3">
+                  <p class="text-sm font-medium text-gray-900">23-09-2026</p>
+                  <p class="mt-1 flex items-center text-xs text-gray-500">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="lucide lucide-clock mr-1 h-3 w-3"
+                      aria-hidden="true"
+                    >
+                      <path d="M12 6v6l4 2"></path>
+                      <circle cx="12" cy="12" r="10"></circle></svg
+                    >7:00 PM - 7:30 PM
+                  </p>
+                </div>
+                <div class="col-span-1">
+                  <span
+                    class="rounded bg-[#5260B5] bg-opacity-10 px-1.5 py-0.5 text-xs font-bold text-[#5260B5]"
+                    >—</span
+                  >
+                </div>
+                <div class="col-span-2">
+                  <span class="inline-flex flex-wrap items-center gap-1"
+                    ><span
+                      class="inline-flex items-center whitespace-nowrap rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700"
+                      ><svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="lucide lucide-clock3 lucide-clock-3 mr-1 h-3 w-3 flex-shrink-0"
+                        aria-hidden="true"
+                      >
+                        <path d="M12 6v6h4"></path>
+                        <circle cx="12" cy="12" r="10"></circle></svg
+                      >Scheduled</span
+                    ></span
+                  >
+                </div>
+                <div class="relative col-span-1">
+                  <div class="flex items-center justify-end space-x-1">
+                    <button
+                      class="rounded-lg p-1.5 text-[#5260B5] transition-all duration-150 hover:scale-110 hover:bg-[#5260B5] hover:bg-opacity-10 active:scale-95"
+                      title="View Details"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="lucide lucide-eye h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"
+                        ></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </svg></button
+                    ><button
+                      class="desktop-action-btn mobile-action-btn relative z-10 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-200 focus:outline-none"
+                      data-appointment-id="6395"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="lucide lucide-ellipsis-vertical h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <circle cx="12" cy="12" r="1"></circle>
+                        <circle cx="12" cy="5" r="1"></circle>
+                        <circle cx="12" cy="19" r="1"></circle>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="px-3 py-2 transition-colors hover:bg-gray-50 lg:hidden">
+              <div class="flex items-center gap-2">
+                <div
+                  class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#5260B5] to-[#4a56a5] text-white"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="lucide lucide-circle-user h-4 w-4"
+                    aria-hidden="true"
+                  >
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <circle cx="12" cy="10" r="3"></circle>
+                    <path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"></path>
+                  </svg>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="truncate text-sm font-semibold text-gray-900">Zemu</p>
+                    <span class="inline-flex flex-wrap items-center gap-1"
+                      ><span
+                        class="inline-flex items-center whitespace-nowrap rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700"
+                        ><svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          class="lucide lucide-clock3 lucide-clock-3 mr-1 h-3 w-3 flex-shrink-0"
+                          aria-hidden="true"
+                        >
+                          <path d="M12 6v6h4"></path>
+                          <circle cx="12" cy="12" r="10"></circle></svg
+                        >Scheduled</span
+                      ></span
+                    >
+                  </div>
+                  <div class="mt-0.5 flex items-center justify-between gap-2">
+                    <p class="truncate text-xs text-gray-500">
+                      zimal fatima · 24-09-2026 · 9:00 AM - 10:00 AM
+                    </p>
+                    <div class="flex flex-shrink-0 items-center gap-1">
+                      <span
+                        class="rounded bg-[#5260B5] bg-opacity-10 px-1.5 py-0.5 text-xs font-bold text-[#5260B5]"
+                        >—</span
+                      ><button
+                        class="rounded-lg p-1.5 text-[#5260B5] transition-colors hover:bg-[#5260B5] hover:bg-opacity-10"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          class="lucide lucide-eye h-4 w-4"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"
+                          ></path>
+                          <circle cx="12" cy="12" r="3"></circle>
+                        </svg></button
+                      ><button
+                        class="mobile-action-btn rounded-lg p-1.5 text-gray-600 transition-colors hover:bg-gray-100 focus:outline-none"
+                        data-appointment-id="6379"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          class="lucide lucide-ellipsis-vertical h-4 w-4"
+                          aria-hidden="true"
+                        >
+                          <circle cx="12" cy="12" r="1"></circle>
+                          <circle cx="12" cy="5" r="1"></circle>
+                          <circle cx="12" cy="19" r="1"></circle>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="hidden px-6 py-2.5 transition-all duration-200 hover:bg-gray-50 hover:shadow-sm lg:block"
+            >
+              <div class="grid grid-cols-12 items-center gap-4">
+                <div class="col-span-3">
+                  <div class="flex items-center space-x-3">
+                    <div
+                      class="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#5260B5] to-[#4a56a5] text-white"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="lucide lucide-circle-user h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <circle cx="12" cy="10" r="3"></circle>
+                        <path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"></path>
+                      </svg>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <p class="text-sm font-medium text-gray-900">Zemu</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-span-2"><p class="text-sm text-gray-700">zimal fatima</p></div>
+                <div class="col-span-3">
+                  <p class="text-sm font-medium text-gray-900">24-09-2026</p>
+                  <p class="mt-1 flex items-center text-xs text-gray-500">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="lucide lucide-clock mr-1 h-3 w-3"
+                      aria-hidden="true"
+                    >
+                      <path d="M12 6v6l4 2"></path>
+                      <circle cx="12" cy="12" r="10"></circle></svg
+                    >9:00 AM - 10:00 AM
+                  </p>
+                </div>
+                <div class="col-span-1">
+                  <span
+                    class="rounded bg-[#5260B5] bg-opacity-10 px-1.5 py-0.5 text-xs font-bold text-[#5260B5]"
+                    >—</span
+                  >
+                </div>
+                <div class="col-span-2">
+                  <span class="inline-flex flex-wrap items-center gap-1"
+                    ><span
+                      class="inline-flex items-center whitespace-nowrap rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700"
+                      ><svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="lucide lucide-clock3 lucide-clock-3 mr-1 h-3 w-3 flex-shrink-0"
+                        aria-hidden="true"
+                      >
+                        <path d="M12 6v6h4"></path>
+                        <circle cx="12" cy="12" r="10"></circle></svg
+                      >Scheduled</span
+                    ></span
+                  >
+                </div>
+                <div class="relative col-span-1">
+                  <div class="flex items-center justify-end space-x-1">
+                    <button
+                      class="rounded-lg p-1.5 text-[#5260B5] transition-all duration-150 hover:scale-110 hover:bg-[#5260B5] hover:bg-opacity-10 active:scale-95"
+                      title="View Details"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="lucide lucide-eye h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"
+                        ></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </svg></button
+                    ><button
+                      class="desktop-action-btn mobile-action-btn relative z-10 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-200 focus:outline-none"
+                      data-appointment-id="6379"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="lucide lucide-ellipsis-vertical h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <circle cx="12" cy="12" r="1"></circle>
+                        <circle cx="12" cy="5" r="1"></circle>
+                        <circle cx="12" cy="19" r="1"></circle>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="px-3 py-2 transition-colors hover:bg-gray-50 lg:hidden">
+              <div class="flex items-center gap-2">
+                <div
+                  class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#5260B5] to-[#4a56a5] text-white"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="lucide lucide-circle-user h-4 w-4"
+                    aria-hidden="true"
+                  >
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <circle cx="12" cy="10" r="3"></circle>
+                    <path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"></path>
+                  </svg>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="truncate text-sm font-semibold text-gray-900">Bashir</p>
+                    <span class="inline-flex flex-wrap items-center gap-1"
+                      ><span
+                        class="inline-flex items-center whitespace-nowrap rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700"
+                        ><svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          class="lucide lucide-clock3 lucide-clock-3 mr-1 h-3 w-3 flex-shrink-0"
+                          aria-hidden="true"
+                        >
+                          <path d="M12 6v6h4"></path>
+                          <circle cx="12" cy="12" r="10"></circle></svg
+                        >Scheduled</span
+                      ></span
+                    >
+                  </div>
+                  <div class="mt-0.5 flex items-center justify-between gap-2">
+                    <p class="truncate text-xs text-gray-500">
+                      zimal fatima · 25-09-2026 · 9:00 AM - 10:00 AM
+                    </p>
+                    <div class="flex flex-shrink-0 items-center gap-1">
+                      <span
+                        class="rounded bg-[#5260B5] bg-opacity-10 px-1.5 py-0.5 text-xs font-bold text-[#5260B5]"
+                        >—</span
+                      ><button
+                        class="rounded-lg p-1.5 text-[#5260B5] transition-colors hover:bg-[#5260B5] hover:bg-opacity-10"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          class="lucide lucide-eye h-4 w-4"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"
+                          ></path>
+                          <circle cx="12" cy="12" r="3"></circle>
+                        </svg></button
+                      ><button
+                        class="mobile-action-btn rounded-lg p-1.5 text-gray-600 transition-colors hover:bg-gray-100 focus:outline-none"
+                        data-appointment-id="6397"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          class="lucide lucide-ellipsis-vertical h-4 w-4"
+                          aria-hidden="true"
+                        >
+                          <circle cx="12" cy="12" r="1"></circle>
+                          <circle cx="12" cy="5" r="1"></circle>
+                          <circle cx="12" cy="19" r="1"></circle>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="hidden px-6 py-2.5 transition-all duration-200 hover:bg-gray-50 hover:shadow-sm lg:block"
+            >
+              <div class="grid grid-cols-12 items-center gap-4">
+                <div class="col-span-3">
+                  <div class="flex items-center space-x-3">
+                    <div
+                      class="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#5260B5] to-[#4a56a5] text-white"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="lucide lucide-circle-user h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <circle cx="12" cy="10" r="3"></circle>
+                        <path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"></path>
+                      </svg>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <p class="text-sm font-medium text-gray-900">Bashir</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-span-2"><p class="text-sm text-gray-700">zimal fatima</p></div>
+                <div class="col-span-3">
+                  <p class="text-sm font-medium text-gray-900">25-09-2026</p>
+                  <p class="mt-1 flex items-center text-xs text-gray-500">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="lucide lucide-clock mr-1 h-3 w-3"
+                      aria-hidden="true"
+                    >
+                      <path d="M12 6v6l4 2"></path>
+                      <circle cx="12" cy="12" r="10"></circle></svg
+                    >9:00 AM - 10:00 AM
+                  </p>
+                </div>
+                <div class="col-span-1">
+                  <span
+                    class="rounded bg-[#5260B5] bg-opacity-10 px-1.5 py-0.5 text-xs font-bold text-[#5260B5]"
+                    >—</span
+                  >
+                </div>
+                <div class="col-span-2">
+                  <span class="inline-flex flex-wrap items-center gap-1"
+                    ><span
+                      class="inline-flex items-center whitespace-nowrap rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700"
+                      ><svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="lucide lucide-clock3 lucide-clock-3 mr-1 h-3 w-3 flex-shrink-0"
+                        aria-hidden="true"
+                      >
+                        <path d="M12 6v6h4"></path>
+                        <circle cx="12" cy="12" r="10"></circle></svg
+                      >Scheduled</span
+                    ></span
+                  >
+                </div>
+                <div class="relative col-span-1">
+                  <div class="flex items-center justify-end space-x-1">
+                    <button
+                      class="rounded-lg p-1.5 text-[#5260B5] transition-all duration-150 hover:scale-110 hover:bg-[#5260B5] hover:bg-opacity-10 active:scale-95"
+                      title="View Details"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="lucide lucide-eye h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"
+                        ></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </svg></button
+                    ><button
+                      class="desktop-action-btn mobile-action-btn relative z-10 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-200 focus:outline-none"
+                      data-appointment-id="6397"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="lucide lucide-ellipsis-vertical h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <circle cx="12" cy="12" r="1"></circle>
+                        <circle cx="12" cy="5" r="1"></circle>
+                        <circle cx="12" cy="19" r="1"></circle>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+-webkit-text-size-adjust: 100%; font-feature-settings: normal; -webkit-tap-highlight-color:
+transparent; font-variation-settings: normal; tab-size: 4; --qb-dialog-container-width: 320px;
+--qb-dialog-container-height: 650px; --qb-dialog-drag-handler-height: 16px;
+--qb-toolbar-container-default-width: 48px; --qb-comp-card-base-overflow: visible;
+--qb-comp-card-base-background-color: transparent; --qb-comp-card-base-box-shadow: none;
+--qb-highlight-underline-thickness: 2px; --qb-highlight-selected-underline-thickness: 2px;
+--qb-highlight-underline-offset: 2px; --qb-highlight-grammar-error-underline-color: #f2a6a6;
+--qb-highlight-grammar-error-background-color: transparent;
+--qb-highlight-grammar-error-selected-underline-color: #df2020;
+--qb-highlight-grammar-error-selected-background-color: rgba(220, 38, 38, 0.1);
+--qb-highlight-grammar-error-emphasized-underline-color: #df2020;
+--qb-highlight-grammar-error-emphasized-background-color: rgba(220, 38, 38, 0.1);
+--qb-highlight-spelling-error-underline-color: #f2a6a6;
+--qb-highlight-spelling-error-background-color: transparent;
+--qb-highlight-spelling-error-selected-underline-color: #df2020;
+--qb-highlight-spelling-error-selected-background-color: rgba(220, 38, 38, 0.1);
+--qb-highlight-spelling-error-emphasized-underline-color: #df2020;
+--qb-highlight-spelling-error-emphasized-background-color: rgba(220, 38, 38, 0.1);
+--qb-highlight-style-error-underline-color: #00000033; --qb-highlight-style-error-background-color:
+transparent; --qb-highlight-style-error-selected-underline-color: #b4b4b4;
+--qb-highlight-style-error-selected-background-color: rgba(67, 67, 67, 0.1);
+--qb-highlight-style-error-emphasized-underline-color: #b4b4b4;
+--qb-highlight-style-error-emphasized-background-color: rgba(67, 67, 67, 0.1);
+--qb-highlight-selection-paraphrase-word-underline-color: #0042d7;
+--qb-highlight-selection-paraphrase-word-background-color: transparent;
+--qb-highlight-selection-paraphrase-phrase-underline-color: #0042d7;
+--qb-highlight-selection-paraphrase-phrase-background-color: rgb(0, 103, 197, 0.15);
+--qb-highlight-selection-paraphrase-sentence-underline-color: transparent;
+--qb-highlight-selection-paraphrase-sentence-background-color: rgb(0, 103, 197, 0.15);
+--qb-highlight-selection-toolbox-word-underline-color: #00000033;
+--qb-highlight-selection-toolbox-word-background-color: rgba(67, 67, 67, 0.1);
+--qb-highlight-selection-toolbox-phrase-underline-color: #00000033;
+--qb-highlight-selection-toolbox-phrase-background-color: rgb(0, 103, 197, 0.15);
+--qb-highlight-selection-toolbox-sentence-underline-color: transparent;
+--qb-highlight-selection-toolbox-sentence-background-color: rgb(0, 103, 197, 0.15);
+--qb-highlight-sentence-from-hover-underline-color: transparent;
+--qb-highlight-sentence-from-hover-background-color: rgba(67, 67, 67, 0.1);
+--qb-highlight-word-from-hover-underline-color: transparent;
+--qb-highlight-word-from-hover-background-color: rgba(67, 67, 67, 0.1);
+--qb-highlight-sentence-from-caret-underline-color: #00000033;
+--qb-highlight-sentence-from-caret-background-color: rgba(67, 67, 67, 0.1);
+--qb-highlight-word-from-caret-underline-color: transparent;
+--qb-highlight-word-from-caret-background-color: rgba(67, 67, 67, 0.1);
+--qb-toolbox-onboarding-cta-pulse-color: rgba(23, 135, 51, 0.8); --lt-color-gray-100: #f8f9fc;
+--lt-color-gray-200: #f1f3f9; --lt-color-gray-300: #dee3ed; --lt-color-gray-400: #c2c9d6;
+--lt-color-gray-500: #8f96a3; --lt-color-gray-600: #5e636e; --lt-color-gray-700: #2f3237;
+--lt-color-gray-800: #1d1e20; --lt-color-gray-900: #111213; --lt-shadowDefault: 0 2px 6px -1px
+rgba(0, 0, 0, 0.16),0 1px 4px -1px rgba(0, 0, 0, 0.04); --lt-shadowActive: 0 0 8px -2px rgba(0, 0,
+0, 0.1),0 6px 20px -3px rgba(0, 0, 0, 0.2); --lt-color-white: #fff !important; --lt-color-black:
+#111213 !important; --lt-color-transparent: rgba(255, 255, 255, 0) !important;
+--lt-color-background-light: var(--lt-color-gray-100) !important; --lt-color-background-default:
+var(--lt-color-gray-200) !important; --lt-color-background-dark: var(--lt-color-gray-300)
+!important; --lt-color-border-light: var(--lt-color-gray-200) !important; --lt-color-border-default:
+var(--lt-color-gray-300) !important; --lt-color-border-dark: var(--lt-color-gray-400) !important;
+--lt-color-text-very-light: var(--lt-color-gray-500) !important; --lt-color-text-light:
+var(--lt-color-gray-600) !important; --lt-color-text-default: var(--lt-color-gray-700) !important;
+--lt-color-text-dark: var(--lt-color-gray-800) !important; --lt-color-overlay-default: #fff
+!important; --lt-color-overlay-dark: #fff !important; --lt-color-overlay-transparent: rgba(0, 0, 0,
+0.1) !important; --lt-shadow-website-overlay: 0 0 7px 0 rgba(0, 0, 0, 0.3) !important; line-height:
+inherit; -webkit-font-smoothing: antialiased; font-family: -apple-system,BlinkMacSystemFont,Segoe
+UI,Roboto,Oxygen,Ubuntu,Cantarell,Fira Sans,Droid Sans,Helvetica Neue,sans-serif;
+--tw-border-spacing-x: 0; --tw-border-spacing-y: 0; --tw-translate-x: 0; --tw-translate-y: 0;
+--tw-rotate: 0; --tw-skew-x: 0; --tw-skew-y: 0; --tw-scale-x: 1; --tw-scale-y: 1; --tw-pan-x: ;
+--tw-pan-y: ; --tw-pinch-zoom: ; --tw-scroll-snap-strictness: proximity;
+--tw-gradient-from-position: ; --tw-gradient-via-position: ; --tw-gradient-to-position: ;
+--tw-ordinal: ; --tw-slashed-zero: ; --tw-numeric-figure: ; --tw-numeric-spacing: ;
+--tw-numeric-fraction: ; --tw-ring-inset: ; --tw-ring-offset-width: 0px; --tw-ring-offset-color:
+#fff; --tw-ring-color: #3b82f680; --tw-ring-offset-shadow: 0 0 #0000; --tw-ring-shadow: 0 0 #0000;
+--tw-shadow: 0 0 #0000; --tw-shadow-colored: 0 0 #0000; --tw-blur: ; --tw-brightness: ;
+--tw-contrast: ; --tw-grayscale: ; --tw-hue-rotate: ; --tw-invert: ; --tw-saturate: ; --tw-sepia: ;
+--tw-drop-shadow: ; --tw-backdrop-blur: ; --tw-backdrop-brightness: ; --tw-backdrop-contrast: ;
+--tw-backdrop-grayscale: ; --tw-backdrop-hue-rotate: ; --tw-backdrop-invert: ;
+--tw-backdrop-opacity: ; --tw-backdrop-saturate: ; --tw-backdrop-sepia: ; --tw-contain-size: ;
+--tw-contain-layout: ; --tw-contain-paint: ; --tw-contain-style: ; border: 0 solid #e5e7eb;
+box-sizing: border-box; flex: 1 1; overflow-y: auto; transition-property: all;
+transition-timing-function: cubic-bezier(.4,0,.2,1); transition-duration: .3s; padding-bottom: 0px;

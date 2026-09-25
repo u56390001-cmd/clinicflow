@@ -1,0 +1,915 @@
+{
+  "$schema": "design-system-profile/v1",
+  "meta": {
+    "name": "Doxmate Clinical Dashboard Design System",
+    "description": "A clean, professional SaaS dashboard design system for healthcare/clinic management. Prioritises clarity, information density, and workflow efficiency over decorative elements. The aesthetic is modern corporate SaaS — flat, card-based, with subtle depth through shadows and colour-coded status indicators.",
+    "domain": "Healthcare / Clinic Management SaaS",
+    "platform": "Web (desktop-first, responsive)",
+    "designPhilosophy": [
+      "Function-first with clean aesthetics",
+      "Consistent use of colour to encode status and severity",
+      "Progressive disclosure via modals and collapsible sections",
+      "Minimal decoration — whitespace and alignment do the heavy lifting",
+      "Accessible contrast ratios for medical professionals working long hours"
+    ]
+  },
+  "colorPalette": {
+    "brand": {
+      "primary": {
+        "value": "#0D9488",
+        "usage": "Sidebar active state, primary buttons, header bars on modals, tab highlights, accent borders"
+      },
+      "primaryLight": {
+        "value": "#11c3b3",
+        "usage": "Modal header gradient top, hover states on primary elements"
+      },
+      "primarySubtle": {
+        "value": "#EDE9FF",
+        "usage": "Active sidebar item background, light tinted backgrounds for selected states"
+      }
+    },
+    "semantic": {
+      "success": {
+        "value": "#22C55E",
+        "usage": "Success toast backgrounds, 'Paid' status text, 'Check In' buttons, checkmark icons, positive percentage indicators"
+      },
+      "successLight": {
+        "value": "#DCFCE7",
+        "usage": "Success badge backgrounds, scheduled status pills"
+      },
+      "warning": {
+        "value": "#F59E0B",
+        "usage": "Warning icons, 'Not Yet Arrived' section headers, attention-needed indicators, orange dot for new-patient/walk-in flags"
+      },
+      "warningLight": {
+        "value": "#FFF8E1",
+        "usage": "Yellow-tinted row backgrounds for pending/waiting items"
+      },
+      "danger": {
+        "value": "#EF4444",
+        "usage": "Cancel buttons (outline style), 'Mark No Show' actions, delete/remove icons, allergy alert backgrounds, 'Pending' status text in billing"
+      },
+      "dangerLight": {
+        "value": "#FEE2E2",
+        "usage": "Allergy alert card background tint"
+      },
+      "info": {
+        "value": "#3B82F6",
+        "usage": "Links, informational badges, slot labels, 'Today' link text, percentage comparison arrows"
+      }
+    },
+    "neutral": {
+      "white": "#FFFFFF",
+      "background": "#F8F9FC",
+      "cardBackground": "#FFFFFF",
+      "borderLight": "#E5E7EB",
+      "borderMedium": "#D1D5DB",
+      "textPrimary": "#1F2937",
+      "textSecondary": "#6B7280",
+      "textTertiary": "#9CA3AF",
+      "textDisabled": "#D1D5DB",
+      "sidebarBackground": "#FFFFFF",
+      "sidebarText": "#4B5563",
+      "sidebarActiveText": "#FFFFFF"
+    },
+    "specialSurfaces": {
+      "modalHeaderGradient": "linear-gradient(135deg, #5B4FC4 0%, #7C6FDB 100%)",
+      "tvDisplayBackground": "#0F172A",
+      "tvDisplayAccent": "#00E5C8",
+      "consultationProgressBar": "#00E5C8",
+      "toastSuccessBackground": "#22C55E",
+      "toastSuccessText": "#FFFFFF"
+    }
+  },
+  "typography": {
+    "fontFamily": {
+      "primary": "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      "mono": "'JetBrains Mono', 'Fira Code', 'Courier New', monospace"
+    },
+    "scale": {
+      "pageTitle": {
+        "size": "24px",
+        "weight": 600,
+        "lineHeight": 1.3,
+        "color": "textPrimary",
+        "usage": "Dashboard greeting, page-level headings"
+      },
+      "sectionTitle": {
+        "size": "18px",
+        "weight": 600,
+        "lineHeight": 1.4,
+        "color": "textPrimary",
+        "usage": "Card headings, section group labels"
+      },
+      "modalTitle": {
+        "size": "20px",
+        "weight": 600,
+        "lineHeight": 1.3,
+        "color": "#FFFFFF",
+        "usage": "Modal header titles rendered on the purple gradient bar"
+      },
+      "modalSubtitle": {
+        "size": "14px",
+        "weight": 400,
+        "lineHeight": 1.4,
+        "color": "rgba(255,255,255,0.8)",
+        "usage": "Secondary text in modal headers (date, patient context)"
+      },
+      "cardMetricValue": {
+        "size": "28px",
+        "weight": 700,
+        "lineHeight": 1.2,
+        "color": "textPrimary",
+        "usage": "Dashboard KPI numbers in stat cards"
+      },
+      "cardMetricLabel": {
+        "size": "14px",
+        "weight": 500,
+        "lineHeight": 1.4,
+        "color": "textSecondary",
+        "usage": "Metric labels above the large numbers"
+      },
+      "fieldLabel": {
+        "size": "11px",
+        "weight": 600,
+        "lineHeight": 1.5,
+        "letterSpacing": "0.05em",
+        "textTransform": "uppercase",
+        "color": "textTertiary",
+        "usage": "Form field labels, section sub-headers within detail views"
+      },
+      "fieldValue": {
+        "size": "15px",
+        "weight": 500,
+        "lineHeight": 1.5,
+        "color": "textPrimary",
+        "usage": "Values displayed beneath uppercase labels"
+      },
+      "body": {
+        "size": "14px",
+        "weight": 400,
+        "lineHeight": 1.6,
+        "color": "textSecondary",
+        "usage": "General body text, descriptions, helper text"
+      },
+      "small": {
+        "size": "12px",
+        "weight": 400,
+        "lineHeight": 1.5,
+        "color": "textTertiary",
+        "usage": "Timestamps, tertiary information, comparison percentages on stat cards"
+      },
+      "tableHeader": {
+        "size": "12px",
+        "weight": 600,
+        "lineHeight": 1.5,
+        "letterSpacing": "0.03em",
+        "textTransform": "uppercase",
+        "color": "textTertiary",
+        "usage": "Table column headers across all data tables"
+      }
+    }
+  },
+  "spacing": {
+    "unit": 4,
+    "scale": {
+      "xs": "4px",
+      "sm": "8px",
+      "md": "12px",
+      "lg": "16px",
+      "xl": "20px",
+      "2xl": "24px",
+      "3xl": "32px",
+      "4xl": "40px",
+      "5xl": "48px"
+    },
+    "componentSpacing": {
+      "cardPadding": "24px",
+      "cardGap": "16px",
+      "sidebarItemPadding": "12px 16px",
+      "modalPadding": "24px",
+      "modalHeaderPadding": "20px 24px",
+      "formFieldGap": "16px",
+      "formGroupGap": "24px",
+      "sectionGap": "24px",
+      "tableCellPaddingX": "16px",
+      "tableCellPaddingY": "12px",
+      "buttonPaddingX": "20px",
+      "buttonPaddingY": "10px",
+      "listItemPadding": "16px 20px",
+      "tagPaddingX": "12px",
+      "tagPaddingY": "4px"
+    }
+  },
+  "borders": {
+    "radius": {
+      "none": "0px",
+      "sm": "4px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "full": "9999px",
+      "usage": {
+        "cards": "12px",
+        "buttons": "8px",
+        "inputs": "8px",
+        "modals": "16px",
+        "tags": "9999px (pill)",
+        "avatars": "9999px (circle)",
+        "tokenBadges": "9999px (circle)",
+        "statCards": "12px",
+        "toastNotifications": "12px",
+        "dropdowns": "8px",
+        "paymentModeCards": "8px"
+      }
+    },
+    "width": {
+      "default": "1px",
+      "medium": "2px",
+      "inputFocus": "2px"
+    },
+    "color": {
+      "default": "#E5E7EB",
+      "focus": "#5B4FC4",
+      "selected": "#5B4FC4",
+      "error": "#EF4444"
+    }
+  },
+  "shadows": {
+    "none": "none",
+    "sm": "0 1px 2px rgba(0,0,0,0.05)",
+    "md": "0 4px 6px rgba(0,0,0,0.07)",
+    "lg": "0 10px 15px rgba(0,0,0,0.10)",
+    "xl": "0 20px 25px rgba(0,0,0,0.10)",
+    "card": "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
+    "cardHover": "0 4px 12px rgba(0,0,0,0.08)",
+    "modal": "0 25px 50px rgba(0,0,0,0.25)",
+    "dropdown": "0 10px 15px rgba(0,0,0,0.10), 0 4px 6px rgba(0,0,0,0.05)",
+    "toast": "0 10px 30px rgba(0,0,0,0.15)"
+  },
+  "layout": {
+    "shell": {
+      "description": "Three-tier layout: top bar, collapsible sidebar, and main content area",
+      "structure": {
+        "topBar": {
+          "height": "64px",
+          "background": "#FFFFFF",
+          "borderBottom": "1px solid #E5E7EB",
+          "contents": [
+            "Logo (left-aligned)",
+            "Navigation tabs (Dashboard, Analytics)",
+            "Global search bar (centered, placeholder: Search by patient name or phone)",
+            "Icon actions cluster (chat, notifications with badge, user/org dropdown)",
+            "Primary CTA button (+ New Appointment, purple, right-aligned)"
+          ],
+          "zIndex": 50
+        },
+        "sidebar": {
+          "width": "200px",
+          "collapsedWidth": "64px",
+          "background": "#FFFFFF",
+          "borderRight": "1px solid #E5E7EB",
+          "itemStyle": {
+            "default": {
+              "background": "transparent",
+              "text": "#4B5563",
+              "icon": "#6B7280",
+              "borderRadius": "8px",
+              "margin": "2px 8px"
+            },
+            "active": {
+              "background": "#5B4FC4",
+              "text": "#FFFFFF",
+              "icon": "#FFFFFF",
+              "borderRadius": "8px"
+            },
+            "hover": {
+              "background": "#F3F4F6"
+            },
+            "withDot": {
+              "description": "Some sidebar items have a small coloured dot indicator (green/orange) to the right, signalling unread or attention-needed state"
+            }
+          },
+          "sections": [
+            "Primary navigation items with icons",
+            "Settings and Help at bottom",
+            "Collapse/expand toggle at very bottom"
+          ]
+        },
+        "mainContent": {
+          "background": "#F8F9FC",
+          "padding": "24px 32px",
+          "maxWidth": "none (fluid)",
+          "minHeight": "calc(100vh - 64px)"
+        }
+      }
+    },
+    "grid": {
+      "dashboardStats": {
+        "columns": 4,
+        "gap": "16px",
+        "description": "Four equal-width stat cards in a single row across the top of the dashboard"
+      },
+      "twoColumnForm": {
+        "columns": 2,
+        "gap": "16px",
+        "description": "Used in modals for side-by-side form fields"
+      },
+      "patientDetailLayout": {
+        "columns": "280px 1fr 280px",
+        "description": "Three-column layout: patient list sidebar | main content area | right sidebar (health info, documents)"
+      }
+    }
+  },
+  "components": {
+    "statCard": {
+      "description": "Dashboard KPI card showing a metric with label, large number value, and comparison text",
+      "structure": {
+        "layout": "Row: text-block on left, icon on right",
+        "textBlock": [
+          "Label (14px, grey)",
+          "Value (28px, bold, dark)",
+          "Comparison (12px, coloured arrow + text)"
+        ],
+        "icon": "Coloured circle (40px) with white icon inside, positioned top-right"
+      },
+      "style": {
+        "background": "#FFFFFF",
+        "border": "1px solid #E5E7EB",
+        "borderRadius": "12px",
+        "padding": "20px",
+        "shadow": "0 1px 3px rgba(0,0,0,0.06)"
+      },
+      "iconColors": "Each card has a distinct icon background colour (green, blue, purple, etc.) for visual differentiation"
+    },
+    "dataTable": {
+      "description": "Standard data table used for billing, patient lists, and appointment records",
+      "structure": {
+        "header": {
+          "background": "transparent or very light grey",
+          "textStyle": "uppercase, 12px, weight 600, grey, letter-spaced",
+          "borderBottom": "1px solid #E5E7EB"
+        },
+        "row": {
+          "height": "56px",
+          "borderBottom": "1px solid #F3F4F6",
+          "hoverBackground": "#F9FAFB",
+          "verticalAlign": "center"
+        },
+        "avatar": {
+          "position": "First column, before name",
+          "size": "32px",
+          "shape": "circle",
+          "background": "Colour derived from initials",
+          "text": "White initials, 12px, weight 600"
+        },
+        "statusBadge": {
+          "type": "Text only (no pill background)",
+          "colors": {
+            "Paid": "#22C55E",
+            "Pending": "#EF4444"
+          }
+        },
+        "actions": {
+          "position": "Last column",
+          "style": "Icon buttons (eye, printer) + overflow menu (three dots)",
+          "specialAction": "Coloured action button (e.g., green Collect pill button)"
+        }
+      },
+      "features": {
+        "search": "Full-width search bar above table",
+        "filters": "Tab-based filtering (Today | All | Completed | Cancelled) + dropdown filter + sort",
+        "export": "Export button in filter bar row",
+        "pagination": "Implied, not always visible"
+      }
+    },
+    "modal": {
+      "description": "Overlay modal for detail views, forms, and confirmation dialogs. Three variants observed.",
+      "variants": {
+        "fullForm": {
+          "description": "Large modal for complex multi-section forms",
+          "width": "680px to 900px",
+          "header": {
+            "background": "linear-gradient(135deg, #5B4FC4, #7C6FDB)",
+            "padding": "20px 24px",
+            "borderRadius": "16px 16px 0 0",
+            "title": "White, 20px, weight 600",
+            "subtitle": "White at 80% opacity, 14px",
+            "closeButton": "White X icon, top-right",
+            "statusBadge": "Optional pill badge in header"
+          },
+          "body": {
+            "background": "#FFFFFF",
+            "padding": "24px",
+            "maxHeight": "70vh",
+            "overflow": "auto",
+            "sections": "Divided into named sections with icon + bold heading"
+          },
+          "footer": {
+            "background": "#FFFFFF",
+            "borderTop": "1px solid #E5E7EB",
+            "padding": "16px 24px",
+            "buttons": "Right-aligned, secondary first then primary",
+            "securityNote": "Optional left-aligned security text with checkmark icon"
+          }
+        },
+        "confirmationDialog": {
+          "description": "Small centered dialog for confirming actions",
+          "width": "400px",
+          "style": {
+            "noPurpleHeader": true,
+            "centeredContent": true,
+            "icon": "Centered icon at top in a coloured circle",
+            "title": "20px, weight 600, centered",
+            "description": "14px, grey, centered",
+            "buttons": "Side by side: outline secondary + filled primary"
+          }
+        },
+        "simpleForm": {
+          "description": "Medium modal for single-purpose forms",
+          "width": "480px to 640px",
+          "header": {
+            "background": "Purple gradient for some; plain white with icon for others",
+            "title": "Varies: white on purple or dark on white"
+          },
+          "body": {
+            "padding": "24px",
+            "formLayout": "Stacked fields or 2-column grid"
+          }
+        }
+      },
+      "overlay": {
+        "background": "rgba(0,0,0,0.50)",
+        "zIndex": 100
+      }
+    },
+    "queueListItem": {
+      "description": "Patient row in the appointment queue (Waiting Queue, Not Yet Arrived, In Consultation sections)",
+      "structure": {
+        "layout": "Horizontal row: drag-handle | avatar/token-badge | name+details | status indicators | action buttons | overflow menu",
+        "dragHandle": "Two horizontal lines icon (for reordering within queue)",
+        "avatar": {
+          "variant1_initialsCircle": {
+            "size": "40px",
+            "shape": "circle",
+            "background": "Colour from name hash (blue, purple, green, orange, etc.)",
+            "text": "White 2-letter initials"
+          },
+          "variant2_tokenBadge": {
+            "size": "40px",
+            "shape": "circle",
+            "background": "#5B4FC4",
+            "text": "Token small text + number large text, white",
+            "usage": "Shown after patient is checked in and assigned a token number"
+          }
+        },
+        "nameBlock": {
+          "name": "15px, weight 600, dark",
+          "subtext": "Doctor name, time slot, 13px, grey",
+          "walkInIcon": "Small coloured icon next to name indicating booking source"
+        },
+        "statusIndicators": [
+          "Smiley emoji icon (for vitals status)",
+          "Vitals Done green label",
+          "Add Vitals outline button"
+        ],
+        "actionButton": {
+          "primary": "Check In green pill button with checkmark icon",
+          "secondary": "Complete outline button",
+          "style": {
+            "borderRadius": "9999px",
+            "padding": "6px 16px",
+            "fontSize": "13px"
+          }
+        }
+      },
+      "style": {
+        "padding": "12px 20px",
+        "borderBottom": "1px solid #F3F4F6",
+        "hoverBackground": "#FAFBFC"
+      }
+    },
+    "sectionGroup": {
+      "description": "Collapsible section within a list view, grouping items by status",
+      "structure": {
+        "header": {
+          "layout": "Icon + label + count badge + chevron toggle (right-aligned)",
+          "icon": "Colour-coded emoji/icon matching section status",
+          "label": "14px, weight 600, colour-coded",
+          "count": "Number in parentheses",
+          "chevron": "Rotates 180 degrees when collapsed"
+        },
+        "headerColors": {
+          "In Consultation": "Purple tint",
+          "Waiting Queue": "Green tint",
+          "Not Yet Arrived": "Yellow/amber tint",
+          "Completed": "Green tint"
+        }
+      },
+      "style": {
+        "background": "Very subtle tinted background behind the header row",
+        "borderRadius": "8px",
+        "marginBottom": "8px"
+      }
+    },
+    "statusBadge": {
+      "description": "Pill-shaped inline status indicator",
+      "style": {
+        "borderRadius": "9999px",
+        "padding": "4px 12px",
+        "fontSize": "12px",
+        "fontWeight": 500
+      },
+      "variants": {
+        "scheduled": {
+          "background": "#DCFCE7",
+          "text": "#166534",
+          "icon": "green checkmark"
+        },
+        "inConsultation": {
+          "background": "#EDE9FE",
+          "text": "#5B21B6"
+        },
+        "waiting": {
+          "background": "#FEF3C7",
+          "text": "#92400E"
+        },
+        "firstVisit": {
+          "background": "#DBEAFE",
+          "text": "#1E40AF"
+        },
+        "returningPatient": {
+          "background": "#00E5C8",
+          "text": "#FFFFFF"
+        },
+        "paid": {
+          "text": "#22C55E",
+          "background": "transparent"
+        },
+        "pending": {
+          "text": "#EF4444",
+          "background": "transparent"
+        }
+      }
+    },
+    "toastNotification": {
+      "description": "Slide-in toast appearing at top-right corner for success feedback",
+      "style": {
+        "position": "fixed, top-right",
+        "background": "#22C55E",
+        "color": "#FFFFFF",
+        "borderRadius": "12px",
+        "padding": "12px 20px",
+        "shadow": "0 10px 30px rgba(0,0,0,0.15)",
+        "icon": "White checkmark circle on the left",
+        "closeButton": "White X on the right",
+        "animation": "Slide in from right, auto-dismiss after approximately 4 seconds",
+        "maxWidth": "360px"
+      }
+    },
+    "button": {
+      "variants": {
+        "primary": {
+          "background": "#5B4FC4",
+          "color": "#FFFFFF",
+          "border": "none",
+          "borderRadius": "8px",
+          "padding": "10px 20px",
+          "fontWeight": 600,
+          "hoverBackground": "#4A3FB0",
+          "icon": "Optional left-aligned icon (checkmark, plus)"
+        },
+        "primaryGreen": {
+          "background": "#22C55E",
+          "color": "#FFFFFF",
+          "borderRadius": "8px",
+          "usage": "Positive-action buttons: Check In Patient, Save"
+        },
+        "secondary": {
+          "background": "#FFFFFF",
+          "color": "#4B5563",
+          "border": "1px solid #D1D5DB",
+          "borderRadius": "8px",
+          "hoverBackground": "#F9FAFB"
+        },
+        "outline": {
+          "background": "transparent",
+          "color": "#5B4FC4",
+          "border": "1px solid #5B4FC4",
+          "borderRadius": "8px"
+        },
+        "outlineDanger": {
+          "background": "transparent",
+          "color": "#EF4444",
+          "border": "1px solid #EF4444",
+          "borderRadius": "8px",
+          "usage": "Cancel, Mark No Show"
+        },
+        "ghost": {
+          "background": "transparent",
+          "color": "#6B7280",
+          "border": "none",
+          "hoverBackground": "#F3F4F6"
+        },
+        "pillAction": {
+          "description": "Small rounded pill button used inline in list items",
+          "borderRadius": "9999px",
+          "padding": "6px 16px",
+          "fontSize": "13px",
+          "variants": {
+            "greenFilled": {
+              "background": "#22C55E",
+              "color": "#FFFFFF"
+            },
+            "greenOutline": {
+              "background": "#FFFFFF",
+              "border": "1px solid #22C55E",
+              "color": "#22C55E"
+            },
+            "purpleOutline": {
+              "background": "#FFFFFF",
+              "border": "1px solid #5B4FC4",
+              "color": "#5B4FC4"
+            }
+          }
+        }
+      }
+    },
+    "formField": {
+      "input": {
+        "height": "44px",
+        "background": "#FFFFFF",
+        "border": "1px solid #D1D5DB",
+        "borderRadius": "8px",
+        "padding": "0 12px",
+        "fontSize": "15px",
+        "focusBorder": "2px solid #5B4FC4",
+        "focusShadow": "0 0 0 3px rgba(91,79,196,0.1)",
+        "placeholderColor": "#9CA3AF"
+      },
+      "select": {
+        "height": "44px",
+        "appearance": "Custom dropdown with chevron icon",
+        "borderRadius": "8px"
+      },
+      "label": {
+        "style": "See typography.scale.fieldLabel",
+        "position": "Above input",
+        "requiredIndicator": "Red asterisk (*)"
+      },
+      "searchInput": {
+        "height": "44px",
+        "borderRadius": "8px",
+        "icon": "Search magnifying glass icon on the left",
+        "border": "1px solid #E5E7EB",
+        "fullWidth": true
+      },
+      "tagInput": {
+        "description": "Input field that generates pill tags when user presses Enter",
+        "tagStyle": {
+          "background": "#F3F4F6",
+          "border": "1px solid #E5E7EB",
+          "borderRadius": "9999px",
+          "padding": "4px 12px",
+          "fontSize": "13px"
+        }
+      }
+    },
+    "paymentModeSelector": {
+      "description": "2x2 grid of selectable card options for choosing payment mode",
+      "cardStyle": {
+        "width": "approximately 140px",
+        "height": "approximately 56px",
+        "border": "1px solid #E5E7EB",
+        "borderRadius": "8px",
+        "padding": "12px",
+        "selectedBorder": "2px solid #5B4FC4",
+        "selectedBackground": "#EDE9FF",
+        "checkmark": "Small circle checkmark in the selected card"
+      },
+      "options": "Grid of 4 cards: Cash, UPI, Card, Waive"
+    },
+    "receiptCard": {
+      "description": "Clean receipt/invoice layout displayed in a modal",
+      "structure": [
+        "Clinic name + location header row",
+        "Bill number right-aligned",
+        "Two-column patient/doctor row",
+        "Line items table (ITEM | AMOUNT)",
+        "Total row (bold)",
+        "Payment confirmation row with timestamp",
+        "Action buttons: Close | WhatsApp (outline with icon) | Print (primary)"
+      ],
+      "style": {
+        "borderRadius": "12px",
+        "padding": "24px",
+        "border": "1px solid #E5E7EB",
+        "lineItemBorder": "1px solid #F3F4F6"
+      }
+    },
+    "patientProfileHeader": {
+      "description": "Top bar of the patient detail view showing identity, tags, and quick actions",
+      "structure": {
+        "layout": "Avatar (large, 56px circle) | Name + First Visit/Returning badge | Tags row | Edit link",
+        "tagsRow": "Horizontal pills: age, gender, city, UHID, phone, each with an icon prefix",
+        "statusRow": "Today Token N pill | In Consultation pill | Doctor name",
+        "actionButtons": "Write Prescription (outline) | Next Patient (green filled)"
+      }
+    },
+    "tabBar": {
+      "description": "Horizontal tab navigation used for sub-pages",
+      "variants": {
+        "underline": {
+          "style": "Text tabs with active underline in primary colour",
+          "tabPadding": "12px 16px",
+          "activeColor": "#5B4FC4",
+          "inactiveColor": "#6B7280",
+          "underlineHeight": "2px",
+          "usage": "Patient detail tabs (Visit History, Health Info, Vitals, etc.)"
+        },
+        "pill": {
+          "style": "Rounded pill with filled background for active state",
+          "activeBackground": "#5B4FC4",
+          "activeColor": "#FFFFFF",
+          "inactiveBackground": "transparent",
+          "inactiveColor": "#6B7280",
+          "borderRadius": "9999px",
+          "padding": "8px 20px",
+          "usage": "Consultations | Services toggle"
+        },
+        "textToggle": {
+          "style": "Plain text tabs, active one is bolder with a subtle background",
+          "usage": "Today | Upcoming | Completed | All | Cancelled filter tabs",
+          "activeStyle": "Bold text, optional underline"
+        }
+      }
+    },
+    "sidebar": {
+      "description": "Left navigation sidebar with icon + text items",
+      "items": {
+        "icon": "20px, outlined style, to the left of label text",
+        "text": "14px, weight 500",
+        "activeHighlight": "Full item highlighted with primary colour background and white text",
+        "notificationDot": "Small 8px coloured dot (green/orange) to the right of the item text"
+      },
+      "footer": [
+        "Settings link",
+        "Help and Support link",
+        "Collapse toggle"
+      ]
+    },
+    "emptyState": {
+      "description": "Placeholder shown when a section has no data",
+      "structure": {
+        "icon": "Faded/outlined icon (40-60px) centered",
+        "title": "16px, grey, centered",
+        "subtitle": "14px, lighter grey, centered",
+        "callToAction": "Optional link or button below"
+      }
+    },
+    "tvDisplay": {
+      "description": "Patient-facing TV/kiosk display with dark theme, used for queue visibility in waiting rooms",
+      "style": {
+        "background": "#0F172A",
+        "accent": "#00E5C8",
+        "textColor": "#FFFFFF",
+        "layout": "Two-panel: left = current patient card, right = upcoming queue table",
+        "headerBar": "Clinic name centered, address below, clock on the right",
+        "currentPatientCard": {
+          "background": "Dark card with subtle border",
+          "label": "CURRENT PATIENT in uppercase teal, small",
+          "tokenNumber": "Very large (approximately 80px), teal, bold",
+          "name": "White, 20px",
+          "doctor": "Teal, 14px",
+          "statusBar": "Teal bottom bar: Consultation In Progress"
+        },
+        "upcomingTable": {
+          "headerLabel": "UPCOMING PATIENTS in uppercase teal",
+          "columns": "TOKEN | PATIENT NAME | STATUS",
+          "tokenBadge": "Teal-bordered rounded square with number",
+          "status": "Waiting with green dot + text"
+        },
+        "footer": "Marquee/static message bar at bottom with clinic message and branding"
+      }
+    },
+    "prescriptionForm": {
+      "description": "Full-page form layout for writing prescriptions",
+      "structure": {
+        "header": "Purple bar with back arrow, title, patient summary",
+        "leftSidebar": {
+          "width": "approximately 300px",
+          "sections": [
+            "Patient avatar + name + age",
+            "Patient Info card (Age, Gender, City)",
+            "Patient Vitals card with Edit button",
+            "Blood Group",
+            "Allergies (red-tinted card)",
+            "Conditions card",
+            "Past History (collapsible)"
+          ]
+        },
+        "mainForm": {
+          "sections": [
+            "Prescription Header (Diagnosis, Date, Doctor, Load Template button)",
+            "Medicines table (dynamically add rows: Medicine, Route/Form, Frequency, Duration, Instructions)",
+            "Lab Tests Ordered (tag input)",
+            "Follow-Up (after N days/weeks, notes)",
+            "Doctors Notes (textarea)"
+          ]
+        },
+        "footer": {
+          "left": "Last saved X mins ago autosave indicator",
+          "right": "Cancel | Save Template | Print Preview | Save (primary green)"
+        }
+      }
+    }
+  },
+  "patterns": {
+    "navigation": {
+      "primaryNavigation": "Persistent sidebar (collapsible)",
+      "secondaryNavigation": "Tab bars (underline style or pill style) within pages",
+      "tertiaryNavigation": "Text-based filter tabs (Today, Upcoming, Completed, etc.)",
+      "breadcrumbs": "Not used. Back arrows in modal/form headers instead"
+    },
+    "dataDisplay": {
+      "keyValuePairs": "Uppercase label above, value below. Used extensively in detail modals and sidebars",
+      "tables": "Full-width data tables with sortable/filterable columns for list views",
+      "statCards": "4-column grid of metric cards on dashboard",
+      "queues": "Grouped list items within collapsible status sections"
+    },
+    "actionPatterns": {
+      "primaryActions": "Right-aligned in page headers or modal footers",
+      "inlineActions": "Right-aligned in list item rows (pill buttons or icon buttons)",
+      "destructiveActions": "Red outline style, positioned to the right of safer options",
+      "bulkActions": "Not observed. Actions are per-item"
+    },
+    "feedback": {
+      "success": "Green toast notification, top-right, auto-dismiss",
+      "inline": "Green Paid check with label, green border highlight on paid items",
+      "autosave": "Last saved X mins ago grey text in form footers",
+      "loadingStates": "Empty state illustrations with helper text"
+    },
+    "formPatterns": {
+      "validation": "Red asterisk (*) on required field labels",
+      "editableFields": "Pencil/edit icon inline to enable editing",
+      "selectableCards": "Grid of bordered cards as an alternative to dropdowns (payment mode)",
+      "tagSuggestions": "Pill-shaped quick-fill tags below text inputs",
+      "autoCalculation": "(auto) label next to computed fields like BMI"
+    },
+    "progressiveDisclosure": {
+      "modals": "Detail/edit views open as overlay modals rather than separate pages",
+      "collapsibleSections": "Chevron toggles to expand/collapse content groups",
+      "tabContent": "Tabs swap content panel without navigation"
+    }
+  },
+  "iconography": {
+    "style": "Outlined/line icons (not filled), 20px default size, 1.5px stroke",
+    "library": "Consistent icon set resembling Lucide, Heroicons outline, or Phosphor regular",
+    "colorUsage": "Icons inherit text colour by default; coloured when inside stat card circles or to indicate status",
+    "decorativeIcons": "Section headers use emoji-style or coloured icons to the left of section titles"
+  },
+  "animation": {
+    "transitions": {
+      "default": "150ms ease-in-out",
+      "modal": "200ms ease-out for scale + opacity",
+      "sidebar": "200ms ease for width collapse",
+      "toast": "300ms ease slide-in from right, 200ms ease fade-out",
+      "hover": "150ms ease for background/shadow changes",
+      "chevronRotation": "200ms ease for expand/collapse chevrons"
+    },
+    "motionPrinciples": [
+      "Subtle and fast, never attention-grabbing",
+      "Modals scale from 0.95 to 1.0 with fade",
+      "Toasts slide in horizontally and auto-dismiss",
+      "No scroll-triggered animations or parallax",
+      "Interactive elements have hover transitions on background/shadow only"
+    ]
+  },
+  "responsiveBehavior": {
+    "approach": "Desktop-first, sidebar collapses on smaller screens",
+    "breakpoints": {
+      "description": "Inferred from layout structure",
+      "desktop": "1280px and above: full sidebar + all columns visible",
+      "tablet": "768px and above: collapsed sidebar, stacked layouts",
+      "mobile": "320px and above: hidden sidebar via hamburger, single column"
+    },
+    "sidebarBehavior": "Collapses to icon-only (64px) with text tooltip on hover"
+  },
+  "cursorInstructions": {
+    "howToUse": "Feed this JSON to Cursor (or any AI coding assistant) as context when building UI components. Reference specific sections like components.modal.variants.fullForm or colorPalette.semantic.success to ensure consistency.",
+    "keyPrinciples": [
+      "Always use the purple-gradient header (#5B4FC4 to #7C6FDB) for modals that represent detail/form views",
+      "Use uppercase small-caps labels (11px, 600 weight, 0.05em tracking) for all field labels",
+      "Action buttons in modals always go in the footer: secondary outline left, primary filled right",
+      "Toast notifications are always green (#22C55E) background with white text, top-right position",
+      "Avatar circles use name-derived initials with consistent per-letter colour hashing",
+      "Status is always communicated through colour: green=success/positive, amber=waiting/warning, red=danger/pending, blue=info, purple=active/primary",
+      "Card border-radius is always 12px, button border-radius is 8px, pills are 9999px",
+      "Sections in list views are grouped by collapsible status headers with coloured labels and count badges",
+      "The sidebar active item uses a filled purple background with white text and no other decoration",
+      "Tables use uppercase, letter-spaced, grey column headers and never bold or dark headers",
+      "Forms use a 2-column grid inside modals and a left-sidebar + main-content split for full-page forms",
+      "Empty states show a faded icon, grey heading, and lighter subtext, all centered"
+    ]
+  }
+}

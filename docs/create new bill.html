@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create New Bill - Test Page</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* Reset and Base Styles */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: #eef2f6;
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Bill Modal Container -->
+  <div style="background: rgb(255, 255, 255); border-radius: 20px; width: min(820px, 100%); max-height: 95vh; display: flex; flex-direction: column; box-shadow: rgba(0, 0, 0, 0.18) 0px 24px 64px; font-family: Inter, sans-serif; overflow: hidden;">
+    
+    <!-- Modal Header -->
+    <div style="background: linear-gradient(135deg, rgb(78, 93, 181) 0%, rgb(91, 107, 197) 100%); padding: 18px 24px; color: rgb(255, 255, 255); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;">
+      <div>
+        <div style="font-size: 16px; font-weight: 700;">Create New Bill</div>
+        <div style="font-size: 12px; opacity: 0.75; margin-top: 2px;">Manual bill — not linked to an appointment.</div>
+      </div>
+      <button style="background: rgba(255, 255, 255, 0.2); border: none; border-radius: 8px; padding: 7px; cursor: pointer; color: rgb(255, 255, 255); display: flex;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 6 6 18"></path>
+          <path d="m6 6 12 12"></path>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Scrollable Form Body -->
+    <div style="overflow-y: auto; flex: 1 1 0%; padding: 20px 24px; display: flex; flex-direction: column; gap: 20px;">
+      
+      <!-- Top Grid: Patient & Bill Details -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">
+        
+        <!-- Patient Details Section -->
+        <div style="background: rgb(248, 247, 243); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="font-size: 11px; font-weight: 700; color: rgb(156, 163, 175); text-transform: uppercase; letter-spacing: 0.06em;">Patient Details</div>
+          <div>
+            <label style="font-size: 12px; font-weight: 600; color: rgb(55, 65, 81); display: block; margin-bottom: 6px;">Phone Number</label>
+            <div style="position: relative;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: rgb(156, 163, 175);">
+                <path d="m21 21-4.34-4.34"></path>
+                <circle cx="11" cy="11" r="8"></circle>
+              </svg>
+              <input type="text" placeholder="10-digit mobile number" maxlength="10" value="" style="width: 100%; padding: 9px 12px 9px 30px; border: 1.5px solid rgb(229, 227, 219); border-radius: 9px; font-size: 13px; outline: none; box-sizing: border-box; background: rgb(255, 255, 255);">
+            </div>
+          </div>
+        </div>
+
+        <!-- Bill Details Section -->
+        <div style="background: rgb(248, 247, 243); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="font-size: 11px; font-weight: 700; color: rgb(156, 163, 175); text-transform: uppercase; letter-spacing: 0.06em;">Bill Details</div>
+          <div>
+            <label style="font-size: 12px; font-weight: 600; color: rgb(55, 65, 81); display: block; margin-bottom: 6px;">Doctor (Optional)</label>
+            <div style="position: relative; width: 100%;">
+              <button type="button" style="width: 100%; padding: 9px 12px; border: 1.5px solid rgb(229, 227, 219); border-radius: 10px; font-size: 12.5px; font-weight: 500; background: rgb(255, 255, 255); color: rgb(55, 65, 81); outline: none; cursor: pointer; text-align: left; display: flex; align-items: center; justify-content: space-between;">
+                <span>No Doctor</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: rgb(156, 163, 175); flex-shrink: 0;">
+                  <path d="m6 9 6 6 6-6"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div>
+            <label style="font-size: 12px; font-weight: 600; color: rgb(55, 65, 81); display: block; margin-bottom: 6px;">Bill Date</label>
+            <input type="date" value="2026-09-22" style="width: 100%; padding: 9px 12px; border: 1.5px solid rgb(229, 227, 219); border-radius: 9px; font-size: 13px; outline: none; box-sizing: border-box; background: rgb(255, 255, 255);">
+          </div>
+          <div>
+            <label style="font-size: 12px; font-weight: 600; color: rgb(55, 65, 81); display: block; margin-bottom: 8px;">Bill Type</label>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <button type="button" style="padding: 6px 14px; border-radius: 20px; border: 1.5px solid rgb(229, 231, 235); background: rgb(255, 255, 255); color: rgb(107, 114, 128); font-size: 12px; font-weight: 600; cursor: pointer;">Consultation</button>
+              <button type="button" style="padding: 6px 14px; border-radius: 20px; border: 1.5px solid rgb(78, 93, 181); background: rgb(238, 240, 252); color: rgb(78, 93, 181); font-size: 12px; font-weight: 600; cursor: pointer;">Procedure</button>
+              <button type="button" style="padding: 6px 14px; border-radius: 20px; border: 1.5px solid rgb(229, 231, 235); background: rgb(255, 255, 255); color: rgb(107, 114, 128); font-size: 12px; font-weight: 600; cursor: pointer;">Other</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Line Items Section -->
+      <div>
+        <div style="font-size: 11px; font-weight: 700; color: rgb(156, 163, 175); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px;">Line Items</div>
+        <div style="border: 0.5px solid rgb(229, 227, 219); border-radius: 10px; overflow: hidden;">
+          <div style="display: grid; grid-template-columns: 1fr 70px 100px 90px 32px; padding: 7px 12px; background: rgb(248, 247, 243); border-bottom: 0.5px solid rgb(229, 227, 219);">
+            <span style="font-size: 11px; font-weight: 700; color: rgb(156, 163, 175); text-align: left;">DESCRIPTION</span>
+            <span style="font-size: 11px; font-weight: 700; color: rgb(156, 163, 175); text-align: right;">QTY</span>
+            <span style="font-size: 11px; font-weight: 700; color: rgb(156, 163, 175); text-align: right;">UNIT PRICE</span>
+            <span style="font-size: 11px; font-weight: 700; color: rgb(156, 163, 175); text-align: right;">TOTAL</span>
+            <span></span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 70px 100px 90px 32px; padding: 8px 12px; border-bottom: 0.5px solid rgb(240, 239, 235); align-items: center; gap: 8px;">
+            <div style="position: relative; width: 100%;">
+              <button type="button" style="width: 100%; padding: 9px 12px; border: 1.5px solid rgb(229, 227, 219); border-radius: 10px; font-size: 12.5px; font-weight: 500; background: rgb(255, 255, 255); color: rgb(55, 65, 81); outline: none; cursor: pointer; text-align: left; display: flex; align-items: center; justify-content: space-between;">
+                <span>Select item</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: rgb(156, 163, 175); flex-shrink: 0;">
+                  <path d="m6 9 6 6 6-6"></path>
+                </svg>
+              </button>
+            </div>
+            <input min="1" type="number" value="1" style="font-size: 13px; font-weight: 600; border: 1px solid rgb(229, 227, 219); border-radius: 7px; padding: 5px 6px; outline: none; text-align: right; width: 100%; box-sizing: border-box;">
+            <div style="position: relative;">
+              <span style="position: absolute; left: 7px; top: 50%; transform: translateY(-50%); font-size: 12px; color: rgb(107, 114, 128); font-weight: 700;">₹</span>
+              <input placeholder="0" type="number" value="" style="width: 100%; font-size: 13px; font-weight: 700; border: 1px solid rgb(229, 227, 219); border-radius: 7px; padding: 5px 6px 5px 18px; outline: none; text-align: right; box-sizing: border-box;">
+            </div>
+            <span style="font-size: 13px; font-weight: 700; color: rgb(26, 26, 26); text-align: right;">₹0</span>
+            <button disabled style="width: 28px; height: 28px; border-radius: 7px; border: 1px solid rgb(240, 239, 235); background: rgb(250, 250, 248); cursor: not-allowed; display: flex; align-items: center; justify-content: center; color: rgb(209, 213, 219); flex-shrink: 0;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 6 6 18"></path>
+                <path d="m6 6 12 12"></path>
+              </svg>
+            </button>
+          </div>
+          <div style="padding: 8px 12px;">
+            <button type="button" style="font-size: 12px; font-weight: 600; color: rgb(78, 93, 181); background: none; border: none; cursor: pointer; display: flex; align-items: center; gap: 5px; padding: 4px 0px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14"></path>
+                <path d="M12 5v14"></path>
+              </svg> 
+              Add Row
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Discount Section -->
+      <div style="border: 0.5px solid rgb(229, 227, 219); border-radius: 10px; overflow: hidden;">
+        <button type="button" style="width: 100%; padding: 11px 14px; background: rgb(255, 255, 255); border: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 600; color: rgb(55, 65, 81);">
+          <div style="display: flex; align-items: center; gap: 7px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: rgb(107, 114, 128);">
+              <line x1="19" x2="5" y1="5" y2="19"></line>
+              <circle cx="6.5" cy="6.5" r="2.5"></circle>
+              <circle cx="17.5" cy="17.5" r="2.5"></circle>
+            </svg>
+            Apply Discount
+          </div>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: rgb(156, 163, 175);">
+            <path d="m6 9 6 6 6-6"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Payment Amount Section -->
+      <div style="background: rgb(248, 247, 243); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="font-size: 11px; font-weight: 700; color: rgb(156, 163, 175); text-transform: uppercase; letter-spacing: 0.06em;">Payment Details</div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 13px; color: rgb(107, 114, 128);">Total Amount</span>
+          <span style="font-size: 15px; font-weight: 700; color: rgb(26, 26, 26);">₹0</span>
+        </div>
+        <div>
+          <label style="font-size: 12px; font-weight: 600; color: rgb(55, 65, 81); display: block; margin-bottom: 6px;">Amount Paid</label>
+          <div style="position: relative;">
+            <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 13px; font-weight: 700; color: rgb(107, 114, 128);">₹</span>
+            <input type="number" placeholder="0" value="0" style="width: 100%; padding: 10px 12px 10px 28px; border: 1.5px solid rgb(229, 227, 219); border-radius: 10px; font-size: 14px; font-weight: 700; outline: none; box-sizing: border-box;">
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary Breakdown Section -->
+      <div style="background: rgb(248, 247, 243); border-radius: 12px; padding: 14px 16px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <span style="font-size: 12px; color: rgb(107, 114, 128);">Subtotal</span>
+          <span style="font-size: 12px; font-weight: 500;">₹0</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; border-top: 1px solid rgb(229, 227, 219); padding-top: 10px; margin-top: 6px; margin-bottom: 12px;">
+          <span style="font-size: 14px; font-weight: 700;">Final Total</span>
+          <div style="text-align: right;">
+            <span style="font-size: 22px; font-weight: 800; color: rgb(26, 26, 26); letter-spacing: -0.5px;">₹0</span>
+          </div>
+        </div>
+        <div style="border-top: 1px dashed rgb(229, 227, 219); padding-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 12px; color: rgb(107, 114, 128);">Amount Paid</span>
+            <span style="font-size: 13px; font-weight: 700; color: rgb(21, 128, 61);">₹0</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-radius: 8px; background: rgb(240, 253, 244); border: 1px solid rgb(187, 247, 208);">
+            <span style="font-size: 13px; font-weight: 600; color: rgb(21, 128, 61);">Due Amount</span>
+            <span style="font-size: 15px; font-weight: 800; color: rgb(21, 128, 61);">₹0</span>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 12px; color: rgb(107, 114, 128); font-weight: 500;">Payment Status</span>
+            <span style="font-size: 12px; font-weight: 700; padding: 3px 12px; border-radius: 20px; background: rgb(255, 247, 237); color: rgb(194, 65, 12); display: inline-flex; align-items: center; gap: 4px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+              </svg> 
+              Unpaid
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Payment Mode Section -->
+      <div>
+        <div style="font-size: 11px; font-weight: 700; color: rgb(156, 163, 175); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px;">Payment Mode</div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); gap: 8px;">
+          <button type="button" style="padding: 10px 6px; border-radius: 10px; border: 1.5px solid rgb(78, 93, 181); background: rgb(238, 240, 252); color: rgb(78, 93, 181); font-weight: 600; font-size: 12px; cursor: pointer;">Cash</button>
+          <button type="button" style="padding: 10px 6px; border-radius: 10px; border: 1.5px solid rgb(229, 231, 235); background: rgb(255, 255, 255); color: rgb(55, 65, 81); font-weight: 600; font-size: 12px; cursor: pointer;">UPI</button>
+          <button type="button" style="padding: 10px 6px; border-radius: 10px; border: 1.5px solid rgb(229, 231, 235); background: rgb(255, 255, 255); color: rgb(55, 65, 81); font-weight: 600; font-size: 12px; cursor: pointer;">Card</button>
+          <button type="button" style="padding: 10px 6px; border-radius: 10px; border: 1.5px solid rgb(229, 231, 235); background: rgb(255, 255, 255); color: rgb(55, 65, 81); font-weight: 600; font-size: 12px; cursor: pointer;">Waive</button>
+        </div>
+      </div>
+
+      <!-- Notes Section -->
+      <div>
+        <label style="font-size: 12px; font-weight: 600; color: rgb(55, 65, 81); display: block; margin-bottom: 6px;">Notes</label>
+        <input type="text" placeholder="Additional billing notes" value="" style="width: 100%; padding: 10px 12px; border: 1.5px solid rgb(229, 227, 219); border-radius: 10px; font-size: 13px; outline: none; box-sizing: border-box; color: rgb(55, 65, 81);">
+      </div>
+
+    </div>
+
+    <!-- Modal Footer / Actions -->
+    <div style="padding: 14px 24px; border-top: 0.5px solid rgb(229, 227, 219); display: flex; gap: 8px; background: rgb(255, 255, 255); flex-shrink: 0;">
+      <button type="button" style="flex: 1 1 0%; padding: 11px 0px; border: 1.5px solid rgb(229, 231, 235); border-radius: 10px; background: rgb(255, 255, 255); color: rgb(55, 65, 81); font-weight: 600; font-size: 13px; cursor: pointer;">Cancel</button>
+      <button type="button" style="flex: 2 1 0%; padding: 11px 0px; border: none; border-radius: 10px; background: rgb(78, 93, 181); color: rgb(255, 255, 255); font-weight: 700; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 6 9 17l-5-5"></path>
+        </svg>
+        Create Bill
+      </button>
+    </div>
+
+  </div>
+
+</body>
+</html>

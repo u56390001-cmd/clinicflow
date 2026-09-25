@@ -18,6 +18,13 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      // Reference archives & assets that are not part of the app source.
+      "Asset/**",
+      "Screenshot/**",
+      "medbook-ai-opencode-starter/**",
+      ".agents/**",
+      ".opencode/**",
+      ".vscode/**",
     ],
   },
 ];

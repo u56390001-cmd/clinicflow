@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Collect Payment Modal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: rgba(17, 24, 39, 0.6);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+    
+    /* Interactive States & Micro-interactions */
+    .btn-mode {
+      transition: all 0.2s ease;
+    }
+    .btn-mode:hover {
+      border-color: #f59e0b !important;
+    }
+    .accordion-header {
+      transition: background-color 0.15s ease;
+    }
+    .accordion-header:hover {
+      background-color: #f9fafb !important;
+    }
+    .rotate-180 {
+      transform: rotate(180deg);
+    }
+    
+    /* Custom Scrollbar for scrollable area */
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: #f1f1f1;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #ccc;
+      border-radius: 4px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+      background: #aaa;
+    }
+    
+    /* Responsive Adjustments */
+    @media (max-width: 850px) {
+      .modal-grid {
+        grid-template-columns: 1fr !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Modal Overlay Container -->
+  <div id="modalContainer" style="background: rgb(255, 255, 255); border-radius: 20px; width: min(920px, 100%); max-height: 92vh; display: flex; flex-direction: column; box-shadow: rgba(0, 0, 0, 0.18) 0px 24px 64px; overflow: hidden; animation: fadeIn 0.25s ease-out;">
+    
+    <!-- Modal Header -->
+    <div style="background: linear-gradient(135deg, rgb(78, 93, 181) 0%, rgb(91, 107, 197) 100%); padding: 18px 24px; color: rgb(255, 255, 255); flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <div style="padding: 10px; background: rgba(255, 255, 255, 0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text" aria-hidden="true" style="color: rgb(255, 255, 255);">
+            <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path>
+            <path d="M14 2v4a2 2 0 0 0 2 2h4"></path>
+            <path d="M10 9H8"></path>
+            <path d="M16 13H8"></path>
+            <path d="M16 17H8"></path>
+          </svg>
+        </div>
+        <div>
+          <div style="font-size: 16px; font-weight: 700;">Collect Payment</div>
+          <div style="font-size: 12px; opacity: 0.8; margin-top: 2px;">Bilal Kham</div>
+        </div>
+      </div>
+      <button onclick="closeModal()" style="background: rgba(255, 255, 255, 0.2); border: none; border-radius: 8px; padding: 7px; cursor: pointer; color: rgb(255, 255, 255); display: flex; align-items: center; justify-content: center;" title="Close Modal">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x" aria-hidden="true">
+          <path d="M18 6 6 18"></path>
+          <path d="m6 6 12 12"></path>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Scrollable Body Section -->
+    <div class="custom-scroll" style="overflow-y: auto; flex: 1 1 0%; background: rgb(248, 247, 243); padding: 20px 24px;">
+      <div class="modal-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+        
+        <!-- Column 1: Patient Confirmation -->
+        <div style="background: rgb(255, 255, 255); border-radius: 16px; border: 0.5px solid rgb(229, 227, 219); padding: 18px;">
+          <div style="font-size: 12px; font-weight: 700; color: rgb(55, 65, 81); margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
+            <div style="padding: 6px; background: rgb(238, 240, 252); border-radius: 8px; display: flex;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text" aria-hidden="true" style="color: rgb(78, 93, 181);">
+                <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path>
+                <path d="M14 2v4a2 2 0 0 0 2 2h4"></path>
+                <path d="M10 9H8"></path>
+                <path d="M16 13H8"></path>
+                <path d="M16 17H8"></path>
+              </svg>
+            </div>
+            Patient Confirmation
+          </div>
+          
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 14px;">
+            <div style="width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, rgb(78, 93, 181), rgb(91, 107, 197)); display: flex; align-items: center; justify-content: center; color: rgb(255, 255, 255); font-weight: 800; font-size: 14px; flex-shrink: 0;">BK</div>
+            <div>
+              <div style="font-size: 13px; font-weight: 700; color: rgb(26, 26, 26);">Bilal Kham</div>
+              <div style="font-size: 11.5px; color: rgb(156, 163, 175); margin-top: 2px;">zimal fatima</div>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 11px; color: rgb(156, 163, 175); font-weight: 600; width: 36px; text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0;">Bill #</span>
+              <span style="font-size: 12px; font-weight: 600; color: rgb(55, 65, 81);">BILL-20260922-005</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 11px; color: rgb(156, 163, 175); font-weight: 600; width: 36px; text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0;">Slot</span>
+              <span style="font-size: 12px; font-weight: 600; color: rgb(55, 65, 81);">Slot F</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 11px; color: rgb(156, 163, 175); font-weight: 600; width: 36px; text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0;">Date</span>
+              <span style="font-size: 12px; font-weight: 600; color: rgb(55, 65, 81);">2026-09-23</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Column 2: Collect Payment Input Controls -->
+        <div style="background: rgb(255, 255, 255); border-radius: 16px; border: 0.5px solid rgb(229, 227, 219); padding: 18px;">
+          <div style="font-size: 12px; font-weight: 700; color: rgb(55, 65, 81); margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
+            <div style="padding: 6px; background: rgb(238, 240, 252); border-radius: 8px; display: flex;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-indian-rupee" aria-hidden="true" style="color: rgb(78, 93, 181);">
+                <path d="M6 3h12"></path>
+                <path d="M6 8h12"></path>
+                <path d="m6 13 8.5 8"></path>
+                <path d="M6 13h3"></path>
+                <path d="M9 13c6.667 0 6.667-10 0-10"></path>
+              </svg>
+            </div>
+            Collect Payment
+          </div>
+
+          <!-- Total Payment -->
+          <div style="margin-bottom: 14px;">
+            <div style="font-size: 11px; font-weight: 700; color: rgb(156, 163, 175); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px;">Total Payment</div>
+            <div style="display: flex; align-items: center; justify-content: space-between; background: rgb(248, 247, 243); border: 2px solid rgb(229, 227, 219); border-radius: 10px; padding: 10px 14px;">
+              <span id="displayTotal" style="font-size: 22px; font-weight: 800; color: rgb(26, 26, 26); letter-spacing: -0.5px;">₹2,000</span>
+            </div>
+          </div>
+
+          <!-- Amount Paid Input -->
+          <div style="margin-bottom: 14px;">
+            <div style="font-size: 11px; font-weight: 700; color: rgb(156, 163, 175); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px;">Amount Paid</div>
+            <div style="position: relative;">
+              <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 13px; font-weight: 700; color: rgb(107, 114, 128);">₹</span>
+              <input id="amountPaidInput" placeholder="0" type="number" value="2000" oninput="calculateDue()" style="width: 100%; padding: 10px 12px 10px 28px; border: 1.5px solid rgb(229, 227, 219); border-radius: 10px; font-size: 16px; font-weight: 700; outline: none; box-sizing: border-box;">
+            </div>
+
+            <!-- Due Amount Indicator -->
+            <div id="dueContainer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding: 8px 12px; border-radius: 8px; background: rgb(240, 253, 244); border: 1px solid rgb(187, 247, 208);">
+              <span id="dueLabel" style="font-size: 13px; font-weight: 600; color: rgb(21, 128, 61);">Due Amount</span>
+              <span id="dueAmount" style="font-size: 15px; font-weight: 800; color: rgb(21, 128, 61);">₹0</span>
+            </div>
+
+            <!-- Payment Badge Status -->
+            <div style="margin-top: 8px; display: flex; justify-content: flex-end;">
+              <span id="statusBadge" style="font-size: 11.5px; font-weight: 700; padding: 4px 12px; border-radius: 20px; background: rgb(220, 252, 231); color: rgb(21, 128, 61); display: inline-flex; align-items: center; gap: 4px;">
+                <svg id="statusIcon" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span id="statusText">Paid</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- Payment Mode Selection Grid -->
+          <div style="margin-bottom: 14px;">
+            <div style="font-size: 11px; font-weight: 700; color: rgb(156, 163, 175); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px;">Payment Mode</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+              
+              <!-- Cash (Active Default) -->
+              <button id="mode-cash" onclick="selectMode('cash')" class="btn-mode" style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; border: 1.5px solid rgb(245, 158, 11); background: rgb(254, 243, 199); cursor: pointer; text-align: left;">
+                <span id="dot-cash" style="width: 8px; height: 8px; border-radius: 50%; background: rgb(245, 158, 11); flex-shrink: 0;"></span>
+                <div>
+                  <div id="text-cash" style="font-size: 11.5px; font-weight: 700; color: rgb(26, 26, 26);">Cash</div>
+                  <div style="font-size: 10px; color: rgb(156, 163, 175);">Physical cash</div>
+                </div>
+              </button>
+
+              <!-- UPI -->
+              <button id="mode-upi" onclick="selectMode('upi')" class="btn-mode" style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; border: 1.5px solid rgb(229, 227, 219); background: rgb(255, 255, 255); cursor: pointer; text-align: left;">
+                <span id="dot-upi" style="width: 8px; height: 8px; border-radius: 50%; background: rgb(209, 213, 219); flex-shrink: 0;"></span>
+                <div>
+                  <div id="text-upi" style="font-size: 11.5px; font-weight: 700; color: rgb(107, 114, 128);">UPI</div>
+                  <div style="font-size: 10px; color: rgb(156, 163, 175);">GPay / PhonePe</div>
+                </div>
+              </button>
+
+              <!-- Card -->
+              <button id="mode-card" onclick="selectMode('card')" class="btn-mode" style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; border: 1.5px solid rgb(229, 227, 219); background: rgb(255, 255, 255); cursor: pointer; text-align: left;">
+                <span id="dot-card" style="width: 8px; height: 8px; border-radius: 50%; background: rgb(209, 213, 219); flex-shrink: 0;"></span>
+                <div>
+                  <div id="text-card" style="font-size: 11.5px; font-weight: 700; color: rgb(107, 114, 128);">Card</div>
+                  <div style="font-size: 10px; color: rgb(156, 163, 175);">Debit / Credit</div>
+                </div>
+              </button>
+
+              <!-- Waive -->
+              <button id="mode-waive" onclick="selectMode('waive')" class="btn-mode" style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; border: 1.5px solid rgb(229, 227, 219); background: rgb(255, 255, 255); cursor: pointer; text-align: left;">
+                <span id="dot-waive" style="width: 8px; height: 8px; border-radius: 50%; background: rgb(209, 213, 219); flex-shrink: 0;"></span>
+                <div>
+                  <div id="text-waive" style="font-size: 11.5px; font-weight: 700; color: rgb(107, 114, 128);">Waive</div>
+                  <div style="font-size: 10px; color: rgb(156, 163, 175);">No charge</div>
+                </div>
+              </button>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- Column 3: Collapsible Extra Details -->
+        <div style="background: rgb(255, 255, 255); border-radius: 16px; border: 0.5px solid rgb(229, 227, 219); padding: 18px; display: flex; flex-direction: column; gap: 14px;">
+          
+          <!-- Additional Charges Accordion -->
+          <div style="border: 1px solid rgb(233, 213, 255); border-radius: 12px; overflow: hidden;">
+            <button class="accordion-header" onclick="toggleAccordion('additionalCharges', 'iconCharges')" style="width: 100%; padding: 10px 14px; background: rgb(255, 255, 255); border: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 700; color: rgb(55, 65, 81);">
+              <span style="display: flex; align-items: center; gap: 6px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus" aria-hidden="true" style="color: rgb(78, 93, 181);">
+                  <path d="M5 12h14"></path>
+                  <path d="M12 5v14"></path>
+                </svg>
+                Additional Charges
+              </span>
+              <svg id="iconCharges" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true" style="color: rgb(156, 163, 175); transition: transform 0.2s;">
+                <path d="m6 9 6 6 6-6"></path>
+              </svg>
+            </button>
+            <div id="additionalCharges" style="display: none; padding: 12px 14px; background: #faf5ff; border-top: 1px solid rgb(233, 213, 255);">
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <input id="extraChargeInput" placeholder="Registration / Service Fee" type="number" oninput="recalculateTotal()" style="padding: 6px 10px; border: 1px solid #d8b4fe; border-radius: 6px; font-size: 12px; outline: none;">
+              </div>
+            </div>
+          </div>
+
+          <!-- Apply Discount Accordion -->
+          <div style="border: 1px solid rgb(253, 230, 138); border-radius: 12px; overflow: hidden;">
+            <button class="accordion-header" onclick="toggleAccordion('applyDiscount', 'iconDiscount')" style="width: 100%; padding: 10px 14px; background: rgb(255, 255, 255); border: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 700; color: rgb(55, 65, 81);">
+              <span style="display: flex; align-items: center; gap: 6px;">
+                <span style="color: rgb(245, 158, 11); font-size: 14px; font-weight: 800;">%</span>
+                Apply Discount
+              </span>
+              <svg id="iconDiscount" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true" style="color: rgb(156, 163, 175); transition: transform 0.2s;">
+                <path d="m6 9 6 6 6-6"></path>
+              </svg>
+            </button>
+            <div id="applyDiscount" style="display: none; padding: 12px 14px; background: #fffbeb; border-top: 1px solid rgb(253, 230, 138);">
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <input id="discountInput" placeholder="Discount Amount (₹)" type="number" oninput="recalculateTotal()" style="padding: 6px 10px; border: 1px solid #fcd34d; border-radius: 6px; font-size: 12px; outline: none;">
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Modal Footer Actions -->
+    <div style="padding: 14px 24px; border-top: 0.5px solid rgb(229, 227, 219); background: rgb(255, 255, 255); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;">
+      <div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 13px; font-weight: 600; color: rgb(55, 65, 81);">Total:</span>
+          <span id="footerTotal" style="font-size: 20px; font-weight: 800; color: rgb(78, 93, 181); letter-spacing: -0.5px;">₹2,000</span>
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button onclick="closeModal()" style="padding: 10px 20px; border: 1.5px solid rgb(229, 231, 235); border-radius: 10px; background: rgb(255, 255, 255); color: rgb(55, 65, 81); font-weight: 600; font-size: 13px; cursor: pointer;">Cancel</button>
+        <button onclick="submitPayment()" style="padding: 10px 22px; border: none; border-radius: 10px; background: rgb(22, 163, 74); color: rgb(255, 255, 255); font-weight: 700; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" aria-hidden="true">
+            <path d="M20 6 9 17l-5-5"></path>
+          </svg>
+          Collect &amp; Send Receipt
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    let baseTotal = 2000;
+    let selectedMode = 'cash';
+
+    // Toggle Payment Method Selection
+    function selectMode(mode) {
+      const modes = ['cash', 'upi', 'card', 'waive'];
+      selectedMode = mode;
+
+      modes.forEach(m => {
+        const btn = document.getElementById(`mode-${m}`);
+        const dot = document.getElementById(`dot-${m}`);
+        const text = document.getElementById(`text-${m}`);
+
+        if (m === mode) {
+          btn.style.border = '1.5px solid rgb(245, 158, 11)';
+          btn.style.background = 'rgb(254, 243, 199)';
+          dot.style.background = 'rgb(245, 158, 11)';
+          text.style.color = 'rgb(26, 26, 26)';
+        } else {
+          btn.style.border = '1.5px solid rgb(229, 227, 219)';
+          btn.style.background = 'rgb(255, 255, 255)';
+          dot.style.background = 'rgb(209, 213, 219)';
+          text.style.color = 'rgb(107, 114, 128)';
+        }
+      });
+
+      // If Waive option selected
+      if (mode === 'waive') {
+        document.getElementById('amountPaidInput').value = 0;
+        calculateDue();
+      }
+    }
+
+    // Toggle Accordion Collapse
+    function toggleAccordion(id, iconId) {
+      const content = document.getElementById(id);
+      const icon = document.getElementById(iconId);
+      if (content.style.display === 'none' || content.style.display === '') {
+        content.style.display = 'block';
+        icon.classList.add('rotate-180');
+      } else {
+        content.style.display = 'none';
+        icon.classList.remove('rotate-180');
+      }
+    }
+
+    // Recalculate Total on Extra Charges / Discounts
+    function recalculateTotal() {
+      const extra = parseFloat(document.getElementById('extraChargeInput').value) || 0;
+      const discount = parseFloat(document.getElementById('discountInput').value) || 0;
+      
+      const currentTotal = Math.max(0, baseTotal + extra - discount);
+      
+      document.getElementById('displayTotal').innerText = `₹${currentTotal.toLocaleString('en-IN')}`;
+      document.getElementById('footerTotal').innerText = `₹${currentTotal.toLocaleString('en-IN')}`;
+      
+      calculateDue();
+    }
+
+    // Dynamic Due Calculation & Badge Status update
+    function calculateDue() {
+      const extra = parseFloat(document.getElementById('extraChargeInput').value) || 0;
+      const discount = parseFloat(document.getElementById('discountInput').value) || 0;
+      const currentTotal = Math.max(0, baseTotal + extra - discount);
+      
+      const paidVal = parseFloat(document.getElementById('amountPaidInput').value) || 0;
+      const due = currentTotal - paidVal;
+
+      const dueContainer = document.getElementById('dueContainer');
+      const dueLabel = document.getElementById('dueLabel');
+      const dueAmount = document.getElementById('dueAmount');
+      const statusBadge = document.getElementById('statusBadge');
+      const statusText = document.getElementById('statusText');
+
+      if (due <= 0) {
+        // Fully Paid
+        dueContainer.style.background = 'rgb(240, 253, 244)';
+        dueContainer.style.borderColor = 'rgb(187, 247, 208)';
+        dueLabel.style.color = 'rgb(21, 128, 61)';
+        dueAmount.style.color = 'rgb(21, 128, 61)';
+        dueAmount.innerText = '₹0';
+
+        statusBadge.style.background = 'rgb(220, 252, 231)';
+        statusBadge.style.color = 'rgb(21, 128, 61)';
+        statusText.innerText = 'Paid';
+      } else {
+        // Pending / Partial Due
+        dueContainer.style.background = 'rgb(254, 243, 199)';
+        dueContainer.style.borderColor = 'rgb(253, 230, 138)';
+        dueLabel.style.color = 'rgb(180, 83, 9)';
+        dueAmount.style.color = 'rgb(180, 83, 9)';
+        dueAmount.innerText = `₹${due.toLocaleString('en-IN')}`;
+
+        statusBadge.style.background = 'rgb(254, 243, 199)';
+        statusBadge.style.color = 'rgb(180, 83, 9)';
+        statusText.innerText = 'Partial';
+      }
+    }
+
+    // Modal Action Triggers
+    function closeModal() {
+      document.getElementById('modalContainer').style.display = 'none';
+    }
+
+    function submitPayment() {
+      const paidVal = document.getElementById('amountPaidInput').value;
+      const totalText = document.getElementById('footerTotal').innerText;
+      
+      // Inline custom visual confirmation box replacing alert()
+      const button = event.currentTarget;
+      button.innerText = 'Processing...';
+      button.disabled = true;
+      button.style.opacity = '0.8';
+
+      setTimeout(() => {
+        button.innerText = '✓ Payment Collected!';
+        button.style.background = '#15803d';
+      }, 1000);
+    }
+  </script>
+</body>
+</html>
