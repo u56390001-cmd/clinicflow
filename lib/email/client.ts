@@ -1,5 +1,14 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+let client: Resend | null = null;
 
-export { resend };
+export function getResend(): Resend {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "Resend is not configured: set RESEND_API_KEY to send email.",
+    );
+  }
+  client ??= new Resend(apiKey);
+  return client;
+}

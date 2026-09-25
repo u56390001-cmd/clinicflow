@@ -1,4 +1,4 @@
-import { resend } from "@/lib/email/client";
+import { getResend } from "@/lib/email/client";
 import { logAppEvent } from "@/lib/observability";
 import { createWidgetClient } from "@/lib/supabase/widget";
 import {
@@ -61,7 +61,7 @@ export async function sendAppointmentConfirmation(
 ): Promise<SendEmailResult> {
   try {
     const { subject, html } = appointmentConfirmation(params);
-    await resend.emails.send({ from: FROM_EMAIL, to, subject, html });
+    await getResend().emails.send({ from: FROM_EMAIL, to, subject, html });
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -77,7 +77,7 @@ export async function sendAppointmentNotification(
 ): Promise<SendEmailResult> {
   try {
     const { subject, html } = appointmentNotification(params);
-    await resend.emails.send({ from: FROM_EMAIL, to, subject, html });
+    await getResend().emails.send({ from: FROM_EMAIL, to, subject, html });
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -93,7 +93,7 @@ export async function sendAppointmentCancellation(
 ): Promise<SendEmailResult> {
   try {
     const { subject, html } = appointmentCancellation(params);
-    await resend.emails.send({ from: FROM_EMAIL, to, subject, html });
+    await getResend().emails.send({ from: FROM_EMAIL, to, subject, html });
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -109,7 +109,7 @@ export async function sendAppointmentReschedule(
 ): Promise<SendEmailResult> {
   try {
     const { subject, html } = appointmentReschedule(params);
-    await resend.emails.send({ from: FROM_EMAIL, to, subject, html });
+    await getResend().emails.send({ from: FROM_EMAIL, to, subject, html });
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -129,7 +129,7 @@ export async function sendBillingSubmitted(
 ): Promise<SendEmailResult> {
   try {
     const { subject, html } = billingSubmitted(params);
-    await resend.emails.send({ from: FROM_EMAIL, to, subject, html });
+    await getResend().emails.send({ from: FROM_EMAIL, to, subject, html });
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -145,7 +145,7 @@ export async function sendBillingApproved(
 ): Promise<SendEmailResult> {
   try {
     const { subject, html } = billingApproved(params);
-    await resend.emails.send({ from: FROM_EMAIL, to, subject, html });
+    await getResend().emails.send({ from: FROM_EMAIL, to, subject, html });
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -161,7 +161,7 @@ export async function sendBillingRejected(
 ): Promise<SendEmailResult> {
   try {
     const { subject, html } = billingRejected(params);
-    await resend.emails.send({ from: FROM_EMAIL, to, subject, html });
+    await getResend().emails.send({ from: FROM_EMAIL, to, subject, html });
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -177,7 +177,7 @@ export async function sendBillingExpiring(
 ): Promise<SendEmailResult> {
   try {
     const { subject, html } = billingExpiring(params);
-    await resend.emails.send({ from: FROM_EMAIL, to, subject, html });
+    await getResend().emails.send({ from: FROM_EMAIL, to, subject, html });
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -304,7 +304,7 @@ export async function sendTeamInviteEmail(params: {
       role: params.role,
       acceptUrl: params.acceptUrl,
     });
-    await resend.emails.send({ from: FROM_EMAIL, to: params.to, subject, html });
+    await getResend().emails.send({ from: FROM_EMAIL, to: params.to, subject, html });
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
