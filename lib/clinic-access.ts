@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { CLINICAL_ROLES, CLINIC_WRITE_ROLES } from "@/lib/constants";
@@ -23,10 +24,16 @@ export type CurrentClinicAccess = {
  * membership" rule as the dashboard). Returns null when the user has no
  * clinic. `clinic` is null when the membership exists but its clinic row is
  * not readable (RLS) or was deleted.
+ *
+ * Memoized with React `cache()` — the header, the page, and any route layout
+ * gating on a role all ask for the same clinic during one request, and without
+ * this each of them paid for its own `clinic_members` round trip. Inside a
+ * Server Action (no cache scope) it simply runs every time, as before.
  */
-export async function getCurrentClinic(
-  supabase: SupabaseClient<Database>,
-): Promise<CurrentClinicAccess | null> {
+export const getCurrentClinic = cache(
+  async (
+    supabase: SupabaseClient<Database>,
+  ): Promise<CurrentClinicAccess | null> => {
   const { data: memberships } = await supabase
     .from("clinic_members")
     .select("role, clinics(id, name, slug, timezone, doctor_name, phone, email, address, google_review_url)")
@@ -51,7 +58,8 @@ export async function getCurrentClinic(
       google_review_url: clinic.google_review_url,
     },
   };
-}
+  },
+);
 
 /** True when the role may write clinic data (owner/admin). Staff is read-only. */
 export function canWriteClinic(role: ClinicRole): boolean {

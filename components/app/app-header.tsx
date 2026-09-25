@@ -1,4 +1,5 @@
 import { AppHeaderShell } from "@/components/app/app-header-shell";
+import { getSessionIdentity } from "@/lib/auth-session";
 import { getCurrentClinic } from "@/lib/clinic-access";
 import {
   fetchHeaderConversations,
@@ -8,21 +9,16 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function AppHeader() {
   const supabase = await createClient();
-  const [userResult, access] = await Promise.all([
-    supabase.auth.getUser(),
+  // Identity and clinic resolve concurrently; both are request-cached now, so
+  // the sidebar (same pass) and the page below reuse their results instead of
+  // each paying for their own auth + membership round trips.
+  const [session, access] = await Promise.all([
+    getSessionIdentity(),
     getCurrentClinic(supabase),
   ]);
 
-  const user = userResult.data.user ?? null;
-  const email = user?.email ?? null;
-  const meta = (user?.user_metadata ?? null) as Record<string, unknown> | null;
-  const metaName =
-    typeof meta?.full_name === "string" && meta.full_name.trim()
-      ? meta.full_name.trim()
-      : typeof meta?.name === "string" && meta.name.trim()
-        ? meta.name.trim()
-        : null;
-  const displayName = metaName ?? (email ? email.split("@")[0] : null);
+  const email = session?.email ?? null;
+  const displayName = session?.fullName ?? null;
 
   const clinicId = access?.clinic.id ?? null;
   const [notifications, conversations] = clinicId

@@ -4,23 +4,21 @@ import { DashboardUpcomingAppointments } from "@/components/app/dashboard-upcomi
 import { DashboardRecentActivity } from "@/components/app/dashboard-recent-activity";
 import { DashboardQuickActions } from "@/components/app/dashboard-quick-actions";
 import { ClinicEmptyState } from "@/components/app/clinic-empty-state";
+import { getCurrentClinic } from "@/lib/clinic-access";
 import { createClient } from "@/lib/supabase/server";
 
 export async function DashboardContent() {
   const supabase = await createClient();
 
-  const { data: memberships } = await supabase
-    .from("clinic_members")
-    .select("role, clinics(id, name, slug, timezone, google_review_url)")
-    .order("created_at", { ascending: false })
-    .limit(1);
-
-  const membership = memberships?.[0] ?? null;
-  const clinic = membership?.clinics ?? null;
+  // Same "latest membership" lookup the header already performed this request;
+  // going through the cached `getCurrentClinic` instead of an inline query
+  // means the dashboard pays one round trip for both, not two.
+  const access = await getCurrentClinic(supabase);
+  const clinic = access?.clinic ?? null;
 
   return (
     <div className="space-y-6">
-      {!membership || !clinic ? (
+      {!clinic ? (
         <ClinicEmptyState />
       ) : (
         <>

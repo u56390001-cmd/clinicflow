@@ -126,7 +126,10 @@ export function NotificationBell({
   const supabase = useMemo(() => (clinicId ? createClient() : null), [clinicId]);
 
   // Near-real-time arrival detection so the badge and chime stay live without
-  // a manual reload (same polling approach as the inbox auto-refresh).
+  // a manual reload (same polling approach as the inbox auto-refresh). Skipped
+  // while the tab is hidden — background tabs kept firing queries forever,
+  // showing rate-limit pressure and wasted bandwidth; a poll runs immediately
+  // on re-visibility instead.
   useEffect(() => {
     if (!supabase || !clinicId) return;
     let cancelled = false;
@@ -137,10 +140,29 @@ export function NotificationBell({
       if (!items || cancelled) return;
       receive(items, true);
     };
-    const id = setInterval(poll, POLL_INTERVAL_MS);
+    let id: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      id ??= setInterval(poll, POLL_INTERVAL_MS);
+    };
+    const stop = () => {
+      if (id !== null) {
+        clearInterval(id);
+        id = null;
+      }
+    };
+    const onVisibility = () => {
+      if (document.hidden) stop();
+      else {
+        void poll();
+        start();
+      }
+    };
+    if (!document.hidden) start();
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       cancelled = true;
-      clearInterval(id);
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [supabase, clinicId, receive]);
 

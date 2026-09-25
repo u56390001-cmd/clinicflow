@@ -12,8 +12,32 @@ export function InboxAutoRefresh({ intervalMs = 30000 }: { intervalMs?: number }
   const router = useRouter();
 
   useEffect(() => {
-    const id = setInterval(() => router.refresh(), intervalMs);
-    return () => clearInterval(id);
+    // `router.refresh()` re-renders the whole inbox server tree, so a hidden
+    // tab kept paying for it (and hammering the DB) indefinitely. Pause while
+    // hidden; refresh once when the tab comes back into view.
+    let id: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      id ??= setInterval(() => router.refresh(), intervalMs);
+    };
+    const stop = () => {
+      if (id !== null) {
+        clearInterval(id);
+        id = null;
+      }
+    };
+    const onVisibility = () => {
+      if (document.hidden) stop();
+      else {
+        router.refresh();
+        start();
+      }
+    };
+    if (!document.hidden) start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [router, intervalMs]);
 
   return null;
