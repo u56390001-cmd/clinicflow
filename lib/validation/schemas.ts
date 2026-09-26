@@ -1710,3 +1710,117 @@ export const billStatusChangeSchema = z.object({
     .max(200, "Keep the reason under 200 characters."),
 });
 
+// ---------------------------------------------------------------------------
+// Growth Agent (Phase 24)
+// ---------------------------------------------------------------------------
+
+/** How many keywords one post may carry. Google's own post fields are short;
+ *  past this the tags stop being a targeting aid and start being a keyword
+ *  stuffing the clinic's own ranking would rather not have. */
+const GROWTH_KEYWORD_LIMIT = 8;
+
+/**
+ * One keyword tag, normalised. The leading `#` is stripped here rather than
+ * trusted from the client, so `#Dental` and `Dental` cannot both enter the
+ * array and produce two visually identical tags.
+ */
+const growthKeyword = z
+  .string()
+  .trim()
+  .min(1, "Enter a keyword.")
+  .max(40, "Keep keywords under 40 characters.")
+  .transform((value) => value.replace(/^#+/, "").trim())
+  .refine((value) => value.length > 0, "Enter a keyword.");
+
+/**
+ * Fields the post generator submits. `topic` and `tone` are free strings
+ * because they are picker values whose label set lives in the UI, but they are
+ * still bounded and stripped of control characters — a topic is interpolated
+ * into a model prompt, so an unbounded string is a prompt-injection surface.
+ */
+export const growthGenerateSchema = z.object({
+  topic: z
+    .string()
+    .trim()
+    .min(3, "Choose what the post is about.")
+    .max(120, "Keep the topic under 120 characters."),
+  keywords: z
+    .array(growthKeyword)
+    .max(GROWTH_KEYWORD_LIMIT, `Use at most ${GROWTH_KEYWORD_LIMIT} keywords.`)
+    .default([]),
+  tone: z
+    .string()
+    .trim()
+    .min(2, "Choose a writing tone.")
+    .max(40, "Keep the tone under 40 characters."),
+  cta: z
+    .string()
+    .trim()
+    .min(2, "Choose a call to action.")
+    .max(40, "Keep the call to action under 40 characters."),
+});
+
+/** Persisting a post to the queue — used by both generate and manual save. */
+export const growthPostSaveSchema = z.object({
+  postId: uuid("Missing post id.").optional(),
+  content: z
+    .string()
+    .trim()
+    .min(20, "Write at least a sentence before saving.")
+    .max(1500, "A Google post must be under 1500 characters."),
+  topic: z
+    .string()
+    .trim()
+    .min(3, "Choose what the post is about.")
+    .max(120, "Keep the topic under 120 characters."),
+  keywords: z
+    .array(growthKeyword)
+    .max(GROWTH_KEYWORD_LIMIT, `Use at most ${GROWTH_KEYWORD_LIMIT} keywords.`)
+    .default([]),
+  cta: z
+    .string()
+    .trim()
+    .min(2, "Choose a call to action.")
+    .max(40, "Keep the call to action under 40 characters."),
+  tone: z
+    .string()
+    .trim()
+    .min(2, "Choose a writing tone.")
+    .max(40, "Keep the tone under 40 characters."),
+  /** Naive clinic-local `YYYY-MM-DDTHH:mm`, or empty to save as a draft now. */
+  scheduledFor: localDateTime
+    .or(z.literal(""))
+    .default(""),
+});
+
+/**
+ * Auto-publishing preferences. `preferredDay` is the 0=Monday index used by
+ * `availability_rules.day_of_week`, and `preferredTime` a wall clock in the
+ * clinic's own timezone — a `time` column, so no offset is stored.
+ *
+ * `autoPostEnabled` is validated on its own rather than in a `.superRefine`
+ * that rejects the form, because the UI has to be able to save "enabled" while
+ * the profile is still disconnected and show the resulting warning inline.
+ */
+export const growthSettingsSchema = z.object({
+  autoPostEnabled: z.boolean(),
+  postingFrequency: z.enum(["weekly", "biweekly", "monthly"], {
+    message: "Choose weekly, every two weeks, or monthly.",
+  }),
+  preferredDay: z.coerce
+    .number()
+    .int()
+    .min(0, "Choose a day.")
+    .max(6, "Choose a day."),
+  preferredTime: z
+    .string()
+    .regex(TIME_OF_DAY, "Choose a time."),
+  requireApproval: z.boolean(),
+});
+
+/** Row-level action on a queued post. */
+export const growthPostActionSchema = z.object({
+  postId: uuid("Missing post id."),
+});
+
+

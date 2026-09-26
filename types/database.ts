@@ -847,6 +847,106 @@ export type WebsiteImage = {
   created_at: string;
 };
 
+// ---------------------------------------------------------------------------
+// Growth Agent (Phase 24, migration 0042)
+// ---------------------------------------------------------------------------
+
+/**
+ * Lifecycle of a Google Business Profile post.
+ *
+ * `published` means "handed off / marked live". While the Google integration is
+ * absent there is no API call behind that transition, so the UI is explicit
+ * about the difference rather than implying the post is already on Google.
+ */
+export type GrowthPostStatus = "draft" | "scheduled" | "published" | "failed";
+
+/**
+ * Google Business Profile connection state.
+ *
+ * Four values, not a boolean: the UI has to tell "retry the handshake" apart
+ * from "sign in again", and `connecting` is a real state in between.
+ */
+export type GrowthConnectionState =
+  | "not_connected"
+  | "connecting"
+  | "connected"
+  | "error";
+
+/** How often the scheduler writes a fresh post. */
+export type GrowthPostingFrequency = "weekly" | "biweekly" | "monthly";
+
+/**
+ * One clinic's Growth Agent configuration. 1:1 with a clinic (unique on
+ * `clinic_id`). Carries both the Google connection and the auto-publishing
+ * preferences because the same person configures both at the same time.
+ */
+export type GrowthAgentSettings = {
+  id: string;
+  clinic_id: string;
+  connection_state: GrowthConnectionState;
+  google_location_name: string | null;
+  connected_at: string | null;
+  last_synced_at: string | null;
+  /** Persists a failed connection attempt across a page reload. */
+  last_error: string | null;
+  auto_post_enabled: boolean;
+  posting_frequency: GrowthPostingFrequency;
+  /** 0 = Monday ... 6 = Sunday, matching `availability_rules.day_of_week`. */
+  preferred_day: number;
+  /** Wall clock in the clinic's timezone — a Postgres `time`, not a timestamptz. */
+  preferred_time: string;
+  /** true: generated posts wait as drafts. false: published unreviewed. */
+  require_approval: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * A Google Business Profile post in the content queue.
+ *
+ * `keywords` is a `text[]` so the clinic's own tags round-trip verbatim into
+ * the editor without re-parsing a delimited string.
+ */
+export type GrowthPost = {
+  id: string;
+  clinic_id: string;
+  content: string;
+  topic: string;
+  keywords: string[];
+  cta: string;
+  tone: string;
+  status: GrowthPostStatus;
+  scheduled_at: string | null;
+  published_at: string | null;
+  /** Only meaningful while `status` is `failed` (DB CHECK enforces this). */
+  failure_reason: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * One day of Google Business Profile metrics for a clinic.
+ *
+ * `metric_date` is a calendar day in the clinic's timezone, not an instant —
+ * which is why it is a `date` and why bucketing happens before the write.
+ *
+ * The three counts are NOT NULL with a zero default: zero views is a real
+ * measurement. `health_score` is nullable instead, because it is only
+ * computable once there is enough profile data — a stored 0 would be a lie.
+ */
+export type GrowthMetric = {
+  id: string;
+  clinic_id: string;
+  metric_date: string;
+  views: number;
+  calls: number;
+  direction_requests: number;
+  health_score: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type AiConversationLog = {
   id: string;
   clinic_id: string;
@@ -2655,6 +2755,135 @@ export type Database = {
             columns: ["settings_id"];
             isOneToOne: true;
             referencedRelation: "clinic_ai_settings";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      growth_agent_settings: {
+        Row: GrowthAgentSettings;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          connection_state?: GrowthConnectionState;
+          google_location_name?: string | null;
+          connected_at?: string | null;
+          last_synced_at?: string | null;
+          last_error?: string | null;
+          auto_post_enabled?: boolean;
+          posting_frequency?: GrowthPostingFrequency;
+          preferred_day?: number;
+          preferred_time?: string;
+          require_approval?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          connection_state?: GrowthConnectionState;
+          google_location_name?: string | null;
+          connected_at?: string | null;
+          last_synced_at?: string | null;
+          last_error?: string | null;
+          auto_post_enabled?: boolean;
+          posting_frequency?: GrowthPostingFrequency;
+          preferred_day?: number;
+          preferred_time?: string;
+          require_approval?: boolean;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "growth_agent_settings_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: true;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      growth_posts: {
+        Row: GrowthPost;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          content: string;
+          topic: string;
+          keywords?: string[];
+          cta?: string;
+          tone?: string;
+          status?: GrowthPostStatus;
+          scheduled_at?: string | null;
+          published_at?: string | null;
+          failure_reason?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          content?: string;
+          topic?: string;
+          keywords?: string[];
+          cta?: string;
+          tone?: string;
+          status?: GrowthPostStatus;
+          scheduled_at?: string | null;
+          published_at?: string | null;
+          failure_reason?: string | null;
+          created_by?: string | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "growth_posts_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "growth_posts_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "auth.users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      growth_metrics: {
+        Row: GrowthMetric;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          metric_date: string;
+          views?: number;
+          calls?: number;
+          direction_requests?: number;
+          health_score?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          metric_date?: string;
+          views?: number;
+          calls?: number;
+          direction_requests?: number;
+          health_score?: number | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "growth_metrics_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
             referencedColumns: ["id"];
           },
         ];

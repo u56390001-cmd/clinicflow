@@ -41,6 +41,8 @@ yarn-error.log*
 
 # local editor/MCP config — holds personal access tokens
 .vscode/mcp.json
+# root-level MCP config: per-developer server list, machine-specific
+.mcp.json
 
 # reference material, screenshots and downloaded starter kits — not app source
 /Asset/

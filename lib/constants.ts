@@ -1,6 +1,7 @@
 /** Application-wide constants shared between client and server. */
 
 import type {
+  GrowthPostStatus,
   PatientBillStatus,
   PatientBillType,
   PatientPaymentMethod,
@@ -31,6 +32,7 @@ export const APP_ROUTES = {
     settings: "/app/settings",
     team: "/app/settings/team",
     website: "/app/website",
+    growthAgent: "/app/growth-agent",
     patientBilling: "/app/patient-billing",
     billing: "/app/billing",
     billingCheckout: "/app/billing/checkout",
@@ -72,6 +74,7 @@ export const APP_NAV_SECTIONS = [
     label: "Workspace",
     items: [
       { label: "Website", href: APP_ROUTES.app.website },
+      { label: "Growth Agent", href: APP_ROUTES.app.growthAgent },
       { label: "Billing", href: APP_ROUTES.app.billing },
       { label: "Settings", href: APP_ROUTES.app.settings },
     ],
@@ -274,6 +277,65 @@ export const PATIENT_PAYMENT_METHOD_META: Record<
   upi: { label: "UPI", icon: "Smartphone" },
   waive: { label: "Waive (Free)", icon: "Ban" },
 } as const;
+
+/**
+ * Growth Agent (Phase 24) — Google Business Profile post status metadata.
+ *
+ * Keyed by the DB enum so an unrecognised status is a compile error here rather
+ * than a blank badge at runtime. `failed` is the only status with a second
+ * colour in the queue (it is the one a human has to act on), which is why the
+ * map carries a `dot` as well as a `badge`.
+ */
+export const GROWTH_POST_STATUS_META: Record<
+  GrowthPostStatus,
+  { label: string; badge: string; dot: string }
+> = {
+  draft: {
+    label: "Draft",
+    badge: "bg-slate-100 text-slate-700 ring-slate-500/20",
+    dot: "bg-slate-400",
+  },
+  scheduled: {
+    label: "Scheduled",
+    badge: "bg-sky-50 text-sky-700 ring-sky-600/20",
+    dot: "bg-status-info",
+  },
+  published: {
+    label: "Published",
+    badge: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
+    dot: "bg-status-success",
+  },
+  failed: {
+    label: "Failed",
+    badge: "bg-red-50 text-red-700 ring-red-600/20",
+    dot: "bg-status-destructive",
+  },
+} as const;
+
+/**
+ * Range selector for the Growth Agent metrics. Each range carries its own
+ * window length in days and its comparison label, so the delta under every
+ * number is derived from real rows rather than asserted in the component.
+ *
+ * `window` must stay <= `compareWindow` so the comparison period is always
+ * fully covered by the rows the query fetches.
+ */
+export const GROWTH_METRIC_RANGES = [
+  { id: "7d", label: "Last 7 days", window: 7, compareWindow: 7 },
+  { id: "30d", label: "Last 30 days", window: 30, compareWindow: 30 },
+  { id: "90d", label: "Last 90 days", window: 90, compareWindow: 90 },
+  { id: "ytd", label: "Year to date", window: 0, compareWindow: 0 },
+] as const;
+
+export type GrowthMetricRangeId =
+  (typeof GROWTH_METRIC_RANGES)[number]["id"];
+
+/** Posting-frequency labels. Values must match `growth_settings_schema`. */
+export const GROWTH_FREQUENCY_LABELS = [
+  { value: "weekly", label: "Every week" },
+  { value: "biweekly", label: "Every two weeks" },
+  { value: "monthly", label: "Every month" },
+] as const;
 
 /** Timezone options offered in the clinic forms. */
 export const COMMON_TIMEZONES = [
