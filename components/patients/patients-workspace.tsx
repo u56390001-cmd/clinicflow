@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { UserRound } from "lucide-react";
 
 import { PatientFormModal } from "@/components/patients/patient-form-modal";
@@ -8,19 +8,17 @@ import {
   PatientListPane,
   type PatientDirectoryStats,
 } from "@/components/patients/patient-list-pane";
-import { PatientRecord } from "@/components/patients/patient-record";
-import type { ActiveVisitInfo } from "@/components/patients/record/record-banner";
+import {
+  PatientRecordPaneActionsContext,
+  type PatientRecordPaneActions,
+} from "@/components/patients/patient-record-pane";
 import { WritePrescriptionOverlay } from "@/components/consultation/write-prescription-overlay";
 import {
-  patientDirectoryHref,
   type PatientDirectoryParams,
   type PatientTodayQueue,
 } from "@/lib/patient-directory";
 import { usePersistedBoolean } from "@/hooks/use-persisted-boolean";
 import { cn } from "@/lib/utils";
-import type { AppointmentView } from "@/lib/appointments-view";
-import type { PatientDocumentView } from "@/lib/patient-documents-queries";
-import type { PatientRecordData } from "@/lib/patient-record";
 import type { Patient, PatientDirectoryRow } from "@/types/database";
 
 /**
@@ -43,13 +41,8 @@ export function PatientsWorkspace({
   todayQueue,
   params,
   selectedPatient,
-  record,
-  documents,
-  upcoming,
-  past,
-  activeVisitInfo,
+  recordPane,
   canManage,
-  aiSummaryEnabled,
   timezone,
   clinic,
 }: {
@@ -61,17 +54,9 @@ export function PatientsWorkspace({
   params: PatientDirectoryParams;
   /** `null` when `?id=` is absent, or points at a record this clinic cannot see. */
   selectedPatient: PatientDirectoryRow | null;
-  /** Visits, vitals and prescriptions of the open record; empty when none is open. */
-  record: PatientRecordData;
-  /** Files attached to the open record; empty when none is open. */
-  documents: PatientDocumentView[];
-  upcoming: AppointmentView[];
-  past: AppointmentView[];
-  /** Today's active-visit + queue eligibility for the open record. */
-  activeVisitInfo: { activeVisit: ActiveVisitInfo | null; canStart: boolean };
+  /** The streamed record pane, or `null` when no record is open. */
+  recordPane: ReactNode;
   canManage: boolean;
-  /** `PATIENT_AI_SUMMARY_ENABLED` on the server — gates the summary refresh control. */
-  aiSummaryEnabled: boolean;
   timezone: string;
   /** The signed-in clinic — carried from the server page for the prescription overlay. */
   clinic: { id: string; name: string; address: string | null; phone: string | null };
@@ -94,7 +79,20 @@ export function PatientsWorkspace({
   const closeWritePrescription = useCallback(() => setRxVisit(null), []);
 
   const hasSelection = selectedPatient !== null;
-  const listHref = patientDirectoryHref({ ...params, selectedId: "" });
+
+  // The record pane is rendered by the server and streamed in behind a Suspense
+  // boundary, so its two callbacks travel through context rather than props — a
+  // server component cannot be handed a function.
+  const recordPaneActions = useMemo<PatientRecordPaneActions>(
+    () =>
+      selectedPatient
+        ? {
+            onEdit: () => openEditPatient(selectedPatient),
+            onWritePrescription: openWritePrescription,
+          }
+        : { onEdit: () => {}, onWritePrescription: () => {} },
+    [selectedPatient, openEditPatient, openWritePrescription],
+  );
 
   // The queue is the second thing to make room, after the nav rail: collapse it
   // and the record gets ~300px back. Remembered, because a doctor who works
@@ -119,7 +117,7 @@ export function PatientsWorkspace({
     "lg:sticky lg:top-[calc(var(--app-header-h)_+_1rem)] lg:max-h-[calc(100svh_-_var(--app-header-h)_-_2rem)] lg:overflow-y-auto";
 
   return (
-    <>
+    <PatientRecordPaneActionsContext.Provider value={recordPaneActions}>
       <div className="grid min-w-0 gap-4 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-start">
         <div
           className={cn(
@@ -155,24 +153,7 @@ export function PatientsWorkspace({
               ),
           )}
         >
-          {selectedPatient ? (
-            <PatientRecord
-              key={selectedPatient.id}
-              patient={selectedPatient}
-              record={record}
-              documents={documents}
-              params={params}
-              upcoming={upcoming}
-              past={past}
-              timezone={timezone}
-              canManage={canManage}
-              aiSummaryEnabled={aiSummaryEnabled}
-              activeVisitInfo={activeVisitInfo}
-              backHref={listHref}
-              onEdit={() => openEditPatient(selectedPatient)}
-              onWritePrescription={openWritePrescription}
-            />
-          ) : (
+          {recordPane ?? (
             <NoSelection
               notFound={params.selectedId !== ""}
               searchTerm={params.selectedId}
@@ -192,7 +173,7 @@ export function PatientsWorkspace({
           onClose={closeWritePrescription}
         />
       )}
-    </>
+    </PatientRecordPaneActionsContext.Provider>
   );
 }
 

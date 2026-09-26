@@ -75,16 +75,27 @@ export async function fetchPatientRecord(
   clinicId: string,
   patientId: string,
 ): Promise<PatientRecordData> {
-  const [{ data: visits, error: visitsError }, { data: doctors }] =
-    await Promise.all([
-      supabase
-        .from("visits")
-        .select("*")
-        .eq("clinic_id", clinicId)
-        .eq("patient_id", patientId)
-        .order("checked_in_at", { ascending: false }),
-      supabase.from("doctors").select("id, name").eq("clinic_id", clinicId),
-    ]);
+  const [
+    { data: visits, error: visitsError },
+    { data: doctors },
+    { data: prescriptionRows },
+  ] = await Promise.all([
+    supabase
+      .from("visits")
+      .select("*")
+      .eq("clinic_id", clinicId)
+      .eq("patient_id", patientId)
+      .order("checked_in_at", { ascending: false }),
+    supabase.from("doctors").select("id, name").eq("clinic_id", clinicId),
+    // Prescriptions hang off the patient directly, so they are worth fetching
+    // even when there are no visit rows (an imported history, for example).
+    supabase
+      .from("prescriptions")
+      .select("*")
+      .eq("clinic_id", clinicId)
+      .eq("patient_id", patientId)
+      .order("created_at", { ascending: false }),
+  ]);
 
   if (visitsError) {
     console.error("[patient record] visits query failed", {
@@ -101,23 +112,15 @@ export async function fetchPatientRecord(
   const visitRows = visits ?? [];
   const visitIds = visitRows.map((visit) => visit.id);
 
-  // Prescriptions hang off the patient directly, so they are worth fetching
-  // even when there are no visit rows (an imported history, for example).
-  const [{ data: vitalsRows }, { data: prescriptionRows }] = await Promise.all([
-    visitIds.length > 0
-      ? supabase
-          .from("vitals")
-          .select("*")
-          .eq("clinic_id", clinicId)
-          .in("visit_id", visitIds)
-      : Promise.resolve({ data: [] as Vitals[], error: null }),
-    supabase
-      .from("prescriptions")
-      .select("*")
-      .eq("clinic_id", clinicId)
-      .eq("patient_id", patientId)
-      .order("created_at", { ascending: false }),
-  ]);
+  // Vitals are keyed on `visit_id`, so this one genuinely depends on the visits
+  // read above and cannot join the first wave.
+  const { data: vitalsRows } = visitIds.length
+    ? await supabase
+        .from("vitals")
+        .select("*")
+        .eq("clinic_id", clinicId)
+        .in("visit_id", visitIds)
+    : { data: [] as Vitals[] };
 
   const vitalsByVisit = new Map(
     (vitalsRows ?? []).map((row) => [row.visit_id, row as Vitals]),

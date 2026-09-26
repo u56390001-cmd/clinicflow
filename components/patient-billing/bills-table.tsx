@@ -187,11 +187,28 @@ export function BillsTable({
         sum + bill.patient_payments.reduce((s, p) => s + (Number(p.amount) || 0), 0),
       0,
     );
+    // Same rule as the Pending KPI: only `pending`/`partially_paid` bills have
+    // money actually owed — cancelled and waived balances are excluded.
+    const pending = bills.reduce(
+      (sum, bill) =>
+        isPendingBill(bill)
+          ? sum +
+            Math.max(
+              0,
+              (Number(bill.total_amount) || 0) -
+                bill.patient_payments.reduce(
+                  (s, p) => s + (Number(p.amount) || 0),
+                  0,
+                ),
+            )
+          : sum,
+      0,
+    );
     return {
       totalBills: bills.length,
       totalAmount,
       paid,
-      pending: Math.max(0, totalAmount - paid),
+      pending,
       currency,
     };
   }, [bills]);
@@ -236,17 +253,23 @@ export function BillsTable({
       }
     }
 
+    // Only money actually owed counts: a cancelled or waived bill's balance is
+    // no longer collectable, and a paid bill nets to zero anyway. Same
+    // status rule as the Pending pill (`isPendingBill`), so the KPI and the
+    // pill can never disagree.
     const pending = bills.reduce(
       (sum, bill) =>
-        sum +
-        Math.max(
-          0,
-          (Number(bill.total_amount) || 0) -
-            bill.patient_payments.reduce(
-              (s, p) => s + (Number(p.amount) || 0),
+        isPendingBill(bill)
+          ? sum +
+            Math.max(
               0,
-            ),
-        ),
+              (Number(bill.total_amount) || 0) -
+                bill.patient_payments.reduce(
+                  (s, p) => s + (Number(p.amount) || 0),
+                  0,
+                ),
+            )
+          : sum,
       0,
     );
 

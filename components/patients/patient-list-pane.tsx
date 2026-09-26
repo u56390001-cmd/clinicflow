@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -378,7 +378,7 @@ function QueueStatusPill({ status }: { status: VisitStatus }) {
   );
 }
 
-function PatientCard({
+const PatientCard = memo(function PatientCard({
   patient,
   params,
   selected,
@@ -470,7 +470,7 @@ function PatientCard({
       />
     </Link>
   );
-}
+});
 
 /**
  * The collapsed queue: today's list as a board of tokens rather than a list of

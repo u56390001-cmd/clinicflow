@@ -24,6 +24,8 @@ const eslintConfig = [
       "medbook-ai-opencode-starter/**",
       ".agents/**",
       ".opencode/**",
+      ".kilo/**",
+      ".kilocode/**",
       ".vscode/**",
     ],
   },

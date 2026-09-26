@@ -13,12 +13,11 @@
 
 import { addDaysToNaive, parseDateSafe } from "@/lib/utils/datetime";
 
-/**
- * Returns the fixed offset (in minutes, local = UTC + offset) for the given
- * instant in the given IANA timezone. `Intl` resolves DST, so this must be
- * evaluated against the actual date being converted, not a constant.
- */
-function offsetMinutesForDate(tz: string, date: Date): number {
+const offsetFormatterCache = new Map<string, Intl.DateTimeFormat>();
+
+function offsetFormatterFor(tz: string): Intl.DateTimeFormat {
+  const cached = offsetFormatterCache.get(tz);
+  if (cached) return cached;
   const formatter = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
     year: "numeric",
@@ -29,6 +28,36 @@ function offsetMinutesForDate(tz: string, date: Date): number {
     second: "2-digit",
     hourCycle: "h23",
   });
+  offsetFormatterCache.set(tz, formatter);
+  return formatter;
+}
+
+const UTC_TIME_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+const UTC_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  month: "short",
+  day: "numeric",
+});
+
+const UTC_DATE_YEAR_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+/**
+ * Returns the fixed offset (in minutes, local = UTC + offset) for the given
+ * instant in the given IANA timezone. `Intl` resolves DST, so this must be
+ * evaluated against the actual date being converted, not a constant.
+ */
+function offsetMinutesForDate(tz: string, date: Date): number {
+  const formatter = offsetFormatterFor(tz);
   const parts = formatter.formatToParts(date);
   const values: Record<string, string> = {};
   for (const part of parts) {
@@ -133,17 +162,8 @@ export function formatClinicLocalRange(
   const start = utcIsoToClinicLocalInput(startIso, tz);
   const end = utcIsoToClinicLocalInput(endIso, tz);
 
-  const fmtTime = new Intl.DateTimeFormat("en-US", {
-    timeZone: "UTC",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-  const fmtDate = new Intl.DateTimeFormat("en-US", {
-    timeZone: "UTC",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  const fmtTime = UTC_TIME_FORMATTER;
+  const fmtDate = UTC_DATE_YEAR_FORMATTER;
 
   // `YYYY-MM-DDTHH:mm` -> Date with the wall clock interpreted as UTC, so the
   // UTC timezone formatter renders exactly the clinic's local clock.
@@ -203,16 +223,8 @@ export function formatClinicLocalSlot(
   const start = utcIsoToClinicLocalInput(startIso, tz);
   const end = utcIsoToClinicLocalInput(endIso, tz);
 
-  const fmtDate = new Intl.DateTimeFormat("en-US", {
-    timeZone: "UTC",
-    month: "short",
-    day: "numeric",
-  });
-  const fmtTime = new Intl.DateTimeFormat("en-US", {
-    timeZone: "UTC",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  const fmtDate = UTC_DATE_FORMATTER;
+  const fmtTime = UTC_TIME_FORMATTER;
 
   const toDate = (value: string) => parseDateSafe(value);
   const startDate = toDate(start);

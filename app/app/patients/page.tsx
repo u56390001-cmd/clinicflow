@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { ClinicEmptyState } from "@/components/app/clinic-empty-state";
 import { PatientsWorkspace } from "@/components/patients/patients-workspace";
+import { PatientRecordPane } from "@/components/patients/patient-record-pane";
+import { Skeleton } from "@/components/ui/skeleton";
 import { isPatientSummaryEnabled } from "@/lib/ai/patient-summary";
 import { buildAppointmentViews } from "@/lib/appointments-view";
 import { canManageClinical, getCurrentClinic } from "@/lib/clinic-access";
@@ -11,14 +14,12 @@ import {
   isPatientUuid,
   parsePatientDirectoryParams,
   PATIENT_PAGE_SIZE,
+  patientDirectoryHref,
   type PatientDirectoryParams,
   type PatientTodayQueue,
 } from "@/lib/patient-directory";
-import { fetchPatientRecord, type PatientRecordData } from "@/lib/patient-record";
-import {
-  fetchPatientDocuments,
-  type PatientDocumentView,
-} from "@/lib/patient-documents-queries";
+import { fetchPatientRecord } from "@/lib/patient-record";
+import { fetchPatientDocuments } from "@/lib/patient-documents-queries";
 import { createClient } from "@/lib/supabase/server";
 import { clinicDayRangeUtc, clinicMonthStart, clinicToday } from "@/lib/time";
 import type { ActiveVisitInfo } from "@/components/patients/record/record-banner";
@@ -33,12 +34,6 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 type ActiveVisitBundle = {
   activeVisit: ActiveVisitInfo | null;
   canStart: boolean;
-};
-
-const EMPTY_RECORD: PatientRecordData = {
-  visits: [],
-  vitals: [],
-  prescriptions: [],
 };
 
 const EMPTY_ACTIVE_VISIT: ActiveVisitBundle = {
@@ -187,22 +182,22 @@ export default async function PatientsPage({
     });
   }
 
-  // Everything the tabbed record needs, in one pass. Only fetched when a record
-  // is actually open — no point pulling a patient's clinical history to render
-  // a placeholder.
-  const [record, appointments, documents, activeVisitInfo] = selectedPatient
-    ? await Promise.all([
-        fetchPatientRecord(supabase, clinicId, selectedPatient.id),
-        fetchPatientAppointments(supabase, clinicId, selectedPatient),
-        fetchPatientDocuments(supabase, clinicId, selectedPatient.id),
-        fetchActiveVisitInfo(supabase, clinicId, selectedPatient.id, today),
-      ])
-    : [
-        EMPTY_RECORD,
-        { upcoming: [], past: [] },
-        [] as PatientDocumentView[],
-        { activeVisit: null, canStart: false } as ActiveVisitBundle,
-      ];
+  // The record's own queries run inside `PatientRecordStream` below, behind a
+  // Suspense boundary, so the queue paints while they are still in flight.
+  const recordPane = selectedPatient ? (
+    <Suspense fallback={<RecordPaneSkeleton />}>
+      <PatientRecordStream
+        clinicId={clinicId}
+        patient={selectedPatient}
+        params={params}
+        timezone={timezone}
+        today={today}
+        canManage={canManageClinical(access.role)}
+        aiSummaryEnabled={isPatientSummaryEnabled()}
+        backHref={patientDirectoryHref({ ...params, selectedId: "" })}
+      />
+    </Suspense>
+  ) : null;
 
   return (
     <div className="space-y-4">
@@ -213,13 +208,8 @@ export default async function PatientsPage({
         todayQueue={todayQueue}
         params={params}
         selectedPatient={selectedPatient}
-        record={record}
-        documents={documents}
-        upcoming={appointments.upcoming}
-        past={appointments.past}
-        activeVisitInfo={activeVisitInfo}
+        recordPane={recordPane}
         canManage={canManageClinical(access.role)}
-        aiSummaryEnabled={isPatientSummaryEnabled()}
         timezone={timezone}
         clinic={{
           id: access.clinic.id,
@@ -228,6 +218,62 @@ export default async function PatientsPage({
           phone: access.clinic.phone,
         }}
       />
+    </div>
+  );
+}
+
+async function PatientRecordStream({
+  clinicId,
+  patient,
+  params,
+  timezone,
+  today,
+  canManage,
+  aiSummaryEnabled,
+  backHref,
+}: {
+  clinicId: string;
+  patient: PatientDirectoryRow;
+  params: PatientDirectoryParams;
+  timezone: string;
+  today: { startIso: string; endIso: string };
+  canManage: boolean;
+  aiSummaryEnabled: boolean;
+  backHref: string;
+}) {
+  const supabase = await createClient();
+  const [record, appointments, documents, activeVisitInfo] = await Promise.all([
+    fetchPatientRecord(supabase, clinicId, patient.id),
+    fetchPatientAppointments(supabase, clinicId, patient),
+    fetchPatientDocuments(supabase, clinicId, patient.id),
+    fetchActiveVisitInfo(supabase, clinicId, patient.id, today),
+  ]);
+
+  return (
+    <PatientRecordPane
+      patient={patient}
+      record={record}
+      documents={documents}
+      params={params}
+      upcoming={appointments.upcoming}
+      past={appointments.past}
+      timezone={timezone}
+      canManage={canManage}
+      aiSummaryEnabled={aiSummaryEnabled}
+      activeVisitInfo={activeVisitInfo}
+      backHref={backHref}
+    />
+  );
+}
+
+function RecordPaneSkeleton() {
+  return (
+    <div className="min-w-0 px-2 pt-2">
+      <Skeleton className="h-24 w-full rounded-card" />
+      <div className="mt-3 space-y-3 px-3">
+        <Skeleton className="h-9 w-full" />
+        <Skeleton className="h-40 w-full rounded-card" />
+      </div>
     </div>
   );
 }
@@ -363,25 +409,25 @@ async function fetchPatientAppointments(
     doctors ?? [],
   );
   const nowMs = Date.now();
-  const upcoming = views
+  const withStart = views.map((view) => ({
+    view,
+    startMs: new Date(view.start_time).getTime(),
+  }));
+  const upcomingRows = withStart
     .filter(
-      (view) =>
+      ({ view, startMs }) =>
         (view.status === "pending" || view.status === "confirmed") &&
-        new Date(view.start_time).getTime() >= nowMs,
+        startMs >= nowMs,
     )
-    .sort(
-      (a, b) =>
-        new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
-    );
-  const upcomingIds = new Set(upcoming.map((view) => view.id));
-  const past = views
-    .filter((view) => !upcomingIds.has(view.id))
-    .sort(
-      (a, b) =>
-        new Date(b.start_time).getTime() - new Date(a.start_time).getTime(),
-    );
+    .sort((a, b) => a.startMs - b.startMs)
+    .map(({ view }) => view);
+  const upcomingIds = new Set(upcomingRows.map((view) => view.id));
+  const pastRows = withStart
+    .filter(({ view }) => !upcomingIds.has(view.id))
+    .sort((a, b) => b.startMs - a.startMs)
+    .map(({ view }) => view);
 
-  return { upcoming, past };
+  return { upcoming: upcomingRows, past: pastRows };
 }
 
 /**
