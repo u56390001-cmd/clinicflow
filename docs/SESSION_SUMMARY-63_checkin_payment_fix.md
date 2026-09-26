@@ -11,7 +11,10 @@
 
 ## ROOT CAUSE (CONFIRMED with live evidence) — Part A FIX DESIGN IS SET
 
-**Live reproduction flow** (Phase-1 "Cascade Test Clinic", user `medbook.phase1.c@gmail.com` / `Phase1Test-Password-123`, anon key from `.env.local` works, `SUPABASE_SERVICE_ROLE_KEY` is STALE/404):
+**Live reproduction flow** (Phase-1 "Cascade Test Clinic"; the test account's
+credentials are not recorded here — see `.env.local` / your password manager for
+the current values, and rotate the account if it was ever committed in cleartext.
+The anon key from `.env.local` works; `SUPABASE_SERVICE_ROLE_KEY` is STALE/404):
 
 1. Create patient → OK (uses `name`, NOT `full_name`)
 2. Create appointment → OK (REQUIRES `service_id`)
