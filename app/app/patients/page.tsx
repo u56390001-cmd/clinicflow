@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { isPatientSummaryEnabled } from "@/lib/ai/patient-summary";
 import { buildAppointmentViews } from "@/lib/appointments-view";
 import { canManageClinical, canWriteClinic, getCurrentClinic } from "@/lib/clinic-access";
+import { fetchPrescriptionTemplates } from "@/lib/consultation-queries";
 import {
   escapeLikeSearchTerm,
   isPatientUuid,
@@ -22,8 +23,9 @@ import { fetchPatientRecord } from "@/lib/patient-record";
 import { fetchPatientDocuments } from "@/lib/patient-documents-queries";
 import { createClient } from "@/lib/supabase/server";
 import { clinicDayRangeUtc, clinicMonthStart, clinicToday } from "@/lib/time";
+import type { PrescriptionTabBundle } from "@/components/patients/record/prescription-tab";
 import type { ActiveVisitInfo } from "@/components/patients/record/record-banner";
-import type { Database, PatientDirectoryRow } from "@/types/database";
+import type { Database, Doctor, PatientDirectoryRow, Prescription, Vitals } from "@/types/database";
 
 export const metadata: Metadata = { title: "Patients" };
 
@@ -34,11 +36,19 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 type ActiveVisitBundle = {
   activeVisit: ActiveVisitInfo | null;
   canStart: boolean;
+  /**
+   * Everything the Prescription tab needs for today's visit — the saved row,
+   * templates, the visit's doctor, vitals. `null` when there is no active
+   * visit today (the tab then shows its empty state), or when the extra reads
+   * failed; the tab degrades to a blank-but-working form rather than throwing.
+   */
+  rxBundle: PrescriptionTabBundle | null;
 };
 
 const EMPTY_ACTIVE_VISIT: ActiveVisitBundle = {
   activeVisit: null,
   canStart: false,
+  rxBundle: null,
 };
 
 export default async function PatientsPage({
@@ -195,6 +205,11 @@ export default async function PatientsPage({
         canManage={canManageClinical(access.role)}
         aiSummaryEnabled={isPatientSummaryEnabled()}
         backHref={patientDirectoryHref({ ...params, selectedId: "" })}
+        clinic={{
+          name: access.clinic.name,
+          address: access.clinic.address,
+          phone: access.clinic.phone,
+        }}
       />
     </Suspense>
   ) : null;
@@ -232,6 +247,7 @@ async function PatientRecordStream({
   canManage,
   aiSummaryEnabled,
   backHref,
+  clinic,
 }: {
   clinicId: string;
   patient: PatientDirectoryRow;
@@ -241,6 +257,7 @@ async function PatientRecordStream({
   canManage: boolean;
   aiSummaryEnabled: boolean;
   backHref: string;
+  clinic: { name: string; address: string | null; phone: string | null };
 }) {
   const supabase = await createClient();
   const [record, appointments, documents, activeVisitInfo] = await Promise.all([
@@ -263,6 +280,7 @@ async function PatientRecordStream({
       aiSummaryEnabled={aiSummaryEnabled}
       activeVisitInfo={activeVisitInfo}
       backHref={backHref}
+      clinic={clinic}
     />
   );
 }
@@ -448,7 +466,7 @@ async function fetchActiveVisitInfo(
 ): Promise<ActiveVisitBundle> {
   const { data: activeVisits, error } = await supabase
     .from("visits")
-    .select("id, patient_id, doctor_id, status, token_number, queue_position")
+    .select("id, patient_id, doctor_id, status, token_number, queue_position, checked_in_at")
     .eq("clinic_id", clinicId)
     .in("status", ["waiting", "checked_in", "in_consultation"])
     .gte("checked_in_at", today.startIso)
@@ -471,6 +489,7 @@ async function fetchActiveVisitInfo(
     status: ActiveVisitInfo["status"];
     token_number: number | null;
     queue_position: number | null;
+    checked_in_at: string | null;
   };
   const visits = (activeVisits ?? []) as QueueVisitRow[];
   const mine = visits.find((row) => row.patient_id === patientId);
@@ -491,6 +510,51 @@ async function fetchActiveVisitInfo(
       )) ??
     null;
 
+  // The Prescription tab's data. These four reads all key off the visit that
+  // was just found, so they go out together — one more round trip on this
+  // path, and only for a patient who actually has a live visit (the common
+  // case above returns before reaching here). Templates depend on the visit's
+  // doctor, which is already in `mine`, so no extra hop for that either.
+  const [rxRes, vitalsRes, doctorRes, templates] = await Promise.all([
+    supabase
+      .from("prescriptions")
+      .select("*")
+      .eq("clinic_id", clinicId)
+      .eq("visit_id", mine.id)
+      .maybeSingle(),
+    supabase
+      .from("vitals")
+      .select("*")
+      .eq("clinic_id", clinicId)
+      .eq("visit_id", mine.id)
+      .order("recorded_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    mine.doctor_id
+      ? supabase
+          .from("doctors")
+          .select("*")
+          .eq("clinic_id", clinicId)
+          .eq("id", mine.doctor_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    mine.doctor_id
+      ? fetchPrescriptionTemplates(supabase, clinicId, mine.doctor_id)
+      : Promise.resolve([]),
+  ]);
+
+  const rxError = rxRes.error ?? vitalsRes.error ?? doctorRes.error;
+  if (rxError) {
+    // The tab can still open a blank form from the visit alone, so a failed
+    // enrichment is a log line, not a broken record pane.
+    console.error("[patients page] prescription tab data failed", {
+      clinicId,
+      visitId: mine.id,
+      code: rxError.code,
+      message: rxError.message,
+    });
+  }
+
   return {
     activeVisit: {
       id: mine.id,
@@ -502,5 +566,21 @@ async function fetchActiveVisitInfo(
       mine.status !== "in_consultation" &&
       !someoneInConsultation &&
       firstWaiting?.id === mine.id,
+    rxBundle: {
+      visit: {
+        id: mine.id,
+        status: mine.status,
+        tokenNumber: mine.token_number ?? 0,
+      },
+      // `checked_in_at` is non-null for any row this query can return (the
+      // date filters themselves require it); the fallback only keeps the
+      // printable visit date from producing an Invalid Date on a NULL.
+      checkedInAt: mine.checked_in_at ?? new Date().toISOString(),
+      doctorId: mine.doctor_id,
+      visitDoctor: (doctorRes.data as Doctor | null) ?? null,
+      prescription: (rxRes.data as Prescription | null) ?? null,
+      templates,
+      vitals: (vitalsRes.data as Vitals | null) ?? null,
+    },
   };
 }

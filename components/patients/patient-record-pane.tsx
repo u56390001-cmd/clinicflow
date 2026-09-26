@@ -4,6 +4,7 @@ import { createContext, useContext } from "react";
 
 import { PatientRecord } from "@/components/patients/patient-record";
 import type { ActiveVisitInfo } from "@/components/patients/record/record-banner";
+import type { PrescriptionTabBundle } from "@/components/patients/record/prescription-tab";
 import type { AppointmentView } from "@/lib/appointments-view";
 import type { PatientDirectoryParams } from "@/lib/patient-directory";
 import type { PatientDocumentView } from "@/lib/patient-documents-queries";
@@ -44,6 +45,7 @@ export function PatientRecordPane({
   aiSummaryEnabled,
   activeVisitInfo,
   backHref,
+  clinic,
 }: {
   patient: PatientDirectoryRow;
   record: PatientRecordData;
@@ -54,8 +56,14 @@ export function PatientRecordPane({
   timezone: string;
   canManage: boolean;
   aiSummaryEnabled: boolean;
-  activeVisitInfo: { activeVisit: ActiveVisitInfo | null; canStart: boolean };
+  activeVisitInfo: {
+    activeVisit: ActiveVisitInfo | null;
+    canStart: boolean;
+    rxBundle: PrescriptionTabBundle | null;
+  };
   backHref: string;
+  /** Clinic branding the Prescription tab prints onto the Rx sheet. */
+  clinic: { name: string; address: string | null; phone: string | null };
 }) {
   const actions = useContext(PatientRecordPaneActionsContext);
 
@@ -73,6 +81,7 @@ export function PatientRecordPane({
       aiSummaryEnabled={aiSummaryEnabled}
       activeVisitInfo={activeVisitInfo}
       backHref={backHref}
+      clinic={clinic}
       canMerge={actions.canMerge}
       onMergeDuplicate={actions.onMergeDuplicate}
       onEdit={actions.onEdit}

@@ -9,6 +9,11 @@ import { DocumentsTab } from "@/components/patients/record/documents-tab";
 import { HealthInfoTab } from "@/components/patients/record/health-info-tab";
 import { OverviewTab } from "@/components/patients/record/overview-tab";
 import { PrescriptionsTab } from "@/components/patients/record/prescriptions-tab";
+import { PrescriptionDraftProvider } from "@/components/patients/record/prescription-draft-context";
+import {
+  PrescriptionTab,
+  type PrescriptionTabBundle,
+} from "@/components/patients/record/prescription-tab";
 import { RecordContextPanel } from "@/components/patients/record/record-context-panel";
 import {
   RecordBanner,
@@ -59,6 +64,7 @@ export function PatientRecord({
   aiSummaryEnabled,
   activeVisitInfo,
   backHref,
+  clinic,
   onEdit,
   onWritePrescription,
   onMergeDuplicate,
@@ -75,10 +81,16 @@ export function PatientRecord({
   canMerge: boolean;
   /** `PATIENT_AI_SUMMARY_ENABLED` on the server — gates the summary refresh control. */
   aiSummaryEnabled: boolean;
-  /** Today's active visit + queue eligibility for this patient. */
-  activeVisitInfo: { activeVisit: ActiveVisitInfo | null; canStart: boolean };
+  /** Today's active visit + queue eligibility + the Prescription tab's data. */
+  activeVisitInfo: {
+    activeVisit: ActiveVisitInfo | null;
+    canStart: boolean;
+    rxBundle: PrescriptionTabBundle | null;
+  };
   /** Href that clears the selection — the mobile "back to list" target. */
   backHref: string;
+  /** Clinic branding the Prescription tab prints onto the Rx sheet. */
+  clinic: { name: string; address: string | null; phone: string | null };
   onEdit: () => void;
   /** Opens the full-screen Write Prescription overlay for a visit. */
   onWritePrescription: (visitId: string) => void;
@@ -92,150 +104,178 @@ export function PatientRecord({
     medications: record.prescriptions.length,
     documents: documents.length,
     appointments: upcoming.length + past.length,
+    // Not a count of anything archived — 1 simply badges "there is a visit
+    // to write on today"; the tab itself has no rows to tally.
+    prescription: activeVisitInfo.activeVisit ? 1 : 0,
   };
 
   const router = useRouter();
 
   return (
-    <div className="min-w-0">
-      {/* The list is already on screen from `lg` up, so this only earns its
+    // The provider wraps the whole record (not just the tab) so a half-typed
+    // prescription survives `?tab=` navigation: the tab unmounts, the draft
+    // mounted here does not. `key`ed above by patient, so switching records
+    // starts a fresh draft.
+    <PrescriptionDraftProvider>
+      <div className="min-w-0">
+        {/* The list is already on screen from `lg` up, so this only earns its
           keep on mobile, where the record replaces it. */}
-      <div className="px-2 pt-2 lg:hidden">
-        <Button asChild variant="ghost" size="sm">
-          <Link href={backHref} scroll={false}>
-            <ArrowLeft aria-hidden="true" />
-            Back to patients
-          </Link>
-        </Button>
-      </div>
-
-      <div className="sticky top-[var(--app-header-h)] z-20 bg-surface lg:top-0">
-        <RecordBanner
-          patient={patient}
-          canManage={canManage}
-          canMerge={canMerge}
-          activeVisit={activeVisitInfo.activeVisit}
-          canStart={activeVisitInfo.canStart}
-          onEdit={onEdit}
-          onMergeDuplicate={onMergeDuplicate}
-          onWritePrescription={onWritePrescription}
-          onCompleteAndNext={(nextPatientId) =>
-            router.push(
-              patientDirectoryHref({ ...params, selectedId: nextPatientId }),
-            )
-          }
-        />
-
-        <div
-          role="tablist"
-          aria-label="Patient record sections"
-          className="scrollbar-none flex gap-1 overflow-x-auto border-b border-text-muted/15 px-5"
-        >
-          {PATIENT_TABS.map((tab) => {
-            const active = params.tab === tab;
-            const count = counts[tab];
-            return (
-              <Link
-                key={tab}
-                href={patientDirectoryHref({ ...params, tab })}
-                scroll={false}
-                role="tab"
-                aria-selected={active}
-                className={cn(
-                  "-mb-px flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-[2px] px-3.5 py-2.5 text-[13px] transition-colors",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-inset",
-                  active
-                    ? "border-primary font-semibold text-primary"
-                    : "border-transparent text-text-secondary hover:text-text-primary",
-                )}
-              >
-                {PATIENT_TAB_LABELS[tab]}
-                {count !== null && count > 0 && (
-                  <span
-                    className={cn(
-                      "rounded-pill px-1.5 py-0.5 text-[10px] tabular-nums",
-                      active ? "bg-primary/10 text-primary" : "bg-app text-text-muted",
-                    )}
-                  >
-                    {count}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
+        <div className="px-2 pt-2 lg:hidden">
+          <Button asChild variant="ghost" size="sm">
+            <Link href={backHref} scroll={false}>
+              <ArrowLeft aria-hidden="true" />
+              Back to patients
+            </Link>
+          </Button>
         </div>
-      </div>
 
-      {/* The context panel is the chart's standing reference — who this is,
+        <div className="sticky top-[var(--app-header-h)] z-20 bg-surface lg:top-0">
+          <RecordBanner
+            patient={patient}
+            canManage={canManage}
+            canMerge={canMerge}
+            activeVisit={activeVisitInfo.activeVisit}
+            canStart={activeVisitInfo.canStart}
+            onEdit={onEdit}
+            onMergeDuplicate={onMergeDuplicate}
+            onWritePrescription={onWritePrescription}
+            onCompleteAndNext={(nextPatientId) =>
+              router.push(
+                patientDirectoryHref({ ...params, selectedId: nextPatientId }),
+              )
+            }
+          />
+
+          <div
+            role="tablist"
+            aria-label="Patient record sections"
+            className="scrollbar-none flex gap-1 overflow-x-auto border-b border-text-muted/15 px-5"
+          >
+            {PATIENT_TABS.map((tab) => {
+              const active = params.tab === tab;
+              const count = counts[tab];
+              return (
+                <Link
+                  key={tab}
+                  href={patientDirectoryHref({ ...params, tab })}
+                  scroll={false}
+                  role="tab"
+                  aria-selected={active}
+                  className={cn(
+                    "-mb-px flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-[2px] px-3.5 py-2.5 text-[13px] transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40",
+                    active
+                      ? "border-primary font-semibold text-primary"
+                      : "border-transparent text-text-secondary hover:text-text-primary",
+                  )}
+                >
+                  {PATIENT_TAB_LABELS[tab]}
+                  {count !== null && count > 0 && (
+                    <span
+                      className={cn(
+                        "rounded-pill px-1.5 py-0.5 text-[10px] tabular-nums",
+                        active
+                          ? "bg-primary/10 text-primary"
+                          : "bg-app text-text-muted",
+                      )}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* The context panel is the chart's standing reference — who this is,
           what they react to, what they are on, what happened last time. It sits
           to the left once there is room for it (xl+); below that it follows the
           work area rather than pushing it down the screen. */}
-      {/* `px-5` matches the header and tab strip above it — content that starts
+        {/* `px-5` matches the header and tab strip above it — content that starts
           a few pixels in from the name reads as a mistake, not as a margin. */}
-      <div className="grid min-w-0 gap-4 px-5 py-4 xl:grid-cols-[minmax(0,272px)_minmax(0,1fr)] xl:items-start">
-        <div className="order-1 min-w-0 xl:order-2">
-          {params.tab === "overview" && (
-            <OverviewTab
-              patient={patient}
-              record={record}
-              upcoming={upcoming}
-              timezone={timezone}
-              canManage={canManage}
-              aiSummaryEnabled={aiSummaryEnabled}
-            />
-          )}
+        <div className="grid min-w-0 gap-4 px-5 py-4 xl:grid-cols-[minmax(0,272px)_minmax(0,1fr)] xl:items-start">
+          <div className="order-1 min-w-0 xl:order-2">
+            {params.tab === "overview" && (
+              <OverviewTab
+                patient={patient}
+                record={record}
+                upcoming={upcoming}
+                timezone={timezone}
+                canManage={canManage}
+                aiSummaryEnabled={aiSummaryEnabled}
+              />
+            )}
 
-          {params.tab === "history" && (
-            <VisitHistoryTab visits={record.visits} timezone={timezone} />
-          )}
+            {params.tab === "history" && (
+              <VisitHistoryTab visits={record.visits} timezone={timezone} />
+            )}
 
-          {params.tab === "clinical" && (
-            <div className="space-y-4">
-              <HealthInfoTab patient={patient} />
-              <VitalsTab vitals={record.vitals} timezone={timezone} />
-            </div>
-          )}
+            {params.tab === "clinical" && (
+              <div className="space-y-4">
+                <HealthInfoTab patient={patient} />
+                <VitalsTab vitals={record.vitals} timezone={timezone} />
+              </div>
+            )}
 
-          {params.tab === "medications" && (
-            <PrescriptionsTab
-              prescriptions={record.prescriptions}
-              timezone={timezone}
-            />
-          )}
+            {params.tab === "medications" && (
+              <PrescriptionsTab
+                prescriptions={record.prescriptions}
+                timezone={timezone}
+              />
+            )}
 
-          {params.tab === "appointments" && (
-            <AppointmentsTab
-              upcoming={upcoming}
-              past={past}
-              timezone={timezone}
-              canManage={canManage}
-            />
-          )}
+            {params.tab === "appointments" && (
+              <AppointmentsTab
+                upcoming={upcoming}
+                past={past}
+                timezone={timezone}
+                canManage={canManage}
+              />
+            )}
 
-          {params.tab === "documents" && (
-            <DocumentsTab
-              patientId={patient.id}
-              documents={documents}
-              timezone={timezone}
-              canManage={canManage}
-            />
-          )}
+            {params.tab === "documents" && (
+              <DocumentsTab
+                patientId={patient.id}
+                documents={documents}
+                timezone={timezone}
+                canManage={canManage}
+              />
+            )}
+
+            {params.tab === "prescription" && (
+              <PrescriptionTab
+                bundle={activeVisitInfo.rxBundle}
+                patient={patient}
+                clinic={clinic}
+                timezone={timezone}
+                onCompleteAndNext={(nextPatientId) =>
+                  router.push(
+                    patientDirectoryHref({
+                      ...params,
+                      selectedId: nextPatientId,
+                    }),
+                  )
+                }
+              />
+            )}
+          </div>
+
+          <RecordContextPanel
+            patient={patient}
+            visits={record.visits}
+            documents={documents}
+            documentsTabHref={patientDirectoryHref({
+              ...params,
+              tab: "documents",
+            })}
+            canManage={canManage}
+            timezone={timezone}
+            showUploader={params.tab !== "documents"}
+            className="order-2 min-w-0 xl:order-1"
+          />
         </div>
-
-        <RecordContextPanel
-          patient={patient}
-          visits={record.visits}
-          documents={documents}
-          documentsTabHref={patientDirectoryHref({
-            ...params,
-            tab: "documents",
-          })}
-          canManage={canManage}
-          timezone={timezone}
-          showUploader={params.tab !== "documents"}
-          className="order-2 min-w-0 xl:order-1"
-        />
       </div>
-    </div>
+    </PrescriptionDraftProvider>
   );
 }

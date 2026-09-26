@@ -104,7 +104,9 @@ export const PATIENT_SORT_LABELS: Record<PatientSort, string> = {
  *
  * The set is the doctor's reading order rather than the storage layout:
  * Overview (the story + what's booked), History (every check-in), Clinical
- * (health info and vitals), Medications, then the two filing cabinets.
+ * (health info and vitals), Medications, then the two filing cabinets, and
+ * finally Prescription — the *writing* surface for today's active visit, kept
+ * last so it reads as an action, not another archive.
  */
 export const PATIENT_TABS = [
   "overview",
@@ -113,6 +115,7 @@ export const PATIENT_TABS = [
   "medications",
   "documents",
   "appointments",
+  "prescription",
 ] as const;
 export type PatientTab = (typeof PATIENT_TABS)[number];
 
@@ -123,6 +126,7 @@ export const PATIENT_TAB_LABELS: Record<PatientTab, string> = {
   medications: "Medications",
   documents: "Documents",
   appointments: "Appointments",
+  prescription: "Prescription",
 };
 
 /**
