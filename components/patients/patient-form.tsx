@@ -460,7 +460,7 @@ export function PatientForm({
           </Button>
           <SubmitButton
             loadingText="Saving…"
-            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#4E5DB5] to-[#5B6BC5] px-8 py-3 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:scale-[1.02] hover:from-[#3e4b91] hover:to-[#4a5ba3] hover:shadow-xl"
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-light px-8 py-3 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:scale-[1.02] hover:from-primary/90 hover:to-primary-light/90 hover:shadow-xl"
           >
             <Plus aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />
             {isEdit ? "Save Changes" : "Add Patient"}
