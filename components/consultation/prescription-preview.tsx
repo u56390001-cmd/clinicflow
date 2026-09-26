@@ -1,6 +1,7 @@
 "use client";
 
 import type { Prescription, MedicineEntry, LabOrder, Patient, Doctor, Vitals } from "@/types/database";
+import { PrescriptionQr } from "@/components/consultation/prescription-qr";
 
 /**
  * Print-optimized prescription preview. Hidden on screen, shown via
@@ -39,20 +40,33 @@ export function PrescriptionPreview({
             width: 100%;
             padding: 40px;
             background: white;
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
           }
         }
       `}</style>
 
-      {/* Clinic Header */}
-      <div className="mb-6 border-b-2 border-text-primary pb-4 text-center">
-        <h1 className="text-xl font-bold text-text-primary">{clinicName}</h1>
-        {clinicAddress && (
-          <p className="text-xs text-text-secondary">{clinicAddress}</p>
+      {/* Clinic Header + patient identity QR */}
+      <div className="mb-6 flex items-start justify-between gap-4 border-b-2 border-text-primary pb-4">
+        <div className="min-w-0 flex-1 text-center">
+          <h1 className="text-xl font-bold text-text-primary">{clinicName}</h1>
+          {clinicAddress && (
+            <p className="text-xs text-text-secondary">{clinicAddress}</p>
+          )}
+          {clinicPhone && (
+            <p className="text-xs text-text-secondary">Phone: {clinicPhone}</p>
+          )}
+          <h2 className="mt-2 text-lg font-semibold text-primary">PRESCRIPTION</h2>
+        </div>
+        {patient.patient_code && (
+          <div className="shrink-0">
+            <PrescriptionQr
+              patientCode={patient.patient_code}
+              patientId={patient.id}
+              clinicId={patient.clinic_id}
+            />
+          </div>
         )}
-        {clinicPhone && (
-          <p className="text-xs text-text-secondary">Phone: {clinicPhone}</p>
-        )}
-        <h2 className="mt-2 text-lg font-semibold text-primary">PRESCRIPTION</h2>
       </div>
 
       {/* Patient Info */}
@@ -65,6 +79,12 @@ export function PrescriptionPreview({
           <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Date</span>
           <p className="font-medium text-text-primary">{visitDate}</p>
         </div>
+        {patient.patient_code && (
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">UHID</span>
+            <p className="font-mono font-medium text-text-primary">{patient.patient_code}</p>
+          </div>
+        )}
         {patient.phone && (
           <div>
             <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Phone</span>
