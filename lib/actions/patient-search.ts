@@ -8,6 +8,11 @@ export type PatientQuickResult = {
   id: string;
   name: string;
   phone: string | null;
+  /** UHID (e.g. `CLI-2026-00014`) — the merge modal matches on it; other consumers ignore it. */
+  patient_code: string | null;
+  /** How much history sits behind this record — the merge confirm step shows it. */
+  visit_count: number;
+  appointment_count: number;
 };
 
 const MAX_QUERY_LENGTH = 120;
@@ -25,13 +30,16 @@ export async function searchPatientsAction(
   if (!access) return [];
 
   // Same query contract as the patients directory page: RLS-scoped client,
-  // explicit clinic filter, escaped ilike on name/email/phone.
+  // explicit clinic filter, escaped ilike on name/email/phone — plus the UHID
+  // so a scanned QR or a code on an old printout resolves the right record.
   const term = escapeLikeSearchTerm(query);
   const { data, error } = await supabase
     .from("patient_directory")
-    .select("id, name, phone")
+    .select("id, name, phone, patient_code, visit_count, appointment_count")
     .eq("clinic_id", access.clinic.id)
-    .or(`name.ilike.*${term}*,email.ilike.*${term}*,phone.ilike.*${term}*`)
+    .or(
+      `name.ilike.*${term}*,email.ilike.*${term}*,phone.ilike.*${term}*,patient_code.ilike.*${term}*`,
+    )
     .order("name", { ascending: true, nullsFirst: false })
     .limit(RESULT_LIMIT);
 

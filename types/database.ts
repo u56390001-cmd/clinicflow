@@ -316,6 +316,14 @@ export type Patient = {
   ai_summary_generated_at: string | null;
   /** Visit count the cached summary was generated from — used to detect staleness. */
   ai_summary_visit_count: number | null;
+  /**
+   * Soft-archive markers set by `merge_patient_profiles` (0041). A duplicate that
+   * was merged into another profile keeps its row (and all still-pointing data is
+   * moved away first) but is hidden from `patient_directory`. `merged_at` and
+   * `merged_into_patient_id` are always both null or both set.
+   */
+  merged_at: string | null;
+  merged_into_patient_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -2773,6 +2781,15 @@ export type Database = {
           p_visit_id: string;
         };
         Returns: Visit;
+      };
+      /** 0041 — re-parents all of the duplicate's rows onto the primary, then
+       *  soft-archives the duplicate. Returns the primary id on success. */
+      merge_patient_profiles: {
+        Args: {
+          p_primary_patient_id: string;
+          p_duplicate_patient_id: string;
+        };
+        Returns: string;
       };
       create_patient_bill: {
         Args: {

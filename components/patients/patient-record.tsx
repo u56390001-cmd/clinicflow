@@ -55,11 +55,13 @@ export function PatientRecord({
   past,
   timezone,
   canManage,
+  canMerge,
   aiSummaryEnabled,
   activeVisitInfo,
   backHref,
   onEdit,
   onWritePrescription,
+  onMergeDuplicate,
 }: {
   patient: PatientDirectoryRow;
   record: PatientRecordData;
@@ -69,6 +71,8 @@ export function PatientRecord({
   past: AppointmentView[];
   timezone: string;
   canManage: boolean;
+  /** Owner/admin — renders the banner's "Merge Duplicate" control. */
+  canMerge: boolean;
   /** `PATIENT_AI_SUMMARY_ENABLED` on the server — gates the summary refresh control. */
   aiSummaryEnabled: boolean;
   /** Today's active visit + queue eligibility for this patient. */
@@ -78,6 +82,8 @@ export function PatientRecord({
   onEdit: () => void;
   /** Opens the full-screen Write Prescription overlay for a visit. */
   onWritePrescription: (visitId: string) => void;
+  /** Opens the merge-duplicate modal, primary = this record. */
+  onMergeDuplicate: () => void;
 }) {
   const counts: Record<PatientTab, number | null> = {
     overview: null,
@@ -107,9 +113,11 @@ export function PatientRecord({
         <RecordBanner
           patient={patient}
           canManage={canManage}
+          canMerge={canMerge}
           activeVisit={activeVisitInfo.activeVisit}
           canStart={activeVisitInfo.canStart}
           onEdit={onEdit}
+          onMergeDuplicate={onMergeDuplicate}
           onWritePrescription={onWritePrescription}
           onCompleteAndNext={(nextPatientId) =>
             router.push(

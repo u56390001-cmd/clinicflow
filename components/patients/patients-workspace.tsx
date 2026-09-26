@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { UserRound } from "lucide-react";
 
 import { PatientFormModal } from "@/components/patients/patient-form-modal";
+import { MergePatientModal } from "@/components/patients/merge-patient-modal";
 import {
   PatientListPane,
   type PatientDirectoryStats,
@@ -43,6 +44,7 @@ export function PatientsWorkspace({
   selectedPatient,
   recordPane,
   canManage,
+  canMerge,
   timezone,
   clinic,
 }: {
@@ -57,6 +59,8 @@ export function PatientsWorkspace({
   /** The streamed record pane, or `null` when no record is open. */
   recordPane: ReactNode;
   canManage: boolean;
+  /** Owner/admin (`canWriteClinic`) — gates the banner's Merge Duplicate control. */
+  canMerge: boolean;
   timezone: string;
   /** The signed-in clinic — carried from the server page for the prescription overlay. */
   clinic: { id: string; name: string; address: string | null; phone: string | null };
@@ -78,6 +82,11 @@ export function PatientsWorkspace({
   );
   const closeWritePrescription = useCallback(() => setRxVisit(null), []);
 
+  // Merge-duplicate overlay; the open record is always the primary.
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const openMergeDuplicate = useCallback(() => setMergeOpen(true), []);
+  const closeMergeDuplicate = useCallback(() => setMergeOpen(false), []);
+
   const hasSelection = selectedPatient !== null;
 
   // The record pane is rendered by the server and streamed in behind a Suspense
@@ -89,9 +98,22 @@ export function PatientsWorkspace({
         ? {
             onEdit: () => openEditPatient(selectedPatient),
             onWritePrescription: openWritePrescription,
+            onMergeDuplicate: openMergeDuplicate,
+            canMerge,
           }
-        : { onEdit: () => {}, onWritePrescription: () => {} },
-    [selectedPatient, openEditPatient, openWritePrescription],
+        : {
+            onEdit: () => {},
+            onWritePrescription: () => {},
+            onMergeDuplicate: () => {},
+            canMerge: false,
+          },
+    [
+      selectedPatient,
+      openEditPatient,
+      openWritePrescription,
+      openMergeDuplicate,
+      canMerge,
+    ],
   );
 
   // The queue is the second thing to make room, after the nav rail: collapse it
@@ -163,6 +185,10 @@ export function PatientsWorkspace({
       </div>
 
       {form && <PatientFormModal patient={form.patient} onClose={closeForm} />}
+
+      {mergeOpen && selectedPatient && (
+        <MergePatientModal primary={selectedPatient} onClose={closeMergeDuplicate} />
+      )}
 
       {rxVisit && selectedPatient && (
         <WritePrescriptionOverlay

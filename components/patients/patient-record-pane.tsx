@@ -13,11 +13,20 @@ import type { PatientDirectoryRow } from "@/types/database";
 export type PatientRecordPaneActions = {
   onEdit: () => void;
   onWritePrescription: (visitId: string) => void;
+  /** Opens the merge-duplicate modal for the open record. */
+  onMergeDuplicate: () => void;
+  /**
+   * Owner/admin only (`canWriteClinic`) — stricter than `canManage`, so the
+   * merge button never renders for roles whose action would fail closed.
+   */
+  canMerge: boolean;
 };
 
 const NO_ACTIONS: PatientRecordPaneActions = {
   onEdit: () => {},
   onWritePrescription: () => {},
+  onMergeDuplicate: () => {},
+  canMerge: false,
 };
 
 export const PatientRecordPaneActionsContext =
@@ -64,6 +73,8 @@ export function PatientRecordPane({
       aiSummaryEnabled={aiSummaryEnabled}
       activeVisitInfo={activeVisitInfo}
       backHref={backHref}
+      canMerge={actions.canMerge}
+      onMergeDuplicate={actions.onMergeDuplicate}
       onEdit={actions.onEdit}
       onWritePrescription={actions.onWritePrescription}
     />

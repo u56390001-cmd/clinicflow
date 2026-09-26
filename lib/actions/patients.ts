@@ -1,8 +1,10 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { canManageClinical, getCurrentClinic } from "@/lib/clinic-access";
+import { APP_ROUTES } from "@/lib/constants";
+import { canManageClinical, canWriteClinic, getCurrentClinic } from "@/lib/clinic-access";
 import { createClient } from "@/lib/supabase/server";
 import { patientSchema } from "@/lib/validation/schemas";
 import type { ActionResult } from "@/types";
@@ -234,4 +236,103 @@ export async function updatePatientAction(
   }
 
   return { ok: true, data: undefined };
+}
+
+const mergeIdsSchema = z
+  .object({
+    primaryPatientId: z.uuid(),
+    duplicatePatientId: z.uuid(),
+  })
+  .refine((v) => v.primaryPatientId !== v.duplicatePatientId, {
+    message: "A patient can't be merged into themselves.",
+  });
+
+/**
+ * Merge a duplicate patient profile into a primary one (RPC: 0041
+ * `merge_patient_profiles`). The RPC re-parents every appointment, visit,
+ * prescription, document, bill and WhatsApp conversation and then
+ * soft-archives the duplicate — nothing is deleted.
+ *
+ * Owner/admin only (`canWriteClinic`): a merge is destructive to the duplicate
+ *'s identity and can't be cleanly undone from the UI, so it's stricter than the
+ * any-member rule for normal patient edits. Defense in depth:
+ *   * both ids are verified to belong to the caller's clinic here, and again
+ *     inside the SECURITY DEFINER function (`is_clinic_member` + clinic pinning),
+ *     so a forged id from another tenant fails closed at two layers.
+ */
+export async function mergePatientProfilesAction(formData: FormData): Promise<ActionResult<{ primaryPatientId: string }>> {
+  const parsed = mergeIdsSchema.safeParse({
+    primaryPatientId: formData.get("primaryPatientId"),
+    duplicatePatientId: formData.get("duplicatePatientId"),
+  });
+  if (!parsed.success) {
+    console.error("[mergePatientProfilesAction] validation failed", parsed.error.issues);
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Check the two patient records and try again.",
+    };
+  }
+  const { primaryPatientId, duplicatePatientId } = parsed.data;
+
+  const supabase = await createClient();
+  const access = await getCurrentClinic(supabase);
+  if (!access) return { ok: false, message: "You must have a clinic to merge patients." };
+  if (!canWriteClinic(access.role)) {
+    return { ok: false, message: "Only clinic owners and admins can merge patient records." };
+  }
+
+  // Client-side tenancy pre-check (the RPC re-checks). RLS on `patients`
+  // already restricts reads to the caller's clinic, so a foreign id simply
+  // reads as "not found" here.
+  const { data: both, error: readError } = await supabase
+    .from("patients")
+    .select("id, merged_at")
+    .in("id", [primaryPatientId, duplicatePatientId])
+    .eq("clinic_id", access.clinic.id);
+
+  if (readError) {
+    console.error("[mergePatientProfilesAction] patient read failed", {
+      code: readError.code,
+      message: readError.message,
+    });
+    return { ok: false, message: "We couldn't verify these records. Please try again." };
+  }
+  if ((both?.length ?? 0) !== 2) {
+    return { ok: false, message: "One of these records no longer exists in your clinic." };
+  }
+  if (both?.some((p) => p.merged_at !== null)) {
+    return { ok: false, message: "One of these records has already been merged into another patient." };
+  }
+
+  const { data: mergedId, error } = await supabase.rpc("merge_patient_profiles", {
+    p_primary_patient_id: primaryPatientId,
+    p_duplicate_patient_id: duplicatePatientId,
+  });
+
+  if (error) {
+    console.error("[mergePatientProfilesAction] merge rpc failed", {
+      primaryPatientId,
+      duplicatePatientId,
+      clinicId: access.clinic.id,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    // Postgres raises our friendly merge exceptions as P0001; surface their text
+    // (it never contains data from other tenants) so admins see WHY it refused.
+    const friendly =
+      error.code === "P0001" && error.message
+        ? error.message
+        : "We couldn't merge these records. Nothing was changed — please try again.";
+    return { ok: false, message: friendly };
+  }
+
+  // The directory, every tab of this patient's record, and the queue all read
+  // data the merge just moved — refresh the whole workspace subtree.
+  revalidatePath(APP_ROUTES.app.patients);
+  revalidatePath(APP_ROUTES.app.appointments);
+  revalidatePath(APP_ROUTES.app.consultation);
+
+  return { ok: true, data: { primaryPatientId: mergedId ?? primaryPatientId } };
 }

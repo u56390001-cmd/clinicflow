@@ -4,6 +4,7 @@ import { Fragment, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronsRight,
+  GitMerge,
   PenLine,
   Play,
   TriangleAlert,
@@ -47,14 +48,22 @@ export type ActiveVisitInfo = {
 export function RecordBanner({
   patient,
   canManage,
+  canMerge,
   activeVisit,
   canStart,
   onEdit,
+  onMergeDuplicate,
   onWritePrescription,
   onCompleteAndNext,
 }: {
   patient: PatientDirectoryRow;
   canManage: boolean;
+  /**
+   * Owner/admin (`canWriteClinic`) — narrower than `canManage`, which every
+   * clinic member passes. Merging rewrites identities, so only this boolean
+   * renders the Merge Duplicate control.
+   */
+  canMerge: boolean;
   /** This patient's in-progress visit today, if any. */
   activeVisit: ActiveVisitInfo | null;
   /**
@@ -65,6 +74,8 @@ export function RecordBanner({
    */
   canStart: boolean;
   onEdit: () => void;
+  /** Opens the merge-duplicate modal with this record as the primary. */
+  onMergeDuplicate: () => void;
   /** Opens the full-screen Write Prescription overlay for the active visit. */
   onWritePrescription: (visitId: string) => void;
   /**
@@ -257,6 +268,21 @@ export function RecordBanner({
               >
                 <PenLine aria-hidden="true" className="size-3.5" />
                 Write Prescription
+              </Button>
+            )}
+
+            {/* Identity-rewriting and owner/admin-only — sits after the
+                per-visit actions and before Edit, styled neutral so the teal
+                queue controls stay the loudest thing in the cluster. */}
+            {canMerge && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onMergeDuplicate}
+                className="h-9 px-3.5 text-[12.5px] font-semibold"
+              >
+                <GitMerge aria-hidden="true" className="size-3.5" />
+                Merge Duplicate
               </Button>
             )}
 
