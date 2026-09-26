@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Patient Engagement & Automation Dashboard - Doxmate</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Inter Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            primary: {
+              DEFAULT: '#4E5DB5',
+              hover: '#3E4A91',
+              light: '#F0F1FF',
+              ring: 'rgba(78, 93, 181, 0.25)'
+            },
+            surface: '#FFFFFF',
+            bodybg: '#F8FAFC',
+            bordercol: '#E5E7EB',
+            borderalt: '#DADBDF',
+            activegreen: '#10B981',
+            whatsapp: {
+              green: '#075E54',
+              teal: '#128C7E',
+              bg: '#E5DDD5',
+              bubble: '#DCF8C6',
+              header: '#008069'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    /* WhatsApp Wallpaper Pattern */
+    .wa-bg-pattern {
+      background-color: #efeae2;
+      background-image: radial-gradient(#d1d5db 0.75px, transparent 0.75px), radial-gradient(#d1d5db 0.75px, #efeae2 0.75px);
+      background-size: 30px 30px;
+      background-position: 0 0, 15px 15px;
+    }
+
+    /* Toggle Switch Styling */
+    .toggle-checkbox:checked {
+      right: 0;
+      border-color: #10B981;
+    }
+    .toggle-checkbox:checked + .toggle-label {
+      background-color: #10B981;
+    }
+
+    /* Custom Transitions */
+    .transition-all-fast {
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+  </style>
+</head>
+<body class="bg-bodybg text-slate-800 font-sans antialiased min-h-screen flex flex-col selection:bg-primary/20 selection:text-primary">
+
+  <!-- TOP NAVIGATION BAR -->
+  <header class="sticky top-0 z-40 bg-surface border-b border-bordercol h-16 flex items-center justify-between px-4 lg:px-6 shadow-sm">
+    <!-- Left Logo & Search -->
+    <div class="flex items-center space-x-4 lg:space-x-8">
+      <div class="flex items-center space-x-2.5 cursor-pointer">
+        <div class="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-white shadow-md shadow-primary/30">
+          <i class="fa-solid font-bold fa-heart-pulse text-lg"></i>
+        </div>
+        <div class="flex flex-col">
+          <span class="font-bold text-lg tracking-tight text-slate-900 leading-none">Doxmate</span>
+          <span class="text-[10px] text-primary font-semibold tracking-wider uppercase mt-0.5">Health OS</span>
+        </div>
+      </div>
+
+      <!-- Search Bar -->
+      <div class="hidden sm:flex items-center relative w-64 md:w-80">
+        <i class="fa-solid fa-magnifying-glass absolute left-3.5 text-slate-400 text-sm"></i>
+        <input type="text" placeholder="Search by patient name or phone..." 
+               class="w-full bg-slate-50 border border-bordercol rounded-lg pl-9 pr-4 py-1.5 text-sm focus:outline-none focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/20 transition-all text-slate-700 placeholder:text-slate-400">
+      </div>
+    </div>
+
+    <!-- Right Header Actions -->
+    <div class="flex items-center space-x-2 sm:space-x-3">
+      <!-- Dark/Light Theme Toggle Icon -->
+      <button class="p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors" title="Toggle Mode">
+        <i class="fa-regular fa-moon text-base"></i>
+      </button>
+
+      <!-- Bell Notification with Badge -->
+      <button class="p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors relative" title="Notifications">
+        <i class="fa-regular fa-bell text-base"></i>
+        <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>
+      </button>
+
+      <!-- AI Credits Counter Badge -->
+      <div class="hidden md:flex items-center space-x-1.5 px-3 py-1 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100 rounded-full text-xs font-medium text-indigo-700 shadow-sm">
+        <i class="fa-solid fa-wand-magic-sparkles text-indigo-500"></i>
+        <span><strong class="font-bold">0</strong> AI credits</span>
+      </div>
+
+      <!-- User Profile Menu -->
+      <div class="flex items-center space-x-2 pl-2 border-l border-bordercol">
+        <div class="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 text-primary font-bold flex items-center justify-center text-xs">
+          U
+        </div>
+        <div class="hidden md:flex flex-col text-left cursor-pointer">
+          <span class="text-xs font-semibold text-slate-800 leading-tight">Umar</span>
+          <span class="text-[10px] text-slate-500 leading-tight">Clinic Admin</span>
+        </div>
+        <i class="fa-solid fa-chevron-down text-[10px] text-slate-400"></i>
+      </div>
+
+      <!-- Primary CTA "+ New Appointment" -->
+      <button onclick="showToast('Appointment Scheduler Opened')" class="ml-2 bg-primary hover:bg-primary-hover text-white text-xs font-medium px-3.5 py-2 rounded-lg shadow-sm shadow-primary/30 flex items-center space-x-1.5 transition-all">
+        <i class="fa-solid fa-plus text-xs"></i>
+        <span class="hidden sm:inline">New Appointment</span>
+      </button>
+
+      <!-- Mobile Sidebar Toggle -->
+      <button id="mobile-sidebar-toggle" class="lg:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100">
+        <i class="fa-solid fa-bars text-lg"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- SUB-NAVIGATION TABS BAR -->
+  <div class="bg-surface border-b border-bordercol px-4 lg:px-6 py-0 flex items-center justify-between text-xs sm:text-sm">
+    <div class="flex space-x-6">
+      <button class="py-3 px-1 border-b-2 border-primary font-semibold text-primary flex items-center space-x-2">
+        <i class="fa-solid fa-chart-line"></i>
+        <span>Dashboard</span>
+      </button>
+      <button class="py-3 px-1 border-b-2 border-transparent hover:border-slate-300 font-medium text-slate-500 hover:text-slate-800 flex items-center space-x-2 transition-colors">
+        <i class="fa-solid fa-chart-pie"></i>
+        <span>Analytics</span>
+      </button>
+    </div>
+    <div class="hidden sm:flex items-center text-xs text-slate-500 space-x-2">
+      <span class="w-2 h-2 rounded-full bg-activegreen animate-pulse"></span>
+      <span>System Status: <strong class="text-slate-700 font-medium">WhatsApp Sync Active</strong></span>
+    </div>
+  </div>
+
+  <!-- MAIN WRAPPER WITH SIDEBAR AND CONTENT -->
+  <div class="flex-1 flex overflow-hidden">
+
+    <!-- LEFT SIDEBAR NAVIGATION -->
+    <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 z-30 w-64 bg-surface border-r border-bordercol flex flex-col justify-between transition-transform duration-300 transform -translate-x-full lg:translate-x-0 pt-16 lg:pt-0">
+      <div class="py-4 px-3 space-y-1 overflow-y-auto max-h-[calc(100vh-8rem)]">
+        
+        <div class="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Main Menu</div>
+        
+        <a href="#" class="flex items-center space-x-3 px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 text-xs font-medium transition-colors">
+          <i class="fa-solid fa-house w-4 text-center"></i>
+          <span>Dashboard</span>
+        </a>
+
+        <a href="#" class="flex items-center space-x-3 px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 text-xs font-medium transition-colors">
+          <i class="fa-regular fa-calendar-check w-4 text-center"></i>
+          <span>Appointments</span>
+        </a>
+
+        <a href="#" class="flex items-center space-x-3 px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 text-xs font-medium transition-colors">
+          <i class="fa-solid fa-user-group w-4 text-center"></i>
+          <span>Patients</span>
+        </a>
+
+        <a href="#" class="flex items-center space-x-3 px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 text-xs font-medium transition-colors">
+          <i class="fa-solid fa-receipt w-4 text-center"></i>
+          <span>Billing</span>
+        </a>
+
+        <a href="#" class="flex items-center space-x-3 px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 text-xs font-medium transition-colors">
+          <i class="fa-solid fa-user-doctor w-4 text-center"></i>
+          <span>Doctors</span>
+        </a>
+
+        <div class="px-3 pt-4 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Automations</div>
+
+        <a href="#" class="flex items-center justify-between px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 text-xs font-medium transition-colors">
+          <div class="flex items-center space-x-3">
+            <i class="fa-solid fa-robot w-4 text-center text-purple-600"></i>
+            <span>AI Agent</span>
+          </div>
+        </a>
+
+        <a href="#" class="flex items-center justify-between px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 text-xs font-medium transition-colors">
+          <div class="flex items-center space-x-3">
+            <i class="fa-solid fa-chart-line-up w-4 text-center text-amber-500"></i>
+            <span>Growth Agent</span>
+          </div>
+          <span class="w-2 h-2 rounded-full bg-orange-500"></span>
+        </a>
+
+        <!-- ACTIVE ENGAGEMENT TAB HIGHLIGHTED WITH #4E5DB5 -->
+        <a href="#" class="flex items-center space-x-3 px-3 py-2 rounded-lg bg-primary text-white text-xs font-semibold shadow-sm shadow-primary/30 transition-colors">
+          <i class="fa-solid fa-paper-plane w-4 text-center text-white"></i>
+          <span>Engagement</span>
+        </a>
+
+        <a href="#" class="flex items-center space-x-3 px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 text-xs font-medium transition-colors">
+          <i class="fa-solid fa-puzzle-piece w-4 text-center"></i>
+          <span>Add-ons</span>
+        </a>
+
+        <a href="#" class="flex items-center space-x-3 px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 text-xs font-medium transition-colors">
+          <i class="fa-solid fa-plug w-4 text-center"></i>
+          <span>Integrations</span>
+        </a>
+
+        <a href="#" class="flex items-center justify-between px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 text-xs font-medium transition-colors">
+          <div class="flex items-center space-x-3">
+            <i class="fa-brands fa-whatsapp w-4 text-center text-emerald-600"></i>
+            <span>WhatsApp Setup</span>
+          </div>
+          <span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+        </a>
+
+        <div class="px-3 pt-4 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Configuration</div>
+
+        <a href="#" class="flex items-center space-x-3 px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 text-xs font-medium transition-colors">
+          <i class="fa-solid fa-globe w-4 text-center"></i>
+          <span>Booking Page</span>
+        </a>
+
+        <a href="#" class="flex items-center space-x-3 px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 text-xs font-medium transition-colors">
+          <i class="fa-solid fa-gear w-4 text-center"></i>
+          <span>Settings</span>
+        </a>
+
+        <a href="#" class="flex items-center space-x-3 px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-slate-900 text-xs font-medium transition-colors">
+          <i class="fa-solid fa-circle-question w-4 text-center"></i>
+          <span>Help & Support</span>
+        </a>
+      </div>
+
+      <!-- Bottom Collapse Button -->
+      <div class="p-3 border-t border-bordercol">
+        <button id="collapse-sidebar" class="w-full flex items-center justify-center space-x-2 py-2 border border-bordercol hover:bg-slate-50 rounded-lg text-slate-500 text-xs font-medium transition-colors">
+          <i class="fa-solid fa-chevron-left text-xs"></i>
+          <span>Collapse Sidebar</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT SCROLLABLE AREA -->
+    <main class="flex-1 overflow-y-auto bg-bodybg p-4 md:p-6 lg:p-8 space-y-6">
+
+      <!-- HEADER TITLE BLOCK -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Patient Engagement</h1>
+          <p class="text-xs md:text-sm text-slate-500 mt-1">Automate WhatsApp reminders and review requests for your patients</p>
+        </div>
+        <div class="flex items-center space-x-3">
+          <span class="text-xs text-slate-500">Auto-save Enabled</span>
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+        </div>
+      </div>
+
+      <!-- 4 METRIC SUMMARY CARDS GRID -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Card 1: Reminders Sent -->
+        <div class="bg-surface p-4 rounded-xl border border-bordercol shadow-sm hover:shadow-md transition-shadow">
+          <div class="flex items-center justify-between text-slate-500 text-xs font-medium">
+            <span>Reminders Sent</span>
+            <div class="w-8 h-8 rounded-lg bg-indigo-50 text-primary flex items-center justify-center">
+              <i class="fa-solid fa-paper-plane"></i>
+            </div>
+          </div>
+          <div class="mt-2 flex items-baseline justify-between">
+            <span class="text-2xl font-bold text-slate-900">0</span>
+            <span class="text-xs font-semibold text-rose-500 flex items-center">
+              <i class="fa-solid fa-arrow-down mr-1"></i>100% vs 30d
+            </span>
+          </div>
+        </div>
+
+        <!-- Card 2: Show-up Rate -->
+        <div class="bg-surface p-4 rounded-xl border border-bordercol shadow-sm hover:shadow-md transition-shadow">
+          <div class="flex items-center justify-between text-slate-500 text-xs font-medium">
+            <span>Appointment Show-up Rate</span>
+            <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <i class="fa-solid fa-user-check"></i>
+            </div>
+          </div>
+          <div class="mt-2 flex items-baseline justify-between">
+            <span class="text-2xl font-bold text-slate-900">0%</span>
+            <span class="text-xs font-semibold text-emerald-600 flex items-center">
+              <i class="fa-solid fa-arrow-up mr-1"></i>0%
+            </span>
+          </div>
+        </div>
+
+        <!-- Card 3: Google Reviews -->
+        <div class="bg-surface p-4 rounded-xl border border-bordercol shadow-sm hover:shadow-md transition-shadow">
+          <div class="flex items-center justify-between text-slate-500 text-xs font-medium">
+            <span>Google Reviews</span>
+            <div class="w-8 h-8 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center">
+              <i class="fa-brands fa-google"></i>
+            </div>
+          </div>
+          <div class="mt-2 flex items-baseline justify-between">
+            <span class="text-2xl font-bold text-slate-900">0</span>
+            <span class="text-xs font-semibold text-rose-500 flex items-center">
+              <i class="fa-solid fa-arrow-down mr-1"></i>100%
+            </span>
+          </div>
+        </div>
+
+        <!-- Card 4: Average Rating -->
+        <div class="bg-surface p-4 rounded-xl border border-bordercol shadow-sm hover:shadow-md transition-shadow">
+          <div class="flex items-center justify-between text-slate-500 text-xs font-medium">
+            <span>Average Rating</span>
+            <div class="w-8 h-8 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center">
+              <i class="fa-solid fa-star"></i>
+            </div>
+          </div>
+          <div class="mt-2 flex items-center justify-between">
+            <span class="text-2xl font-bold text-slate-900">—</span>
+            <div class="flex flex-col items-end">
+              <div class="flex text-amber-400 text-xs space-x-0.5">
+                <i class="fa-solid fa-star"></i>
+                <i class="fa-solid fa-star"></i>
+                <i class="fa-solid fa-star"></i>
+                <i class="fa-solid fa-star"></i>
+                <i class="fa-solid fa-star"></i>
+              </div>
+              <span class="text-[10px] text-slate-400 mt-0.5">No ratings yet</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MAIN SEGMENTED TAB SWITCHER -->
+      <div class="bg-slate-200/60 p-1 rounded-xl inline-flex space-x-1 border border-bordercol/50">
+        <button id="tab-reminders" onclick="switchMainTab('reminders')" class="px-5 py-2 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-all">
+          Reminders
+        </button>
+        <button id="tab-automation" onclick="switchMainTab('automation')" class="px-5 py-2 text-xs font-semibold rounded-lg bg-primary text-white shadow-sm transition-all">
+          Automation
+        </button>
+      </div>
+
+      <!-- 2-COLUMN RESPONSIVE WORKSPACE GRID -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+        <!-- LEFT CONTENT COLUMN (7 cols) -->
+        <div class="lg:col-span-7 space-y-6">
+
+          <!-- 1. GOOGLE REVIEW AUTOMATION CARD -->
+          <div class="bg-surface rounded-2xl border border-bordercol p-5 md:p-6 shadow-sm space-y-5">
+            <div class="flex items-center justify-between border-b border-bordercol pb-4">
+              <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-500">
+                  <i class="fa-brands fa-google text-lg"></i>
+                </div>
+                <div>
+                  <h3 class="text-base font-bold text-slate-900">Google Review Request Automation</h3>
+                  <p class="text-xs text-slate-500">Automatically invite patients to post reviews after their appointments</p>
+                </div>
+              </div>
+              <!-- Enable Toggle -->
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="review-automation-toggle" class="sr-only peer" checked onchange="handleToggle('Google Review Automation', this.checked)">
+                <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-activegreen"></div>
+              </label>
+            </div>
+
+            <!-- Smart Filter Box -->
+            <div class="bg-primary-light border border-primary/20 rounded-xl p-3.5 flex items-start space-x-3">
+              <div class="p-2 bg-primary/10 rounded-lg text-primary mt-0.5">
+                <i class="fa-solid fa-filter text-sm"></i>
+              </div>
+              <div class="flex-1 text-xs">
+                <span class="font-semibold text-slate-800">Smart Filter Active:</span>
+                <p class="text-slate-600 mt-0.5">Requests are automatically suppressed for cancelled, no-show, or flagged follow-up visits to safeguard clinic reputation.</p>
+              </div>
+            </div>
+
+            <!-- Initial Message Textarea with Variable Tags -->
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <label class="text-xs font-bold text-slate-700">Initial WhatsApp Message Template</label>
+                <span class="text-[11px] text-slate-400">Live preview syncs automatically</span>
+              </div>
+
+              <!-- Interactive Variable Pills -->
+              <div class="flex flex-wrap gap-1.5 py-1">
+                <span class="text-[11px] text-slate-500 self-center mr-1">Insert Tags:</span>
+                <button type="button" onclick="insertVariable('{patient_name}')" class="px-2.5 py-1 bg-slate-100 hover:bg-primary-light hover:text-primary border border-bordercol rounded-md text-xs font-mono text-slate-700 transition-colors">
+                  + {patient_name}
+                </button>
+                <button type="button" onclick="insertVariable('{doctor_name}')" class="px-2.5 py-1 bg-slate-100 hover:bg-primary-light hover:text-primary border border-bordercol rounded-md text-xs font-mono text-slate-700 transition-colors">
+                  + {doctor_name}
+                </button>
+                <button type="button" onclick="insertVariable('{google_review_link}')" class="px-2.5 py-1 bg-slate-100 hover:bg-primary-light hover:text-primary border border-bordercol rounded-md text-xs font-mono text-slate-700 transition-colors">
+                  + {google_review_link}
+                </button>
+              </div>
+
+              <textarea id="review-message-input" rows="4" 
+                        class="w-full bg-slate-50 border border-bordercol rounded-xl p-3 text-xs text-slate-800 font-normal focus:outline-none focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary-ring transition-all"
+                        oninput="updatePhonePreview()">Hello {patient_name}, thank you for visiting Doxmate AI Clinic with {doctor_name}. We hope you had a great experience! Could you please take 30 seconds to leave us a review on Google? It helps us serve you better: {google_review_link}</textarea>
+            </div>
+
+            <!-- Controls Grid: Send Delay & Google Review Link -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Send Review Request After</label>
+                <select id="send-delay-select" class="w-full bg-slate-50 border border-bordercol rounded-xl px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:border-primary focus:bg-white">
+                  <option value="30 minutes">30 minutes post consultation</option>
+                  <option value="1 hour" selected>1 hour post consultation</option>
+                  <option value="2 hours">2 hours post consultation</option>
+                  <option value="24 hours">24 hours post consultation</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Google Review URL</label>
+                <div class="relative">
+                  <i class="fa-solid fa-link absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                  <input type="text" id="review-url-input" value="https://g.page/r/doxmate-clinic-review/review" 
+                         class="w-full bg-slate-50 border border-bordercol rounded-xl pl-8 pr-3 py-2 text-xs font-mono text-slate-700 focus:outline-none focus:border-primary focus:bg-white"
+                         oninput="updatePhonePreview()">
+                </div>
+              </div>
+            </div>
+
+            <!-- Save Changes Button -->
+            <div class="pt-2 flex justify-end">
+              <button onclick="saveReviewSettings()" class="bg-primary hover:bg-primary-hover text-white text-xs font-semibold px-5 py-2.5 rounded-xl shadow-sm shadow-primary/30 flex items-center space-x-2 transition-all">
+                <i class="fa-solid fa-floppy-disk"></i>
+                <span>Save Review Settings</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 2. PRESCRIPTION DELIVERY CARD -->
+          <div class="bg-surface rounded-2xl border border-bordercol p-5 shadow-sm flex items-center justify-between hover:border-slate-300 transition-colors">
+            <div class="flex items-center space-x-3.5">
+              <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                <i class="fa-solid fa-file-prescription text-lg"></i>
+              </div>
+              <div>
+                <div class="flex items-center space-x-2">
+                  <h3 class="text-sm font-bold text-slate-900">Auto-send Digital Prescription</h3>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">Active</span>
+                </div>
+                <p class="text-xs text-slate-500 mt-0.5">Instantly dispatch Rx PDFs to patient WhatsApp after consultation completes</p>
+              </div>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" checked class="sr-only peer" onchange="handleToggle('Prescription Auto-send', this.checked)">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-activegreen"></div>
+            </label>
+          </div>
+
+          <!-- 3. RECEIPT DELIVERY CARD -->
+          <div class="bg-surface rounded-2xl border border-bordercol p-5 shadow-sm flex items-center justify-between hover:border-slate-300 transition-colors">
+            <div class="flex items-center space-x-3.5">
+              <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <i class="fa-solid fa-receipt text-lg"></i>
+              </div>
+              <div>
+                <div class="flex items-center space-x-2">
+                  <h3 class="text-sm font-bold text-slate-900">Auto-send Billing Receipt</h3>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">Active</span>
+                </div>
+                <p class="text-xs text-slate-500 mt-0.5">Automatically deliver payment confirmation receipts to WhatsApp</p>
+              </div>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" checked class="sr-only peer" onchange="handleToggle('Receipt Delivery', this.checked)">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-activegreen"></div>
+            </label>
+          </div>
+
+          <!-- 4. CHECK-IN NOTIFICATION CARD -->
+          <div class="bg-surface rounded-2xl border border-bordercol p-5 shadow-sm flex items-center justify-between hover:border-slate-300 transition-colors">
+            <div class="flex items-center space-x-3.5">
+              <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                <i class="fa-solid fa-circle-check text-lg"></i>
+              </div>
+              <div>
+                <div class="flex items-center space-x-2">
+                  <h3 class="text-sm font-bold text-slate-900">Check-in Confirmed Message</h3>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">Active</span>
+                </div>
+                <p class="text-xs text-slate-500 mt-0.5">Send token number & queue estimate when patient marks arrival at reception</p>
+              </div>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" checked class="sr-only peer" onchange="handleToggle('Check-in Message', this.checked)">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-activegreen"></div>
+            </label>
+          </div>
+
+          <!-- 5. APPOINTMENT CONFIRMATION MESSAGE CARD -->
+          <div class="bg-surface rounded-2xl border border-bordercol p-5 shadow-sm flex items-center justify-between">
+            <div class="flex items-center space-x-3.5">
+              <div class="w-10 h-10 rounded-xl bg-indigo-50 text-primary flex items-center justify-center">
+                <i class="fa-regular fa-calendar-check text-lg"></i>
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-slate-900">Appointment Confirmation Message</h3>
+                <p class="text-xs text-slate-500 mt-0.5">Customize instant WhatsApp template sent right after booking</p>
+              </div>
+            </div>
+            <button onclick="openConfirmationModal()" class="px-3.5 py-2 border border-bordercol hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl transition-colors">
+              Edit Message
+            </button>
+          </div>
+
+          <!-- 6. GENERAL SETTINGS CARD -->
+          <div class="bg-surface rounded-2xl border border-bordercol p-5 md:p-6 shadow-sm space-y-4">
+            <h3 class="text-sm font-bold text-slate-900 border-b border-bordercol pb-3 flex items-center space-x-2">
+              <i class="fa-solid fa-sliders text-primary"></i>
+              <span>General Location & Timezone Settings</span>
+            </h3>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Clinic Google Maps Link</label>
+                <input type="text" value="https://maps.google.com/?q=Doxmate+AI+Clinic" class="w-full bg-slate-50 border border-bordercol rounded-xl px-3 py-2 text-xs font-mono text-slate-700 focus:outline-none focus:border-primary">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Timezone</label>
+                <select class="w-full bg-slate-50 border border-bordercol rounded-xl px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:border-primary">
+                  <option selected>Asia/Kolkata (IST - UTC+05:30)</option>
+                  <option>Asia/Dubai (GST - UTC+04:00)</option>
+                  <option>Europe/London (GMT - UTC+00:00)</option>
+                  <option>America/New_York (EST - UTC-05:00)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="flex justify-end pt-2">
+              <button onclick="showToast('General Settings Saved Successfully')" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all">
+                Save Settings
+              </button>
+            </div>
+          </div>
+
+          <!-- 7. NO-SHOW RECOVERY & AUTO FOLLOW-UP GRID -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            <!-- No-Show Recovery Box -->
+            <div class="bg-primary-light/60 border border-primary/20 rounded-2xl p-5 space-y-4">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                  <div class="w-8 h-8 rounded-lg bg-primary text-white flex items-center justify-center text-xs">
+                    <i class="fa-solid fa-user-xmark"></i>
+                  </div>
+                  <div>
+                    <h4 class="text-xs font-bold text-slate-900">No-Show Recovery</h4>
+                    <span class="text-[10px] text-slate-500">Auto re-engagement</span>
+                  </div>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" checked class="sr-only peer" onchange="handleToggle('No-Show Recovery', this.checked)">
+                  <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-activegreen"></div>
+                </label>
+              </div>
+
+              <!-- 2x2 Metric Grid -->
+              <div class="grid grid-cols-2 gap-2 text-center bg-white/80 rounded-xl p-2.5 border border-primary/10">
+                <div class="p-1">
+                  <span class="block text-slate-400 text-[10px] font-semibold">Messages Sent</span>
+                  <span class="text-sm font-bold text-slate-800">0</span>
+                </div>
+                <div class="p-1 border-l border-slate-100">
+                  <span class="block text-slate-400 text-[10px] font-semibold">Responded</span>
+                  <span class="text-sm font-bold text-slate-800">0</span>
+                </div>
+                <div class="p-1 border-t border-slate-100">
+                  <span class="block text-slate-400 text-[10px] font-semibold">Rebooked</span>
+                  <span class="text-sm font-bold text-slate-800">0</span>
+                </div>
+                <div class="p-1 border-t border-l border-slate-100">
+                  <span class="block text-slate-400 text-[10px] font-semibold">Recovery Rate</span>
+                  <span class="text-sm font-bold text-emerald-600">0%</span>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 mb-1">Trigger Delay</label>
+                <select class="w-full bg-white border border-bordercol rounded-lg px-2.5 py-1.5 text-xs text-slate-700">
+                  <option>2 hours after missed slot</option>
+                  <option>4 hours after missed slot</option>
+                  <option>Next day morning 10:00 AM</option>
+                </select>
+              </div>
+
+              <button onclick="showToast('No-Show Recovery settings saved')" class="w-full bg-primary hover:bg-primary-hover text-white text-xs font-semibold py-2 rounded-xl transition-all">
+                Save Recovery Setup
+              </button>
+            </div>
+
+            <!-- Auto Follow-Up Box -->
+            <div class="bg-primary-light/60 border border-primary/20 rounded-2xl p-5 space-y-4">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                  <div class="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                  </div>
+                  <div>
+                    <h4 class="text-xs font-bold text-slate-900">Auto Follow-Up Flow</h4>
+                    <span class="text-[10px] text-slate-500">Post-visit care check</span>
+                  </div>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" checked class="sr-only peer" onchange="handleToggle('Auto Follow-Up', this.checked)">
+                  <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-activegreen"></div>
+                </label>
+              </div>
+
+              <!-- 2x2 Metric Grid -->
+              <div class="grid grid-cols-2 gap-2 text-center bg-white/80 rounded-xl p-2.5 border border-primary/10">
+                <div class="p-1">
+                  <span class="block text-slate-400 text-[10px] font-semibold">Follow-ups Sent</span>
+                  <span class="text-sm font-bold text-slate-800">0</span>
+                </div>
+                <div class="p-1 border-l border-slate-100">
+                  <span class="block text-slate-400 text-[10px] font-semibold">Responded</span>
+                  <span class="text-sm font-bold text-slate-800">0</span>
+                </div>
+                <div class="p-1 border-t border-slate-100">
+                  <span class="block text-slate-400 text-[10px] font-semibold">Appointments</span>
+                  <span class="text-sm font-bold text-slate-800">0</span>
+                </div>
+                <div class="p-1 border-t border-l border-slate-100">
+                  <span class="block text-slate-400 text-[10px] font-semibold">Conversion</span>
+                  <span class="text-sm font-bold text-emerald-600">0%</span>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 mb-1">Follow-up Schedule</label>
+                <select class="w-full bg-white border border-bordercol rounded-lg px-2.5 py-1.5 text-xs text-slate-700">
+                  <option>3 days post visit</option>
+                  <option>7 days post visit</option>
+                  <option>14 days post visit</option>
+                </select>
+              </div>
+
+              <button onclick="showToast('Follow-Up flow schedule updated')" class="w-full bg-primary hover:bg-primary-hover text-white text-xs font-semibold py-2 rounded-xl transition-all">
+                Save Follow-Up Setup
+              </button>
+            </div>
+
+          </div>
+
+          <!-- 8. HOW AUTOMATION WORKS SECTION -->
+          <div class="bg-surface rounded-2xl border border-bordercol p-5 md:p-6 shadow-sm space-y-4">
+            <div class="flex items-center space-x-2">
+              <i class="fa-solid fa-circle-info text-primary"></i>
+              <h3 class="text-sm font-bold text-slate-900">How Patient Automation Works</h3>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+              <!-- Flow 1: No-show recovery flow -->
+              <div class="space-y-3">
+                <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-1.5">
+                  <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                  <span>No-Show Recovery Sequence</span>
+                </h4>
+                
+                <div class="space-y-2.5 text-xs text-slate-600">
+                  <div class="flex items-start space-x-2.5">
+                    <span class="px-2 py-0.5 rounded-full bg-slate-100 font-bold text-slate-700 text-[10px]">1</span>
+                    <p>Appointment status marked as <strong>"No-Show"</strong> in calendar.</p>
+                  </div>
+                  <div class="flex items-start space-x-2.5">
+                    <span class="px-2 py-0.5 rounded-full bg-slate-100 font-bold text-slate-700 text-[10px]">2</span>
+                    <p>System waits for configured delay period (e.g. 2 hours).</p>
+                  </div>
+                  <div class="flex items-start space-x-2.5">
+                    <span class="px-2 py-0.5 rounded-full bg-slate-100 font-bold text-slate-700 text-[10px]">3</span>
+                    <p>Empathetic WhatsApp message sent offering 1-click rebooking.</p>
+                  </div>
+                  <div class="flex items-start space-x-2.5">
+                    <span class="px-2 py-0.5 rounded-full bg-slate-100 font-bold text-slate-700 text-[10px]">4</span>
+                    <p>Patient selects new time slot; schedule updates instantly.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Flow 2: Auto follow-up flow -->
+              <div class="space-y-3">
+                <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-1.5">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  <span>Auto Follow-Up Sequence</span>
+                </h4>
+                
+                <div class="space-y-2.5 text-xs text-slate-600">
+                  <div class="flex items-start space-x-2.5">
+                    <span class="px-2 py-0.5 rounded-full bg-slate-100 font-bold text-slate-700 text-[10px]">1</span>
+                    <p>Consultation completes; doctor flags follow-up in EHR.</p>
+                  </div>
+                  <div class="flex items-start space-x-2.5">
+                    <span class="px-2 py-0.5 rounded-full bg-slate-100 font-bold text-slate-700 text-[10px]">2</span>
+                    <p>System automatically schedules check-in reminder message.</p>
+                  </div>
+                  <div class="flex items-start space-x-2.5">
+                    <span class="px-2 py-0.5 rounded-full bg-slate-100 font-bold text-slate-700 text-[10px]">3</span>
+                    <p>Automated WhatsApp asks patient how recovery is progressing.</p>
+                  </div>
+                  <div class="flex items-start space-x-2.5">
+                    <span class="px-2 py-0.5 rounded-full bg-slate-100 font-bold text-slate-700 text-[10px]">4</span>
+                    <p>AI agent captures feedback or schedules recommended follow-up.</p>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+
+        <!-- RIGHT STICKY PREVIEW COLUMN (5 cols) -->
+        <div class="lg:col-span-5 lg:sticky lg:top-20 space-y-6">
+
+          <!-- LIVE PREVIEW PHONE FRAME CONTAINER -->
+          <div class="bg-surface rounded-2xl border border-bordercol shadow-lg overflow-hidden flex flex-col">
+            
+            <!-- Banner Header -->
+            <div class="bg-gradient-to-r from-primary to-indigo-700 px-4 py-3 text-white flex items-center justify-between">
+              <div class="flex items-center space-x-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="text-xs font-bold tracking-wide uppercase">Live WhatsApp Preview</span>
+              </div>
+              <span class="text-[10px] bg-white/20 px-2 py-0.5 rounded-full">Real-time sync</span>
+            </div>
+
+            <!-- Phone Hardware Shell -->
+            <div class="p-4 sm:p-6 bg-slate-100 flex justify-center">
+              <div class="w-full max-w-[320px] bg-black rounded-[36px] p-3 shadow-2xl ring-1 ring-slate-900/10 relative">
+                
+                <!-- Camera Notch / Dynamic Island -->
+                <div class="absolute top-5 left-1/2 -translate-x-1/2 w-24 h-4 bg-black rounded-full z-20 flex items-center justify-center">
+                  <div class="w-2.5 h-2.5 rounded-full bg-slate-900 ml-auto mr-2"></div>
+                </div>
+
+                <!-- Phone Screen Surface -->
+                <div class="bg-white rounded-[28px] overflow-hidden flex flex-col h-[520px] relative font-sans text-slate-800">
+                  
+                  <!-- WhatsApp Top Header Bar -->
+                  <div class="bg-whatsapp-header pt-7 pb-2.5 px-3 text-white flex items-center justify-between shadow-sm z-10">
+                    <div class="flex items-center space-x-2">
+                      <i class="fa-solid fa-arrow-left text-xs cursor-pointer"></i>
+                      <div class="w-7 h-7 rounded-full bg-white/20 text-white font-bold flex items-center justify-center text-xs">
+                        <i class="fa-solid fa-user-doctor"></i>
+                      </div>
+                      <div class="flex flex-col">
+                        <span class="text-xs font-bold leading-tight">Doxmate AI Clinic</span>
+                        <span class="text-[9px] text-emerald-100 leading-tight">online</span>
+                      </div>
+                    </div>
+                    <div class="flex items-center space-x-3 text-xs">
+                      <i class="fa-solid fa-video cursor-pointer"></i>
+                      <i class="fa-solid fa-phone cursor-pointer"></i>
+                      <i class="fa-solid fa-ellipsis-vertical cursor-pointer"></i>
+                    </div>
+                  </div>
+
+                  <!-- WhatsApp Chat Canvas Area -->
+                  <div class="flex-1 wa-bg-pattern p-3 overflow-y-auto space-y-3 text-xs flex flex-col">
+                    
+                    <!-- Date Pill -->
+                    <div class="self-center bg-white/90 shadow-sm px-2.5 py-0.5 rounded-md text-[10px] text-slate-500 font-medium">
+                      TODAY
+                    </div>
+
+                    <!-- Location Card Mockup -->
+                    <div class="self-start max-w-[88%] bg-white rounded-lg p-2 shadow-sm border border-slate-200/60 space-y-1.5">
+                      <div class="bg-slate-200 h-20 rounded-md overflow-hidden relative flex items-center justify-center">
+                        <img src="https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?auto=format&fit=crop&w=400&q=80" 
+                             alt="Map" class="w-full h-full object-cover opacity-80"
+                             onerror="this.src='https://placehold.co/300x120/4E5DB5/ffffff?text=Clinic+Location+Map'">
+                        <div class="absolute w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center shadow-md">
+                          <i class="fa-solid fa-location-dot text-xs"></i>
+                        </div>
+                      </div>
+                      <div class="px-0.5">
+                        <div class="font-bold text-[11px] text-slate-900">Doxmate AI Clinic</div>
+                        <div class="text-[10px] text-slate-500">Suite 402, Health Tower, Tech Hub</div>
+                      </div>
+                      <button class="w-full bg-slate-50 border border-slate-200 hover:bg-slate-100 text-primary text-[10px] font-bold py-1 rounded transition-colors">
+                        Locate me
+                      </button>
+                    </div>
+
+                    <!-- Dynamic Message Preview Bubble -->
+                    <div class="self-end max-w-[88%] bg-whatsapp-bubble rounded-lg p-2.5 shadow-sm space-y-1 relative">
+                      <p id="phone-preview-text" class="text-[11px] text-slate-800 leading-relaxed whitespace-pre-wrap break-words">
+                        Hello Rahul Sharma, thank you for visiting Doxmate AI Clinic with Dr. Sarah Jenkins. We hope you had a great experience! Could you please take 30 seconds to leave us a review on Google? It helps us serve you better: https://g.page/r/doxmate-clinic-review/review
+                      </p>
+                      <div class="flex items-center justify-end space-x-1 text-[9px] text-slate-400 pt-0.5">
+                        <span>10:42 AM</span>
+                        <i class="fa-solid fa-check-double text-sky-500"></i>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  <!-- WhatsApp Bottom Chat Input Bar -->
+                  <div class="bg-slate-100 px-2 py-2 flex items-center space-x-2 border-t border-slate-200 text-slate-500 text-xs">
+                    <i class="fa-regular fa-face-smile cursor-pointer hover:text-slate-700"></i>
+                    <i class="fa-solid fa-paperclip cursor-pointer hover:text-slate-700"></i>
+                    <div class="flex-1 bg-white rounded-full px-3 py-1 text-[11px] text-slate-400 flex items-center justify-between shadow-inner">
+                      <span>Message</span>
+                      <i class="fa-solid fa-camera text-slate-400 cursor-pointer"></i>
+                    </div>
+                    <div class="w-7 h-7 rounded-full bg-whatsapp-header text-white flex items-center justify-center text-xs shadow cursor-pointer">
+                      <i class="fa-solid fa-microphone"></i>
+                    </div>
+                  </div>
+
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+
+          <!-- SMART AUTOMATION EXPLANATION CARD -->
+          <div class="bg-gradient-to-br from-indigo-900 to-slate-900 text-white rounded-2xl p-5 shadow-sm space-y-3">
+            <div class="flex items-center space-x-2.5">
+              <div class="w-8 h-8 rounded-lg bg-amber-400/20 text-amber-300 flex items-center justify-center">
+                <i class="fa-solid fa-bolt text-sm"></i>
+              </div>
+              <h4 class="text-sm font-bold">Why WhatsApp Engagement?</h4>
+            </div>
+            <p class="text-xs text-indigo-100 leading-relaxed">
+              WhatsApp achieves an astounding <strong class="text-white">98% open rate</strong> compared to 20% on traditional SMS or Email. Automated review requests sent within 1 hour yield up to 4x higher 5-star ratings on Google My Business.
+            </p>
+          </div>
+
+          <!-- PRO TIPS LIST CARD -->
+          <div class="bg-surface rounded-2xl border border-bordercol p-5 shadow-sm space-y-3">
+            <div class="flex items-center space-x-2 text-amber-500">
+              <i class="fa-solid fa-lightbulb"></i>
+              <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wider">Pro Tips for Best Conversion</h4>
+            </div>
+            <ul class="text-xs text-slate-600 space-y-2 list-disc list-inside">
+              <li>Keep review request messages short and personal.</li>
+              <li>Always include the doctor's name variable <code class="bg-slate-100 px-1 py-0.5 rounded text-[10px] text-slate-800">{doctor_name}</code> for personal connection.</li>
+              <li>Optimal review request timing is <strong>1 hour post-appointment</strong> while care experience is fresh.</li>
+            </ul>
+          </div>
+
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+
+  <!-- EDIT CONFIRMATION MESSAGE MODAL -->
+  <div id="confirmation-modal" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-surface rounded-2xl border border-bordercol max-w-lg w-full p-6 space-y-4 shadow-xl">
+      <div class="flex items-center justify-between border-b border-bordercol pb-3">
+        <h3 class="text-base font-bold text-slate-900">Edit Confirmation Message Template</h3>
+        <button onclick="closeConfirmationModal()" class="text-slate-400 hover:text-slate-600">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+      
+      <p class="text-xs text-slate-500">
+        This message is automatically sent over WhatsApp as soon as an appointment is confirmed in your system.
+      </p>
+
+      <textarea id="modal-template-input" rows="5" class="w-full bg-slate-50 border border-bordercol rounded-xl p-3 text-xs text-slate-800 font-mono focus:outline-none focus:border-primary">Dear {patient_name}, your appointment with {doctor_name} at Doxmate AI Clinic is confirmed for {appointment_date} at {appointment_time}. Please reach 10 minutes prior. Clinic Location: {clinic_location}</textarea>
+
+      <div class="flex items-center justify-end space-x-3 pt-2">
+        <button onclick="closeConfirmationModal()" class="px-4 py-2 border border-bordercol hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl">
+          Cancel
+        </button>
+        <button onclick="saveConfirmationTemplate()" class="bg-primary hover:bg-primary-hover text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-sm shadow-primary/30">
+          Save Template
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2 pointer-events-none"></div>
+
+  <script>
+    // Helper function to show floating toast messages
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `pointer-events-auto flex items-center space-x-2 bg-slate-900 text-white text-xs font-medium px-4 py-3 rounded-xl shadow-xl transform transition-all duration-300 translate-y-5 opacity-0`;
+      
+      const icon = type === 'success' ? 'fa-circle-check text-emerald-400' : 'fa-circle-info text-amber-400';
+      toast.innerHTML = `<i class="fa-solid ${icon}"></i><span>${message}</span>`;
+      
+      container.appendChild(toast);
+
+      // Animate In
+      setTimeout(() => {
+        toast.classList.remove('translate-y-5', 'opacity-0');
+      }, 10);
+
+      // Animate Out
+      setTimeout(() => {
+        toast.classList.add('translate-y-5', 'opacity-0');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    // Dynamic Live Preview Text Syncing
+    function updatePhonePreview() {
+      const rawText = document.getElementById('review-message-input').value;
+      const reviewUrl = document.getElementById('review-url-input').value;
+
+      // Replace template variables with realistic mock values
+      let formattedText = rawText
+        .replace(/\{patient_name\}/g, 'Rahul Sharma')
+        .replace(/\{doctor_name\}/g, 'Dr. Sarah Jenkins')
+        .replace(/\{google_review_link\}/g, reviewUrl || 'https://g.page/r/...');
+
+      document.getElementById('phone-preview-text').textContent = formattedText;
+    }
+
+    // Insert variable tag at cursor position or end of textarea
+    function insertVariable(variableTag) {
+      const textarea = document.getElementById('review-message-input');
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const text = textarea.value;
+
+      textarea.value = text.substring(0, start) + variableTag + text.substring(end);
+      textarea.focus();
+      textarea.selectionStart = textarea.selectionEnd = start + variableTag.length;
+
+      updatePhonePreview();
+      showToast(`Inserted tag: ${variableTag}`);
+    }
+
+    // Handle Toggle Switches
+    function handleToggle(featureName, isChecked) {
+      const status = isChecked ? 'Enabled' : 'Disabled';
+      showToast(`${featureName} automation ${status}`);
+    }
+
+    // Save Review Settings
+    function saveReviewSettings() {
+      const delay = document.getElementById('send-delay-select').value;
+      showToast(`Review automation saved! Delay set to ${delay}.`);
+    }
+
+    // Switch Main Tabs (Reminders vs Automation)
+    function switchMainTab(tab) {
+      const remindersBtn = document.getElementById('tab-reminders');
+      const automationBtn = document.getElementById('tab-automation');
+
+      if (tab === 'reminders') {
+        remindersBtn.className = 'px-5 py-2 text-xs font-semibold rounded-lg bg-primary text-white shadow-sm transition-all';
+        automationBtn.className = 'px-5 py-2 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-all';
+        showToast('Switched to Reminders View');
+      } else {
+        automationBtn.className = 'px-5 py-2 text-xs font-semibold rounded-lg bg-primary text-white shadow-sm transition-all';
+        remindersBtn.className = 'px-5 py-2 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-all';
+        showToast('Switched to Automation View');
+      }
+    }
+
+    // Confirmation Modal functions
+    function openConfirmationModal() {
+      const modal = document.getElementById('confirmation-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeConfirmationModal() {
+      const modal = document.getElementById('confirmation-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function saveConfirmationTemplate() {
+      closeConfirmationModal();
+      showToast('Appointment confirmation template saved');
+    }
+
+    // Mobile Sidebar Drawer Toggle
+    document.addEventListener('DOMContentLoaded', () => {
+      const sidebar = document.getElementById('sidebar');
+      const toggleBtn = document.getElementById('mobile-sidebar-toggle');
+      const collapseBtn = document.getElementById('collapse-sidebar');
+
+      if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+          sidebar.classList.toggle('-translate-x-full');
+        });
+      }
+
+      if (collapseBtn) {
+        collapseBtn.addEventListener('click', () => {
+          sidebar.classList.toggle('-translate-x-full');
+          showToast('Sidebar collapsed');
+        });
+      }
+
+      // Initial Sync
+      updatePhonePreview();
+    });
+  </script>
+</body>
+</html>

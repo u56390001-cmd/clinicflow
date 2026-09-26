@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Growth Agent Dashboard - Doxmate System</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4E5DB5',
+                        'primary-dark': '#3E4A91',
+                        'primary-light': 'rgba(78, 93, 181, 0.08)',
+                        accent: '#3E4A91',
+                        surface: '#FFFFFF',
+                        border: '#E5E7EB',
+                        'border-strong': '#D1D5DB',
+                        muted: '#6B7280',
+                        heading: '#111827',
+                        background: '#F9FAFB'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    borderRadius: {
+                        'btn': '12px',
+                        'card': '12px',
+                        'input': '8px',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F9FAFB;
+            color: #111827;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #F1F5F9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #CBD5E1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94A3B8;
+        }
+        /* Toggle Switch Smoothness */
+        .toggle-dot {
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-surface border-b border-border sticky top-0 z-30 h-16 flex items-center px-4 sm:px-6 justify-between">
+        <div class="flex items-center gap-4 lg:gap-8">
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-btn bg-primary text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                    D
+                </div>
+                <span class="font-bold text-xl tracking-tight text-heading hidden sm:inline">Doxmate</span>
+            </div>
+            
+            <!-- Global Search -->
+            <div class="relative w-48 sm:w-64 md:w-80">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-muted text-sm"></i>
+                <input type="text" placeholder="Search patient, post or phone..." 
+                       class="w-full pl-9 pr-3 py-1.5 bg-background border border-border rounded-input text-xs focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
+            </div>
+        </div>
+
+        <!-- Header Actions -->
+        <div class="flex items-center gap-3">
+            <!-- AI Credits Badge -->
+            <div class="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold">
+                <i class="fa-solid fa-bolt text-amber-500"></i>
+                <span>120 AI Credits</span>
+            </div>
+
+            <!-- Notifications Dropdown Trigger -->
+            <button onclick="toggleToast('No new notifications')" class="relative p-2 rounded-input text-muted hover:text-heading hover:bg-background transition-all">
+                <i class="fa-regular fa-bell text-base"></i>
+                <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>
+            </button>
+
+            <!-- New Post Quick Action -->
+            <button onclick="scrollToGenerator()" class="hidden md:flex items-center gap-2 bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-btn text-xs font-semibold transition-all shadow-sm">
+                <i class="fa-solid fa-plus"></i>
+                <span>Create Post</span>
+            </button>
+
+            <!-- User Profile Dropdown -->
+            <div class="flex items-center gap-2 pl-2 border-l border-border">
+                <div class="w-8 h-8 rounded-full bg-primary-dark text-white flex items-center justify-center text-xs font-bold ring-2 ring-primary/20">
+                    DR
+                </div>
+                <div class="hidden lg:block text-left text-xs">
+                    <p class="font-semibold text-heading leading-tight">Dr. Sarah Jenkins</p>
+                    <p class="text-muted leading-tight text-[11px]">Dental Care Clinic</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        <!-- Sidebar Navigation -->
+        <aside class="w-16 md:w-60 bg-surface border-r border-border flex flex-col justify-between py-4 shrink-0 transition-all duration-300">
+            <div class="space-y-1 px-2 md:px-3">
+                <div class="px-3 py-2 text-[11px] font-bold text-muted uppercase tracking-wider hidden md:block">Menu</div>
+                
+                <a href="#" onclick="setActiveNav(this, 'growth')" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-btn text-xs font-semibold bg-primary text-white transition-all">
+                    <i class="fa-solid fa-chart-line w-4 text-center text-sm"></i>
+                    <span class="hidden md:inline">Growth Agent</span>
+                </a>
+
+                <a href="#" onclick="setActiveNav(this, 'analytics')" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-btn text-xs font-semibold text-muted hover:bg-background hover:text-heading transition-all">
+                    <i class="fa-solid fa-chart-pie w-4 text-center text-sm"></i>
+                    <span class="hidden md:inline">Analytics & Traffic</span>
+                </a>
+
+                <a href="#" onclick="setActiveNav(this, 'posts')" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-btn text-xs font-semibold text-muted hover:bg-background hover:text-heading transition-all">
+                    <i class="fa-regular fa-newspaper w-4 text-center text-sm"></i>
+                    <span class="hidden md:inline">Content Queue</span>
+                </a>
+
+                <a href="#" onclick="setActiveNav(this, 'health')" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-btn text-xs font-semibold text-muted hover:bg-background hover:text-heading transition-all">
+                    <i class="fa-solid fa-heart-pulse w-4 text-center text-sm"></i>
+                    <span class="hidden md:inline">Profile Health</span>
+                </a>
+
+                <div class="pt-4 border-t border-border mt-4"></div>
+                <div class="px-3 py-2 text-[11px] font-bold text-muted uppercase tracking-wider hidden md:block">Settings</div>
+
+                <a href="#" onclick="setActiveNav(this, 'settings')" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-btn text-xs font-semibold text-muted hover:bg-background hover:text-heading transition-all">
+                    <i class="fa-solid fa-sliders w-4 text-center text-sm"></i>
+                    <span class="hidden md:inline">Automation Setup</span>
+                </a>
+
+                <a href="#" onclick="toggleToast('Opening Help Center...')" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-btn text-xs font-semibold text-muted hover:bg-background hover:text-heading transition-all">
+                    <i class="fa-regular fa-circle-question w-4 text-center text-sm"></i>
+                    <span class="hidden md:inline">Support & Docs</span>
+                </a>
+            </div>
+
+            <div class="px-2 md:px-3">
+                <div class="bg-background border border-border p-3 rounded-card text-center hidden md:block">
+                    <p class="text-xs font-semibold text-heading">Connected Profile</p>
+                    <p class="text-[11px] text-muted mb-2">Google Business Live</p>
+                    <button onclick="toggleModal('connectModal')" class="w-full py-1.5 bg-surface border border-border hover:border-primary text-primary text-xs font-semibold rounded-btn transition-all">
+                        Manage Connection
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace Area -->
+        <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
+            
+            <!-- Dashboard Title & Timeframe Filters -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight text-heading">Growth Agent</h1>
+                    <p class="text-xs text-muted mt-0.5">Automate post generation, boost search visibility, and monitor clinic metrics.</p>
+                </div>
+
+                <!-- Range Selector Switch -->
+                <div class="inline-flex p-1 bg-surface border border-border rounded-btn self-start sm:self-auto text-xs font-medium">
+                    <button onclick="setTimeframe(this, '7d')" class="tf-btn px-3 py-1.5 rounded-btn text-muted hover:text-heading transition-all">Last 7 Days</button>
+                    <button onclick="setTimeframe(this, '30d')" class="tf-btn px-3 py-1.5 rounded-btn bg-primary text-white font-semibold transition-all">Last 30 Days</button>
+                    <button onclick="setTimeframe(this, 'ytd')" class="tf-btn px-3 py-1.5 rounded-btn text-muted hover:text-heading transition-all">Year-to-date</button>
+                </div>
+            </div>
+
+            <!-- Google Business Profile Connection Banner -->
+            <div id="connectionBanner" class="bg-surface border border-border rounded-card p-5 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-btn bg-primary-light text-primary flex items-center justify-center text-xl shrink-0">
+                        <i class="fa-solid fa-store"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-base font-bold text-heading">Google Business Profile Active</h3>
+                            <span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Connected
+                            </span>
+                        </div>
+                        <p class="text-xs text-muted mt-0.5">Synced as <strong class="text-heading">Dental Care Center - Downtown Branch</strong> (Updated 5m ago)</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 w-full md:w-auto">
+                    <button onclick="refreshMetrics()" class="flex-1 md:flex-none px-4 py-2 border border-border text-heading hover:bg-background text-xs font-semibold rounded-btn transition-all">
+                        <i class="fa-solid fa-arrows-rotate mr-1.5"></i> Sync Data
+                    </button>
+                    <button onclick="toggleModal('connectModal')" class="flex-1 md:flex-none px-4 py-2 bg-primary text-white hover:bg-primary-dark text-xs font-semibold rounded-btn transition-all">
+                        Configure
+                    </button>
+                </div>
+            </div>
+
+            <!-- Top Metric Cards Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                
+                <!-- Metric 1 -->
+                <div class="bg-surface border border-border rounded-card p-5 hover:border-border-strong transition-all">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <span class="text-xs font-medium text-muted">GMB Views</span>
+                            <div class="text-2xl font-bold text-heading mt-1" id="m-views">1,420</div>
+                        </div>
+                        <div class="w-10 h-10 rounded-btn bg-primary text-white flex items-center justify-center text-base">
+                            <i class="fa-regular fa-eye"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1.5 mt-3 text-xs font-semibold text-emerald-600">
+                        <i class="fa-solid fa-arrow-trend-up"></i>
+                        <span id="t-views">+18.4%</span>
+                        <span class="text-muted font-normal text-[11px]">vs last period</span>
+                    </div>
+                </div>
+
+                <!-- Metric 2 -->
+                <div class="bg-surface border border-border rounded-card p-5 hover:border-border-strong transition-all">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <span class="text-xs font-medium text-muted">Profile Calls</span>
+                            <div class="text-2xl font-bold text-heading mt-1" id="m-calls">284</div>
+                        </div>
+                        <div class="w-10 h-10 rounded-btn bg-primary text-white flex items-center justify-center text-base">
+                            <i class="fa-solid fa-phone"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1.5 mt-3 text-xs font-semibold text-emerald-600">
+                        <i class="fa-solid fa-arrow-trend-up"></i>
+                        <span id="t-calls">+12.1%</span>
+                        <span class="text-muted font-normal text-[11px]">vs last period</span>
+                    </div>
+                </div>
+
+                <!-- Metric 3 -->
+                <div class="bg-surface border border-border rounded-card p-5 hover:border-border-strong transition-all">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <span class="text-xs font-medium text-muted">Direction Requests</span>
+                            <div class="text-2xl font-bold text-heading mt-1" id="m-directions">512</div>
+                        </div>
+                        <div class="w-10 h-10 rounded-btn bg-primary text-white flex items-center justify-center text-base">
+                            <i class="fa-solid fa-location-dot"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1.5 mt-3 text-xs font-semibold text-emerald-600">
+                        <i class="fa-solid fa-arrow-trend-up"></i>
+                        <span id="t-directions">+8.7%</span>
+                        <span class="text-muted font-normal text-[11px]">vs last period</span>
+                    </div>
+                </div>
+
+                <!-- Metric 4 -->
+                <div class="bg-surface border border-border rounded-card p-5 hover:border-border-strong transition-all">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <span class="text-xs font-medium text-muted">Profile Health Score</span>
+                            <div class="text-2xl font-bold text-heading mt-1" id="m-health">92%</div>
+                        </div>
+                        <div class="w-10 h-10 rounded-btn bg-primary text-white flex items-center justify-center text-base">
+                            <i class="fa-solid fa-shield-halved"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1.5 mt-3 text-xs font-semibold text-emerald-600">
+                        <i class="fa-solid fa-circle-check"></i>
+                        <span>Optimal</span>
+                        <span class="text-muted font-normal text-[11px]">Grade A+</span>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Main Grid: Generator & Settings vs Live Preview -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6" id="generatorSection">
+                
+                <!-- Left 2 Columns: Generator & Settings Forms -->
+                <div class="lg:col-span-2 space-y-6">
+                    
+                    <!-- AI Post Generator Panel -->
+                    <div class="bg-surface border border-border rounded-card overflow-hidden shadow-sm">
+                        <div class="p-5 border-b border-border bg-gradient-to-r from-background to-surface flex items-center justify-between">
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <h3 class="text-base font-bold text-heading">Quick AI Post Generator</h3>
+                                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                        <i class="fa-solid fa-wand-magic-sparkles mr-1"></i> AI Powered
+                                    </span>
+                                </div>
+                                <p class="text-xs text-muted mt-0.5">Generate localized, search-optimized Google posts for your clinic instantly.</p>
+                            </div>
+                        </div>
+
+                        <div class="p-5 space-y-4">
+                            <!-- Focus Topic -->
+                            <div>
+                                <label class="block text-xs font-semibold text-heading mb-1.5">Content Focus / Topic</label>
+                                <select id="postTopic" onchange="updateLivePreview()" class="w-full px-3 py-2 bg-background border border-border rounded-input text-xs font-medium text-heading focus:outline-none focus:border-primary">
+                                    <option value="Teeth Whitening Special">Teeth Whitening Special & Promotion</option>
+                                    <option value="Preventative Care Tips">Preventative Dental Care Tips</option>
+                                    <option value="Emergency Care Availability">Same-Day Emergency Appointments</option>
+                                    <option value="Invisalign Consultation">Free Invisalign Consultation Days</option>
+                                </select>
+                            </div>
+
+                            <!-- Interactive Keyword Tags Input -->
+                            <div>
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <label class="block text-xs font-semibold text-heading">Target Keywords</label>
+                                    <button type="button" onclick="suggestKeywords()" class="text-[11px] font-semibold text-primary hover:text-primary-dark">
+                                        <i class="fa-solid fa-sparkles mr-1"></i> Auto Suggest
+                                    </button>
+                                </div>
+                                <div class="border border-border bg-background rounded-input p-2 flex flex-wrap gap-1.5 items-center min-h-[42px]" id="keywordContainer">
+                                    <span class="keyword-tag inline-flex items-center gap-1 bg-surface border border-border px-2 py-1 rounded-md text-[11px] font-semibold text-heading">
+                                        #DentalClinic <i class="fa-solid fa-xmark text-muted cursor-pointer hover:text-red-500" onclick="removeTag(this)"></i>
+                                    </span>
+                                    <span class="keyword-tag inline-flex items-center gap-1 bg-surface border border-border px-2 py-1 rounded-md text-[11px] font-semibold text-heading">
+                                        #TeethWhitening <i class="fa-solid fa-xmark text-muted cursor-pointer hover:text-red-500" onclick="removeTag(this)"></i>
+                                    </span>
+                                    <input type="text" id="keywordInput" placeholder="Add keyword + Enter" onkeydown="handleKeywordAdd(event)" 
+                                           class="bg-transparent text-xs text-heading focus:outline-none flex-1 min-w-[120px]">
+                                </div>
+                                <p class="text-[11px] text-muted mt-1">Keywords will be naturally blended into the post text to boost local rankings.</p>
+                            </div>
+
+                            <!-- Post Tone & Call To Action -->
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-heading mb-1.5">Call To Action Button</label>
+                                    <select id="postCta" onchange="updateLivePreview()" class="w-full px-3 py-2 bg-background border border-border rounded-input text-xs font-medium text-heading focus:outline-none focus:border-primary">
+                                        <option value="Book Now">Book Now</option>
+                                        <option value="Call Today">Call Today</option>
+                                        <option value="Learn More">Learn More</option>
+                                        <option value="Get Offer">Get Offer</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-heading mb-1.5">Writing Tone</label>
+                                    <select id="postTone" class="w-full px-3 py-2 bg-background border border-border rounded-input text-xs font-medium text-heading focus:outline-none focus:border-primary">
+                                        <option value="Professional & Warm">Professional & Warm</option>
+                                        <option value="Urgent Promotion">Urgent / Promotional</option>
+                                        <option value="Informative Health">Educational / Health First</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Generate Button -->
+                            <div class="pt-2">
+                                <button type="button" id="btnGenerate" onclick="generatePostContent()" class="w-full py-2.5 bg-primary hover:bg-primary-dark text-white rounded-btn text-xs font-semibold flex items-center justify-center gap-2 shadow-sm transition-all">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                                    <span>Generate Post Now</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Automation & Post Settings Panel -->
+                    <div class="bg-surface border border-border rounded-card p-5 space-y-5">
+                        <div class="border-b border-border pb-3">
+                            <h3 class="text-base font-bold text-heading">Auto-Publishing Settings</h3>
+                            <p class="text-xs text-muted">Configure how AI routinely publishes updates on your behalf.</p>
+                        </div>
+
+                        <!-- Enable Auto Post Toggle -->
+                        <div class="p-4 border border-border rounded-card bg-background flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-9 h-9 rounded-btn bg-surface border border-border flex items-center justify-center text-muted">
+                                    <i class="fa-solid fa-bullhorn text-sm"></i>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-bold text-heading">Enable Auto Post</p>
+                                    <p class="text-[11px] text-muted">AI will write and queue 1 fresh post weekly automatically.</p>
+                                </div>
+                            </div>
+
+                            <!-- Toggle Component -->
+                            <button type="button" onclick="toggleSwitch(this)" class="w-12 h-6 rounded-full bg-primary p-0.5 transition-colors relative focus:outline-none">
+                                <span class="toggle-dot block w-5 h-5 rounded-full bg-white shadow-md transform translate-x-6"></span>
+                            </button>
+                        </div>
+
+                        <!-- Schedule Preferences Grid -->
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-heading mb-1">Posting Frequency</label>
+                                <select class="w-full px-3 py-2 bg-background border border-border rounded-input text-xs font-medium text-heading focus:outline-none">
+                                    <option>Weekly (Recommended)</option>
+                                    <option>Bi-Weekly</option>
+                                    <option>Monthly</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-heading mb-1">Preferred Day</label>
+                                <select class="w-full px-3 py-2 bg-background border border-border rounded-input text-xs font-medium text-heading focus:outline-none">
+                                    <option>Thursday</option>
+                                    <option>Monday</option>
+                                    <option>Wednesday</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-heading mb-1">Preferred Time</label>
+                                <input type="time" value="10:00" class="w-full px-3 py-2 bg-background border border-border rounded-input text-xs font-medium text-heading focus:outline-none">
+                            </div>
+                        </div>
+
+                        <div class="pt-2 flex justify-end">
+                            <button type="button" onclick="toggleToast('Settings saved successfully!')" class="px-5 py-2 bg-primary hover:bg-primary-dark text-white rounded-btn text-xs font-semibold transition-all">
+                                <i class="fa-solid fa-floppy-disk mr-1.5"></i> Save Settings
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Right 1 Column: Live Google Business Profile Preview Card -->
+                <div class="lg:col-span-1">
+                    <div class="sticky top-20 bg-surface border border-border rounded-card overflow-hidden shadow-sm">
+                        <!-- Preview Card Header -->
+                        <div class="p-4 bg-primary text-white flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <i class="fa-solid fa-eye text-sm"></i>
+                                <h3 class="text-xs font-bold uppercase tracking-wider">Live GMB Preview</h3>
+                            </div>
+                            <span class="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-semibold">Real-Time</span>
+                        </div>
+
+                        <!-- Google Search Result Preview Container -->
+                        <div class="p-4 space-y-4">
+                            <div class="border border-border rounded-card overflow-hidden bg-white shadow-xs">
+                                <!-- Banner Photo -->
+                                <div class="h-28 bg-slate-200 relative flex items-center justify-center overflow-hidden">
+                                    <img src="https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=600&q=80" 
+                                         alt="Clinic Preview" class="w-full h-full object-cover">
+                                    <span class="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-md backdrop-blur-xs">Clinic Photo</span>
+                                </div>
+
+                                <!-- Business Details -->
+                                <div class="p-3 border-b border-border">
+                                    <h4 class="font-bold text-sm text-heading leading-tight">Dental Care Center</h4>
+                                    <p class="text-[11px] text-muted">Dental Clinic • Downtown Branch</p>
+                                    
+                                    <div class="flex items-center gap-1 mt-1 text-amber-500 text-xs">
+                                        <span class="font-bold text-heading text-xs mr-1">4.9</span>
+                                        <i class="fa-solid fa-star"></i>
+                                        <i class="fa-solid fa-star"></i>
+                                        <i class="fa-solid fa-star"></i>
+                                        <i class="fa-solid fa-star"></i>
+                                        <i class="fa-solid fa-star"></i>
+                                        <span class="text-muted text-[11px] ml-1">(128 reviews)</span>
+                                    </div>
+                                </div>
+
+                                <!-- Live Post Snippet Card -->
+                                <div class="p-3 bg-background">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <span class="text-[10px] font-bold text-muted uppercase tracking-wider">New Post Preview</span>
+                                        <span class="text-[10px] text-primary font-semibold">Just now</span>
+                                    </div>
+
+                                    <div class="bg-surface border border-border p-3 rounded-btn space-y-2">
+                                        <p id="previewText" class="text-xs text-heading leading-relaxed">
+                                            Ready to transform your smile? ✨ Visit Dental Care Center this month for our exclusive professional teeth whitening special. Book your consultation today!
+                                        </p>
+                                        <div class="pt-1">
+                                            <button id="previewCtaBtn" class="w-full py-1.5 bg-primary text-white rounded-input text-xs font-semibold">
+                                                Book Now
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <p class="text-[11px] text-center text-muted">
+                                <i class="fa-solid fa-circle-info mr-1"></i> Exact layout as shown on Google Search & Maps.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Post Queue Section -->
+            <div class="bg-surface border border-border rounded-card overflow-hidden shadow-sm">
+                <!-- Queue Table Header & Filter Tabs -->
+                <div class="p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h3 class="text-base font-bold text-heading">Post Management Queue</h3>
+                        <p class="text-xs text-muted">Review draft, scheduled, and published content across your profiles.</p>
+                    </div>
+
+                    <!-- Queue Tab Navigation -->
+                    <div class="flex items-center bg-background border border-border p-1 rounded-btn text-xs font-medium">
+                        <button onclick="switchQueueTab(this, 'drafts')" class="q-tab px-3 py-1.5 rounded-btn bg-primary text-white font-semibold transition-all">Drafts (<span id="draftCount">2</span>)</button>
+                        <button onclick="switchQueueTab(this, 'scheduled')" class="q-tab px-3 py-1.5 rounded-btn text-muted hover:text-heading transition-all">Scheduled (1)</button>
+                        <button onclick="switchQueueTab(this, 'published')" class="q-tab px-3 py-1.5 rounded-btn text-muted hover:text-heading transition-all">Published (14)</button>
+                    </div>
+                </div>
+
+                <!-- Table Content Container -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-background text-[11px] font-bold text-muted uppercase tracking-wider border-b border-border">
+                                <th class="p-4">Post Content</th>
+                                <th class="p-4">Focus Topic</th>
+                                <th class="p-4">Scheduled Date</th>
+                                <th class="p-4">Status</th>
+                                <th class="p-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="queueTableBody" class="divide-y divide-border text-xs">
+                            <!-- Row 1 -->
+                            <tr class="hover:bg-background/50 transition-all">
+                                <td class="p-4 max-w-xs">
+                                    <p class="font-semibold text-heading truncate">Exclusive Autumn Teeth Whitening Promotion</p>
+                                    <p class="text-muted text-[11px] truncate">Brighten your smile with 20% off full whitening packages...</p>
+                                </td>
+                                <td class="p-4 text-muted">Teeth Whitening Special</td>
+                                <td class="p-4 text-muted">Oct 02, 2026 • 10:00 AM</td>
+                                <td class="p-4">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                        Draft Review
+                                    </span>
+                                </td>
+                                <td class="p-4 text-right space-x-2">
+                                    <button onclick="publishRow(this)" class="px-2.5 py-1 bg-primary text-white rounded-input hover:bg-primary-dark font-semibold transition-all">
+                                        Approve & Publish
+                                    </button>
+                                    <button onclick="deleteRow(this)" class="px-2 py-1 border border-border text-muted hover:text-red-600 rounded-input transition-all">
+                                        <i class="fa-regular fa-trash-can"></i>
+                                    </button>
+                                </td>
+                            </tr>
+
+                            <!-- Row 2 -->
+                            <tr class="hover:bg-background/50 transition-all">
+                                <td class="p-4 max-w-xs">
+                                    <p class="font-semibold text-heading truncate">5 Simple Habits for Healthy Gums</p>
+                                    <p class="text-muted text-[11px] truncate">Prevent gum disease with these quick everyday tips from Dr. Jenkins...</p>
+                                </td>
+                                <td class="p-4 text-muted">Preventative Care Tips</td>
+                                <td class="p-4 text-muted">Oct 09, 2026 • 10:00 AM</td>
+                                <td class="p-4">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                        Draft Review
+                                    </span>
+                                </td>
+                                <td class="p-4 text-right space-x-2">
+                                    <button onclick="publishRow(this)" class="px-2.5 py-1 bg-primary text-white rounded-input hover:bg-primary-dark font-semibold transition-all">
+                                        Approve & Publish
+                                    </button>
+                                    <button onclick="deleteRow(this)" class="px-2 py-1 border border-border text-muted hover:text-red-600 rounded-input transition-all">
+                                        <i class="fa-regular fa-trash-can"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Modal Dialog: Connect Google Business Profile -->
+    <div id="connectModal" class="fixed inset-0 bg-heading/40 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-surface rounded-card border border-border max-w-md w-full p-6 space-y-4 shadow-xl">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-bold text-heading">Google Business Integration</h3>
+                <button onclick="toggleModal('connectModal')" class="text-muted hover:text-heading">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <p class="text-xs text-muted">Sync your Google Business account to enable automatic post publishing, view statistics, and manage customer reviews directly from Doxmate.</p>
+            
+            <div class="space-y-2">
+                <label class="block text-xs font-semibold text-heading">Select Clinic Branch</label>
+                <select class="w-full px-3 py-2 bg-background border border-border rounded-input text-xs font-medium text-heading focus:outline-none">
+                    <option>Dental Care Center - Downtown Branch</option>
+                    <option>Dental Care Center - Westside Location</option>
+                </select>
+            </div>
+
+            <div class="pt-3 flex items-center justify-end gap-2">
+                <button onclick="toggleModal('connectModal')" class="px-4 py-2 border border-border text-xs font-semibold text-muted rounded-btn">Cancel</button>
+                <button onclick="toggleModal('connectModal'); toggleToast('Google Business Profile re-synced successfully!')" class="px-4 py-2 bg-primary text-white text-xs font-semibold rounded-btn">Save Sync</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 flex items-center gap-2 bg-heading text-white px-4 py-3 rounded-btn text-xs font-semibold shadow-lg transition-all duration-300 transform translate-y-20 opacity-0 pointer-events-none">
+        <i class="fa-solid fa-circle-check text-emerald-400 text-sm" id="toastIcon"></i>
+        <span id="toastMsg">Action executed successfully</span>
+    </div>
+
+    <script>
+        // --- Navigation active state toggling ---
+        function setActiveNav(element, tabName) {
+            document.querySelectorAll('.nav-item').forEach(el => {
+                el.classList.remove('bg-primary', 'text-white');
+                el.classList.add('text-muted');
+            });
+            element.classList.add('bg-primary', 'text-white');
+            element.classList.remove('text-muted');
+            toggleToast('Switched to ' + tabName + ' tab');
+        }
+
+        // --- Timeframe metrics filter simulation ---
+        function setTimeframe(btn, tf) {
+            document.querySelectorAll('.tf-btn').forEach(b => {
+                b.classList.remove('bg-primary', 'text-white', 'font-semibold');
+                b.classList.add('text-muted');
+            });
+            btn.classList.add('bg-primary', 'text-white', 'font-semibold');
+            btn.classList.remove('text-muted');
+
+            // Dynamic Counter Adjustments based on timeframe
+            const m = {
+                '7d': { views: '380', calls: '64', dir: '110', health: '92%' },
+                '30d': { views: '1,420', calls: '284', dir: '512', health: '92%' },
+                'ytd': { views: '14,890', calls: '3,120', dir: '5,800', health: '95%' }
+            }[tf];
+
+            document.getElementById('m-views').innerText = m.views;
+            document.getElementById('m-calls').innerText = m.calls;
+            document.getElementById('m-directions').innerText = m.dir;
+            document.getElementById('m-health').innerText = m.health;
+
+            toggleToast('Metrics updated for selected time period');
+        }
+
+        // --- Keyword Tag Management ---
+        function handleKeywordAdd(e) {
+            if (e.key === 'Enter' && e.target.value.trim() !== '') {
+                e.preventDefault();
+                const container = document.getElementById('keywordContainer');
+                const tag = document.createElement('span');
+                tag.className = 'keyword-tag inline-flex items-center gap-1 bg-surface border border-border px-2 py-1 rounded-md text-[11px] font-semibold text-heading';
+                tag.innerHTML = `#${e.target.value.trim().replace(/^#/, '')} <i class="fa-solid fa-xmark text-muted cursor-pointer hover:text-red-500" onclick="removeTag(this)"></i>`;
+                container.insertBefore(tag, e.target);
+                e.target.value = '';
+                updateLivePreview();
+            }
+        }
+
+        function removeTag(element) {
+            element.parentElement.remove();
+            updateLivePreview();
+        }
+
+        function suggestKeywords() {
+            const suggestions = ['DentistNearMe', 'ToothCare', 'OralHealth'];
+            const container = document.getElementById('keywordContainer');
+            const input = document.getElementById('keywordInput');
+
+            suggestions.forEach(s => {
+                const tag = document.createElement('span');
+                tag.className = 'keyword-tag inline-flex items-center gap-1 bg-surface border border-border px-2 py-1 rounded-md text-[11px] font-semibold text-heading';
+                tag.innerHTML = `#${s} <i class="fa-solid fa-xmark text-muted cursor-pointer hover:text-red-500" onclick="removeTag(this)"></i>`;
+                container.insertBefore(tag, input);
+            });
+            toggleToast('Added recommended keywords');
+            updateLivePreview();
+        }
+
+        // --- Live Preview Synchronization ---
+        function updateLivePreview() {
+            const topic = document.getElementById('postTopic').value;
+            const cta = document.getElementById('postCta').value;
+            
+            // Collect keywords
+            const tags = Array.from(document.querySelectorAll('.keyword-tag'))
+                              .map(t => t.innerText.trim().replace(/\s/g, ''))
+                              .join(' ');
+
+            const template = `Looking for top quality ${topic.toLowerCase()}? At Dental Care Center, we provide gentle, experienced care for your whole family. ${tags} Click below to lock in your appointment!`;
+            
+            document.getElementById('previewText').innerText = template;
+            document.getElementById('previewCtaBtn').innerText = cta;
+        }
+
+        // --- AI Post Generation Simulation ---
+        function generatePostContent() {
+            const btn = document.getElementById('btnGenerate');
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>Generating Content...</span>`;
+
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> <span>Generate Post Now</span>`;
+                
+                updateLivePreview();
+
+                // Add generated post to Drafts table
+                const topic = document.getElementById('postTopic').value;
+                const tbody = document.getElementById('queueTableBody');
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-background/50 transition-all';
+                tr.innerHTML = `
+                    <td class="p-4 max-w-xs">
+                        <p class="font-semibold text-heading truncate">${topic} - Special Update</p>
+                        <p class="text-muted text-[11px] truncate">${document.getElementById('previewText').innerText}</p>
+                    </td>
+                    <td class="p-4 text-muted">${topic}</td>
+                    <td class="p-4 text-muted">Oct 16, 2026 • 10:00 AM</td>
+                    <td class="p-4">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                            Draft Review
+                        </span>
+                    </td>
+                    <td class="p-4 text-right space-x-2">
+                        <button onclick="publishRow(this)" class="px-2.5 py-1 bg-primary text-white rounded-input hover:bg-primary-dark font-semibold transition-all">
+                            Approve & Publish
+                        </button>
+                        <button onclick="deleteRow(this)" class="px-2 py-1 border border-border text-muted hover:text-red-600 rounded-input transition-all">
+                            <i class="fa-regular fa-trash-can"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.prepend(tr);
+
+                // Update Draft Counter
+                const draftBadge = document.getElementById('draftCount');
+                draftBadge.innerText = parseInt(draftBadge.innerText) + 1;
+
+                toggleToast('New AI Post draft created!');
+            }, 1200);
+        }
+
+        // --- Toggle Switch UI Component ---
+        function toggleSwitch(btn) {
+            const dot = btn.querySelector('.toggle-dot');
+            if (btn.classList.contains('bg-primary')) {
+                btn.classList.remove('bg-primary');
+                btn.classList.add('bg-border-strong');
+                dot.style.transform = 'translateX(0px)';
+                toggleToast('Auto-posting disabled');
+            } else {
+                btn.classList.add('bg-primary');
+                btn.classList.remove('bg-border-strong');
+                dot.style.transform = 'translateX(24px)';
+                toggleToast('Auto-posting enabled');
+            }
+        }
+
+        // --- Post Queue Row Actions ---
+        function publishRow(btn) {
+            const tr = btn.closest('tr');
+            tr.querySelector('span').className = 'inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200';
+            tr.querySelector('span').innerText = 'Published';
+            btn.remove();
+            toggleToast('Post approved and published to Google!');
+        }
+
+        function deleteRow(btn) {
+            const tr = btn.closest('tr');
+            tr.remove();
+            const draftBadge = document.getElementById('draftCount');
+            if (parseInt(draftBadge.innerText) > 0) {
+                draftBadge.innerText = parseInt(draftBadge.innerText) - 1;
+            }
+            toggleToast('Post removed from queue');
+        }
+
+        function switchQueueTab(btn, tab) {
+            document.querySelectorAll('.q-tab').forEach(b => {
+                b.classList.remove('bg-primary', 'text-white', 'font-semibold');
+                b.classList.add('text-muted');
+            });
+            btn.classList.add('bg-primary', 'text-white', 'font-semibold');
+            btn.classList.remove('text-muted');
+            toggleToast('Filtering queue: ' + tab);
+        }
+
+        // --- UI Utilities: Scroll, Modal & Toast ---
+        function scrollToGenerator() {
+            document.getElementById('generatorSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function toggleModal(id) {
+            const modal = document.getElementById(id);
+            modal.classList.toggle('hidden');
+        }
+
+        function refreshMetrics() {
+            toggleToast('Refreshing Google Business Profile metrics...');
+        }
+
+        function toggleToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').innerText = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
+            
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none');
+            }, 2500);
+        }
+    </script>
+</body>
+</html>
