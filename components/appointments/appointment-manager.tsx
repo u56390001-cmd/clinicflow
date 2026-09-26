@@ -309,6 +309,7 @@ export function AppointmentManager({
   doctors,
   timezone,
   canManage,
+  canMerge,
   initialCreateIntent,
   vitalsConfigs,
 }: {
@@ -320,6 +321,12 @@ export function AppointmentManager({
   doctors: Doctor[];
   timezone: string;
   canManage: boolean;
+  /**
+   * Passed through to the booking form's duplicate-merge entry point. Every
+   * member passes it (see `canMergePatients`) — the front desk is who books
+   * walk-ins, and so is who meets the duplicate.
+   */
+  canMerge: boolean;
   initialCreateIntent?: "consultation" | "service" | null;
   /** Server-fetched doctor → vitals config map for the Add Vitals popup. */
   vitalsConfigs?: DoctorVitalsConfigMap | null;
@@ -747,6 +754,7 @@ export function AppointmentManager({
             services={services}
             doctors={doctors}
             emergency={creating === "consultation"}
+            canMerge={canMerge}
             onClose={() => setCreating(null)}
           />
         </BookingModal>

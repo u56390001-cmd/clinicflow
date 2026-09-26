@@ -8,7 +8,11 @@ import { PatientRecordPane } from "@/components/patients/patient-record-pane";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isPatientSummaryEnabled } from "@/lib/ai/patient-summary";
 import { buildAppointmentViews } from "@/lib/appointments-view";
-import { canManageClinical, canWriteClinic, getCurrentClinic } from "@/lib/clinic-access";
+import {
+  canManageClinical,
+  canMergePatients,
+  getCurrentClinic,
+} from "@/lib/clinic-access";
 import { fetchPrescriptionTemplates } from "@/lib/consultation-queries";
 import {
   escapeLikeSearchTerm,
@@ -225,7 +229,7 @@ export default async function PatientsPage({
         selectedPatient={selectedPatient}
         recordPane={recordPane}
         canManage={canManageClinical(access.role)}
-        canMerge={canWriteClinic(access.role)}
+        canMerge={canMergePatients(access.role)}
         timezone={timezone}
         clinic={{
           id: access.clinic.id,

@@ -59,7 +59,7 @@ export function PatientsWorkspace({
   /** The streamed record pane, or `null` when no record is open. */
   recordPane: ReactNode;
   canManage: boolean;
-  /** Owner/admin (`canWriteClinic`) — gates the banner's Merge Duplicate control. */
+  /** `canMergePatients` — gates the banner's Merge Duplicate control. */
   canMerge: boolean;
   timezone: string;
   /** The signed-in clinic — carried from the server page for the prescription overlay. */

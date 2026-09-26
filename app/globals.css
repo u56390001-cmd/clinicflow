@@ -71,6 +71,13 @@
     animation: fade-in-down 0.15s ease-out;
   }
 
+  /* Entrance for copilot-written UI — the "AI" chip on a field label and the
+     Detected-fields card. Same motion as `.tab-fade-in`, its own name so the
+     two can diverge if the copilot's feedback ever needs to. */
+  .copilot-field-in {
+    animation: copilot-field-in 0.25s ease-in-out;
+  }
+
   /* Hide scrollbars while keeping native scrolling (tab strips). */
   .scrollbar-none {
     -ms-overflow-style: none;
@@ -82,6 +89,17 @@
 }
 
 @keyframes tab-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes copilot-field-in {
   from {
     opacity: 0;
     transform: translateY(4px);

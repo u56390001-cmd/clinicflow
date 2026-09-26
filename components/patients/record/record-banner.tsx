@@ -59,9 +59,10 @@ export function RecordBanner({
   patient: PatientDirectoryRow;
   canManage: boolean;
   /**
-   * Owner/admin (`canWriteClinic`) — narrower than `canManage`, which every
-   * clinic member passes. Merging rewrites identities, so only this boolean
-   * renders the Merge Duplicate control.
+   * Whether this member may merge duplicate records (`canMergePatients`) —
+   * currently every clinic member, matching the 0041 RPC's own
+   * `is_clinic_member` gate, so this boolean renders the Merge Duplicate control
+   * for exactly the roles whose action would succeed.
    */
   canMerge: boolean;
   /** This patient's in-progress visit today, if any. */

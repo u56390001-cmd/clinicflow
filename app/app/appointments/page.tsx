@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 
 import { ClinicEmptyState } from "@/components/app/clinic-empty-state";
 import { AppointmentManager } from "@/components/appointments/appointment-manager";
-import { canManageClinical, getCurrentClinic } from "@/lib/clinic-access";
+import {
+  canManageClinical,
+  canMergePatients,
+  getCurrentClinic,
+} from "@/lib/clinic-access";
 import { createClient } from "@/lib/supabase/server";
 import {
   fetchTodayQueue,
@@ -83,6 +87,7 @@ export default async function AppointmentPage({
       doctors={doctors.data ?? []}
       timezone={access.clinic.timezone}
       canManage={canManageClinical(access.role)}
+      canMerge={canMergePatients(access.role)}
       initialCreateIntent={createIntent}
       vitalsConfigs={vitalsConfigs}
     />

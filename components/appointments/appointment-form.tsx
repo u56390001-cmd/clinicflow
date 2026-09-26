@@ -6,6 +6,7 @@ import {
   AlertCircle,
   Calendar,
   CheckCircle2,
+  GitMerge,
   MapPin,
   Phone,
   Shield,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { SubmitButton } from "@/components/auth/submit-button";
+import { MergePatientModal } from "@/components/patients/merge-patient-modal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +43,7 @@ export function AppointmentForm({
   emergency: initialEmergency,
   initialServiceId,
   initialValues,
+  canMerge,
   onClose,
 }: {
   patients: Patient[];
@@ -48,6 +51,14 @@ export function AppointmentForm({
   doctors: Pick<Doctor, "id" | "name">[];
   emergency?: boolean;
   initialServiceId?: string;
+  /**
+   * Renders the duplicate-merge entry point beside the existing-patient picker.
+   * The front desk books walk-ins from this modal, and that is exactly where a
+   * duplicate surfaces — the phone number already belongs to someone else, or
+   * the search turns up two profiles for one person. Gated by the caller, which
+   * passes the same role boolean the server action enforces.
+   */
+  canMerge?: boolean;
   initialValues?: {
     appointmentId: string;
     patientId: string;
@@ -107,6 +118,15 @@ export function AppointmentForm({
   );
   const [notes, setNotes] = useState(initialValues?.notes ?? "");
   const [emergency, setEmergency] = useState(initialEmergency ?? false);
+
+  // The merge overlay opened from the patient picker. `null` = closed; the
+  // object carries the record the user pointed at, which becomes the surviving
+  // profile unless they use the modal's swap control.
+  const [mergePrimary, setMergePrimary] = useState<{
+    id: string;
+    name: string;
+    patient_code: string | null;
+  } | null>(null);
 
   // Time slot state
   const [slots, setSlots] = useState<string[]>([]);
@@ -199,6 +219,28 @@ export function AppointmentForm({
         setAllergies(patient.known_allergies ?? "");
         setConditions(patient.medical_conditions ?? "");
       }
+    },
+    [patients],
+  );
+
+  // A merge rewrites identities: the record this form had selected can turn out
+  // to be the one that was archived. Re-point at the survivor and re-prefill
+  // from it, so the booking goes through against a live profile instead of
+  // failing on an id that just left the directory.
+  const handleMerged = useCallback(
+    (survivingPatientId: string) => {
+      setSelectedPatientId(survivingPatientId);
+      setPatientMode("existing");
+      const survivor = patients.find((p) => p.id === survivingPatientId);
+      if (!survivor) return;
+      setPhone(survivor.phone ?? "");
+      setName(survivor.name);
+      setAge(survivor.age?.toString() ?? "");
+      setGender(survivor.gender ?? "");
+      setCity(survivor.city ?? "");
+      setWhatsapp(survivor.whatsapp_number ?? "");
+      setAllergies(survivor.known_allergies ?? "");
+      setConditions(survivor.medical_conditions ?? "");
     },
     [patients],
   );
@@ -531,9 +573,39 @@ export function AppointmentForm({
 
           {patientMode === "existing" && (
             <div className="space-y-1.5">
-              <Label htmlFor="appt-patient-select" className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-                Select Patient
-              </Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="appt-patient-select" className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+                  Select Patient
+                </Label>
+                {/* Duplicate repair, at the counter. Opens above this modal so
+                    a half-filled booking survives the detour. */}
+                {canMerge && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const picked = patients.find(
+                        (p) => p.id === selectedPatientId,
+                      );
+                      if (!picked) return;
+                      setMergePrimary({
+                        id: picked.id,
+                        name: picked.name,
+                        patient_code: picked.patient_code,
+                      });
+                    }}
+                    disabled={!selectedPatientId}
+                    title={
+                      selectedPatientId
+                        ? "Merge this record with a duplicate"
+                        : "Pick a patient first, then merge a duplicate into them"
+                    }
+                    className="inline-flex items-center gap-1.5 rounded-control border border-border-light px-2.5 py-1.5 text-[11.5px] font-semibold text-primary transition-colors hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    <GitMerge aria-hidden="true" className="size-3.5" />
+                    Merge Duplicate
+                  </button>
+                )}
+              </div>
               <NativeSelect
                 id="appt-patient-select"
                 name="patientId"
@@ -552,6 +624,37 @@ export function AppointmentForm({
                 ))}
               </NativeSelect>
             </div>
+          )}
+
+          {/* New-patient mode has no picker, but a duplicate is *most* likely to
+              be noticed here: the moment a full phone number matches someone,
+              this is the receptionist's chance to fold the two profiles together
+              before booking a third. */}
+          {canMerge && patientMode === "new" && (
+            <button
+              type="button"
+              onClick={() => {
+                const seed = phoneMatch ?? patients[0] ?? null;
+                if (!seed) return;
+                setMergePrimary({
+                  id: seed.id,
+                  name: seed.name,
+                  patient_code: seed.patient_code,
+                });
+              }}
+              disabled={patients.length === 0}
+              title={
+                phoneMatch
+                  ? `Merge ${phoneMatch.name} with a duplicate`
+                  : "Find two records for the same person and merge them"
+              }
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:pointer-events-none disabled:opacity-40"
+            >
+              <GitMerge aria-hidden="true" className="size-3.5" />
+              {phoneMatch
+                ? `Duplicate record? Merge “${phoneMatch.name}”`
+                : "Merge a duplicate patient record"}
+            </button>
           )}
         </div>
 
@@ -764,6 +867,17 @@ export function AppointmentForm({
           </SubmitButton>
         </div>
       </div>
+
+      {/* Rendered as this form's last child so it stacks above it; it captures
+          Escape before the surrounding BookingModal can, so only the merge step
+          closes and the half-filled booking stays put. */}
+      {mergePrimary && (
+        <MergePatientModal
+          primary={mergePrimary}
+          onClose={() => setMergePrimary(null)}
+          onMerged={handleMerged}
+        />
+      )}
     </form>
   );
 }

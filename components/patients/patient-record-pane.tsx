@@ -17,8 +17,9 @@ export type PatientRecordPaneActions = {
   /** Opens the merge-duplicate modal for the open record. */
   onMergeDuplicate: () => void;
   /**
-   * Owner/admin only (`canWriteClinic`) — stricter than `canManage`, so the
-   * merge button never renders for roles whose action would fail closed.
+   * Whether this member may merge duplicate records (`canMergePatients`) — the
+   * same predicate the server action and the 0041 RPC enforce, so the merge
+   * control never renders for a role whose action would fail closed.
    */
   canMerge: boolean;
 };

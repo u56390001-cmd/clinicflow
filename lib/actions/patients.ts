@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { APP_ROUTES } from "@/lib/constants";
-import { canManageClinical, canWriteClinic, getCurrentClinic } from "@/lib/clinic-access";
+import { canManageClinical, canMergePatients, getCurrentClinic } from "@/lib/clinic-access";
 import { createClient } from "@/lib/supabase/server";
 import { patientSchema } from "@/lib/validation/schemas";
 import type { ActionResult } from "@/types";
@@ -253,9 +253,12 @@ const mergeIdsSchema = z
  * prescription, document, bill and WhatsApp conversation and then
  * soft-archives the duplicate — nothing is deleted.
  *
- * Owner/admin only (`canWriteClinic`): a merge is destructive to the duplicate
- *'s identity and can't be cleanly undone from the UI, so it's stricter than the
- * any-member rule for normal patient edits. Defense in depth:
+ * Any clinic member may merge (`canMergePatients`), matching both the 0041 RPC's
+ * `is_clinic_member` gate and the RLS any-member rule for patients: the front
+ * desk books the walk-ins, and a duplicate is usually only discovered while
+ * booking the next one. The merge is non-destructive by construction —
+ * everything the duplicate owned is re-parented and its row is soft-archived,
+ * never deleted. Defense in depth:
  *   * both ids are verified to belong to the caller's clinic here, and again
  *     inside the SECURITY DEFINER function (`is_clinic_member` + clinic pinning),
  *     so a forged id from another tenant fails closed at two layers.
@@ -277,8 +280,11 @@ export async function mergePatientProfilesAction(formData: FormData): Promise<Ac
   const supabase = await createClient();
   const access = await getCurrentClinic(supabase);
   if (!access) return { ok: false, message: "You must have a clinic to merge patients." };
-  if (!canWriteClinic(access.role)) {
-    return { ok: false, message: "Only clinic owners and admins can merge patient records." };
+  // Every clinic member — matching the 0041 RPC's own `is_clinic_member` gate,
+  // so this check can never admit a call the database would refuse. See
+  // `canMergePatients` for why the front desk needs it at booking time.
+  if (!canMergePatients(access.role)) {
+    return { ok: false, message: "You must be a member of this clinic to merge patient records." };
   }
 
   // Client-side tenancy pre-check (the RPC re-checks). RLS on `patients`

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -20,7 +21,6 @@ import {
   searchPatientsAction,
   type PatientQuickResult,
 } from "@/lib/actions/patient-search";
-import type { PatientDirectoryRow } from "@/types/database";
 
 /**
  * Merge a duplicate patient into the open (primary) record.
@@ -31,13 +31,36 @@ import type { PatientDirectoryRow } from "@/types/database";
  * appointment, visit, prescription, document, bill and WhatsApp conversation,
  * then soft-archives the duplicate; nothing is deleted.
  */
+/**
+ * What the modal needs to know about the surviving record. Deliberately not the
+ * whole `PatientDirectoryRow`: the booking flow holds the raw `patients` row (it
+ * never reads the directory view), so the two tallies are optional and their
+ * line is simply omitted when absent. Both `Patient` and `PatientDirectoryRow`
+ * satisfy this shape.
+ */
+export type MergePrimary = {
+  id: string;
+  name: string;
+  patient_code: string | null;
+  visit_count?: number;
+  appointment_count?: number;
+};
+
 export function MergePatientModal({
   primary,
   onClose,
+  onMerged,
 }: {
   /** The record that is open — receives everything the duplicate owns. */
-  primary: PatientDirectoryRow;
+  primary: MergePrimary;
   onClose: () => void;
+  /**
+   * Called with the surviving patient's id immediately before `onClose()`. The
+   * booking flow uses it to re-point its own patient selection when the record
+   * the receptionist had picked was itself merged away — without it the form
+   * would keep submitting an id that is now archived.
+   */
+  onMerged?: (primaryPatientId: string) => void;
 }) {
   const router = useRouter();
   const [rawSearch, setRawSearch] = useState("");
@@ -47,15 +70,24 @@ export function MergePatientModal({
   const [selected, setSelected] = useState<PatientQuickResult | null>(null);
   const [isMerging, startMergeTransition] = useTransition();
 
+  // Escape closes this modal — and only this one. The patients workspace opens
+  // it standalone, but the booking flow opens it *inside* another modal that
+  // listens for the same key; this handler runs in the capture phase and stops
+  // propagation, so Escape peels off the merge step and leaves the booking form
+  // (and everything typed into it) exactly where it was.
   useEffect(() => {
     function handleKey(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      onClose();
     }
-    document.addEventListener("keydown", handleKey);
+    document.addEventListener("keydown", handleKey, true);
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      document.removeEventListener("keydown", handleKey);
+      document.removeEventListener("keydown", handleKey, true);
+      // Restores whatever was in force *before* this modal — which, in the
+      // booking flow, is the parent modal's own lock, so the page stays frozen.
       document.body.style.overflow = previousOverflow;
     };
   }, [onClose]);
@@ -93,33 +125,80 @@ export function MergePatientModal({
 
   const canSubmit = selected !== null && !isMerging;
 
+  /**
+   * Which record survives. The modal opens with the one the user pointed at as
+   * primary, but the search step doubles as the place to correct a wrong guess —
+   * picking the other side here swaps the roles with no round trip, and the
+   * confirmation panel always states the direction before anything is submitted.
+   */
+  const [swapped, setSwapped] = useState(false);
+
+  // Each side is built with whichever tallies belong to it, so the panel can read
+  // both sides uniformly. The open record always carries them (`PatientDirectoryRow`);
+  // a search result does too (`PatientQuickResult`).
+  const openRecord: MergePrimary = {
+    id: primary.id,
+    name: primary.name,
+    patient_code: primary.patient_code,
+    visit_count: primary.visit_count,
+    appointment_count: primary.appointment_count,
+  };
+  const searchHit: MergePrimary = {
+    id: selected?.id ?? "",
+    name: selected?.name ?? "",
+    patient_code: selected?.patient_code ?? null,
+    visit_count: selected?.visit_count,
+    appointment_count: selected?.appointment_count,
+  };
+  const duplicateSide: MergePrimary = swapped ? openRecord : searchHit;
+  const keepsSide: MergePrimary = swapped ? searchHit : openRecord;
+
   const handleMerge = useMemo(() => {
-    const duplicate = selected;
-    if (!duplicate) return null;
+    const duplicateId = duplicateSide.id;
+    if (!duplicateId || !keepsSide.id) return null;
+    const duplicateName = duplicateSide.name;
+    const keepsName = keepsSide.name;
+    const keepsId = keepsSide.id;
     return () => {
       startMergeTransition(async () => {
         const formData = new FormData();
-        formData.set("primaryPatientId", primary.id);
-        formData.set("duplicatePatientId", duplicate.id);
+        formData.set("primaryPatientId", keepsId);
+        formData.set("duplicatePatientId", duplicateId);
         const res = await mergePatientProfilesAction(formData);
         if (!res.ok) {
           toast.error(res.message);
           return;
         }
         toast.success(
-          `“${duplicate.name}” merged into “${primary.name}” — nothing was deleted.`,
+          `“${duplicateName}” merged into “${keepsName}” — nothing was deleted.`,
         );
+        // Told before close: the booking flow re-points its patient selection at
+        // the surviving record while this modal is still mounted.
+        onMerged?.(keepsId);
         onClose();
         // The duplicate just left the directory and the primary's tabs gained
         // its history — re-read the server data behind this record.
         router.refresh();
       });
     };
-  }, [selected, primary.id, primary.name, onClose, router]);
+  }, [
+    duplicateSide.id,
+    duplicateSide.name,
+    keepsSide.id,
+    keepsSide.name,
+    onMerged,
+    onClose,
+    router,
+  ]);
 
-  return (
+  // Portalled to `body` and stacked above the booking modal (z-[100]): the
+  // patients workspace opens this standalone, but the booking flow opens it from
+  // inside BookingModal, whose panel is an animating stacking context — a plain
+  // child would be clipped by it. `onClick` on the overlay never reaches the
+  // parent modal's own backdrop-close, so the form underneath is untouched.
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm"
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-label="Merge duplicate patient"
@@ -247,13 +326,16 @@ export function MergePatientModal({
                     Duplicate
                   </p>
                   <p className="mt-1 truncate text-sm font-semibold text-text-primary">
-                    {selected.name}
+                    {duplicateSide.name}
                   </p>
                   <p className="mt-0.5 truncate text-xs text-text-muted">
-                    {selected.patient_code ? `UHID ${selected.patient_code}` : "No UHID"}
+                    {duplicateSide.patient_code
+                      ? `UHID ${duplicateSide.patient_code}`
+                      : "No UHID"}
                   </p>
                   <p className="mt-1 text-[11px] tabular-nums text-text-muted">
-                    {selected.visit_count} visits · {selected.appointment_count} appointments
+                    {selected.visit_count} visits · {selected.appointment_count}{" "}
+                    appointments
                   </p>
                 </div>
                 <ArrowRightLeft
@@ -265,16 +347,32 @@ export function MergePatientModal({
                     Primary (kept)
                   </p>
                   <p className="mt-1 truncate text-sm font-semibold text-text-primary">
-                    {primary.name}
+                    {keepsSide.name}
                   </p>
                   <p className="mt-0.5 truncate text-xs text-text-muted">
-                    {primary.patient_code ? `UHID ${primary.patient_code}` : "No UHID"}
+                    {keepsSide.patient_code
+                      ? `UHID ${keepsSide.patient_code}`
+                      : "No UHID"}
                   </p>
                   <p className="mt-1 text-[11px] tabular-nums text-text-muted">
-                    {primary.visit_count} visits · {primary.appointment_count} appointments
+                    {keepsSide.appointment_count !== undefined
+                      ? `${keepsSide.visit_count} visits · ${keepsSide.appointment_count} appointments`
+                      : "Receives everything below"}
                   </p>
                 </div>
               </div>
+
+              {/* Wrong way round? Nothing is submitted yet — the search result
+                  and the open record trade places, so whichever profile the user
+                  actually means is the one that survives. */}
+              <button
+                type="button"
+                onClick={() => setSwapped((value) => !value)}
+                className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                <ArrowRightLeft aria-hidden="true" className="size-3.5" />
+                Keep “{swapped ? primary.name : selected.name}” instead
+              </button>
 
               <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-status-warning/30 bg-status-warning/[0.07] px-4 py-3">
                 <TriangleAlert
@@ -285,9 +383,9 @@ export function MergePatientModal({
                   The duplicate&apos;s <strong>{selected.visit_count} visits</strong>,{" "}
                   <strong>{selected.appointment_count} appointments</strong>, and all
                   prescriptions, documents, bills and WhatsApp threads move to{" "}
-                  <strong>{primary.name}</strong>. The duplicate then disappears from
-                  the patient list — its record is archived, never deleted, but this
-                  can&apos;t be undone from the app.
+                  <strong>{keepsSide.name}</strong>. The duplicate then disappears
+                  from the patient list — its record is archived, never deleted, but
+                  this can&apos;t be undone from the app.
                 </p>
               </div>
             </>
@@ -316,6 +414,7 @@ export function MergePatientModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

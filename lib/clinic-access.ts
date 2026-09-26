@@ -74,3 +74,23 @@ export function canWriteClinic(role: ClinicRole): boolean {
 export function canManageClinical(role: ClinicRole): boolean {
   return (CLINICAL_ROLES as readonly string[]).includes(role);
 }
+
+/**
+ * True when the role may merge duplicate patient records.
+ *
+ * Every clinic member qualifies, exactly as the 0041 `merge_patient_profiles`
+ * RPC enforces on its own (`is_clinic_member`) — so the UI gate, the server
+ * action gate and the database gate can never disagree.
+ *
+ * Deliberately NOT `canWriteClinic` (owner/admin), which is what this started
+ * as: front-desk staff are the ones who *create* the duplicates — a walk-in
+ * booked from a fresh phone number, or a second profile typed in because the
+ * search missed the first — and they are the ones standing at the counter the
+ * moment the duplicate is discovered. Merging is non-destructive by
+ * construction: 0041 re-parents every appointment, visit, prescription,
+ * document, bill and WhatsApp thread and then soft-archives the duplicate, so
+ * nothing is lost.
+ */
+export function canMergePatients(role: ClinicRole): boolean {
+  return canManageClinical(role);
+}
