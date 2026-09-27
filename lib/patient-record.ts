@@ -214,6 +214,8 @@ export async function fetchPatientRecord(
     { data: visits, error: visitsError },
     { data: doctors },
     { data: prescriptionRows },
+    { data: bills },
+    { data: documents },
   ] = await Promise.all([
     supabase
       .from("visits")
@@ -230,6 +232,20 @@ export async function fetchPatientRecord(
       .eq("clinic_id", clinicId)
       .eq("patient_id", patientId)
       .order("created_at", { ascending: false }),
+    // Parallel query for current billing status
+    supabase
+      .from("patient_bills")
+      .select("total_amount, status, bill_type")
+      .eq("clinic_id", clinicId)
+      .eq("patient_id", patientId)
+      .order("created_at", { ascending: false })
+      .limit(1),
+    // Parallel query for patient documents
+    supabase
+      .from("patient_documents")
+      .select("id, document_name, status, uploaded_at")
+      .eq("clinic_id", clinicId)
+      .eq("patient_id", patientId),
   ]);
 
   if (visitsError) {
