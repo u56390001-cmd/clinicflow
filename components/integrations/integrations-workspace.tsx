@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { Check, Info, Puzzle, Search } from "lucide-react";
 
 import { IntegrationCard } from "@/components/integrations/integration-card";
-import { IntegrationConfigModal } from "@/components/integrations/integration-config-modal";
+import { IntegrationDetailDrawer } from "@/components/integrations/integration-detail-drawer";
 import { IntegrationUpgradeModal } from "@/components/integrations/integration-upgrade-modal";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/select";
@@ -269,7 +269,7 @@ export function IntegrationsWorkspace({
       )}
 
       {openEntry && (
-        <IntegrationConfigModal
+        <IntegrationDetailDrawer
           key={openEntry.key}
           entry={openEntry}
           status={statusOf(openEntry, allViews)}

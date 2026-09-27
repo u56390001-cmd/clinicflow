@@ -559,6 +559,28 @@ export type IntegrationCatalogEntry = {
   needsVendorSetup: boolean;
   /** Note shown in the config modal when the vendor step is still pending. */
   vendorNote?: string;
+  /**
+   * "What you get" bullets in the detail drawer. Concrete outcomes the clinic
+   * can picture, not a restatement of `description` — the description says what
+   * the integration is, these say what changes once it is on.
+   */
+  highlights: ReadonlyArray<string>;
+  /**
+   * "Permissions required" — the exact scopes/rights the clinic is about to
+   * grant. Shown before the connect button because this is the last screen
+   * where a clinic can read what it is agreeing to, and an unexplained consent
+   * screen is how people click through permissions they did not mean to give.
+   */
+  permissions: ReadonlyArray<string>;
+  /**
+   * Set when this integration is completed elsewhere and the drawer's primary
+   * button should navigate rather than open a credential form. Google Business
+   * Profile owns its own OAuth screen on the Growth Agent page; linking there
+   * avoids a second, parallel consent flow for the same Google account.
+   */
+  connectHref?: string;
+  /** Label for the drawer's primary button when `connectHref` is set. */
+  connectLabel?: string;
 };
 
 const SYNC_FREQUENCY_OPTIONS = [
@@ -605,6 +627,17 @@ export const INTEGRATION_CATALOG: ReadonlyArray<IntegrationCatalogEntry> = [
     needsVendorSetup: true,
     vendorNote:
       "Google requires an OAuth client and an approved API project. Until those are configured for this deployment, saved credentials are stored but no calendar is read or written.",
+    highlights: [
+      "Every booked appointment appears on the doctor's Google Calendar automatically",
+      "Two-way sync, so a slot moved in Google frees up here too",
+      "No more double bookings when a patient adds a slot outside the app",
+      "Works for every doctor from one connection — no per-doctor setup",
+    ],
+    permissions: [
+      "View and edit your Google Calendar events",
+      "Create events in the calendars you choose",
+      "Read your Google account email to show which account is linked",
+    ],
     fields: [
       {
         name: "api_key",
@@ -651,6 +684,17 @@ export const INTEGRATION_CATALOG: ReadonlyArray<IntegrationCatalogEntry> = [
     needsVendorSetup: true,
     vendorNote:
       "Google Meet has no API of its own — meeting links are generated from the Google Calendar connection. Set up Google Calendar first; this card stays inert until that connection is live.",
+    highlights: [
+      "A unique Meet link is generated for every online consultation",
+      "The link is sent to the patient automatically at booking and again as a reminder",
+      "Doctors join from their own Google account with no extra login",
+      "No separate setup — it inherits the Google Calendar connection",
+    ],
+    permissions: [
+      "Create events with Google Meet links on your calendar",
+      "Send the meeting link to the patient by email or WhatsApp",
+      "No camera, microphone or recording access is ever requested",
+    ],
     fields: [
       {
         name: "prefix",
@@ -682,6 +726,17 @@ export const INTEGRATION_CATALOG: ReadonlyArray<IntegrationCatalogEntry> = [
     needsVendorSetup: true,
     vendorNote:
       "Export runs server-side with the stored service credentials once a Google Cloud project is configured for this deployment.",
+    highlights: [
+      "Appointment logs, patient records, payment data and follow-ups export on their own",
+      "Live, shareable record for your organization admin and owners",
+      "Track no-shows, conversions and patient retention with formulas you control",
+      "Compliance and reporting without a single manual export or re-typed entry",
+    ],
+    permissions: [
+      "Write to Google Sheets",
+      "Create new spreadsheets",
+      "Share spreadsheets with your team",
+    ],
     fields: [
       {
         name: "spreadsheet_id",
@@ -717,6 +772,17 @@ export const INTEGRATION_CATALOG: ReadonlyArray<IntegrationCatalogEntry> = [
     needsVendorSetup: true,
     vendorNote:
       "Zoom requires a Server-to-Server OAuth app. Credentials saved here are stored and never leave the service role; meeting links are generated only once the Zoom app is approved.",
+    highlights: [
+      "Zoom meeting links created automatically when an appointment is booked",
+      "The link reaches the patient at booking and before the consultation",
+      "Works alongside the in-clinic queue so a waiting patient can join remotely",
+      "Free Zoom accounts support up to 100 meeting minutes a month",
+    ],
+    permissions: [
+      "Create meetings on your Zoom account",
+      "Read your Zoom account ID and user details",
+      "Read past meeting details to attach recordings to a patient's record",
+    ],
     fields: [
       {
         name: "api_key",
@@ -758,6 +824,17 @@ export const INTEGRATION_CATALOG: ReadonlyArray<IntegrationCatalogEntry> = [
     needsVendorSetup: true,
     vendorNote:
       "Microsoft Graph needs an Azure AD app registration with recording and meeting permissions granted by an administrator.",
+    highlights: [
+      "Microsoft Teams meetings created for every online consultation",
+      "Meeting links delivered to patients without anyone re-typing them",
+      "Suits hospitals already running on Microsoft 365",
+      "One tenant-level connection covers every doctor in the clinic",
+    ],
+    permissions: [
+      "Create and manage online meetings in your organization",
+      "Read your organization's user directory",
+      "Meeting recordings are only read when you attach them to a patient's record",
+    ],
     fields: [
       {
         name: "api_key",
@@ -800,6 +877,16 @@ export const INTEGRATION_CATALOG: ReadonlyArray<IntegrationCatalogEntry> = [
     // actually controls instead of shadowing it in a clinic_integrations row.
     backedBy: "clinic_setting",
     needsVendorSetup: false,
+    highlights: [
+      "Switch the appointments page to a live waiting queue",
+      "See who is waiting, who is in consultation and who has been called",
+      "Turn it off for a classic list view — no data is lost either way",
+      "Available immediately, no vendor account needed",
+    ],
+    permissions: [
+      "No external account and no data leaves the clinic",
+      "Only owners and admins can switch the view",
+    ],
     fields: [],
   },
   {
@@ -817,6 +904,17 @@ export const INTEGRATION_CATALOG: ReadonlyArray<IntegrationCatalogEntry> = [
     manageHref: APP_ROUTES.app.aiSettings,
     vendorNote:
       "WhatsApp uses a Meta Business access token, which is connected on the AI Agent page. This card only controls whether reminders are sent once that connection is live.",
+    highlights: [
+      "Booking confirmations sent on WhatsApp the moment an appointment is made",
+      "Pre-appointment reminders cut no-shows, timed 24 or 2 hours before",
+      "Patients who never check email still get reached",
+      "Uses the Meta connection you already approved on the AI Agent page",
+    ],
+    permissions: [
+      "Send messages from your clinic's WhatsApp Business number",
+      "Read message delivery status so reminders are not sent twice",
+      "Contact names and numbers only — nothing from a patient's record",
+    ],
     fields: [
       {
         name: "reminder_hours_before",
@@ -851,6 +949,17 @@ export const INTEGRATION_CATALOG: ReadonlyArray<IntegrationCatalogEntry> = [
     needsVendorSetup: true,
     vendorNote:
       "A Twilio account SID and auth token are required. Messages are sent server-side with the service role; credentials are never sent to the browser.",
+    highlights: [
+      "SMS reaches patients who do not use a smartphone app",
+      "OTP verification codes sent without a staff member reading them out",
+      "Alert a doctor or front desk the moment an appointment is booked",
+      "Per-sender rate limit keeps a stuck loop from flooding a patient's phone",
+    ],
+    permissions: [
+      "Send SMS from your Twilio phone number",
+      "Read message delivery status",
+      "Used only for the alerts and OTPs you switch on here",
+    ],
     fields: [
       {
         name: "api_key",

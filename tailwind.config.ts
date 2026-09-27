@@ -48,6 +48,23 @@ const config: Config = {
           "0 10px 15px rgba(15, 23, 42, 0.10), 0 4px 6px rgba(15, 23, 42, 0.05)",
         "focus-ring": "0 0 0 3px rgba(13, 148, 136, 0.25)",
       },
+      keyframes: {
+        // Slide-in panel (integrations drawer, and any future right rail).
+        "drawer-in": {
+          from: { transform: "translateX(100%)" },
+          to: { transform: "translateX(0)" },
+        },
+        "backdrop-in": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
+      },
+      animation: {
+        // Slight overshoot-free ease-out. Anything bouncier reads as playful,
+        // which is wrong for a clinical settings surface.
+        "drawer-in": "drawer-in 240ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "backdrop-in": "backdrop-in 200ms ease-out",
+      },
     },
   },
   plugins: [],
