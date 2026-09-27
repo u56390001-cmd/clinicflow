@@ -16,6 +16,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type {
   Database,
+  MedicineEntry,
   Prescription,
   Visit,
   Vitals,
@@ -68,6 +69,140 @@ export function formatBloodPressure(vitals: {
     return `${vitals.systolic_bp}/${vitals.diastolic_bp}`;
   }
   return vitals.blood_pressure?.trim() || null;
+}
+
+/**
+ * Calculate BMI from height in cm and weight in kg.
+ * Returns null if height is invalid (less than 1 meter).
+ */
+export function calculateBMI(heightCm: number | null, weightKg: number | null): {
+  bmi: number | null;
+  category: string | null;
+} {
+  if (!heightCm || !weightKg || heightCm < 100) {
+    return { bmi: null, category: null };
+  }
+  const heightM = heightCm / 100;
+  const bmi = weightKg / (heightM * heightM);
+  let category = null;
+  if (bmi < 18.5) {
+    category = "Underweight";
+  } else if (bmi < 25) {
+    category = "Normal";
+  } else if (bmi < 30) {
+    category = "Overweight";
+  } else {
+    category = "Obese";
+  }
+  return { bmi: parseFloat(bmi.toFixed(1)), category };
+}
+
+/**
+ * Get the last prescription details for a patient.
+ */
+export async function getLastPrescription(
+  supabase: SupabaseClient<Database>,
+  clinicId: string,
+  patientId: string,
+): Promise<{
+  chief_complaint: string | null;
+  diagnosis: string | null;
+  medicines: MedicineEntry[] | null;
+  doctor_name: string | null;
+  visit_date: string | null;
+} | null> {
+  const { data, error } = await supabase
+    .from("prescriptions")
+    .select(`
+      chief_complaint,
+      diagnosis,
+      medicines,
+      doctor_id,
+      created_at,
+      visits (checked_in_at)
+    `)
+    .eq("clinic_id", clinicId)
+    .eq("patient_id", patientId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error || !data) {
+    return null;
+  }
+
+  const doctor = data.doctor_id
+    ? await supabase
+        .from("doctors")
+        .select("name")
+        .eq("id", data.doctor_id)
+        .single()
+    : { data: null };
+
+  return {
+    chief_complaint: data.chief_complaint || null,
+    diagnosis: data.diagnosis || null,
+    medicines: data.medicines || null,
+    doctor_name: doctor.data?.name || null,
+    visit_date: data.visits?.checked_in_at || null,
+  };
+}
+
+/**
+ * Get billing information for the current visit.
+ */
+export async function getCurrentBillingInfo(
+  supabase: SupabaseClient<Database>,
+  clinicId: string,
+  patientId: string,
+): Promise<{
+  total_amount: number;
+  pending_amount: number;
+  paid: boolean;
+  visit_count: number;
+} | null> {
+  const { data: visits, error: visitsError } = await supabase
+    .from("visits")
+    .select("id, status, token_number, checked_in_at")
+    .eq("clinic_id", clinicId)
+    .eq("patient_id", patientId)
+    .order("checked_in_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (visitsError || !visits) {
+    return null;
+  }
+
+  const { data: bills } = await supabase
+    .from("patient_bills")
+    .select("total_amount, status, bill_type")
+    .eq("clinic_id", clinicId)
+    .eq("patient_id", patientId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (!bills || bills.length === 0) {
+    return {
+      total_amount: 0,
+      pending_amount: 0,
+      paid: true,
+      visit_count: patientId ? 1 : 0,
+    };
+  }
+
+  const latestBill = bills[0];
+  const pending_amount = latestBill.status === "pending"
+    ? latestBill.total_amount
+    : 0;
+  const paid = pending_amount === 0;
+
+  return {
+    total_amount: latestBill.total_amount,
+    pending_amount,
+    paid,
+    visit_count: patientId ? 1 : 0,
+  };
 }
 
 export async function fetchPatientRecord(
