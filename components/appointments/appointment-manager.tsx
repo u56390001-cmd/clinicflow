@@ -312,6 +312,7 @@ export function AppointmentManager({
   canMerge,
   initialCreateIntent,
   vitalsConfigs,
+  showLiveQueue = true,
 }: {
   todayAppointments: QueueAppointment[];
   queue: QueueItem[];
@@ -330,6 +331,13 @@ export function AppointmentManager({
   initialCreateIntent?: "consultation" | "service" | null;
   /** Server-fetched doctor → vitals config map for the Add Vitals popup. */
   vitalsConfigs?: DoctorVitalsConfigMap | null;
+  /**
+   * Queue Management preference, read server-side from
+   * `clinics.appointments_view_mode` and written by /app/integrations
+   * (migration 0043). Defaults to true so any other caller of this component
+   * keeps the live-queue behaviour it had before this prop existed.
+   */
+  showLiveQueue?: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<SubTab>("today");
   const [viewMode, setViewMode] = useState<ViewMode>(
@@ -1043,6 +1051,7 @@ export function AppointmentManager({
             apptByVisitId={apptByVisitId}
             timezone={timezone}
             canManage={canManage}
+            showLiveQueue={showLiveQueue}
             onCheckIn={(appt) => setCheckInTarget(appt)}
             onViewDetails={(appt) => setDetailTargetId(appt.id)}
             onEdit={(appt) => setEditTargetId(appt.id)}
@@ -1187,6 +1196,7 @@ function TodayView({
   apptByVisitId,
   timezone,
   canManage,
+  showLiveQueue,
   onCheckIn,
   onViewDetails,
   onEdit,
@@ -1202,6 +1212,14 @@ function TodayView({
   apptByVisitId: Map<string, QueueAppointment>;
   timezone: string;
   canManage: boolean;
+  /**
+   * Queue Management preference from `clinics.appointments_view_mode`
+   * (migration 0043), written by /app/integrations. This is the whole point of
+   * the integration: `false` swaps the live-queue dashboard for a plain
+   * chronological list, which is what a clinic that does not run a front-desk
+   * queue actually wants.
+   */
+  showLiveQueue: boolean;
   onCheckIn: (appt: QueueAppointment) => void;
   onViewDetails: (appt: QueueAppointment) => void;
   onEdit: (appt: QueueAppointment) => void;
@@ -1210,11 +1228,21 @@ function TodayView({
   onCancel: (appt: QueueAppointment) => void;
   onComplete: (appt: QueueAppointment) => void;
 }) {
+  // Queue Management off ⇒ one plain chronological list.
+  //
+  // The two buckets are disjoint by construction (`notCheckedIn` is `!a.visit`,
+  // `waitingInQueue` requires `a.visit`), so the merge is safe. Folding the
+  // waiting patients into "Not Yet Arrived" is what stops a patient from
+  // vanishing when their section is hidden — a list mode that quietly dropped
+  // everyone currently in the waiting room would be worse than no list mode.
+  const notYetArrived = showLiveQueue
+    ? notCheckedIn
+    : [...notCheckedIn, ...waitingInQueue];
+
   const hasAny =
-    notCheckedIn.length > 0 ||
+    notYetArrived.length > 0 ||
     inConsultation.length > 0 ||
-    waitingInQueue.length > 0 ||
-    queue.length > 0;
+    (showLiveQueue && (waitingInQueue.length > 0 || queue.length > 0));
 
   if (!hasAny) {
     return (
@@ -1238,8 +1266,10 @@ function TodayView({
         onComplete={onComplete}
       />
 
-      {/* Waiting Queue (reference-style collapsible section with wired actions) */}
-      {queue.length > 0 && (
+      {/* Waiting Queue — the live-queue panel. Hidden when Queue Management is
+          off; the patients in it are already folded into "Not Yet Arrived"
+          above, so nothing is lost. */}
+      {showLiveQueue && queue.length > 0 && (
         <WaitingQueueSection
           queue={queue}
           apptByVisitId={apptByVisitId}
@@ -1256,19 +1286,19 @@ function TodayView({
       {/* Not Yet Arrived section */}
       <SectionGroup
         icon={<AlertCircle className="h-4 w-4" />}
-        label="Not Yet Arrived"
-        count={notCheckedIn.length}
+        label={showLiveQueue ? "Not Yet Arrived" : "Today's Appointments"}
+        count={notYetArrived.length}
         color="bg-amber-50 text-amber-700"
         borderColor="border-amber-200"
       >
-        {notCheckedIn.length === 0 ? (
+        {notYetArrived.length === 0 ? (
           <div className="px-4 py-8 text-center">
             <p className="text-sm text-text-secondary">
               All patients have been checked in
             </p>
           </div>
         ) : (
-          notCheckedIn.map((appt) => (
+          notYetArrived.map((appt) => (
             <QueueAppointmentRow
               key={appt.id}
               appointment={appt}

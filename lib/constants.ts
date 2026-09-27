@@ -2,6 +2,7 @@
 
 import type {
   GrowthPostStatus,
+  IntegrationKey,
   PatientBillStatus,
   PatientBillType,
   PatientPaymentMethod,
@@ -33,6 +34,7 @@ export const APP_ROUTES = {
     team: "/app/settings/team",
     website: "/app/website",
     growthAgent: "/app/growth-agent",
+    integrations: "/app/integrations",
     patientBilling: "/app/patient-billing",
     billing: "/app/billing",
     billingCheckout: "/app/billing/checkout",
@@ -75,6 +77,7 @@ export const APP_NAV_SECTIONS = [
     items: [
       { label: "Website", href: APP_ROUTES.app.website },
       { label: "Growth Agent", href: APP_ROUTES.app.growthAgent },
+      { label: "Integrations", href: APP_ROUTES.app.integrations },
       { label: "Billing", href: APP_ROUTES.app.billing },
       { label: "Settings", href: APP_ROUTES.app.settings },
     ],
@@ -484,4 +487,412 @@ export function getSiteUrl(): string {
     return configured.replace(/\/$/, "");
   }
   return "http://localhost:3000";
+}
+
+// =============================================================================
+// Phase 25 — Integrations catalogue (/app/integrations)
+// =============================================================================
+//
+// The single source of truth for what the integrations dashboard renders. The
+// server action validates incoming keys against INTEGRATION_KEYS before writing,
+// so a key that is not in this table can never reach the database.
+//
+// Two flags on each entry carry the honesty rules:
+//
+// * `backedBy: "clinic_setting"` — the integration is stored in a column on
+//   `clinics`, not in a `clinic_integrations` row. Only Queue Management, and
+//   only because the live waiting queue it controls already works; putting it
+//   in its own row would duplicate the truth. Everything else is a row.
+//
+// * `needsVendorSetup: true` — this integration cannot reach a real vendor
+//   connection in this deployment. Google, Zoom, Teams and Twilio all require
+//   OAuth credentials, a verified consent screen, and for Google an approved
+//   API project, none of which exist here. The card says "Not connected" and
+//   the modal says the vendor step is pending, instead of implying a live link.
+//   When the credentials land, the service layer fills the same columns and
+//   nothing in the UI has to change.
+//
+// `featureKey` is the real plan gate read by lib/plan-features.ts from
+// `subscription_plans.features` (populated by migration 0043). It is enforced
+// server-side in the action, not merely hidden in the card.
+
+/** Groups the dashboard into its three rendered sections. */
+export type IntegrationCategory = "google" | "video" | "automation";
+
+export type IntegrationFieldKind = "text" | "password" | "select" | "number";
+
+export type IntegrationField = {
+  name: string;
+  label: string;
+  kind: IntegrationFieldKind;
+  placeholder?: string;
+  help?: string;
+  options?: ReadonlyArray<{ value: string; label: string }>;
+  /**
+   * true → the value is written to `clinic_integration_secrets`, which has no
+   * RLS policies and is reachable only with the service role. The dashboard is
+   * sent a boolean ("a key is saved"), never the value, so the modal renders an
+   * empty field with a "already saved" hint instead of the stored secret.
+   */
+  secret?: boolean;
+  /** Enforced server-side on save, not just by disabling the submit button. */
+  required?: boolean;
+};
+
+export type IntegrationCatalogEntry = {
+  key: IntegrationKey;
+  name: string;
+  /** Vendor domain shown under the title. Null for first-party integrations. */
+  host: string | null;
+  category: IntegrationCategory;
+  description: string;
+  fields: ReadonlyArray<IntegrationField>;
+  /** Plan feature key gating this entry; null = available on every plan. */
+  featureKey: string | null;
+  backedBy: "row" | "clinic_setting";
+  /**
+   * A page that already owns this integration's setup. The card links there
+   * instead of opening a second, parallel config flow — WhatsApp already has a
+   * real OAuth connection screen on the AI settings page.
+   */
+  manageHref?: string;
+  needsVendorSetup: boolean;
+  /** Note shown in the config modal when the vendor step is still pending. */
+  vendorNote?: string;
+};
+
+const SYNC_FREQUENCY_OPTIONS = [
+  { value: "realtime", label: "Real-time (instant)" },
+  { value: "hourly", label: "Hourly" },
+  { value: "daily", label: "Daily summary" },
+] as const;
+
+export const INTEGRATION_CATEGORIES: ReadonlyArray<{
+  id: IntegrationCategory;
+  title: string;
+  subtitle: string;
+}> = [
+  {
+    id: "google",
+    title: "Google Workspace",
+    subtitle:
+      "Sync appointments, enable telemedicine, and auto-export your clinic data.",
+  },
+  {
+    id: "video",
+    title: "Video & Telemedicine",
+    subtitle:
+      "Streamline virtual consultations with automated room generation and patient link delivery.",
+  },
+  {
+    id: "automation",
+    title: "Automation & Patient Experience",
+    subtitle:
+      "Tools that run in the background, keeping patients informed and reducing manual work for your staff.",
+  },
+] as const;
+
+export const INTEGRATION_CATALOG: ReadonlyArray<IntegrationCatalogEntry> = [
+  {
+    key: "gcal",
+    name: "Google Calendar",
+    host: "calendar.google.com",
+    category: "google",
+    description:
+      "Keep every doctor's calendar in sync — appointments booked here appear on Google Calendar, eliminating double bookings.",
+    featureKey: "google_calendar",
+    backedBy: "row",
+    needsVendorSetup: true,
+    vendorNote:
+      "Google requires an OAuth client and an approved API project. Until those are configured for this deployment, saved credentials are stored but no calendar is read or written.",
+    fields: [
+      {
+        name: "api_key",
+        label: "OAuth client ID",
+        kind: "text",
+        secret: true,
+        required: true,
+        placeholder: "xxxxx.apps.googleusercontent.com",
+        help: "From the Google Cloud console. Leave blank to keep the saved value.",
+      },
+      {
+        name: "api_secret",
+        label: "OAuth client secret",
+        kind: "password",
+        secret: true,
+        required: true,
+        placeholder: "••••••••••••",
+        help: "Leave blank to keep the saved value.",
+      },
+      {
+        name: "calendar_id",
+        label: "Calendar to sync",
+        kind: "text",
+        placeholder: "primary",
+        help: "Stored in plain text — it is not a credential.",
+      },
+      {
+        name: "sync_frequency",
+        label: "Sync frequency",
+        kind: "select",
+        options: SYNC_FREQUENCY_OPTIONS,
+      },
+    ],
+  },
+  {
+    key: "gmeet",
+    name: "Google Meet",
+    host: "meet.google.com",
+    category: "google",
+    description:
+      "Meet links auto-generate for doctors who offer online consultations, driven by the calendar connection above. No separate setup needed.",
+    featureKey: "google_meet",
+    backedBy: "row",
+    needsVendorSetup: true,
+    vendorNote:
+      "Google Meet has no API of its own — meeting links are generated from the Google Calendar connection. Set up Google Calendar first; this card stays inert until that connection is live.",
+    fields: [
+      {
+        name: "prefix",
+        label: "Meeting title prefix",
+        kind: "text",
+        placeholder: "Consultation",
+        help: "Prepended to generated meeting titles, e.g. “Consultation — Dr. Ayesha”.",
+      },
+      {
+        name: "auto_generate",
+        label: "Generate a link for every online consultation",
+        kind: "select",
+        options: [
+          { value: "true", label: "Yes" },
+          { value: "false", label: "No" },
+        ],
+      },
+    ],
+  },
+  {
+    key: "gsheets",
+    name: "Google Sheets",
+    host: "sheets.google.com",
+    category: "google",
+    description:
+      "Export appointment logs, patient records, payment data, and follow-up reports to a spreadsheet automatically.",
+    featureKey: null,
+    backedBy: "row",
+    needsVendorSetup: true,
+    vendorNote:
+      "Export runs server-side with the stored service credentials once a Google Cloud project is configured for this deployment.",
+    fields: [
+      {
+        name: "spreadsheet_id",
+        label: "Spreadsheet ID",
+        kind: "text",
+        required: true,
+        placeholder: "1AbC…xyz from the sheet URL",
+        help: "Stored in plain text — it is not a credential.",
+      },
+      {
+        name: "sheet_name",
+        label: "Sheet name",
+        kind: "text",
+        placeholder: "Appointments",
+      },
+      {
+        name: "sync_frequency",
+        label: "Export frequency",
+        kind: "select",
+        options: SYNC_FREQUENCY_OPTIONS,
+      },
+    ],
+  },
+  {
+    key: "zoom",
+    name: "Zoom Consultations",
+    host: "zoom.us",
+    category: "video",
+    description:
+      "Enable Zoom-powered telemedicine. Meeting links are generated and sent to patients when appointments are booked.",
+    featureKey: null,
+    backedBy: "row",
+    needsVendorSetup: true,
+    vendorNote:
+      "Zoom requires a Server-to-Server OAuth app. Credentials saved here are stored and never leave the service role; meeting links are generated only once the Zoom app is approved.",
+    fields: [
+      {
+        name: "api_key",
+        label: "Client ID",
+        kind: "text",
+        secret: true,
+        required: true,
+        placeholder: "Server-to-Server OAuth client ID",
+        help: "Leave blank to keep the saved value.",
+      },
+      {
+        name: "api_secret",
+        label: "Client secret",
+        kind: "password",
+        secret: true,
+        required: true,
+        placeholder: "••••••••••••",
+        help: "Leave blank to keep the saved value.",
+      },
+      {
+        name: "account_id",
+        label: "Account ID",
+        kind: "text",
+        secret: true,
+        placeholder: "Zoom account ID",
+        help: "Leave blank to keep the saved value.",
+      },
+    ],
+  },
+  {
+    key: "msteams",
+    name: "Microsoft Teams",
+    host: "teams.microsoft.com",
+    category: "video",
+    description:
+      "Schedule online clinic consultations and internal multidisciplinary team meetings directly from your dashboard.",
+    featureKey: null,
+    backedBy: "row",
+    needsVendorSetup: true,
+    vendorNote:
+      "Microsoft Graph needs an Azure AD app registration with recording and meeting permissions granted by an administrator.",
+    fields: [
+      {
+        name: "api_key",
+        label: "Application (client) ID",
+        kind: "text",
+        secret: true,
+        required: true,
+        placeholder: "Azure AD application ID",
+        help: "Leave blank to keep the saved value.",
+      },
+      {
+        name: "api_secret",
+        label: "Client secret",
+        kind: "password",
+        secret: true,
+        required: true,
+        placeholder: "••••••••••••",
+        help: "Leave blank to keep the saved value.",
+      },
+      {
+        name: "account_id",
+        label: "Tenant ID",
+        kind: "text",
+        secret: true,
+        required: true,
+        placeholder: "Directory (tenant) ID",
+        help: "Leave blank to keep the saved value.",
+      },
+    ],
+  },
+  {
+    key: "queue",
+    name: "Queue Management",
+    host: null,
+    category: "automation",
+    description:
+      "Switch the appointments page between the live-queue dashboard and a plain appointment list. Turn it off for a classic, no-queue workflow.",
+    featureKey: null,
+    // The live waiting queue already works, so this writes the column it
+    // actually controls instead of shadowing it in a clinic_integrations row.
+    backedBy: "clinic_setting",
+    needsVendorSetup: false,
+    fields: [],
+  },
+  {
+    key: "whatsapp",
+    name: "WhatsApp Reminders",
+    host: "whatsapp.com",
+    category: "automation",
+    description:
+      "Trigger booking confirmations and pre-appointment reminders to cut down no-shows.",
+    featureKey: null,
+    backedBy: "row",
+    needsVendorSetup: true,
+    // A real Meta OAuth connection screen already exists on the AI settings
+    // page; linking there avoids a second, parallel token flow.
+    manageHref: APP_ROUTES.app.aiSettings,
+    vendorNote:
+      "WhatsApp uses a Meta Business access token, which is connected on the AI Agent page. This card only controls whether reminders are sent once that connection is live.",
+    fields: [
+      {
+        name: "reminder_hours_before",
+        label: "Send reminder",
+        kind: "select",
+        options: [
+          { value: "24", label: "24 hours before" },
+          { value: "2", label: "2 hours before" },
+          { value: "48", label: "48 hours before" },
+        ],
+      },
+      {
+        name: "send_confirmation",
+        label: "Send a confirmation on booking",
+        kind: "select",
+        options: [
+          { value: "true", label: "Yes" },
+          { value: "false", label: "No" },
+        ],
+      },
+    ],
+  },
+  {
+    key: "smsgateway",
+    name: "SMS Gateway",
+    host: "twilio.com",
+    category: "automation",
+    description:
+      "Send direct SMS alerts and OTP verification codes to patients who do not use smartphone applications.",
+    featureKey: null,
+    backedBy: "row",
+    needsVendorSetup: true,
+    vendorNote:
+      "A Twilio account SID and auth token are required. Messages are sent server-side with the service role; credentials are never sent to the browser.",
+    fields: [
+      {
+        name: "api_key",
+        label: "Account SID",
+        kind: "text",
+        secret: true,
+        required: true,
+        placeholder: "AC…",
+        help: "Leave blank to keep the saved value.",
+      },
+      {
+        name: "api_secret",
+        label: "Auth token",
+        kind: "password",
+        secret: true,
+        required: true,
+        placeholder: "••••••••••••",
+        help: "Leave blank to keep the saved value.",
+      },
+      {
+        name: "account_id",
+        label: "Sender number",
+        kind: "text",
+        secret: true,
+        required: true,
+        placeholder: "+92 300 0000000",
+        help: "Leave blank to keep the saved value.",
+      },
+    ],
+  },
+] as const;
+
+/** Every valid catalogue key, for server-side validation before a write. */
+export const INTEGRATION_KEYS: ReadonlySet<string> = new Set(
+  INTEGRATION_CATALOG.map((e) => e.key),
+);
+
+const CATALOG_BY_KEY = new Map(INTEGRATION_CATALOG.map((e) => [e.key, e]));
+
+/** Catalogue lookup. Returns undefined for a key that is not in the table. */
+export function getIntegrationEntry(
+  key: string,
+): IntegrationCatalogEntry | undefined {
+  return CATALOG_BY_KEY.get(key as IntegrationKey);
 }

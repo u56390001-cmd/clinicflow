@@ -90,6 +90,11 @@ export default async function AppointmentPage({
       canMerge={canMergePatients(access.role)}
       initialCreateIntent={createIntent}
       vitalsConfigs={vitalsConfigs}
+      // Queue Management (migration 0043). Read here rather than in the client
+      // component so the first paint already matches the clinic's preference —
+      // deciding it after hydration would flash the live queue at a clinic that
+      // turned it off.
+      showLiveQueue={access.clinic.appointments_view_mode !== "list"}
     />
   );
 }

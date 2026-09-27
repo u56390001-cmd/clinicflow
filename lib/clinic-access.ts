@@ -2,7 +2,11 @@ import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { CLINICAL_ROLES, CLINIC_WRITE_ROLES } from "@/lib/constants";
-import type { ClinicRole, Database } from "@/types/database";
+import type {
+  AppointmentsViewMode,
+  ClinicRole,
+  Database,
+} from "@/types/database";
 
 export type CurrentClinicAccess = {
   role: ClinicRole;
@@ -16,6 +20,12 @@ export type CurrentClinicAccess = {
     email: string | null;
     address: string | null;
     google_review_url: string | null;
+    /**
+     * Queue Management preference written by /app/integrations (migration
+     * 0043). Included in the select above so the integrations dashboard and the
+     * appointments page read the same column.
+     */
+    appointments_view_mode: AppointmentsViewMode;
   };
 };
 
@@ -36,7 +46,7 @@ export const getCurrentClinic = cache(
   ): Promise<CurrentClinicAccess | null> => {
   const { data: memberships } = await supabase
     .from("clinic_members")
-    .select("role, clinics(id, name, slug, timezone, doctor_name, phone, email, address, google_review_url)")
+    .select("role, clinics(id, name, slug, timezone, doctor_name, phone, email, address, google_review_url, appointments_view_mode)")
     .order("created_at", { ascending: false })
     .limit(1);
 
@@ -56,6 +66,7 @@ export const getCurrentClinic = cache(
       email: clinic.email,
       address: clinic.address,
       google_review_url: clinic.google_review_url,
+      appointments_view_mode: clinic.appointments_view_mode,
     },
   };
   },

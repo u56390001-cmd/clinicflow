@@ -1824,3 +1824,65 @@ export const growthPostActionSchema = z.object({
 });
 
 
+
+// =============================================================================
+// Phase 25 — Integrations (migration 0043)
+// =============================================================================
+
+/**
+ * A credential value submitted from the config modal.
+ *
+ * Empty string is meaningful and is NOT collapsed to undefined: it is the
+ * "leave blank to keep the saved value" signal for a field that already has a
+ * secret. The action treats an empty string as "unchanged" and only writes a
+ * credential when a non-empty value arrives, so re-saving a form to change one
+ * non-secret setting cannot wipe the stored API key.
+ */
+const secretValue = z
+  .string()
+  .trim()
+  .max(1024, "Credential is too long.")
+  .optional();
+
+/** Non-secret setting. Trimmed and length-capped before it reaches jsonb. */
+const settingValue = z
+  .string()
+  .trim()
+  .max(512, "Value is too long.")
+  .optional();
+
+export const integrationKeySchema = z
+  .string()
+  .trim()
+  .min(1, "Missing integration key.")
+  .max(64, "Integration key is too long.");
+
+/**
+ * Save the config modal.
+ *
+ * `config` and `credentials` are kept as separate bags on purpose. Only entries
+ * whose `secret` flag is set in the catalogue are read out of `credentials` and
+ * written to the service-role table; everything else comes from `config` and is
+ * stored in the member-readable jsonb column. The action derives the split from
+ * the catalogue rather than trusting the shape the client sent.
+ */
+export const saveIntegrationConfigSchema = z.object({
+  key: integrationKeySchema,
+  config: z.record(z.string(), settingValue).default({}),
+  credentials: z.record(z.string(), secretValue).default({}),
+});
+
+/** Flip an integration on or off. */
+export const setIntegrationStatusSchema = z.object({
+  key: integrationKeySchema,
+  status: z.enum(["activated", "disabled"], {
+    message: "Status must be either activated or disabled.",
+  }),
+});
+
+/** Queue Management writes the column it controls rather than a row. */
+export const setAppointmentsViewModeSchema = z.object({
+  mode: z.enum(["queue", "list"], {
+    message: "Mode must be either queue or list.",
+  }),
+});

@@ -4,8 +4,11 @@ import { useMemo, useState } from "react";
 import { TriangleAlert } from "lucide-react";
 
 import { AutomationSettings } from "@/components/growth-agent/automation-settings";
-import { GrowthConnectionCard } from "@/components/growth-agent/growth-connection-card";
-import { GrowthMetricGrid } from "@/components/growth-agent/growth-metric-grid";
+import { GoogleConnectCard } from "@/components/growth-agent/google-connect-card";
+import {
+  GrowthMetricGrid,
+  RangePicker,
+} from "@/components/growth-agent/growth-metric-grid";
 import {
   PostGenerator,
   type GeneratorDraft,
@@ -21,9 +24,14 @@ import type { GrowthAgentSettings, GrowthPost } from "@/types/database";
 /**
  * Growth Agent workspace.
  *
- * Owns exactly one piece of state its children cannot derive for themselves:
- * which post the preview is showing. Everything else — the selected range, the
- * form fields — either belongs to a child or is computed from props.
+ * Owns two pieces of state its children cannot derive for themselves: which
+ * post the preview is showing, and which metric range is selected. Everything
+ * else — the form fields — belongs to a child or is computed from props.
+ *
+ * The range lives here rather than inside the metric row because the range
+ * selector sits in the page header, opposite the title. It is a page-level
+ * control in the reference design and it reads as one: it governs every number
+ * on the page, not just the four tiles below it.
  *
  * The preview has two sources, in priority order:
  *
@@ -44,6 +52,7 @@ export function GrowthWorkspace({
   serviceNames,
   canEdit,
   initialDraft,
+  callbackReason,
 }: {
   settings: GrowthAgentSettings;
   clinic: { name: string; address: string | null; phone: string | null };
@@ -52,6 +61,7 @@ export function GrowthWorkspace({
   serviceNames: string[];
   canEdit: boolean;
   initialDraft: GeneratorDraft;
+  callbackReason: string | null;
 }) {
   const [draft, setDraft] = useState<GeneratorDraft>(initialDraft);
   const [generated, setGenerated] = useState<GrowthGenerateResult | null>(null);
@@ -77,38 +87,45 @@ export function GrowthWorkspace({
 
   return (
     <div className="min-w-0">
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-text-primary">
-          Growth Agent
-        </h1>
-        <p className="mt-1 text-sm text-text-secondary">
-          Write, review and schedule posts for your Google Business Profile.
-        </p>
+      <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-text-primary">
+            Growth Agent
+          </h1>
+          <p className="mt-1 text-sm text-text-secondary">
+            Automate post generation, boost search visibility, and monitor clinic
+            metrics.
+          </p>
+        </div>
+        <div className="shrink-0">
+          <RangePicker
+            summaries={summaries}
+            activeRange={activeRange}
+            onRangeChange={setActiveRange}
+          />
+        </div>
       </header>
 
       <div className="space-y-6">
-        <GrowthConnectionCard
+        <GoogleConnectCard
           connectionState={settings.connection_state}
           locationName={settings.google_location_name}
-          lastSyncedAt={settings.last_synced_at}
+          accountEmail={settings.google_account_email}
           lastError={settings.last_error}
-          clinicName={clinic.name}
           canEdit={canEdit}
+          callbackReason={callbackReason}
         />
 
         <SyncNotice posts={posts} isConnected={isConnected} />
 
-        <GrowthMetricGrid
-          summaries={summaries}
-          activeRange={activeRange}
-          onRangeChange={setActiveRange}
-        />
+        <GrowthMetricGrid summaries={summaries} activeRange={activeRange} />
 
-        {/* 7/5 rather than 6/6: the preview is what a person is actually
-            judging, and it needs the extra room to read as a post rather than a
-            snippet. */}
-        <div className="grid gap-6 lg:grid-cols-12">
-          <div className="lg:col-span-7">
+        {/* 2/3 + 1/3, matching the reference. The generator and its settings
+            share the wide column so the brief and the automation rules read as
+            one workflow; the preview keeps its own column and stays put while
+            the left side scrolls. */}
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="space-y-6 lg:col-span-2">
             <PostGenerator
               draft={draft}
               onDraftChange={setDraft}
@@ -116,9 +133,16 @@ export function GrowthWorkspace({
               canEdit={canEdit}
               onGenerated={setGenerated}
             />
+
+            <AutomationSettings
+              settings={settings}
+              isConnected={isConnected}
+              canEdit={canEdit}
+            />
           </div>
-          <div className="lg:col-span-5">
-            <div className="lg:sticky lg:top-6">
+
+          <div className="lg:col-span-1">
+            <div className="lg:sticky lg:top-20">
               <PostPreview
                 clinicName={clinic.name}
                 clinicAddress={clinic.address}
@@ -132,12 +156,6 @@ export function GrowthWorkspace({
         </div>
 
         <PostQueue posts={posts} isConnected={isConnected} canEdit={canEdit} />
-
-        <AutomationSettings
-          settings={settings}
-          isConnected={isConnected}
-          canEdit={canEdit}
-        />
       </div>
     </div>
   );

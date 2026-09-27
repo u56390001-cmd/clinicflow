@@ -27,7 +27,18 @@ export const metadata: Metadata = {
  * this renders an explanation rather than an empty dashboard that looks like
  * "you have no posts".
  */
-export default async function GrowthAgentPage() {
+export default async function GrowthAgentPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ google?: string }>;
+}) {
+  // The OAuth callback reports itself through a query param, because the round
+  // trip through Google ends in a fresh page load with no client state alive.
+  // Read here on the server rather than with `useSearchParams` in the card, so
+  // the client tree needs no Suspense boundary and the reason is available on
+  // the very first render.
+  const callbackReason = (await searchParams).google ?? null;
+
   const result = await getGrowthAgentData();
 
   if (!result.ok) {
@@ -68,6 +79,7 @@ export default async function GrowthAgentPage() {
       summaries={snapshot.summaries}
       serviceNames={snapshot.serviceNames}
       canEdit={snapshot.canEdit}
+      callbackReason={callbackReason}
       initialDraft={{
         topic: snapshot.serviceNames[0] ?? "New patient information",
         keywords: [],

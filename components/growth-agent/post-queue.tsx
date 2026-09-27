@@ -29,6 +29,7 @@ import {
   saveGrowthPost,
 } from "@/lib/actions/growth-agent";
 import { MAX_POST_CHARS } from "@/lib/ai/growth-post";
+import { cn } from "@/lib/utils";
 import type { GrowthPost, GrowthPostStatus } from "@/types/database";
 
 const TONE_OPTIONS = [
@@ -138,16 +139,18 @@ export function PostQueue({
     >
       <div className="flex flex-col gap-3 border-b border-text-muted/20 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-base font-semibold text-text-primary">Post queue</h2>
+          <h2 className="text-base font-semibold text-text-primary">
+            Post management queue
+          </h2>
           <p className="mt-0.5 text-sm text-text-secondary">
-            Everything written, scheduled and published.
+            Review draft, scheduled and published content across your profiles.
           </p>
         </div>
 
         <div
           role="group"
           aria-label="Filter posts"
-          className="flex flex-wrap gap-1"
+          className="inline-flex flex-wrap gap-1 self-start rounded-control border border-text-muted/30 bg-surface p-1"
         >
           {FILTERS.map((option) => {
             const count = counts[option.id] ?? 0;
@@ -158,18 +161,23 @@ export function PostQueue({
                 type="button"
                 onClick={() => setFilter(option.id)}
                 aria-pressed={isActive}
-                className={
+                className={cn(
+                  "rounded-[6px] px-3 py-1.5 text-sm font-medium transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
                   isActive
-                    ? "rounded-control bg-secondary px-2.5 py-1 text-xs font-medium text-white"
-                    : "rounded-control px-2.5 py-1 text-xs font-medium text-text-secondary transition-colors hover:bg-app hover:text-text-primary"
-                }
+                    ? "bg-primary font-semibold text-white"
+                    : "text-text-secondary hover:bg-app hover:text-text-primary",
+                )}
               >
                 {option.label}
-                {count > 0 ? (
-                  <span className={isActive ? "ml-1.5 text-white/60" : "ml-1.5 text-text-muted"}>
-                    {count}
-                  </span>
-                ) : null}
+                <span
+                  className={cn(
+                    "ml-1.5 tabular-nums",
+                    isActive ? "text-white/70" : "text-text-muted",
+                  )}
+                >
+                  {count}
+                </span>
               </button>
             );
           })}
@@ -195,21 +203,53 @@ export function PostQueue({
           </p>
         </div>
       ) : (
-        <ul className="divide-y divide-text-muted/15">
-          {visible.map((post) => (
-            <QueueRow
-              key={post.id}
-              post={post}
-              isConnected={isConnected}
-              canEdit={canEdit}
-              isBusy={busyId === post.id}
-              onEdit={() => setEditing(post)}
-              onPublish={() => publish(post)}
-              onRevert={() => revert(post)}
-              onDelete={() => setConfirmingDelete(post)}
-            />
-          ))}
-        </ul>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-left">
+            <thead>
+              <tr className="border-b border-text-muted/20 bg-app/60">
+                <th
+                  scope="col"
+                  className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted"
+                >
+                  Post
+                </th>
+                <th
+                  scope="col"
+                  className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted"
+                >
+                  Scheduled
+                </th>
+                <th
+                  scope="col"
+                  className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-text-muted"
+                >
+                  Status
+                </th>
+                <th
+                  scope="col"
+                  className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-text-muted"
+                >
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-text-muted/15">
+              {visible.map((post) => (
+                <QueueRow
+                  key={post.id}
+                  post={post}
+                  isConnected={isConnected}
+                  canEdit={canEdit}
+                  isBusy={busyId === post.id}
+                  onEdit={() => setEditing(post)}
+                  onPublish={() => publish(post)}
+                  onRevert={() => revert(post)}
+                  onDelete={() => setConfirmingDelete(post)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {editing ? (
@@ -262,53 +302,60 @@ function QueueRow({
   const canRevert = post.status === "published" || post.status === "failed";
 
   return (
-    <li className="px-5 py-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <GrowthStatusBadge status={post.status} />
-            <h3 className="truncate text-sm font-medium text-text-primary">
-              {post.topic}
-            </h3>
-          </div>
+    <tr className="align-top transition-colors hover:bg-app/50">
+      <td className="max-w-md px-5 py-4">
+        <p className="truncate text-sm font-medium text-text-primary">
+          {post.topic}
+        </p>
+        <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-text-secondary">
+          {post.content}
+        </p>
 
-          <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-text-secondary">
-            {post.content}
-          </p>
-
-          <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
-            <span>{formatDate(post.created_at)}</span>
-            {post.scheduled_at ? (
-              <span className="inline-flex items-center gap-1">
-                <CalendarClock className="size-3" aria-hidden="true" />
-                Goes out {formatDate(post.scheduled_at)}
-              </span>
-            ) : null}
-            {post.status === "published" && post.published_at ? (
-              <span
-                className={
-                  isConnected ? undefined : "text-status-warning"
-                }
-              >
-                {isConnected
-                  ? `Published ${formatDate(post.published_at)}`
-                  : `Marked published ${formatDate(post.published_at)} — waiting for a Google profile`}
-              </span>
-            ) : null}
-            {post.keywords.length > 0 ? (
-              <span className="truncate">{post.keywords.join(" · ")}</span>
-            ) : null}
-          </p>
-
-          {post.status === "failed" && post.failure_reason ? (
-            <p className="mt-2 rounded-control border border-status-destructive/30 bg-status-destructive/5 px-3 py-2 text-xs text-status-destructive">
-              {post.failure_reason}
-            </p>
+        {/* Metadata that has no column of its own but still matters: when the
+            row was written, which search terms it covers, and — for a published
+            post on an unlinked clinic — the fact that it has not reached Google
+            yet. That last one is the whole reason this line is not just a
+            timestamp. */}
+        <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
+          <span>{formatDate(post.created_at)}</span>
+          {post.keywords.length > 0 ? (
+            <span className="truncate">{post.keywords.join(" · ")}</span>
           ) : null}
-        </div>
+        </p>
 
+        {post.status === "failed" && post.failure_reason ? (
+          <p className="mt-2 rounded-control border border-status-destructive/30 bg-status-destructive/5 px-3 py-2 text-xs text-status-destructive">
+            {post.failure_reason}
+          </p>
+        ) : null}
+      </td>
+
+      <td className="whitespace-nowrap px-5 py-4 text-sm text-text-secondary">
+        {post.scheduled_at ? (
+          <span className="inline-flex items-center gap-1.5">
+            <CalendarClock className="size-3.5 text-text-muted" aria-hidden="true" />
+            {formatDate(post.scheduled_at)}
+          </span>
+        ) : post.status === "published" && post.published_at ? (
+          <span
+            className={isConnected ? undefined : "text-status-warning"}
+          >
+            {isConnected
+              ? `Published ${formatDate(post.published_at)}`
+              : `Awaiting profile`}
+          </span>
+        ) : (
+          <span className="text-text-muted">—</span>
+        )}
+      </td>
+
+      <td className="whitespace-nowrap px-5 py-4">
+        <GrowthStatusBadge status={post.status} />
+      </td>
+
+      <td className="px-5 py-4">
         {canEdit ? (
-          <div className="flex shrink-0 flex-wrap gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {isBusy ? (
               <span className="flex items-center gap-2 px-1 text-sm text-text-secondary">
                 <Spinner size="sm" />
@@ -329,7 +376,7 @@ function QueueRow({
                     </Button>
                     <Button type="button" size="sm" onClick={onPublish}>
                       <Send aria-hidden="true" />
-                      Publish
+                      Approve &amp; publish
                     </Button>
                   </>
                 ) : null}
@@ -352,9 +399,11 @@ function QueueRow({
               </>
             )}
           </div>
-        ) : null}
-      </div>
-    </li>
+        ) : (
+          <p className="text-right text-xs text-text-muted">Read only</p>
+        )}
+      </td>
+    </tr>
   );
 }
 

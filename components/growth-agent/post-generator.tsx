@@ -58,6 +58,11 @@ export type GeneratorDraft = {
  * lets the preview beside it and the queue below it read from one source of
  * truth instead of each keeping a copy of the draft — the failure mode behind
  * most "the preview says something different from what got saved" bugs.
+ *
+ * The "AI powered" marker is amber rather than the page's teal on purpose. Teal
+ * is the colour of an action the clinic takes; amber marks the control that
+ * spends AI credits. Keeping those visually distinct is what stops the generate
+ * button reading as just another primary button.
  */
 export function PostGenerator({
   draft,
@@ -128,27 +133,28 @@ export function PostGenerator({
   return (
     <section
       aria-label="Post generator"
-      className="rounded-card border border-text-muted/30 bg-surface shadow-card"
+      className="overflow-hidden rounded-card border border-text-muted/30 bg-surface"
     >
       <div className="border-b border-text-muted/20 px-5 py-4">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-base font-semibold text-text-primary">
-            Write a post
+            Quick AI post generator
           </h2>
-          <span className="inline-flex items-center gap-1 rounded-pill bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+          <span className="inline-flex items-center gap-1 rounded-pill border border-status-warning/30 bg-status-warning/10 px-2 py-0.5 text-xs font-semibold text-amber-700">
             <Sparkles className="size-3" aria-hidden="true" />
-            AI draft
+            AI powered
           </span>
         </div>
         <p className="mt-0.5 text-sm text-text-secondary">
-          Pick a subject and the draft lands in your queue, ready to review.
+          Generate a search-optimised Google post for your clinic in one step,
+          then review it before anything is queued.
         </p>
       </div>
 
       <div className="space-y-5 p-5">
         <div>
           <Label htmlFor="growth-topic" className="text-sm">
-            What is this post about?
+            Content focus
           </Label>
           <NativeSelect
             id="growth-topic"
@@ -167,7 +173,7 @@ export function PostGenerator({
 
         <div>
           <Label htmlFor="growth-keywords" className="text-sm">
-            Search terms to cover
+            Target keywords
           </Label>
           <div className="mt-1.5">
             <KeywordInput
@@ -183,26 +189,8 @@ export function PostGenerator({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <Label htmlFor="growth-tone" className="text-sm">
-              Tone
-            </Label>
-            <NativeSelect
-              id="growth-tone"
-              value={draft.tone}
-              onChange={(event) => set("tone", event.target.value)}
-              disabled={!canEdit}
-              className="mt-1.5"
-            >
-              {TONE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </NativeSelect>
-          </div>
-          <div>
             <Label htmlFor="growth-cta" className="text-sm">
-              Button text
+              Call to action
             </Label>
             <NativeSelect
               id="growth-cta"
@@ -218,6 +206,24 @@ export function PostGenerator({
               ))}
             </NativeSelect>
           </div>
+          <div>
+            <Label htmlFor="growth-tone" className="text-sm">
+              Writing tone
+            </Label>
+            <NativeSelect
+              id="growth-tone"
+              value={draft.tone}
+              onChange={(event) => set("tone", event.target.value)}
+              disabled={!canEdit}
+              className="mt-1.5"
+            >
+              {TONE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </NativeSelect>
+          </div>
         </div>
 
         <Button
@@ -228,7 +234,7 @@ export function PostGenerator({
           size="lg"
         >
           {isPending ? <Spinner /> : <Sparkles aria-hidden="true" />}
-          {isPending ? "Writing your draft…" : "Generate draft"}
+          {isPending ? "Writing your draft..." : "Generate draft"}
         </Button>
 
         {!canEdit ? (

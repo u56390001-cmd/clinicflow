@@ -26,6 +26,13 @@ export type AppointmentStatus =
 export type BookingSource = string;
 
 /**
+ * Queue Management preference on `clinics.appointments_view_mode`
+ * (migration 0043). `queue` shows the live waiting queue above the
+ * appointment tabs; `list` shows the plain list.
+ */
+export type AppointmentsViewMode = "queue" | "list";
+
+/**
  * Row types are `type` aliases (not interfaces) so they satisfy supabase-js's
  * `GenericTable` constraint, which requires `Row: Record<string, unknown>`.
  * TypeScript only infers implicit index signatures for object-literal type
@@ -48,6 +55,13 @@ export type Clinic = {
    * Changing it does not renumber existing patients.
    */
   patient_code_prefix: string;
+  /**
+   * Queue Management preference, written by the /app/integrations dashboard
+   * (migration 0043). `queue` renders the live waiting queue on the
+   * appointments page, `list` shows the plain list. Defaults to `queue`, which
+   * is the behaviour the appointments page already had.
+   */
+  appointments_view_mode: AppointmentsViewMode;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -875,6 +889,87 @@ export type GrowthConnectionState =
 /** How often the scheduler writes a fresh post. */
 export type GrowthPostingFrequency = "weekly" | "biweekly" | "monthly";
 
+// =============================================================================
+// Phase 25 — Integrations dashboard (migration 0043)
+// =============================================================================
+
+/**
+ * Catalogue key for an integration. Mirrors `INTEGRATION_CATALOG` in
+ * `lib/constants.ts`, which is the runtime source of truth — this union exists
+ * so the server action can reject a key that is not in the catalogue before it
+ * reaches the database.
+ *
+ * Note that `queue` is deliberately absent conceptually but present as a key:
+ * it is the one integration backed by a column on `clinics` rather than a
+ * `clinic_integrations` row, because the live waiting queue it controls already
+ * works. See INTEGRATION_CATALOG for the `backedBy` flag that expresses this.
+ */
+export type IntegrationKey =
+  | "gcal"
+  | "gmeet"
+  | "gsheets"
+  | "zoom"
+  | "msteams"
+  | "queue"
+  | "whatsapp"
+  | "smsgateway";
+
+/**
+ * Integration lifecycle state.
+ *
+ * Three values, not a boolean: a failed enable is a state a boolean cannot
+ * represent, and the UI has to distinguish it from a deliberate "off" so it can
+ * offer a retry rather than a re-auth.
+ *
+ * `activated` is only reachable for integrations that do something real inside
+ * this app today. The seven vendor integrations require OAuth credentials and
+ * API approval that this deployment does not have, so they read as configured
+ * or not configured — never as "connected to Google".
+ */
+export type IntegrationStatus = "disabled" | "activated" | "error";
+
+/**
+ * Per-clinic integration state. One row per (clinic_id, integration_key).
+ *
+ * `config` holds NON-SECRET settings only (spreadsheet id, timezone, phone
+ * number). API keys and tokens live in `ClinicIntegrationSecret`, which has no
+ * RLS policies and is reachable only with the service role.
+ */
+export type ClinicIntegration = {
+  id: string;
+  clinic_id: string;
+  integration_key: string;
+  status: IntegrationStatus;
+  last_error: string | null;
+  /** Non-secret settings only — never credentials. */
+  config: Record<string, unknown>;
+  /** Null means the clinic has never saved a working configuration. */
+  configured_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * Integration credentials, isolated from the rest of the table so no clinic
+ * member can read them. There are intentionally ZERO RLS policies on this
+ * table: `anon` and `authenticated` can never read or write a row regardless of
+ * platform privilege re-grants, and the service role is the only accessor.
+ *
+ * The dashboard never receives these values — `lib/actions/integrations.ts`
+ * returns booleans derived from their presence, never the values themselves.
+ * The generic slots exist so one table serves every vendor; the action layer
+ * checks that the fields a given catalogue entry requires are all present.
+ */
+export type ClinicIntegrationSecret = {
+  id: string;
+  integration_id: string;
+  api_key: string | null;
+  api_secret: string | null;
+  account_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 /**
  * One clinic's Growth Agent configuration. 1:1 with a clinic (unique on
  * `clinic_id`). Carries both the Google connection and the auto-publishing
@@ -885,6 +980,18 @@ export type GrowthAgentSettings = {
   clinic_id: string;
   connection_state: GrowthConnectionState;
   google_location_name: string | null;
+  /**
+   * The Google Business Profile location id, e.g. `locations/1234567890`.
+   * Non-secret, and resolved once at connect time so sync does not have to
+   * re-list locations on every page load.
+   */
+  google_location_id: string | null;
+  /**
+   * The Google account the clinic connected with. Shown so a clinic can see
+   * WHICH account is linked — linking a personal account is a common cause of
+   * posts landing on the wrong listing.
+   */
+  google_account_email: string | null;
   connected_at: string | null;
   last_synced_at: string | null;
   /** Persists a failed connection attempt across a page reload. */
@@ -1131,6 +1238,7 @@ export type Database = {
           address?: string | null;
           google_review_url?: string | null;
           patient_code_prefix?: string;
+          appointments_view_mode?: AppointmentsViewMode;
           created_by: string;
           created_at?: string;
           updated_at?: string;
@@ -1146,6 +1254,7 @@ export type Database = {
           address?: string | null;
           google_review_url?: string | null;
           patient_code_prefix?: string;
+          appointments_view_mode?: AppointmentsViewMode;
           created_by?: string;
           created_at?: never;
           updated_at?: string;
@@ -2766,6 +2875,8 @@ export type Database = {
           clinic_id: string;
           connection_state?: GrowthConnectionState;
           google_location_name?: string | null;
+          google_location_id?: string | null;
+          google_account_email?: string | null;
           connected_at?: string | null;
           last_synced_at?: string | null;
           last_error?: string | null;
@@ -2782,6 +2893,8 @@ export type Database = {
           clinic_id?: never;
           connection_state?: GrowthConnectionState;
           google_location_name?: string | null;
+          google_location_id?: string | null;
+          google_account_email?: string | null;
           connected_at?: string | null;
           last_synced_at?: string | null;
           last_error?: string | null;
@@ -2799,6 +2912,55 @@ export type Database = {
             columns: ["clinic_id"];
             isOneToOne: true;
             referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      /**
+       * Google Business Profile OAuth tokens (migration 0044).
+       *
+       * Service-role only: this table has RLS enabled with ZERO policies, so an
+       * `authenticated` session cannot read or write a row regardless of what
+       * the client asks for. Every access goes through `createSecretsClient()`.
+       * The dashboard is told only whether a row exists, never its contents.
+       */
+      growth_agent_secrets: {
+        Row: {
+          id: string;
+          settings_id: string;
+          refresh_token: string;
+          access_token: string | null;
+          access_token_expires_at: string | null;
+          scope: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          settings_id: string;
+          refresh_token: string;
+          access_token?: string | null;
+          access_token_expires_at?: string | null;
+          scope?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          settings_id?: never;
+          refresh_token?: string;
+          access_token?: string | null;
+          access_token_expires_at?: string | null;
+          scope?: string | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "growth_agent_secrets_settings_id_fkey";
+            columns: ["settings_id"];
+            isOneToOne: true;
+            referencedRelation: "growth_agent_settings";
             referencedColumns: ["id"];
           },
         ];
@@ -2884,6 +3046,70 @@ export type Database = {
             columns: ["clinic_id"];
             isOneToOne: false;
             referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      clinic_integrations: {
+        Row: ClinicIntegration;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          integration_key: string;
+          status?: IntegrationStatus;
+          last_error?: string | null;
+          config?: Record<string, unknown>;
+          configured_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          integration_key?: never;
+          status?: IntegrationStatus;
+          last_error?: string | null;
+          config?: Record<string, unknown>;
+          configured_at?: string | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "clinic_integrations_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      clinic_integration_secrets: {
+        Row: ClinicIntegrationSecret;
+        Insert: {
+          id?: string;
+          integration_id: string;
+          api_key?: string | null;
+          api_secret?: string | null;
+          account_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          integration_id?: never;
+          api_key?: string | null;
+          api_secret?: string | null;
+          account_id?: string | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "clinic_integration_secrets_integration_id_fkey";
+            columns: ["integration_id"];
+            isOneToOne: true;
+            referencedRelation: "clinic_integrations";
             referencedColumns: ["id"];
           },
         ];

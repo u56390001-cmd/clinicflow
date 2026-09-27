@@ -30,6 +30,8 @@ export const DEFAULT_GROWTH_SETTINGS: Omit<
 > = {
   connection_state: "not_connected",
   google_location_name: null,
+  google_location_id: null,
+  google_account_email: null,
   connected_at: null,
   last_synced_at: null,
   last_error: null,
