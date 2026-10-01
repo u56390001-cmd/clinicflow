@@ -62,3 +62,6 @@ next-env.d.ts
 certificates
 .vercel
 .env*
+
+# ad-hoc debug scripts written at the repo root (scratch, not part of the app)
+tmp-*.ts
