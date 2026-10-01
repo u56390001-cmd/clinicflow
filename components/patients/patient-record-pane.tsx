@@ -4,16 +4,15 @@ import { createContext, useContext } from "react";
 
 import { PatientRecord } from "@/components/patients/patient-record";
 import type { ActiveVisitInfo } from "@/components/patients/record/record-banner";
-import type { PrescriptionTabBundle } from "@/components/patients/record/prescription-tab";
 import type { AppointmentView } from "@/lib/appointments-view";
 import type { PatientDirectoryParams } from "@/lib/patient-directory";
 import type { PatientDocumentView } from "@/lib/patient-documents-queries";
 import type { PatientRecordData } from "@/lib/patient-record";
+import type { ConsultationPreAnswer } from "@/lib/consultation-queries";
 import type { PatientDirectoryRow } from "@/types/database";
 
 export type PatientRecordPaneActions = {
   onEdit: () => void;
-  onWritePrescription: (visitId: string) => void;
   /** Opens the merge-duplicate modal for the open record. */
   onMergeDuplicate: () => void;
   /**
@@ -26,7 +25,6 @@ export type PatientRecordPaneActions = {
 
 const NO_ACTIONS: PatientRecordPaneActions = {
   onEdit: () => {},
-  onWritePrescription: () => {},
   onMergeDuplicate: () => {},
   canMerge: false,
 };
@@ -35,6 +33,8 @@ export const PatientRecordPaneActionsContext =
   createContext<PatientRecordPaneActions>(NO_ACTIONS);
 
 export function PatientRecordPane({
+  clinicId,
+  clinic,
   patient,
   record,
   documents,
@@ -46,8 +46,11 @@ export function PatientRecordPane({
   aiSummaryEnabled,
   activeVisitInfo,
   backHref,
-  clinic,
+  preAnswers,
 }: {
+  /** The signed-in clinic — the prescription workspace's templates and print header. */
+  clinicId: string;
+  clinic: { name: string; address: string | null; phone: string | null };
   patient: PatientDirectoryRow;
   record: PatientRecordData;
   documents: PatientDocumentView[];
@@ -60,17 +63,18 @@ export function PatientRecordPane({
   activeVisitInfo: {
     activeVisit: ActiveVisitInfo | null;
     canStart: boolean;
-    rxBundle: PrescriptionTabBundle | null;
   };
   backHref: string;
-  /** Clinic branding the Prescription tab prints onto the Rx sheet. */
-  clinic: { name: string; address: string | null; phone: string | null };
+  /** Pre-consultation answers for the active visit's booking, if any. */
+  preAnswers: ConsultationPreAnswer[];
 }) {
   const actions = useContext(PatientRecordPaneActionsContext);
 
   return (
     <PatientRecord
       key={patient.id}
+      clinicId={clinicId}
+      clinic={clinic}
       patient={patient}
       record={record}
       documents={documents}
@@ -82,11 +86,10 @@ export function PatientRecordPane({
       aiSummaryEnabled={aiSummaryEnabled}
       activeVisitInfo={activeVisitInfo}
       backHref={backHref}
-      clinic={clinic}
       canMerge={actions.canMerge}
       onMergeDuplicate={actions.onMergeDuplicate}
       onEdit={actions.onEdit}
-      onWritePrescription={actions.onWritePrescription}
+      preAnswers={preAnswers}
     />
   );
 }

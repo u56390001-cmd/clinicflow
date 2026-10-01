@@ -1,12 +1,21 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+/**
+ * Plus Jakarta Sans is the app's single typeface (`font-sans`). One family
+ * throughout, at the weight and tracking the interface actually needs: Jakarta's
+ * wide, slightly squared counters hold up at the 11px pill sizes this UI leans
+ * on, where a narrower grotesque turns into a grey smear.
+ */
+const jakarta = Plus_Jakarta_Sans({
+  variable: "--font-jakarta",
   subsets: ["latin"],
   display: "swap",
+  // Jakarta's default is 400/700 in two optical sizes; the extra weights are
+  // needed for the dense numeric readouts in the patient record.
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 export const metadata: Metadata = {
@@ -24,7 +33,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html lang="en" className={jakarta.variable} suppressHydrationWarning>
       <body className="min-h-full">
         {children}
         <Toaster position="bottom-right" />

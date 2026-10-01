@@ -22,7 +22,13 @@ function naiveComponents(value: string): number[] | null {
   let match = value.match(NAIVE_DATETIME);
   let fields: number[] | null = null;
   if (match) {
-    fields = [Number(match[1]), Number(match[2]), Number(match[3]), Number(match[4]), Number(match[5])];
+    fields = [
+      Number(match[1]),
+      Number(match[2]),
+      Number(match[3]),
+      Number(match[4]),
+      Number(match[5]),
+    ];
   } else {
     match = value.match(NAIVE_DATE);
     if (match) {
@@ -33,11 +39,21 @@ function naiveComponents(value: string): number[] | null {
 
   const [year, month, day, hour, minute] = fields;
   if (
-    !Number.isInteger(year) || year < 1000 || year > 9999 ||
-    !Number.isInteger(month) || month < 1 || month > 12 ||
-    !Number.isInteger(day) || day < 1 || day > 31 ||
-    !Number.isInteger(hour) || hour < 0 || hour > 23 ||
-    !Number.isInteger(minute) || minute < 0 || minute > 59
+    !Number.isInteger(year) ||
+    year < 1000 ||
+    year > 9999 ||
+    !Number.isInteger(month) ||
+    month < 1 ||
+    month > 12 ||
+    !Number.isInteger(day) ||
+    day < 1 ||
+    day > 31 ||
+    !Number.isInteger(hour) ||
+    hour < 0 ||
+    hour > 23 ||
+    !Number.isInteger(minute) ||
+    minute < 0 ||
+    minute > 59
   ) {
     return null;
   }
@@ -60,7 +76,8 @@ export function parseDateSafe(input: string | null | undefined): Date | null {
     const date = new Date(Date.UTC(year, month - 1, day, hour, minute));
     // `Date.UTC` normalizes overflow (e.g. Feb 30 -> Mar 2); reject it so the
     // parsed value always reflects exactly what the caller provided.
-    if (date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+    if (date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day)
+      return null;
     return date;
   }
 
@@ -99,16 +116,21 @@ export function computeAppointmentEnd(
   durationMinutes: number | null | undefined,
 ): string | null {
   const date = parseDateSafe(start);
-  if (!date || !Number.isFinite(durationMinutes) || (durationMinutes ?? 0) < 1) {
+  if (
+    !date ||
+    !Number.isFinite(durationMinutes) ||
+    (durationMinutes ?? 0) < 1
+  ) {
     return null;
   }
-  return formatUtc(addMinutes(date, Math.round(durationMinutes as number)), "yyyy-MM-dd'T'HH:mm");
+  return formatUtc(
+    addMinutes(date, Math.round(durationMinutes as number)),
+    "yyyy-MM-dd'T'HH:mm",
+  );
 }
 
 /** "9:30 AM" for a naive `YYYY-MM-DDTHH:mm`. Returns `""` if invalid. */
-export function formatNaiveTime(
-  value: string | null | undefined,
-): string {
+export function formatNaiveTime(value: string | null | undefined): string {
   const date = parseDateSafe(value);
   if (!date) return "";
   return formatUtc(date, "h:mm a");
@@ -122,6 +144,33 @@ export function formatNaiveDate(value: string | null | undefined): string {
   const date = parseDateSafe(value);
   if (!date) return "";
   return formatUtc(date, "MMM d, yyyy");
+}
+
+/**
+ * "28 Sep 2026" — the compact form the patient record's header and side rail use
+ * ("Patient since 28 Sep 2026"). UTC-anchored like the other formatters so the
+ * server and client always agree; returns `""` on missing/invalid input.
+ */
+export function formatShortDate(value: string | null | undefined): string {
+  const date = parseDateSafe(value);
+  if (!date) return "";
+  return formatUtc(date, "dd MMM yyyy");
+}
+
+/**
+ * "18 Sep 2026, 04:30 PM" — a date and its wall-clock time together.
+ *
+ * For provenance rows that have to distinguish two moments: when a document was
+ * written, and when the system ingested it. A date alone cannot tell them apart
+ * when several scans arrive on the same day, which is the normal case for a
+ * clinic that digitises a backlog in one sitting.
+ *
+ * UTC-anchored like every formatter here, for the same server/client reason.
+ */
+export function formatDateTime(value: string | null | undefined): string {
+  const date = parseDateSafe(value);
+  if (!date) return "";
+  return formatUtc(date, "dd MMM yyyy, hh:mm a");
 }
 
 /**
@@ -161,15 +210,22 @@ export function ageFromDob(dob: string | null | undefined): number | null {
   const today = new Date();
   let years = today.getUTCFullYear() - born.getUTCFullYear();
   const monthDelta = today.getUTCMonth() - born.getUTCMonth();
-  if (monthDelta < 0 || (monthDelta === 0 && today.getUTCDate() < born.getUTCDate())) {
+  if (
+    monthDelta < 0 ||
+    (monthDelta === 0 && today.getUTCDate() < born.getUTCDate())
+  ) {
     years -= 1;
   }
   return years >= 0 && years < 150 ? years : null;
 }
 
-/** "9 AM" / "2 PM" label for minutes-since-midnight. */export function formatHourLabel(minutes: number): string {
+/** "9 AM" / "2 PM" label for minutes-since-midnight. */ export function formatHourLabel(
+  minutes: number,
+): string {
   const total = Number.isFinite(minutes) ? Math.round(minutes) : 0;
   const clamped = Math.max(0, Math.min(24 * 60 - 1, total));
-  const date = new Date(Date.UTC(2000, 0, 1, Math.floor(clamped / 60), clamped % 60));
+  const date = new Date(
+    Date.UTC(2000, 0, 1, Math.floor(clamped / 60), clamped % 60),
+  );
   return formatUtc(date, "h a");
 }

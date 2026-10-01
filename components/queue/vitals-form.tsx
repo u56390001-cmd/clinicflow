@@ -9,10 +9,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { recordVitalsAction } from "@/lib/actions/queue";
 import { cn } from "@/lib/utils";
+import {
+  computeBmi,
+  deriveBloodPressure,
+  normalizeStandardKeys,
+  STANDARD_VITALS,
+} from "@/lib/vitals-fields";
 import type { ActionResult } from "@/types";
 import type { CustomVitalValue, DoctorVitalsConfig } from "@/types/database";
 
-type ExistingVitals = {
+export type ExistingVitals = {
   blood_pressure: string | null;
   systolic_bp: number | null;
   diastolic_bp: number | null;
@@ -23,68 +29,9 @@ type ExistingVitals = {
   spo2: number | null;
   respiratory_rate: number | null;
   bmi: number | null;
+  blood_sugar: number | null;
   custom_vitals?: CustomVitalValue[] | null;
 };
-
-type StandardVitalMeta = {
-  key: string;
-  label: string;
-  unit: string;
-  placeholder: string;
-  min?: number;
-  max?: number;
-  step?: string;
-  /** Free-text input (e.g. "120/80") instead of a numeric field. */
-  text?: boolean;
-};
-
-/** Standard vitals in canonical order (keys match the new vitals config). */
-const STANDARD_VITALS: StandardVitalMeta[] = [
-  {
-    key: "blood_pressure",
-    label: "Blood Pressure",
-    unit: "mmHg",
-    placeholder: "120/80",
-    text: true,
-  },
-  { key: "pulse", label: "Pulse", unit: "bpm", placeholder: "72", min: 30, max: 300 },
-  {
-    key: "temperature",
-    label: "Temperature",
-    unit: "°F",
-    placeholder: "98.6",
-    min: 85,
-    max: 115,
-    step: "0.1",
-  },
-  { key: "spo2", label: "SpO₂", unit: "%", placeholder: "98", min: 0, max: 100 },
-  {
-    key: "respiratory_rate",
-    label: "Respiratory Rate",
-    unit: "breaths/min",
-    placeholder: "16",
-    min: 4,
-    max: 60,
-  },
-  { key: "weight", label: "Weight", unit: "kg", placeholder: "70", min: 1, max: 500, step: "0.1" },
-  { key: "height", label: "Height", unit: "cm", placeholder: "170", min: 1, max: 300, step: "0.1" },
-];
-
-/**
- * Map pre-redesign config keys (split systolic/diastolic BP) onto the single
- * Blood Pressure key so earlier doctor configs keep working.
- */
-function normalizeStandardKeys(keys: string[] | null): string[] {
-  const seen = new Set<string>();
-  for (const key of keys ?? []) {
-    if (key === "systolic_bp" || key === "diastolic_bp") {
-      seen.add("blood_pressure");
-    } else {
-      seen.add(key);
-    }
-  }
-  return [...seen];
-}
 
 /**
  * Full vitals capture form — 2-column grid layout, driven by a per-doctor
@@ -102,11 +49,14 @@ export function VitalsForm({
   existingVitals,
   config,
   configLoading = false,
+  onSaved,
 }: {
   visitId: string;
   existingVitals?: ExistingVitals | null;
   config?: DoctorVitalsConfig | null;
   configLoading?: boolean;
+  /** Fired after a successful save, e.g. so a hosting modal can close itself. */
+  onSaved?: () => void;
 }) {
   const router = useRouter();
   const [state, formAction, isPending] = useActionState<
@@ -135,8 +85,11 @@ export function VitalsForm({
   // Refresh the queue/modal after a successful save so the saved BMI, the
   // "Vitals Done" badge, and the queue list all reflect the new row.
   useEffect(() => {
-    if (state?.ok) router.refresh();
-  }, [state, router]);
+    if (state?.ok) {
+      router.refresh();
+      onSaved?.();
+    }
+  }, [state, router, onSaved]);
 
   // Custom vital values — controlled so their JSON can be serialized.
   const customDefinitions = config?.custom_vitals ?? [];
@@ -175,20 +128,16 @@ export function VitalsForm({
 
   // BMI auto-computation from the height (cm) + weight (kg) currently typed in
   // the form — recalculates on every keystroke.
-  const computedBmi = useMemo(() => {
-    const h = Number(heightInput);
-    const w = Number(weightInput);
-    if (h > 0 && w > 0) {
-      const heightM = h / 100;
-      return (w / (heightM * heightM)).toFixed(1);
-    }
-    return null;
-  }, [heightInput, weightInput]);
+  const computedBmi = useMemo(
+    () => computeBmi(heightInput, weightInput),
+    [heightInput, weightInput],
+  );
 
-  const systolic = existingVitals?.systolic_bp;
-  const diastolic = existingVitals?.diastolic_bp;
-  const derivedBp =
-    systolic && diastolic ? `${systolic}/${diastolic}` : existingVitals?.blood_pressure ?? "";
+  const derivedBp = deriveBloodPressure(
+    existingVitals?.systolic_bp,
+    existingVitals?.diastolic_bp,
+    existingVitals?.blood_pressure,
+  );
 
   const standardValue = (key: string): number | string => {
     switch (key) {
@@ -206,6 +155,8 @@ export function VitalsForm({
         return existingVitals?.weight ?? "";
       case "height":
         return existingVitals?.height ?? "";
+      case "blood_sugar":
+        return existingVitals?.blood_sugar ?? "";
       default:
         return "";
     }

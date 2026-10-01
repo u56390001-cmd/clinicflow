@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -7,32 +8,24 @@ import { ArrowLeft } from "lucide-react";
 import { AppointmentsTab } from "@/components/patients/record/appointments-tab";
 import { DocumentsTab } from "@/components/patients/record/documents-tab";
 import { HealthInfoTab } from "@/components/patients/record/health-info-tab";
-import { OverviewTab } from "@/components/patients/record/overview-tab";
 import { PrescriptionsTab } from "@/components/patients/record/prescriptions-tab";
 import { PrescriptionDraftProvider } from "@/components/patients/record/prescription-draft-context";
-import {
-  PrescriptionTab,
-  type PrescriptionTabBundle,
-} from "@/components/patients/record/prescription-tab";
-import { RecordContextPanel } from "@/components/patients/record/record-context-panel";
 import {
   RecordBanner,
   type ActiveVisitInfo,
 } from "@/components/patients/record/record-banner";
-import { VisitHistoryTab } from "@/components/patients/record/visit-history-tab";
+import { PatientTabNavigation } from "@/components/patients/record/patient-tab-navigation";
+import { OverviewTab } from "@/components/patients/record/overview-tab";
 import { VitalsTab } from "@/components/patients/record/vitals-tab";
 import { Button } from "@/components/ui/button";
 import {
-  PATIENT_TAB_LABELS,
-  PATIENT_TABS,
   patientDirectoryHref,
   type PatientDirectoryParams,
-  type PatientTab,
 } from "@/lib/patient-directory";
-import { cn } from "@/lib/utils";
 import type { AppointmentView } from "@/lib/appointments-view";
 import type { PatientDocumentView } from "@/lib/patient-documents-queries";
 import type { PatientRecordData } from "@/lib/patient-record";
+import type { ConsultationPreAnswer } from "@/lib/consultation-queries";
 import type { PatientDirectoryRow } from "@/types/database";
 
 /**
@@ -52,6 +45,8 @@ import type { PatientDirectoryRow } from "@/types/database";
  * `--app-header-h` is what makes the second one safe.
  */
 export function PatientRecord({
+  clinicId,
+  clinic,
   patient,
   record,
   documents,
@@ -64,11 +59,13 @@ export function PatientRecord({
   aiSummaryEnabled,
   activeVisitInfo,
   backHref,
-  clinic,
   onEdit,
-  onWritePrescription,
   onMergeDuplicate,
+  preAnswers,
 }: {
+  /** The signed-in clinic — templates and the print header for the Rx workspace. */
+  clinicId: string;
+  clinic: { name: string; address: string | null; phone: string | null };
   patient: PatientDirectoryRow;
   record: PatientRecordData;
   documents: PatientDocumentView[];
@@ -81,35 +78,42 @@ export function PatientRecord({
   canMerge: boolean;
   /** `PATIENT_AI_SUMMARY_ENABLED` on the server — gates the summary refresh control. */
   aiSummaryEnabled: boolean;
-  /** Today's active visit + queue eligibility + the Prescription tab's data. */
+  /** Today's active visit + queue eligibility. */
   activeVisitInfo: {
     activeVisit: ActiveVisitInfo | null;
     canStart: boolean;
-    rxBundle: PrescriptionTabBundle | null;
   };
   /** Href that clears the selection — the mobile "back to list" target. */
   backHref: string;
-  /** Clinic branding the Prescription tab prints onto the Rx sheet. */
-  clinic: { name: string; address: string | null; phone: string | null };
   onEdit: () => void;
-  /** Opens the full-screen Write Prescription overlay for a visit. */
-  onWritePrescription: (visitId: string) => void;
   /** Opens the merge-duplicate modal, primary = this record. */
   onMergeDuplicate: () => void;
+  /** Pre-consultation answers for the active visit's booking, if any. */
+  preAnswers: ConsultationPreAnswer[];
 }) {
-  const counts: Record<PatientTab, number | null> = {
-    overview: null,
-    history: record.visits.length,
-    clinical: record.vitals.length,
-    medications: record.prescriptions.length,
-    documents: documents.length,
-    appointments: upcoming.length + past.length,
-    // Not a count of anything archived — 1 simply badges "there is a visit
-    // to write on today"; the tab itself has no rows to tally.
-    prescription: activeVisitInfo.activeVisit ? 1 : 0,
-  };
-
   const router = useRouter();
+
+  /**
+   * Write Prescription is a tab, not a modal.
+   *
+   * The record already had a full consultation screen — it lived in a
+   * full-screen overlay that covered the record it was launched from, and every
+   * fact on screen (vitals, prescription, history) had to be re-fetched behind
+   * it. The Prescriptions tab is the same workspace, embedded: no second fetch,
+   * no second Escape handler, and the patient's history stays visible underneath
+   * the form while it is being written.
+   */
+  const openPrescriptionWorkspace = useCallback(
+    () => router.push(patientDirectoryHref({ ...params, tab: "medications" })),
+    [router, params],
+  );
+
+  // The workspace works on today's live visit, so it needs that visit's own
+  // vitals, prescription and doctor — all of which the record read already has.
+  const activeVisitId = activeVisitInfo.activeVisit?.id ?? null;
+  const activeVisitRow = activeVisitId
+    ? (record.visits.find((visit) => visit.id === activeVisitId) ?? null)
+    : null;
 
   return (
     // The provider wraps the whole record (not just the tab) so a half-typed
@@ -138,7 +142,7 @@ export function PatientRecord({
             canStart={activeVisitInfo.canStart}
             onEdit={onEdit}
             onMergeDuplicate={onMergeDuplicate}
-            onWritePrescription={onWritePrescription}
+            onWritePrescription={openPrescriptionWorkspace}
             onCompleteAndNext={(nextPatientId) =>
               router.push(
                 patientDirectoryHref({ ...params, selectedId: nextPatientId }),
@@ -146,82 +150,82 @@ export function PatientRecord({
             }
           />
 
-          <div
-            role="tablist"
-            aria-label="Patient record sections"
-            className="scrollbar-none flex gap-1 overflow-x-auto border-b border-text-muted/15 px-5"
-          >
-            {PATIENT_TABS.map((tab) => {
-              const active = params.tab === tab;
-              const count = counts[tab];
-              return (
-                <Link
-                  key={tab}
-                  href={patientDirectoryHref({ ...params, tab })}
-                  scroll={false}
-                  role="tab"
-                  aria-selected={active}
-                  className={cn(
-                    "-mb-px flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-[2px] px-3.5 py-2.5 text-[13px] transition-colors",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40",
-                    active
-                      ? "border-primary font-semibold text-primary"
-                      : "border-transparent text-text-secondary hover:text-text-primary",
-                  )}
-                >
-                  {PATIENT_TAB_LABELS[tab]}
-                  {count !== null && count > 0 && (
-                    <span
-                      className={cn(
-                        "rounded-pill px-1.5 py-0.5 text-[10px] tabular-nums",
-                        active
-                          ? "bg-primary/10 text-primary"
-                          : "bg-app text-text-muted",
-                      )}
-                    >
-                      {count}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
-          </div>
+          <PatientTabNavigation params={params} />
         </div>
 
-        {/* The context panel is the chart's standing reference — who this is,
-          what they react to, what they are on, what happened last time. It sits
-          to the left once there is room for it (xl+); below that it follows the
-          work area rather than pushing it down the screen. */}
-        {/* `px-5` matches the header and tab strip above it — content that starts
-          a few pixels in from the name reads as a mistake, not as a margin. */}
-        <div className="grid min-w-0 gap-4 px-5 py-4 xl:grid-cols-[minmax(0,272px)_minmax(0,1fr)] xl:items-start">
-          <div className="order-1 min-w-0 xl:order-2">
+        {/* There is no left rail here, and that is deliberate. A 272px sidebar
+            used to sit beside the work area repeating Patient ID, blood group,
+            age, height/weight, BMI, allergies, current medications, the last
+            three visits and a document uploader — every one of which the banner
+            above or the tab content already shows, so the same facts had to be
+            read twice and kept in sync in two files.
+
+            Now the record is one column: the banner owns identity, each tab owns
+            its own subject, and the tab body sits on the slate canvas so the
+            white cards read as cards. Documents and their uploader live in the
+            Documents tab only. */}
+        <div className="min-w-0 bg-canvas px-5 py-4">
+          <div>
             {params.tab === "overview" && (
               <OverviewTab
                 patient={patient}
                 record={record}
-                upcoming={upcoming}
                 timezone={timezone}
                 canManage={canManage}
                 aiSummaryEnabled={aiSummaryEnabled}
+                vitalsTabHref={patientDirectoryHref({
+                  ...params,
+                  tab: "vitals",
+                })}
+                medicationsTabHref={patientDirectoryHref({
+                  ...params,
+                  tab: "medications",
+                })}
               />
             )}
 
-            {params.tab === "history" && (
-              <VisitHistoryTab visits={record.visits} timezone={timezone} />
+            {params.tab === "health_info" && (
+              <HealthInfoTab
+                patient={patient}
+                medicalHistory={record.medicalHistory}
+                canManage={canManage}
+              />
             )}
 
-            {params.tab === "clinical" && (
-              <div className="space-y-4">
-                <HealthInfoTab patient={patient} />
-                <VitalsTab vitals={record.vitals} timezone={timezone} />
-              </div>
+            {params.tab === "vitals" && (
+              <VitalsTab
+                vitals={record.vitals}
+                timezone={timezone}
+                canManage={canManage}
+                latestVisitId={record.visits[0]?.id ?? null}
+              />
             )}
 
             {params.tab === "medications" && (
               <PrescriptionsTab
+                clinicId={clinicId}
+                clinic={clinic}
+                patient={patient}
                 prescriptions={record.prescriptions}
+                medications={record.medications}
+                documents={documents}
+                labResults={record.labResults}
                 timezone={timezone}
+                canManage={canManage}
+                params={params}
+                activeVisit={activeVisitInfo.activeVisit}
+                visitVitals={activeVisitRow?.vitals ?? null}
+                visitPrescription={activeVisitRow?.prescription ?? null}
+                visitDoctor={
+                  activeVisitRow
+                    ? {
+                        id: activeVisitRow.doctor_id,
+                        name: activeVisitRow.doctorName,
+                        specialty: activeVisitRow.doctorSpecialty,
+                      }
+                    : null
+                }
+                preAnswers={preAnswers}
               />
             )}
 
@@ -242,38 +246,7 @@ export function PatientRecord({
                 canManage={canManage}
               />
             )}
-
-            {params.tab === "prescription" && (
-              <PrescriptionTab
-                bundle={activeVisitInfo.rxBundle}
-                patient={patient}
-                clinic={clinic}
-                timezone={timezone}
-                onCompleteAndNext={(nextPatientId) =>
-                  router.push(
-                    patientDirectoryHref({
-                      ...params,
-                      selectedId: nextPatientId,
-                    }),
-                  )
-                }
-              />
-            )}
           </div>
-
-          <RecordContextPanel
-            patient={patient}
-            visits={record.visits}
-            documents={documents}
-            documentsTabHref={patientDirectoryHref({
-              ...params,
-              tab: "documents",
-            })}
-            canManage={canManage}
-            timezone={timezone}
-            showUploader={params.tab !== "documents"}
-            className="order-2 min-w-0 xl:order-1"
-          />
         </div>
       </div>
     </PrescriptionDraftProvider>

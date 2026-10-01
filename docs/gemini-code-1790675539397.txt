@@ -1,0 +1,46 @@
+# Role
+You are a Staff Frontend Engineer and UI/UX Specialist with expertise in Next.js 15, React 19, TypeScript, Tailwind CSS 3.4, and Lucide Icons.
+
+# Objective
+Create the `HistorySummaryRibbon` component for MedBook AI (`clinicflow`) using a 4-card grid layout with hover animations and micro-previews tailored for medical history.
+
+# Styling & Design Tokens
+- Container Layout: `mb-6 grid grid-cols-2 gap-3 lg:mb-8 lg:grid-cols-4 lg:gap-6`
+- Card Base Style: `group relative overflow-hidden rounded-xl border border-slate-200/80 bg-white p-3.5 lg:p-5 shadow-sm transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-md hover:border-teal-300 cursor-pointer`
+- Font Family: Inter / System UI.
+- Color Palette:
+  - Teal Primary: `bg-teal-50 text-teal-600 border-teal-200`
+  - Blue Accent: `bg-blue-50 text-blue-600 border-blue-200`
+  - Red/Rose Alert: `bg-red-50 text-red-600 border-red-200`
+  - Amber Warning: `bg-amber-50 text-amber-600 border-amber-200`
+
+# Card Details & Structure
+
+1. Card 1 — Chronic Conditions
+   - Icon: `Activity` (Teal background container `bg-teal-50 text-teal-600 p-2 rounded-lg group-hover:scale-110 transition-transform`)
+   - Header Title: "Chronic Conditions" (`text-xs font-medium text-slate-500`)
+   - Main Metric: "2 Active" (`text-lg lg:text-xl font-bold text-slate-900`)
+   - Micro Preview: Badge or text "Diabetes T2, HTN" (`text-[11px] font-medium text-teal-700 truncate max-w-[140px]`)
+
+2. Card 2 — Past Surgeries
+   - Icon: `Scissors` (Blue background container `bg-blue-50 text-blue-600 p-2 rounded-lg group-hover:scale-110 transition-transform`)
+   - Header Title: "Past Surgeries" (`text-xs font-medium text-slate-500`)
+   - Main Metric: "1 Major" (`text-lg lg:text-xl font-bold text-slate-900`)
+   - Micro Preview: "Appendectomy (2018)" (`text-[11px] text-slate-500 truncate max-w-[140px]`)
+
+3. Card 3 — Critical Risks & Allergies
+   - Icon: `ShieldAlert` (Red background container `bg-red-50 text-red-600 p-2 rounded-lg group-hover:scale-110 transition-transform`)
+   - Header Title: "Critical Risks" (`text-xs font-medium text-slate-500`)
+   - Main Metric: "2 Alerts" (`text-lg lg:text-xl font-bold text-red-600`)
+   - Micro Preview: "Penicillin Allergy, Smoker" (`text-[11px] font-semibold text-red-700 truncate max-w-[140px]`)
+
+4. Card 4 — Unverified AI Queue
+   - Icon: `Sparkles` or `FileText` (Amber background container `bg-amber-50 text-amber-600 p-2 rounded-lg group-hover:scale-110 transition-transform`)
+   - Header Title: "Pending Approval" (`text-xs font-medium text-slate-500`)
+   - Main Metric: "2 Items" (`text-lg lg:text-xl font-bold text-amber-600`)
+   - Micro Preview: "Needs Dr. Verification" (`text-[11px] text-amber-700 font-medium`)
+
+# Deliverables
+1. Clean React 19 functional component `HistorySummaryRibbon.tsx`.
+2. Interactive hover animations using pure Tailwind CSS classes.
+3. Props interface `HistorySummaryProps` handling dynamic counts and micro-preview strings.

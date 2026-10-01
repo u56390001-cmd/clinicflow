@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { revalidatePath } from "next/cache";
 
 import { getCurrentClinic, canWriteClinic } from "@/lib/clinic-access";
 import { createClient } from "@/lib/supabase/server";
@@ -10,6 +11,7 @@ import {
   doctorSlotTemplatesSchema,
   doctorVitalsConfigSchema,
 } from "@/lib/validation/schemas";
+import { APP_ROUTES } from "@/lib/constants";
 import type { ActionResult } from "@/types";
 import type { DoctorVitalsConfig } from "@/types/database";
 
@@ -198,6 +200,12 @@ async function saveDoctorVitalsConfig(
     });
     return { ok: false, message: "We couldn't save the vitals configuration. Please try again." };
   }
+  // The appointments / consultation pages preload a doctor → vitals config map
+  // into their RSC payload (fetchVitalsConfigs). Without this, staleTimes'
+  // 30s Router Cache keeps serving the OLD field set to already-checked-in
+  // visits after the doctor's config edit.
+  revalidatePath(APP_ROUTES.app.appointments);
+  revalidatePath(APP_ROUTES.app.consultation);
   return { ok: true, data: undefined };
 }
 

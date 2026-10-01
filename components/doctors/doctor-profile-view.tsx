@@ -49,6 +49,7 @@ const STANDARD_VITAL_LABELS: Record<string, string> = {
   temperature: "Temperature",
   spo2: "SpO₂",
   respiratory_rate: "Respiratory Rate",
+  blood_sugar: "Blood Sugar",
 };
 
 /**

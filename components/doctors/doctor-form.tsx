@@ -102,6 +102,12 @@ const STANDARD_VITALS: StandardVitalDef[] = [
     unit: "breaths/min",
     group: "signs",
   },
+  {
+    key: "blood_sugar",
+    label: "Blood Sugar",
+    unit: "mg/dL",
+    group: "signs",
+  },
 ];
 
 const STANDARD_VITAL_GROUPS: Array<{

@@ -2,6 +2,7 @@
 
 import {
   useCallback,
+  useEffect,
   useState,
   type FocusEvent,
   type MouseEvent,
@@ -9,7 +10,16 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-type HoverTip = { label: string; top: number; left: number } | null;
+/** The anchor is kept so the tip can be dropped once its control is gone. */
+type HoverTip = {
+  label: string;
+  top: number;
+  left: number;
+  anchor: HTMLElement;
+} | null;
+
+/** How often to notice an anchor that vanished mid-hover. */
+const ANCHOR_WATCH_MS = 100;
 
 export type TipHandlers = Partial<{
   onMouseEnter: (event: MouseEvent<HTMLElement>) => void;
@@ -32,11 +42,34 @@ export function useHoverTip() {
 
   const hideTip = useCallback(() => setTip(null), []);
 
+  // A portalled tip is only ever torn down by `mouseleave`/`blur`, and neither
+  // fires when the anchor leaves the DOM under a stationary pointer — clicking
+  // a collapse toggle, a re-render that swaps the control out, a navigation.
+  // The tip then survives its own anchor and sticks to the viewport. Watch the
+  // anchor and drop the tip as soon as it is detached. Scroll and resize move
+  // the anchor without firing either event, and the tip is positioned from the
+  // anchor's viewport box, so it would float free of its control.
+  useEffect(() => {
+    if (!tip) return;
+    const { anchor } = tip;
+    const drop = () => setTip(null);
+    const watch = setInterval(() => {
+      if (!anchor.isConnected) drop();
+    }, ANCHOR_WATCH_MS);
+    window.addEventListener("scroll", drop, true);
+    window.addEventListener("resize", drop);
+    return () => {
+      clearInterval(watch);
+      window.removeEventListener("scroll", drop, true);
+      window.removeEventListener("resize", drop);
+    };
+  }, [tip]);
+
   const tipProps = useCallback((label: string, enabled = true): TipHandlers => {
     if (!enabled) return {};
     const anchor = (element: HTMLElement) => {
       const box = element.getBoundingClientRect();
-      setTip({ label, top: box.top + box.height / 2, left: box.right + 10 });
+      setTip({ label, top: box.top + box.height / 2, left: box.right + 10, anchor: element });
     };
     return {
       onMouseEnter: (event) => anchor(event.currentTarget),

@@ -9,6 +9,7 @@ import type {
   AIGeneratedMessage,
   AIProvider,
   AIProviderChatParams,
+  AIProviderCompleteJsonParams,
   AIProviderCompleteParams,
 } from "@/lib/ai/types";
 
@@ -124,6 +125,55 @@ export class GeminiProvider implements AIProvider {
     );
 
     return response.text ?? "";
+  }
+
+  /**
+   * Single-turn, JSON-only generation for the vision scanner.
+   *
+   * The model is told to emit `application/json` and handed `responseSchema`, so
+   * it returns a single JSON document instead of prose. `document` (an
+   * image/PDF scan, base64) is attached inline as the only user payload besides
+   * the prompt. Throws when the model produces nothing or malformed JSON — never
+   * returns a string. Callers validate the parsed shape with Zod afterwards.
+   */
+  async completeJson({
+    systemInstruction,
+    prompt,
+    schema,
+    document,
+    temperature = 0.1,
+    maxOutputTokens = 4096,
+  }: AIProviderCompleteJsonParams): Promise<unknown> {
+    const parts: Array<
+      { text: string } | { inlineData: { mimeType: string; data: string } }
+    > = [{ text: prompt }];
+    if (document) {
+      parts.push({ inlineData: { mimeType: document.mimeType, data: document.data } });
+    }
+
+    const response = await this.generateWithFallback((model) =>
+      this.ai.models.generateContent({
+        model,
+        contents: [{ role: "user", parts }],
+        config: {
+          systemInstruction,
+          temperature,
+          maxOutputTokens,
+          responseMimeType: "application/json",
+          responseSchema: schema as Schema,
+        },
+      }),
+    );
+
+    const text = response.text?.trim();
+    if (!text) {
+      throw new Error("The model returned no output to parse.");
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error("The model returned malformed JSON. Try a clearer scan.");
+    }
   }
 
   /**

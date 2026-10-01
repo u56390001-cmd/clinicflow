@@ -30,13 +30,34 @@ export async function fetchPatientDocuments(
   const { data, error } = await supabase
     .from("patient_documents")
     .select(
-      "id, clinic_id, patient_id, document_name, mime_type, size_bytes, uploaded_by_user_id, uploaded_at",
+      "id, clinic_id, patient_id, document_name, mime_type, size_bytes, document_date, uploaded_by_user_id, uploaded_at",
     )
     .eq("clinic_id", clinicId)
     .eq("patient_id", patientId)
     .order("uploaded_at", { ascending: false });
 
   if (error) {
+    // `document_date` arrived in 0052. If this deployment has not applied it
+    // yet, retry without the column rather than blanking the whole Documents
+    // tab — the dates are a bonus, the list is not.
+    if (isMissingDocumentDate(error.code, error.message)) {
+      const retry = await supabase
+        .from("patient_documents")
+        .select(
+          "id, clinic_id, patient_id, document_name, mime_type, size_bytes, uploaded_by_user_id, uploaded_at",
+        )
+        .eq("clinic_id", clinicId)
+        .eq("patient_id", patientId)
+        .order("uploaded_at", { ascending: false });
+
+      if (!retry.error) {
+        return (retry.data ?? []).map((row) => ({
+          ...row,
+          document_date: null,
+        }));
+      }
+    }
+
     console.error("[patient documents] query failed", {
       clinicId,
       code: error.code,
@@ -46,6 +67,15 @@ export async function fetchPatientDocuments(
   }
 
   return (data ?? []) as PatientDocumentView[];
+}
+
+/** Whether the failure is the 0052 `document_date` column not being there yet. */
+function isMissingDocumentDate(
+  code: string | undefined,
+  message: string,
+): boolean {
+  if (code === "42703" || code === "PGRST204") return true;
+  return message.toLowerCase().includes("document_date");
 }
 
 /**

@@ -83,7 +83,6 @@ export function PatientListPane({
 }) {
   const router = useRouter();
   const [term, setTerm] = useState(params.q);
-  const { tipProps, tooltip } = useHoverTip();
 
   // The params object is rebuilt on every server render, so the debounce effect
   // reads it through a ref and depends only on primitives. Without this the
@@ -114,16 +113,13 @@ export function PatientListPane({
   // thing you still need: a way to see who is in the queue and pick one.
   if (collapsed) {
     return (
-      <>
-        <QueueSpine
-          patients={patients}
-          params={params}
-          selectedPatientId={selectedPatientId}
-          todayQueue={todayQueue}
-          onExpand={onToggleCollapsed}
-        />
-        {tooltip}
-      </>
+      <QueueSpine
+        patients={patients}
+        params={params}
+        selectedPatientId={selectedPatientId}
+        todayQueue={todayQueue}
+        onExpand={onToggleCollapsed}
+      />
     );
   }
 
@@ -138,7 +134,6 @@ export function PatientListPane({
               onClick={onToggleCollapsed}
               aria-expanded
               aria-label="Collapse patient queue"
-              {...tipProps("Collapse queue")}
               className="flex size-8 shrink-0 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-app hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
             >
               <ChevronsLeft aria-hidden="true" className="size-4" />
@@ -325,8 +320,6 @@ export function PatientListPane({
           />
         </nav>
       )}
-
-      {tooltip}
     </div>
   );
 }
@@ -508,7 +501,6 @@ function QueueSpine({
           onClick={onExpand}
           aria-expanded={false}
           aria-label="Expand patient queue"
-          {...tipProps("Expand queue")}
           className="flex size-8 shrink-0 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-app hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         >
           <ChevronsRight aria-hidden="true" className="size-4" />

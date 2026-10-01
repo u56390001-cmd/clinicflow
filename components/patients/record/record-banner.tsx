@@ -1,18 +1,20 @@
 "use client";
 
-import { Fragment, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ChevronsRight,
+  Cake,
+  CalendarDays,
   GitMerge,
   PenLine,
+  Phone,
   Play,
-  TriangleAlert,
-  UserRoundPen,
-  Clock,
+  SquarePen,
+  Timer,
+  User,
+  Wallet,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import {
   completeAndAdvanceAction,
   startConsultationAction,
@@ -20,9 +22,12 @@ import {
 import { VISIT_STATUS_META, visitStatusTone } from "@/lib/constants";
 import { avatarColorFor, initialsOf } from "@/lib/utils/avatar";
 import { ageFromDob } from "@/lib/utils/datetime";
-import { calculateBMI } from "@/lib/patient-record";
 import { cn } from "@/lib/utils";
-import type { PatientDirectoryRow, VisitStatus } from "@/types/database";
+import type {
+  PatientBillStatus,
+  PatientDirectoryRow,
+  VisitStatus,
+} from "@/types/database";
 
 const GENDER_LABELS: Record<"male" | "female" | "other", string> = {
   male: "Male",
@@ -30,22 +35,84 @@ const GENDER_LABELS: Record<"male" | "female" | "other", string> = {
   other: "Other",
 };
 
-/** A visit this patient has today that is still in progress. */
 export type ActiveVisitInfo = {
   id: string;
   status: VisitStatus;
   tokenNumber: number;
+  startedAt: string | null;
+  billing: {
+    status: PatientBillStatus;
+    pendingAmount: number;
+  } | null;
 };
 
+function formatElapsed(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function useConsultationTimer(startedAt: string | null, running: boolean) {
+  const [elapsed, setElapsed] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!running || !startedAt) {
+      setElapsed(null);
+      return;
+    }
+    const startedMs = new Date(startedAt).getTime();
+    if (Number.isNaN(startedMs)) {
+      setElapsed(null);
+      return;
+    }
+    const tick = () => setElapsed(Date.now() - startedMs);
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [startedAt, running]);
+
+  return elapsed;
+}
+
 /**
- * The fixed header of the patient workspace. It stays pinned while the record
- * scrolls, so the four things a doctor must never have to go looking for — who
- * this is, what they are allergic to, what they already have, and what to press
- * next — are on screen for the whole consultation.
+ * One fact, one capsule. Every chip in the record header is the same 24px
+ * shape, the same radius, the same 11.5px weight, and the same 14px icon, so
+ * the row reads as a single register instead of a bag of mismatched badges.
+ * Height is fixed rather than padding-driven because a phone number and a
+ * status word must sit on one line together.
+ */
+const CAPSULE =
+  "inline-flex h-6 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill border-[0.5px] border-hairline bg-chip px-2.5 text-[11.5px] font-semibold leading-none text-text-secondary";
+
+/** The icon inside a capsule, one step quieter than the value it labels. */
+const CAPSULE_ICON = "size-3.5 shrink-0 text-text-muted";
+
+/**
+ * The record's one solid action. Teal, and the only such button. h-8 keeps it
+ * exactly as tall as the identity row's avatar, so the header stays two rows.
+ */
+const ACTION_BUTTON =
+  "inline-flex h-8 items-center gap-1.5 rounded-control bg-primary px-3.5 text-[12.5px] font-bold text-white shadow-action transition-colors hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-50";
+
+/** Outlined secondary action. */
+const OUTLINE_BUTTON =
+  "inline-flex h-8 items-center gap-1.5 rounded-control border-[1.5px] border-primary bg-surface px-3 text-[12.5px] font-semibold text-primary transition-colors hover:bg-primary/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
+
+/** Tertiary action. Quiet until hovered so the solid button keeps the eye. */
+const GHOST_BUTTON =
+  "inline-flex h-8 items-center gap-1.5 rounded-control px-2.5 text-[12.5px] font-semibold text-text-secondary transition-colors hover:bg-app hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
+
+/**
+ * Patient Record header, read top to bottom in the order a clinician needs it:
+ * who this is, what state today's visit is in, the demographics, and finally the
+ * one action that moves the visit forward.
  *
- * Deliberately a band, not a card: no radius, no shadow, a hairline under the
- * tab strip. It is chrome for the workspace, and chrome should read as part of
- * the frame rather than as one more piece of content inside it.
+ * Two structural rules. Every fact about the person — name, UHID, age, gender,
+ * phone — is rendered here and nowhere else in the record, so there is exactly
+ * one place to read it. And the action hierarchy is one solid button, one
+ * outlined, two quiet: the solid one is the reason this pane is open, and a
+ * second one would make the choice ambiguous.
  */
 export function RecordBanner({
   patient,
@@ -65,13 +132,16 @@ export function RecordBanner({
   canStart: boolean;
   onEdit: () => void;
   onMergeDuplicate: () => void;
-  onWritePrescription: (visitId: string) => void;
+  /**
+   * Opens the Prescriptions tab, where the consultation and Rx builder live.
+   * This used to mount a full-screen Write Prescription overlay.
+   */
+  onWritePrescription: () => void;
   onCompleteAndNext?: (nextPatientId: string) => void;
 }) {
   const router = useRouter();
   const [isBusy, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
-  const [consultationTimer, setConsultationTimer] = useState<number>(0);
 
   const handleStart = (formData: FormData) => {
     setActionError(null);
@@ -102,184 +172,189 @@ export function RecordBanner({
     });
   };
 
+  const isConsulting = activeVisit?.status === "in_consultation";
+  const elapsedMs = useConsultationTimer(
+    activeVisit?.startedAt ?? null,
+    isConsulting,
+  );
+
   const genderLabel = patient.gender ? GENDER_LABELS[patient.gender] : null;
-  const age = ageFromDob(patient.date_of_birth) ?? patient.age;
   const statusMeta = activeVisit ? VISIT_STATUS_META[activeVisit.status] : null;
   const statusTone = activeVisit ? visitStatusTone(activeVisit.status) : null;
-  const allergies = patient.known_allergies?.trim() || null;
-  const conditions = patient.medical_conditions?.trim() || null;
-
-  if (activeVisit?.status === "in_consultation") {
-    setConsultationTimer((prev) => (prev >= 0 ? prev + 1 : 0));
-  }
-
-  const bmiInfo = calculateBMI(patient.height, patient.weight);
-  const minutes = Math.floor(consultationTimer / 60);
-  const seconds = consultationTimer % 60;
-  const consultationTimeStr = `${minutes.toString().padStart(2, "0")}:${seconds
-    .toString()
-    .padStart(2, "0")}`;
-
   const visitCount = patient.visit_count ?? 0;
-  const daysSinceLastVisit = patient.last_visit_at
-    ? Math.floor(
-        (Date.now() - new Date(patient.last_visit_at).getTime()) /
-          (1000 * 60 * 60 * 24),
-      )
-    : null;
+  const isFirstVisit = visitCount <= 1;
 
-  if (activeVisit?.status === "in_consultation") {
-    setConsultationTimer((prev) => (prev >= 0 ? prev + 1 : 0));
-  }
+  // The DOB wins over the stored `age` column: a hand-entered age is wrong
+  // within a year, and the fallback only applies to pre-DOB rows.
+  const age = ageFromDob(patient.date_of_birth) ?? patient.age;
 
-  const bmiInfo = calculateBMI(patient.height, patient.weight);
-  const minutes = Math.floor(consultationTimer / 60);
-  const seconds = consultationTimer % 60;
-  const consultationTimeStr = `${minutes.toString().padStart(2, "0")}:${seconds
-    .toString()
-    .padStart(2, "0")}`;
-
-  const metaNodes: React.ReactNode[] = [];
-  if (age !== null) {
-    metaNodes.push(
-      <span key="age" className="tabular-nums">
-        {age} yrs
-      </span>,
-    );
-  }
-  if (genderLabel) {
-    metaNodes.push(<span key="gender">{genderLabel}</span>);
-  }
-  if (patient.phone) {
-    metaNodes.push(<span key="phone">{patient.phone}</span>);
-  }
-  if (patient.patient_code) {
-    metaNodes.push(
-      <span key="uhid" className="font-mono font-semibold text-teal-600">
-        UHID {patient.patient_code}
-      </span>,
-    );
-  }
-  if (patient.blood_group) {
-    metaNodes.push(
-      <span
-        key="blood_group"
-        className="inline-flex items-center rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-semibold text-teal-700"
-      >
-        {patient.blood_group}
-      </span>,
-    );
-  }
-  if (bmiInfo.bmi !== null) {
-    metaNodes.push(
-      <span
-        key="bmi"
-        className="inline-flex items-center rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-semibold text-teal-700"
-      >
-        BMI: {bmiInfo.bmi} - {bmiInfo.category}
-      </span>,
-    );
-  }
+  const billing = activeVisit?.billing ?? null;
+  const billingUnpaid = billing ? billing.pendingAmount > 0 : false;
 
   return (
-    <div className="bg-slate-50/80">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 px-5 pb-3 pt-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <span
-            aria-hidden="true"
-            className={cn(
-              "flex size-11 shrink-0 items-center justify-center rounded-full text-base font-bold",
-              avatarColorFor(patient.id),
-            )}
-          >
-            {initialsOf(patient.name)}
-          </span>
-
-          <div className="min-w-0">
-            <h2 className="min-w-0 truncate text-xl font-bold tracking-tight text-slate-900">
-              {patient.name}
-            </h2>
-            <div className="flex flex-wrap items-center gap-2 text-[12.5px] text-slate-500 mt-1">
-              <span className="tabular-nums">{age || "N/A"} yrs</span>
-              {genderLabel && <span>{genderLabel}</span>}
-              {patient.phone && <span>{patient.phone}</span>}
-              {patient.blood_group && (
-                <span className="inline-flex items-center rounded-md bg-teal-50 px-2 py-0.5 text-xs font-bold text-teal-700">
-                  {patient.blood_group}
-                </span>
-              )}
-              {bmiInfo.bmi !== null && (
-                <span className="inline-flex items-center rounded-md bg-teal-50 px-2 py-0.5 text-xs font-bold text-teal-700">
-                  BMI: {bmiInfo.bmi} - {bmiInfo.category}
-                </span>
-              )}
-              {patient.patient_code && (
-                <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-mono font-bold text-slate-700">
-                  UHID: {patient.patient_code}
-                </span>
-              )}
-              <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
-                Visit #{visitCount}
-              </span>
-              {daysSinceLastVisit !== null && (
-                <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
-                  Last seen: {daysSinceLastVisit} days ago
-                </span>
-              )}
-            </div>
-          </div>
+    // The hairline is the divider the old action bar drew below itself: header
+    // and tab strip are both on bg-surface, so without it they read as one
+    // undifferentiated block.
+    <div className="border-b-[0.5px] border-hairline bg-surface">
+      {/* Row 1 of 2. Who this is on the left, the actions that move today's
+          visit forward on the right. The name is the only thing here at display
+          weight, so the eye lands on the person before the interface. */}
+      <div className="flex items-center gap-3 px-[26px] pt-3.5">
+        <div
+          className={cn(
+            "flex size-10 shrink-0 items-center justify-center rounded-full text-[15px] font-bold",
+            avatarColorFor(patient.id),
+          )}
+        >
+          {initialsOf(patient.name)}
         </div>
 
-        <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
-          {activeVisit?.status === "in_consultation" && (
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1">
-              <span className="text-xs font-semibold text-emerald-700">
-                [✓ Bill Paid]
-              </span>
-            </div>
+        <div className="flex min-w-0 flex-1 items-baseline gap-2">
+          <h1 className="min-w-0 truncate text-[22px] font-bold leading-tight text-ink">
+            {patient.name}
+          </h1>
+          {patient.patient_code && (
+            <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-control border-[0.5px] border-hairline bg-app px-1.5 py-[2px] font-mono text-[11px] font-semibold tracking-tight text-text-secondary">
+              {patient.patient_code}
+            </span>
           )}
+        </div>
+
+        {/* Same hierarchy as before — one solid, one outlined, two quiet — but
+            on the identity row, so the header spends no second row on buttons. */}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {canManage &&
+            (isConsulting ? (
+              <form action={handleComplete}>
+                <input type="hidden" name="visitId" value={activeVisit.id} />
+                <button type="submit" disabled={isBusy} className={ACTION_BUTTON}>
+                  <Play aria-hidden="true" className="size-4 fill-current" strokeWidth={2} />
+                  {isBusy ? "Completing…" : "Complete & Next"}
+                </button>
+              </form>
+            ) : (
+              activeVisit &&
+              canStart && (
+                <form action={handleStart}>
+                  <input type="hidden" name="visitId" value={activeVisit.id} />
+                  <button type="submit" disabled={isBusy} className={ACTION_BUTTON}>
+                    <Play aria-hidden="true" className="size-4 fill-current" strokeWidth={2} />
+                    {isBusy ? "Starting…" : "Start Consultation"}
+                  </button>
+                </form>
+              )
+            ))}
+
           {activeVisit && (
-            <div className="inline-flex items-center gap-2 rounded-full bg-teal-50 border border-teal-200 px-3 py-1">
-              <Clock aria-hidden="true" className="size-4 text-teal-600" />
-              <span className="text-xs font-bold text-teal-700">
-                ⏱️ {consultationTimeStr} mins
-              </span>
-            </div>
+            <button
+              type="button"
+              onClick={onWritePrescription}
+              className={OUTLINE_BUTTON}
+            >
+              <PenLine aria-hidden="true" className="size-4" strokeWidth={2} />
+              Write Prescription
+            </button>
           )}
+
+          {canMerge && (
+            <button type="button" onClick={onMergeDuplicate} className={GHOST_BUTTON}>
+              <GitMerge aria-hidden="true" className="size-4" strokeWidth={2} />
+              Merge Duplicate
+            </button>
+          )}
+
+          <button type="button" onClick={onEdit} className={GHOST_BUTTON}>
+            <SquarePen aria-hidden="true" className="size-4" strokeWidth={2} />
+            Edit Profile
+          </button>
         </div>
       </div>
 
-      <div className="border-t border-slate-200/80 px-5 py-2.5">
-        <div className="flex flex-wrap items-start gap-x-4 gap-y-1.5">
-          {allergies && (
-            <div className="inline-flex items-center gap-2 rounded-full bg-red-50 border border-red-200 px-3 py-1">
-              <TriangleAlert aria-hidden="true" className="size-4 text-red-600" />
-              <span className="text-xs font-semibold text-red-700">
-                ⚠️ ALLERGY: {allergies}
-              </span>
-            </div>
-          )}
-          {conditions && (
-            <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 border border-amber-200 px-3 py-1">
-              <TriangleAlert aria-hidden="true" className="size-4 text-amber-600" />
-              <span className="text-xs font-semibold text-amber-700">
-                🩸 {conditions}
-              </span>
-            </div>
-          )}
-          {!allergies && !conditions && (
-            <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 border border-slate-200 px-3 py-1">
-              <span className="text-xs font-semibold text-slate-600">
-                No Known Allergies
-              </span>
-            </div>
-          )}
-        </div>
+      {/* Row 2 of 2. Every fact about this visit and this person, as one row of
+          identical capsules: the visit's state, then the demographics. This
+          is the only place on the record where they appear — the tabs below
+          never repeat them. Colour is spent once, on the status capsule,
+          because that is the one fact that changes what you do next. */}
+      <div className="flex flex-wrap items-center gap-1.5 px-[26px] pb-4 pt-2.5">
+        {isFirstVisit && (
+          <span className={CAPSULE}>
+            <span className="inline-block size-1.5 shrink-0 rounded-full bg-blue-500" />
+            First Visit
+          </span>
+        )}
+
+        {activeVisit && (
+          <span className={CAPSULE}>
+            <CalendarDays aria-hidden="true" className={CAPSULE_ICON} strokeWidth={2} />
+            Today · Token #{activeVisit.tokenNumber}
+          </span>
+        )}
+
+        {activeVisit && statusMeta && statusTone && (
+          <span className={cn(CAPSULE, statusTone.pill)}>
+            <span
+              className={cn(
+                "inline-block size-1.5 shrink-0 rounded-full",
+                statusTone.dot,
+                activeVisit.status === "waiting" && "animate-pulse",
+              )}
+            />
+            {statusMeta.label}
+          </span>
+        )}
+
+        {elapsedMs !== null && (
+          <span className={cn(CAPSULE, "font-bold tabular-nums")}>
+            <Timer aria-hidden="true" className={CAPSULE_ICON} strokeWidth={2} />
+            {formatElapsed(elapsedMs)}
+          </span>
+        )}
+
+        {billing && (
+          <span
+            className={cn(
+              CAPSULE,
+              "font-bold",
+              billingUnpaid
+                ? "border-status-warning/30 bg-status-warning/10 text-status-warning"
+                : "border-status-success/30 bg-status-success/10 text-status-success",
+            )}
+          >
+            <Wallet aria-hidden="true" className="size-3.5 shrink-0 opacity-80" strokeWidth={2} />
+            {billingUnpaid
+              ? `Pending ₨${billing.pendingAmount.toLocaleString()}`
+              : "Bill Paid"}
+          </span>
+        )}
+
+        {age !== null && age !== undefined && (
+          <span className={CAPSULE}>
+            <Cake aria-hidden="true" className={CAPSULE_ICON} strokeWidth={2} />
+            {age} yrs
+          </span>
+        )}
+
+        {genderLabel && (
+          <span className={CAPSULE}>
+            <User aria-hidden="true" className={CAPSULE_ICON} strokeWidth={2} />
+            {genderLabel}
+          </span>
+        )}
+
+        {patient.phone && (
+          <span className={CAPSULE}>
+            <Phone aria-hidden="true" className={CAPSULE_ICON} strokeWidth={2} />
+            {patient.phone}
+          </span>
+        )}
       </div>
 
       {actionError && (
-        <p className="px-5 pb-2 text-xs text-red-600">{actionError}</p>
+        <p role="alert" className="px-[26px] pb-3 text-xs text-status-destructive">
+          {actionError}
+        </p>
       )}
     </div>
   );
 }
+

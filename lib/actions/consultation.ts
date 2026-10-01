@@ -25,13 +25,19 @@ export async function startConsultationAction(
     visitId: formData.get("visitId"),
   });
   if (!parsed.success) {
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid input.",
+    };
   }
 
   const supabase = await createClient();
   const access = await getCurrentClinic(supabase);
   if (!access) {
-    return { ok: false, message: "You must have a clinic to perform this action." };
+    return {
+      ok: false,
+      message: "You must have a clinic to perform this action.",
+    };
   }
   if (!canManageClinical(access.role)) {
     return { ok: false, message: "Your role cannot manage consultations." };
@@ -43,7 +49,10 @@ export async function startConsultationAction(
   });
 
   if (error) {
-    return { ok: false, message: error.message || "Failed to start consultation." };
+    return {
+      ok: false,
+      message: error.message || "Failed to start consultation.",
+    };
   }
 
   revalidatePath(APP_ROUTES.app.consultation);
@@ -63,13 +72,19 @@ export async function completeAndAdvanceAction(
     visitId: formData.get("visitId"),
   });
   if (!parsed.success) {
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid input.",
+    };
   }
 
   const supabase = await createClient();
   const access = await getCurrentClinic(supabase);
   if (!access) {
-    return { ok: false, message: "You must have a clinic to perform this action." };
+    return {
+      ok: false,
+      message: "You must have a clinic to perform this action.",
+    };
   }
   if (!canManageClinical(access.role)) {
     return { ok: false, message: "Your role cannot manage consultations." };
@@ -81,7 +96,10 @@ export async function completeAndAdvanceAction(
   });
 
   if (error) {
-    return { ok: false, message: error.message || "Failed to complete consultation." };
+    return {
+      ok: false,
+      message: error.message || "Failed to complete consultation.",
+    };
   }
 
   revalidatePath(APP_ROUTES.app.consultation);
@@ -112,13 +130,19 @@ export async function savePrescriptionAction(
     doctorNotes: formData.get("doctorNotes"),
   });
   if (!parsed.success) {
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid input.",
+    };
   }
 
   const supabase = await createClient();
   const access = await getCurrentClinic(supabase);
   if (!access) {
-    return { ok: false, message: "You must have a clinic to perform this action." };
+    return {
+      ok: false,
+      message: "You must have a clinic to perform this action.",
+    };
   }
   if (!canManageClinical(access.role)) {
     return { ok: false, message: "Your role cannot manage prescriptions." };
@@ -146,10 +170,28 @@ export async function savePrescriptionAction(
     unit: String(m.unit ?? ""),
     instructions: String(m.instructions ?? ""),
   });
-  const coerceLabOrder = (o: Record<string, unknown>) => ({
-    test_name: String(o.test_name ?? ""),
-    notes: String(o.notes ?? ""),
-  });
+  /**
+   * Normalises one lab order, keeping `sub_parameters` when the doctor narrowed a
+   * panel. The list is filtered and length-capped here rather than trusted from
+   * the client: this is the boundary where a `null`, a number or a 5000-entry
+   * array becomes the jsonb a lab later reads.
+   *
+   * An empty or absent list is written as `undefined`, not `[]` — an order with
+   * no sub-parameters means the whole panel, and `labTestLabel` reads both the
+   * same way, so old rows and new rows stay indistinguishable to the UI.
+   */
+  const coerceLabOrder = (o: Record<string, unknown>) => {
+    const raw = Array.isArray(o.sub_parameters) ? o.sub_parameters : [];
+    const subParameters = raw
+      .map((item) => String(item).trim())
+      .filter((item) => item.length > 0 && item.length <= 80)
+      .slice(0, 40);
+    return {
+      test_name: String(o.test_name ?? ""),
+      notes: String(o.notes ?? ""),
+      ...(subParameters.length > 0 ? { sub_parameters: subParameters } : {}),
+    };
+  };
 
   const prescriptionData = {
     clinic_id: access.clinic.id,
@@ -175,7 +217,10 @@ export async function savePrescriptionAction(
     });
 
   if (error) {
-    return { ok: false, message: error.message || "Failed to save prescription." };
+    return {
+      ok: false,
+      message: error.message || "Failed to save prescription.",
+    };
   }
 
   revalidatePath(APP_ROUTES.app.consultation);
@@ -199,13 +244,19 @@ export async function saveTemplateAction(
     doctorNotes: formData.get("doctorNotes"),
   });
   if (!parsed.success) {
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid input.",
+    };
   }
 
   const supabase = await createClient();
   const access = await getCurrentClinic(supabase);
   if (!access) {
-    return { ok: false, message: "You must have a clinic to perform this action." };
+    return {
+      ok: false,
+      message: "You must have a clinic to perform this action.",
+    };
   }
   if (!canManageClinical(access.role)) {
     return { ok: false, message: "Your role cannot manage templates." };
@@ -221,23 +272,35 @@ export async function saveTemplateAction(
     unit: String(m.unit ?? ""),
     instructions: String(m.instructions ?? ""),
   });
-  const coerceLabOrderT = (o: Record<string, unknown>) => ({
-    test_name: String(o.test_name ?? ""),
-    notes: String(o.notes ?? ""),
-  });
+  /**
+   * A saved template has to carry the panel narrowing too: a template built
+   * from "CBC, platelets + ESR" that reloads as a full CBC would quietly
+   * re-add four tests the doctor deliberately excluded, on every patient it is
+   * applied to.
+   */
+  const coerceLabOrderT = (o: Record<string, unknown>) => {
+    const raw = Array.isArray(o.sub_parameters) ? o.sub_parameters : [];
+    const subParameters = raw
+      .map((item) => String(item).trim())
+      .filter((item) => item.length > 0 && item.length <= 80)
+      .slice(0, 40);
+    return {
+      test_name: String(o.test_name ?? ""),
+      notes: String(o.notes ?? ""),
+      ...(subParameters.length > 0 ? { sub_parameters: subParameters } : {}),
+    };
+  };
 
-  const { error } = await supabase
-    .from("prescription_templates")
-    .insert({
-      clinic_id: access.clinic.id,
-      doctor_id: d.doctorId,
-      name: d.name,
-      diagnosis: d.diagnosis || "",
-      custom_diagnosis: d.customDiagnosis || "",
-      medicines: d.medicines.map(coerceMedicineT),
-      lab_orders: d.labOrders.map(coerceLabOrderT),
-      doctor_notes: d.doctorNotes || "",
-    });
+  const { error } = await supabase.from("prescription_templates").insert({
+    clinic_id: access.clinic.id,
+    doctor_id: d.doctorId,
+    name: d.name,
+    diagnosis: d.diagnosis || "",
+    custom_diagnosis: d.customDiagnosis || "",
+    medicines: d.medicines.map(coerceMedicineT),
+    lab_orders: d.labOrders.map(coerceLabOrderT),
+    doctor_notes: d.doctorNotes || "",
+  });
 
   if (error) {
     return { ok: false, message: error.message || "Failed to save template." };
@@ -258,13 +321,19 @@ export async function deleteTemplateAction(
     templateId: formData.get("templateId"),
   });
   if (!parsed.success) {
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid input." };
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid input.",
+    };
   }
 
   const supabase = await createClient();
   const access = await getCurrentClinic(supabase);
   if (!access) {
-    return { ok: false, message: "You must have a clinic to perform this action." };
+    return {
+      ok: false,
+      message: "You must have a clinic to perform this action.",
+    };
   }
   if (!canManageClinical(access.role)) {
     return { ok: false, message: "Your role cannot delete templates." };
@@ -277,7 +346,10 @@ export async function deleteTemplateAction(
     .eq("clinic_id", access.clinic.id);
 
   if (error) {
-    return { ok: false, message: error.message || "Failed to delete template." };
+    return {
+      ok: false,
+      message: error.message || "Failed to delete template.",
+    };
   }
 
   revalidatePath(APP_ROUTES.app.consultation);

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   ChevronDown,
+  ClipboardList,
   MapPin,
   Phone,
   Plus,
@@ -13,6 +14,13 @@ import {
 } from "lucide-react";
 
 import { SubmitButton } from "@/components/auth/submit-button";
+import {
+  PAST_HISTORY_CARD_CLASS,
+  PAST_HISTORY_FIELDS,
+  PAST_HISTORY_FIELD_CLASS,
+  PAST_HISTORY_RULE_CLASS,
+} from "@/components/patients/record/past-history-config";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -438,6 +446,45 @@ export function PatientForm({
                   />
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* ── Past History ───────────────────────────────────────────── */}
+          {/* Full width below the two columns: these are long-form narrative
+              answers, so a half-width column would wrap them to the point of
+              being unusable. Mirrors the reference card in docs/pt001.txt. */}
+          <div className="mt-6 space-y-4">
+            <div className="border-b border-gray-200 pb-2">
+              <h3 className="mb-0 flex items-center text-lg font-semibold text-gray-900">
+                <div className="mr-3 rounded-lg bg-[#5260B5]/10 p-2">
+                  <ClipboardList aria-hidden="true" className="h-5 w-5 text-[#5260B5]" strokeWidth={2} />
+                </div>
+                Past History
+              </h3>
+            </div>
+
+            <div className={PAST_HISTORY_CARD_CLASS}>
+              {PAST_HISTORY_FIELDS.map((field) => (
+                <div
+                  key={field.name}
+                  className={cn(field.rule && PAST_HISTORY_RULE_CLASS)}
+                >
+                  <label
+                    htmlFor={`patient-${field.name}`}
+                    className="mb-1.5 block text-[12.5px] font-bold text-ink"
+                  >
+                    {field.label}
+                  </label>
+                  <AutoGrowTextarea
+                    id={`patient-${field.name}`}
+                    name={field.name}
+                    rows={3}
+                    placeholder={field.placeholder}
+                    defaultValue={patient?.[field.column]}
+                    className={PAST_HISTORY_FIELD_CLASS}
+                  />
+                </div>
+              ))}
             </div>
           </div>
         </div>

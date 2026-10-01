@@ -30,6 +30,8 @@ import {
   Activity,
   GripHorizontal,
   PersonStanding,
+  FileText,
+  Sparkles,
 } from "lucide-react";
 
 import { AppointmentForm } from "@/components/appointments/appointment-form";
@@ -48,6 +50,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CheckInModal } from "@/components/queue/check-in-modal";
+import { OcrUploadModal } from "@/components/patients/record/ocr-upload-modal";
 import type { DoctorVitalsConfigMap } from "@/lib/vitals-config";
 import { setAppointmentStatusAction } from "@/lib/actions/appointments";
 import { completeAndAdvanceAction } from "@/lib/actions/consultation";
@@ -1540,6 +1543,12 @@ function WaitingQueueSection({
     FormData
   >(reorderQueueAction, null);
 
+  // AI OCR upload — modal target patient + a running count of `pending_approval`
+  // items each queued patient has staged for doctor review, so the card can show
+  // the review chip until the record picks the items up.
+  const [ocrPatientId, setOcrPatientId] = useState<string | null>(null);
+  const [ocrCounts, setOcrCounts] = useState<Record<string, number>>({});
+
   // Waiting list = 'waiting' status only (in-consultation patients are shown
   // in their own section above). Ordered by queue_position from the server.
   const waiting = queue.filter((v) => v.status === "waiting");
@@ -1622,6 +1631,7 @@ function WaitingQueueSection({
               appt?.booking_source === "dashboard" ||
               appt?.booking_source === "walk_in";
             const hasVitals = item.vitals != null;
+            const pendingOcr = ocrCounts[item.patient_id] ?? 0;
 
             return (
               <div
@@ -1713,6 +1723,19 @@ function WaitingQueueSection({
                     onClick={(e) => e.stopPropagation()}
                     className="flex flex-shrink-0 items-center gap-2.5 self-center"
                   >
+                    {pendingOcr > 0 && (
+                      <span
+                        title="Scanned items waiting for doctor review on the History tab"
+                        className="flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700"
+                      >
+                        <Sparkles
+                          className="h-3 w-3"
+                          aria-hidden="true"
+                        />
+                        {pendingOcr} OCR{" "}
+                        {pendingOcr === 1 ? "item" : "items"} pending review
+                      </span>
+                    )}
                     {canManage ? (
                       <>
                         <button
@@ -1726,6 +1749,19 @@ function WaitingQueueSection({
                             className="h-4 w-4"
                             aria-hidden="true"
                           />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setOcrPatientId(item.patient_id)}
+                          title="Upload past medical reports for AI scanning"
+                          aria-label="Upload document for AI scanning"
+                          className="flex items-center gap-1 whitespace-nowrap rounded-full border-[1.5px] border-hairline bg-white px-2 py-1 text-[10px] font-semibold text-ink transition-colors hover:bg-slate-50"
+                        >
+                          <FileText
+                            className="h-3 w-3"
+                            aria-hidden="true"
+                          />
+                          Upload Doc
                         </button>
                         <button
                           type="button"
@@ -1775,6 +1811,18 @@ function WaitingQueueSection({
             );
           })}
         </div>
+      )}
+
+      {ocrPatientId && (
+        <OcrUploadModal
+          patientId={ocrPatientId}
+          onClose={() => setOcrPatientId(null)}
+          onProcessed={(count) => {
+            if (count > 0) {
+              setOcrCounts((prev) => ({ ...prev, [ocrPatientId]: count }));
+            }
+          }}
+        />
       )}
     </div>
   );

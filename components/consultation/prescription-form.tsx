@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useActionState, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useActionState, useRef, useState, forwardRef, useImperativeHandle } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 
@@ -22,6 +22,11 @@ import { cn } from "@/lib/utils";
 import type { PrescriptionDraft } from "@/components/patients/record/prescription-draft-context";
 import type { ActionResult } from "@/types";
 import type { Prescription, MedicineEntry as MedEntry, LabOrder, PrescriptionTemplate } from "@/types/database";
+import type { CopilotExtraction } from "@/lib/copilot/types";
+
+export interface PrescriptionFormRef {
+  populateFromCopilot: (data: CopilotExtraction) => void;
+}
 
 /**
  * Full prescription form — chief complaint, findings, diagnosis, medicines,
@@ -40,17 +45,23 @@ import type { Prescription, MedicineEntry as MedEntry, LabOrder, PrescriptionTem
  *   is the voice copilot's write target — `applied` marks ring fields amber
  *   until the doctor edits them.
  */
-export function PrescriptionForm({
-  visitId,
-  prescription,
-  doctorId,
-  templates,
-}: {
+export const PrescriptionForm = forwardRef<PrescriptionFormRef, {
   visitId: string;
   prescription: Prescription | null;
   doctorId: string | null;
   templates: PrescriptionTemplate[];
-}) {
+  /**
+   * False where "Save as Template" is rendered outside the form — the patient
+   * record's Rx workspace puts it in its sub-header, next to Print and Complete.
+   */
+  showTemplateSave?: boolean;
+}>(function PrescriptionForm({
+  visitId,
+  prescription,
+  doctorId,
+  templates,
+  showTemplateSave = true,
+}, ref) {
   const router = useRouter();
   // Raw context for seeding; the gated bridge below is only live once the
   // provider actually holds a draft for THIS visit (a different visit's draft
@@ -186,6 +197,72 @@ export function PrescriptionForm({
     [patch],
   );
 
+  // Copilot populate handler — maps CopilotExtraction to PrescriptionDraft
+  const populateFromCopilot = useCallback(
+    (extracted: CopilotExtraction) => {
+      if (!extracted) return;
+
+      const updates: Partial<PrescriptionDraft> = {};
+
+      if (extracted.chief_complaint) {
+        updates.chiefComplaint = extracted.chief_complaint;
+      }
+
+      if (extracted.findings) {
+        updates.findings = extracted.findings;
+      }
+
+      if (extracted.diagnosis) {
+        updates.diagnosis = extracted.diagnosis;
+      }
+
+      if (extracted.medicines && extracted.medicines.length > 0) {
+        updates.medicines = extracted.medicines.map((m) => ({
+          name: m.name,
+          route: m.route || "Oral",
+          form: m.form || "Tablet",
+          frequency: m.frequency,
+          duration: m.duration,
+          unit: m.unit || "Days",
+          instructions: m.instructions
+        }));
+      }
+
+      if (extracted.lab_orders && extracted.lab_orders.length > 0) {
+        updates.labOrders = extracted.lab_orders.map((l) => ({
+          test_name: l.test_name,
+          notes: l.notes || ""
+        }));
+      }
+
+      if (extracted.follow_up_after) {
+        updates.followUpDate = extracted.follow_up_after;
+      }
+
+      if (extracted.follow_up_notes) {
+        updates.followUpNotes = extracted.follow_up_notes;
+      }
+
+      if (extracted.doctor_notes) {
+        updates.doctorNotes = extracted.doctor_notes;
+      }
+
+      patch(updates);
+
+      // Mark populated fields for amber ring
+      if (bridge) {
+        const keys = Object.keys(updates) as (keyof PrescriptionDraft)[];
+        bridge.markApplied(keys);
+      }
+    },
+    [patch, bridge],
+  );
+
+  // Expose populate method via ref
+  useImperativeHandle(ref, () => ({
+    populateFromCopilot
+  }), [populateFromCopilot]);
+
   /** Ring for copilot-written fields — one class source so no field is missed. */
   const ring = (key: keyof PrescriptionDraft) =>
     marked.has(key)
@@ -204,6 +281,8 @@ export function PrescriptionForm({
           doctorId={doctorId}
           templates={templates}
           onLoad={handleLoadTemplate}
+          values={draft}
+          showSave={showTemplateSave}
         />
       )}
 
@@ -390,7 +469,7 @@ export function PrescriptionForm({
       </form>
     </div>
   );
-}
+});
 
 /** The "AI wrote this — review it" chip sitting beside a marked field's label. */
 function CopilotMark() {

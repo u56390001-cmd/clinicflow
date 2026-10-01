@@ -13,7 +13,6 @@ import {
   PatientRecordPaneActionsContext,
   type PatientRecordPaneActions,
 } from "@/components/patients/patient-record-pane";
-import { WritePrescriptionOverlay } from "@/components/consultation/write-prescription-overlay";
 import {
   type PatientDirectoryParams,
   type PatientTodayQueue,
@@ -46,7 +45,6 @@ export function PatientsWorkspace({
   canManage,
   canMerge,
   timezone,
-  clinic,
 }: {
   patients: PatientDirectoryRow[];
   total: number;
@@ -62,8 +60,6 @@ export function PatientsWorkspace({
   /** `canMergePatients` — gates the banner's Merge Duplicate control. */
   canMerge: boolean;
   timezone: string;
-  /** The signed-in clinic — carried from the server page for the prescription overlay. */
-  clinic: { id: string; name: string; address: string | null; phone: string | null };
 }) {
   // `null` = closed. `{ patient: null }` = blank add form.
   const [form, setForm] = useState<{ patient: Patient | null } | null>(null);
@@ -74,14 +70,6 @@ export function PatientsWorkspace({
   );
   const closeForm = useCallback(() => setForm(null), []);
 
-  // Full-screen Write Prescription overlay. `null` = closed.
-  const [rxVisit, setRxVisit] = useState<{ visitId: string } | null>(null);
-  const openWritePrescription = useCallback(
-    (visitId: string) => setRxVisit({ visitId }),
-    [],
-  );
-  const closeWritePrescription = useCallback(() => setRxVisit(null), []);
-
   // Merge-duplicate overlay; the open record is always the primary.
   const [mergeOpen, setMergeOpen] = useState(false);
   const openMergeDuplicate = useCallback(() => setMergeOpen(true), []);
@@ -91,29 +79,22 @@ export function PatientsWorkspace({
 
   // The record pane is rendered by the server and streamed in behind a Suspense
   // boundary, so its two callbacks travel through context rather than props — a
-  // server component cannot be handed a function.
+  // server component cannot be handed a function. Write Prescription is not one
+  // of them: it is a tab on the record now, so the record routes to it itself.
   const recordPaneActions = useMemo<PatientRecordPaneActions>(
     () =>
       selectedPatient
         ? {
             onEdit: () => openEditPatient(selectedPatient),
-            onWritePrescription: openWritePrescription,
             onMergeDuplicate: openMergeDuplicate,
             canMerge,
           }
         : {
             onEdit: () => {},
-            onWritePrescription: () => {},
             onMergeDuplicate: () => {},
             canMerge: false,
           },
-    [
-      selectedPatient,
-      openEditPatient,
-      openWritePrescription,
-      openMergeDuplicate,
-      canMerge,
-    ],
+    [selectedPatient, openEditPatient, openMergeDuplicate, canMerge],
   );
 
   // The queue is the second thing to make room, after the nav rail: collapse it
@@ -188,16 +169,6 @@ export function PatientsWorkspace({
 
       {mergeOpen && selectedPatient && (
         <MergePatientModal primary={selectedPatient} onClose={closeMergeDuplicate} />
-      )}
-
-      {rxVisit && selectedPatient && (
-        <WritePrescriptionOverlay
-          visitId={rxVisit.visitId}
-          patientId={selectedPatient.id}
-          clinic={clinic}
-          timezone={timezone}
-          onClose={closeWritePrescription}
-        />
       )}
     </PatientRecordPaneActionsContext.Provider>
   );

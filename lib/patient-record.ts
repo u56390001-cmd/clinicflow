@@ -14,9 +14,13 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { fetchMedicalHistory } from "@/lib/medical-history-queries";
+import type { HistoryItem } from "@/types/history";
 import type {
   Database,
-  MedicineEntry,
+  PatientAlert,
+  PatientLabResult,
+  PatientMedication,
   Prescription,
   Visit,
   Vitals,
@@ -25,6 +29,8 @@ import type {
 /** A visit with the doctor, vitals and prescription that belong to it. */
 export type PatientVisitRow = Visit & {
   doctorName: string | null;
+  /** Shown as "Dr. Name — Specialty" wherever the assigned doctor is named. */
+  doctorSpecialty: string | null;
   vitals: Vitals | null;
   prescription: Prescription | null;
 };
@@ -48,9 +54,31 @@ export type PatientRecordData = {
   vitals: PatientVitalsRow[];
   /** Newest first. */
   prescriptions: PatientPrescriptionRow[];
+  /** Structured past-history entries, newest first. */
+  medicalHistory: HistoryItem[];
+  /** Medicines on the patient's medication list, newest first (0050). */
+  medications: PatientMedication[];
+  /** Safety alerts staged from scanned documents, newest first (0051). */
+  alerts: PatientAlert[];
+  /**
+   * Lab values extracted from scanned documents, newest first (0053).
+   *
+   * Empty rather than absent on a failed read: the workspace rail treats a
+   * missing table the same as a patient with no scans, and a thrown error here
+   * would take the whole record down over a list at the bottom of the rail.
+   */
+  labResults: PatientLabResult[];
 };
 
-const EMPTY: PatientRecordData = { visits: [], vitals: [], prescriptions: [] };
+const EMPTY: PatientRecordData = {
+  visits: [],
+  vitals: [],
+  prescriptions: [],
+  medicalHistory: [],
+  medications: [],
+  alerts: [],
+  labResults: [],
+};
 
 /**
  * Render a blood-pressure reading. Prefers the structured systolic/diastolic
@@ -72,137 +100,32 @@ export function formatBloodPressure(vitals: {
 }
 
 /**
- * Calculate BMI from height in cm and weight in kg.
- * Returns null if height is invalid (less than 1 meter).
+ * Calculate BMI from a height in cm and a weight in kg, plus the WHO category
+ * band it falls in. Returns nulls when either input is missing or the height is
+ * implausible, so callers can render "—" instead of dividing by ~0.
+ *
+ * Lives here rather than in a component because both the banner and the
+ * Visit History tab badge the same number, and a second implementation is how
+ * the two drift apart.
  */
-export function calculateBMI(heightCm: number | null, weightKg: number | null): {
-  bmi: number | null;
-  category: string | null;
-} {
+export function calculateBMI(
+  heightCm: number | null,
+  weightKg: number | null,
+): { bmi: number | null; category: string | null } {
   if (!heightCm || !weightKg || heightCm < 100) {
     return { bmi: null, category: null };
   }
   const heightM = heightCm / 100;
   const bmi = weightKg / (heightM * heightM);
-  let category = null;
-  if (bmi < 18.5) {
-    category = "Underweight";
-  } else if (bmi < 25) {
-    category = "Normal";
-  } else if (bmi < 30) {
-    category = "Overweight";
-  } else {
-    category = "Obese";
-  }
+  const category =
+    bmi < 18.5
+      ? "Underweight"
+      : bmi < 25
+        ? "Normal"
+        : bmi < 30
+          ? "Overweight"
+          : "Obese";
   return { bmi: parseFloat(bmi.toFixed(1)), category };
-}
-
-/**
- * Get the last prescription details for a patient.
- */
-export async function getLastPrescription(
-  supabase: SupabaseClient<Database>,
-  clinicId: string,
-  patientId: string,
-): Promise<{
-  chief_complaint: string | null;
-  diagnosis: string | null;
-  medicines: MedicineEntry[] | null;
-  doctor_name: string | null;
-  visit_date: string | null;
-} | null> {
-  const { data, error } = await supabase
-    .from("prescriptions")
-    .select(`
-      chief_complaint,
-      diagnosis,
-      medicines,
-      doctor_id,
-      created_at,
-      visits (checked_in_at)
-    `)
-    .eq("clinic_id", clinicId)
-    .eq("patient_id", patientId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single();
-
-  if (error || !data) {
-    return null;
-  }
-
-  const doctor = data.doctor_id
-    ? await supabase
-        .from("doctors")
-        .select("name")
-        .eq("id", data.doctor_id)
-        .single()
-    : { data: null };
-
-  return {
-    chief_complaint: data.chief_complaint || null,
-    diagnosis: data.diagnosis || null,
-    medicines: data.medicines || null,
-    doctor_name: doctor.data?.name || null,
-    visit_date: data.visits?.checked_in_at || null,
-  };
-}
-
-/**
- * Get billing information for the current visit.
- */
-export async function getCurrentBillingInfo(
-  supabase: SupabaseClient<Database>,
-  clinicId: string,
-  patientId: string,
-): Promise<{
-  total_amount: number;
-  pending_amount: number;
-  paid: boolean;
-  visit_count: number;
-} | null> {
-  const { data: visits, error: visitsError } = await supabase
-    .from("visits")
-    .select("id, status, token_number, checked_in_at")
-    .eq("clinic_id", clinicId)
-    .eq("patient_id", patientId)
-    .order("checked_in_at", { ascending: false })
-    .limit(1)
-    .single();
-
-  if (visitsError || !visits) {
-    return null;
-  }
-
-  const { data: bills } = await supabase
-    .from("patient_bills")
-    .select("total_amount, status, bill_type")
-    .eq("clinic_id", clinicId)
-    .eq("patient_id", patientId)
-    .order("created_at", { ascending: false })
-    .limit(1);
-
-  if (!bills || bills.length === 0) {
-    return {
-      total_amount: 0,
-      pending_amount: 0,
-      paid: true,
-      visit_count: patientId ? 1 : 0,
-    };
-  }
-
-  const latestBill = bills[0];
-  const pending_amount = latestBill.status === "pending"
-    ? latestBill.total_amount
-    : 0;
-  const paid = pending_amount === 0;
-
-  return {
-    total_amount: latestBill.total_amount,
-    pending_amount,
-    paid,
-    visit_count: patientId ? 1 : 0,
-  };
 }
 
 export async function fetchPatientRecord(
@@ -214,8 +137,10 @@ export async function fetchPatientRecord(
     { data: visits, error: visitsError },
     { data: doctors },
     { data: prescriptionRows },
-    { data: bills },
-    { data: documents },
+    { data: medicationRows },
+    { data: alertRows },
+    { data: labResults },
+    history,
   ] = await Promise.all([
     supabase
       .from("visits")
@@ -223,7 +148,10 @@ export async function fetchPatientRecord(
       .eq("clinic_id", clinicId)
       .eq("patient_id", patientId)
       .order("checked_in_at", { ascending: false }),
-    supabase.from("doctors").select("id, name").eq("clinic_id", clinicId),
+    supabase
+      .from("doctors")
+      .select("id, name, specialty")
+      .eq("clinic_id", clinicId),
     // Prescriptions hang off the patient directly, so they are worth fetching
     // even when there are no visit rows (an imported history, for example).
     supabase
@@ -232,20 +160,30 @@ export async function fetchPatientRecord(
       .eq("clinic_id", clinicId)
       .eq("patient_id", patientId)
       .order("created_at", { ascending: false }),
-    // Parallel query for current billing status
+    // Medicine list (0050) — scanned AI OCR rows land here awaiting approval.
     supabase
-      .from("patient_bills")
-      .select("total_amount, status, bill_type")
+      .from("patient_medications")
+      .select("*")
       .eq("clinic_id", clinicId)
       .eq("patient_id", patientId)
-      .order("created_at", { ascending: false })
-      .limit(1),
-    // Parallel query for patient documents
+      .order("created_at", { ascending: false }),
+    // Safety alerts (0051) — scanned allergies / known cases awaiting review.
     supabase
-      .from("patient_documents")
-      .select("id, document_name, status, uploaded_at")
+      .from("patient_alerts")
+      .select("*")
       .eq("clinic_id", clinicId)
-      .eq("patient_id", patientId),
+      .eq("patient_id", patientId)
+      .order("created_at", { ascending: false }),
+    // Lab results (0053) — extracted values from scanned reports, ordered newest.
+    supabase
+      .from("patient_lab_results")
+      .select("*")
+      .eq("clinic_id", clinicId)
+      .eq("patient_id", patientId)
+      .order("created_at", { ascending: false }),
+    // Structured past-history entries (0045, widened in 0048). Pairs with the
+    // free-text past_history columns on the patient row.
+    fetchMedicalHistory(supabase, clinicId, patientId),
   ]);
 
   if (visitsError) {
@@ -259,6 +197,9 @@ export async function fetchPatientRecord(
 
   const doctorNames = new Map(
     (doctors ?? []).map((doctor) => [doctor.id, doctor.name]),
+  );
+  const doctorSpecialties = new Map(
+    (doctors ?? []).map((doctor) => [doctor.id, doctor.specialty ?? null]),
   );
   const visitRows = visits ?? [];
   const visitIds = visitRows.map((visit) => visit.id);
@@ -285,7 +226,10 @@ export async function fetchPatientRecord(
     visits: visitRows.map((visit) => ({
       ...visit,
       doctorName: visit.doctor_id
-        ? doctorNames.get(visit.doctor_id) ?? null
+        ? (doctorNames.get(visit.doctor_id) ?? null)
+        : null,
+      doctorSpecialty: visit.doctor_id
+        ? (doctorSpecialties.get(visit.doctor_id) ?? null)
         : null,
       vitals: vitalsByVisit.get(visit.id) ?? null,
       prescription: prescriptionByVisit.get(visit.id) ?? null,
@@ -300,10 +244,16 @@ export async function fetchPatientRecord(
       const visit = visitById.get(row.visit_id);
       return {
         ...(row as Prescription),
-        doctorName: row.doctor_id ? doctorNames.get(row.doctor_id) ?? null : null,
+        doctorName: row.doctor_id
+          ? (doctorNames.get(row.doctor_id) ?? null)
+          : null,
         visitDate: visit?.checked_in_at ?? null,
         tokenNumber: visit?.token_number ?? null,
       };
     }),
+    medications: medicationRows ?? [],
+    alerts: alertRows ?? [],
+    labResults: labResults ?? [],
+    medicalHistory: history?.entries ?? [],
   };
 }

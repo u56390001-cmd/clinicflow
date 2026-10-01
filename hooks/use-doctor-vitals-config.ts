@@ -18,8 +18,12 @@ export type DoctorVitalsConfigState =
  *
  * Pass `preloaded` (the page's server-fetched map) when available: a hit
  * starts in the `ready` state on first paint, so the Add Vitals popup never
- * shows a skeleton or re-flows its field grid after opening. Only a miss
- * falls back to the client fetch.
+ * shows a skeleton or re-flows its field grid after opening. The preloaded
+ * value is only a first-paint optimization — the effect ALWAYS refetches the
+ * doctor's config on the background and converges to the latest row. This
+ * makes a config edit (e.g. the doctor re-enabling blood pressure) take
+ * effect immediately even when this page was rendered with a stale cached
+ * map (see next.config staleTimes).
  */
 export function useDoctorVitalsConfig(
   doctorId: string | null | undefined,
@@ -44,15 +48,19 @@ export function useDoctorVitalsConfig(
       setState({ status: "ready", config: null });
       return;
     }
-    if (preloaded && doctorId in preloaded) {
-      setState({ status: "ready", config: preloaded[doctorId] });
-      return;
+    // Keep the preloaded value on screen while the fresh copy loads; only a
+    // miss (or a new doctor) needs the skeleton.
+    if (!preloaded || !(doctorId in preloaded)) {
+      setState({ status: "loading", config: null });
     }
-    setState({ status: "loading", config: null });
     getDoctorVitalsConfigAction(doctorId).then((result) => {
       if (!active) return;
       if (!result.ok) {
-        setState({ status: "error", config: null });
+        // Never downgrade a preloaded config to an error — it is better to
+        // keep the stale-but-usable fields than to blank the form.
+        setState((prev) =>
+          prev.status === "ready" ? prev : { status: "error", config: null },
+        );
         return;
       }
       setState({ status: "ready", config: result.data });

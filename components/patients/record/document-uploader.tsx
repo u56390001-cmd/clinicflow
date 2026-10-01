@@ -163,7 +163,7 @@ export function DocumentUploader({
       ) : (
         <Button
           type="button"
-          variant="outline"
+          variant="primary"
           size="sm"
           disabled={disabled || pending}
           onClick={() => inputRef.current?.click()}

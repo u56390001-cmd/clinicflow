@@ -314,6 +314,7 @@ export async function recordVitalsAction(
   const spo2Val = formData.get("spo2");
   const respRateVal =
     formData.get("respiratory_rate") ?? formData.get("respiratoryRate");
+  const bloodSugarVal = formData.get("blood_sugar") ?? formData.get("bloodSugar");
 
   const parsed = vitalsSchema.safeParse({
     visitId: formData.get("visitId") ?? "",
@@ -326,6 +327,7 @@ export async function recordVitalsAction(
     diastolicBp: diastolicVal ? Number(diastolicVal) : undefined,
     spo2: spo2Val ? Number(spo2Val) : undefined,
     respiratoryRate: respRateVal ? Number(respRateVal) : undefined,
+    bloodSugar: bloodSugarVal ? Number(bloodSugarVal) : undefined,
   });
   if (!parsed.success) {
     return {
@@ -384,6 +386,7 @@ export async function recordVitalsAction(
     p_spo2: parsed.data.spo2 || null,
     p_respiratory_rate: parsed.data.respiratoryRate || null,
     p_custom_vitals: customVitals.length > 0 ? customVitals : null,
+    p_blood_sugar: parsed.data.bloodSugar || null,
   });
 
   if (error) {

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw, Sparkles } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { utcIsoToClinicLocalInput } from "@/lib/time";
@@ -29,11 +30,16 @@ type GenerateResponse = {
  * The card is always rendered, even with nothing to show — its presence tells
  * staff the feature exists and what unlocks it, which a hidden card cannot.
  *
+ * The body is a compact bullet list (summaries arrive as "- " bullets from both
+ * the record generator and the document scanner) on a white card for contrast —
+ * a doctor glancing between consults gets the takeaways in two or three lines.
+ *
  * Generation is manual (plan §1.4 / decision D4): the button POSTs to
  * `/api/patients/{id}/ai-summary`, which caches the result on the patient row.
- * Nothing generates on page load, so opening a record costs no model call. The
- * button only appears when the deployment has set `PATIENT_AI_SUMMARY_ENABLED` —
- * a control that always errors is worse than no control.
+ * Scanning a document also writes a scan-based summary here. Nothing generates
+ * on page load, so opening a record costs no model call. The button only
+ * appears when the deployment has set `PATIENT_AI_SUMMARY_ENABLED` — a control
+ * that always errors is worse than no control.
  */
 export function AiSummaryCard({
   patientId,
@@ -112,13 +118,22 @@ export function AiSummaryCard({
     }
   }
 
+  // Summaries arrive as "- " bullets on one line each; strip the dash and paint
+  // a small teal marker instead so the text itself stays scannable.
+  const bullets = hasSummary
+    ? (shownSummary ?? "")
+        .split("\n")
+        .map((line) => line.replace(/^[-•*]\s+/, "").trim())
+        .filter(Boolean)
+    : [];
+
   return (
-    <section className="rounded-card border border-primary/25 bg-primary/5 p-4">
+    <section className="rounded-card border border-hairline bg-white p-4">
       <div className="flex items-center gap-2">
-        <Sparkles aria-hidden="true" className="size-4 text-primary" />
-        <h3 className="text-sm font-semibold text-secondary">
-          AI Patient Summary
-        </h3>
+        <span className="flex size-5 items-center justify-center rounded-md bg-teal-50 text-teal-600">
+          <Sparkles aria-hidden="true" className="size-3.5" />
+        </span>
+        <h3 className="text-sm font-semibold text-ink">AI Patient Summary</h3>
         {canGenerate && (
           <Button
             variant="ghost"
@@ -143,18 +158,31 @@ export function AiSummaryCard({
 
       {hasSummary ? (
         <>
-          <p className="mt-2 whitespace-pre-wrap text-sm text-text-primary">
-            {shownSummary}
-          </p>
-          <p className="mt-3 text-xs text-text-muted">
-            {shownGeneratedAt
-              ? `Generated ${formatNaiveDate(utcIsoToClinicLocalInput(shownGeneratedAt, timezone))}`
-              : "Generated earlier"}
-            {stale ? " · new visits since" : ""}
-          </p>
+          <ul className="mt-2.5 flex flex-col gap-1.5">
+            {bullets.map((bullet, index) => (
+              <li
+                key={`${bullet.slice(0, 24)}-${index}`}
+                className="flex gap-2 text-[13px] leading-relaxed text-slate-700"
+              >
+                <span
+                  aria-hidden="true"
+                  className="mt-[7px] size-1.5 shrink-0 rounded-full bg-teal-600"
+                />
+                {bullet}
+              </li>
+            ))}
+          </ul>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <p className="text-[11px] text-slate-400">
+              {shownGeneratedAt
+                ? `Generated ${formatNaiveDate(utcIsoToClinicLocalInput(shownGeneratedAt, timezone))}`
+                : "Generated earlier"}
+            </p>
+            {stale && <Badge variant="warning">new visits since</Badge>}
+          </div>
         </>
       ) : (
-        <p className="mt-2 text-sm text-text-secondary">
+        <p className="mt-2 text-sm text-slate-500">
           {!hasHistory
             ? AI_SUMMARY_EMPTY_STATE
             : canGenerate
@@ -164,7 +192,7 @@ export function AiSummaryCard({
       )}
 
       {pending && (
-        <p className="mt-2 text-xs text-text-muted">Reading the record…</p>
+        <p className="mt-2 text-xs text-slate-400">Reading the record…</p>
       )}
       {error && (
         <p className="mt-2 text-xs text-status-destructive">{error}</p>

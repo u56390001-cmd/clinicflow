@@ -114,7 +114,6 @@ export async function fetchConsultationData(
   // (clinic + visit id), so they go out together; one round trip instead of
   // two on the page's critical path. When the visit is missing the extra
   // prescription read is simply unused — same null return as before.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join queries return complex inferred types
   const [{ data: visit, error: visitError }, { data: prescription }] =
     await Promise.all([
       supabase
@@ -146,22 +145,8 @@ export async function fetchConsultationData(
 
   // Phase 22 — pre-consultation answers collected during/after booking,
   // joined with their question text and ordered like the clinic configured.
-  const answers: ConsultationPreAnswer[] = [];
   const appointmentId = v.appointment_id as string | null;
-  if (appointmentId) {
-    const { data: answerRows } = await supabase
-      .from("pre_consultation_answers")
-      .select(
-        "*, pre_consultation_questions!pre_consultation_answers_clinic_question_fkey(question_text)",
-      )
-      .eq("clinic_id", clinicId)
-      .eq("appointment_id", appointmentId)
-      .order("display_order", {
-        foreignTable: "pre_consultation_questions",
-        ascending: true,
-      });
-    answers.push(...((answerRows ?? []) as unknown as ConsultationPreAnswer[]));
-  }
+  const answers = await fetchPreConsultationAnswers(supabase, clinicId, appointmentId);
 
   return {
     visit: v as Visit,
@@ -172,6 +157,36 @@ export async function fetchConsultationData(
     prescription: prescription as Prescription | null,
     answers,
   };
+}
+
+/**
+ * Pre-consultation answers for a visit's booking, joined with their question
+ * text and ordered the way the clinic sequenced the questions.
+ *
+ * Lives here as its own read so the patient record's prescription workspace can
+ * show the same answers the consultation screen does without duplicating the
+ * join — and a walk-in visit (no appointment) simply yields none.
+ */
+export async function fetchPreConsultationAnswers(
+  supabase: SupabaseClient<Database>,
+  clinicId: string,
+  appointmentId: string | null,
+): Promise<ConsultationPreAnswer[]> {
+  if (!appointmentId) return [];
+
+  const { data: answerRows } = await supabase
+    .from("pre_consultation_answers")
+    .select(
+      "*, pre_consultation_questions!pre_consultation_answers_clinic_question_fkey(question_text)",
+    )
+    .eq("clinic_id", clinicId)
+    .eq("appointment_id", appointmentId)
+    .order("display_order", {
+      foreignTable: "pre_consultation_questions",
+      ascending: true,
+    });
+
+  return (answerRows ?? []) as unknown as ConsultationPreAnswer[];
 }
 
 /**

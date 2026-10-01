@@ -66,9 +66,46 @@ export type AIProviderCompleteParams = {
   maxOutputTokens?: number;
 };
 
+/**
+ * An inline document attachment (scan, PDF, image) base64-encoded for the
+ * model. The OCR parser's only payload — the file itself is sent in `data` and
+ * must never contain identifiers beyond what the caller already de-identified.
+ */
+export type AIInlineDocument = {
+  /** e.g. `application/pdf`, `image/png`. */
+  mimeType: string;
+  /** Base64-encoded bytes. */
+  data: string;
+};
+
+/**
+ * A single-turn, tool-free generation that must come back as structured JSON.
+ * `schema` is a JSON Schema (OpenAPI 3.0 subset) the provider hands to the
+ * model as its response schema; providers without first-class support just
+ * prompt for JSON and the caller re-validates with Zod regardless.
+ *
+ * `document` is optional: the OCR parser passes the medical scan inline so the
+ * model can read it. Text-only callers omit it.
+ */
+export type AIProviderCompleteJsonParams = {
+  systemInstruction: string;
+  prompt: string;
+  /** An [OpenAPI 3.0 subset](https://spec.openapis.org/oas/v3.0.3#schema) schema. */
+  schema: Record<string, unknown>;
+  /** Optional image/PDF to attach alongside the prompt. */
+  document?: AIInlineDocument;
+  temperature?: number;
+  maxOutputTokens?: number;
+};
+
 export interface AIProvider {
   readonly id: string;
   chat(params: AIProviderChatParams): Promise<AIGeneratedMessage>;
   /** Returns the model's text. Empty string when it produced none. */
   complete(params: AIProviderCompleteParams): Promise<string>;
+  /**
+   * Returns the model's output parsed as JSON. Throws when the model returns
+   * nothing or emits malformed JSON — callers validate shape with Zod after.
+   */
+  completeJson(params: AIProviderCompleteJsonParams): Promise<unknown>;
 }

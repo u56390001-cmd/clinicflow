@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, FileImage, Files } from "lucide-react";
+import { CalendarDays, FileText, FileImage, Files } from "lucide-react";
 
 import { DocumentRowActions } from "@/components/patients/record/document-row-actions";
 import { DocumentUploader } from "@/components/patients/record/document-uploader";
@@ -12,7 +12,11 @@ import {
   type PatientDocumentView,
 } from "@/lib/patient-documents-queries";
 import { utcIsoToClinicLocalInput } from "@/lib/time";
-import { formatNaiveDate, formatNaiveTime } from "@/lib/utils/datetime";
+import {
+  formatNaiveDate,
+  formatNaiveTime,
+  formatShortDate,
+} from "@/lib/utils/datetime";
 
 /**
  * Documents — every file attached to this patient, newest first.
@@ -54,6 +58,7 @@ export function DocumentsTab({
                   <Th>Document</Th>
                   <Th>Type</Th>
                   <Th>Size</Th>
+                  <Th>Doc date</Th>
                   <Th>Uploaded</Th>
                   <th scope="col" className="px-3 py-2">
                     <span className="sr-only">Actions</span>
@@ -76,6 +81,20 @@ export function DocumentsTab({
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 tabular-nums text-text-secondary">
                       {formatFileSize(document.size_bytes)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-text-secondary">
+                      {document.document_date ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <CalendarDays
+                            aria-hidden="true"
+                            className="size-3.5 text-primary"
+                            strokeWidth={2.25}
+                          />
+                          {formatShortDate(document.document_date)}
+                        </span>
+                      ) : (
+                        <span className="text-text-muted">—</span>
+                      )}
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-text-secondary">
                       {describeUploadedAt(document.uploaded_at, timezone)}
@@ -107,8 +126,11 @@ export function DocumentsTab({
                     </p>
                     <p className="mt-0.5 text-xs text-text-muted">
                       {documentKindLabel(document.mime_type)} ·{" "}
-                      {formatFileSize(document.size_bytes)} ·{" "}
-                      {describeUploadedAt(document.uploaded_at, timezone)}
+                      {formatFileSize(document.size_bytes)}
+                      {document.document_date
+                        ? ` · dated ${formatShortDate(document.document_date)}`
+                        : ""}{" "}
+                      · {describeUploadedAt(document.uploaded_at, timezone)}
                     </p>
                   </div>
                 </div>

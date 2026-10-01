@@ -82,9 +82,13 @@ export function RecordEmpty({
   description: string;
 }) {
   return (
-    <div className="rounded-card border border-dashed border-text-muted/30 px-6 py-10 text-center">
-      <span className="mx-auto mb-3 flex size-10 items-center justify-center rounded-pill bg-app">
-        <Icon aria-hidden="true" className="size-5 text-text-muted" />
+    <div className="rounded-card border border-dashed border-text-muted/30 px-6 py-8 text-center">
+      <span className="mx-auto mb-3 flex size-9 items-center justify-center rounded-pill bg-app">
+        <Icon
+          aria-hidden="true"
+          className="size-[18px] text-text-secondary"
+          strokeWidth={2}
+        />
       </span>
       <p className="text-sm font-medium text-text-primary">{title}</p>
       <p className="mx-auto mt-1 max-w-sm text-sm text-text-secondary">

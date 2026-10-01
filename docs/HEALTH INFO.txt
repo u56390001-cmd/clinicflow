@@ -1,0 +1,168 @@
+LEFT SIDE BAR PATIENT TAB MEN DOCTOR WORK SPACE MN HEALTH INFO TAB MEN YE SECTION TOTAL REMOVE KAR DO : 
+
+Patient Details
+Patient ID
+CLI-2026-00022
+Gender
+Male
+Age
+45 yrs
+Date of birth
+—
+Phone
+03215468754
+Email
+—
+
+OR IS HEALTH TAB MN YE HTML CSS SMAE UI UX DESIGN K SATH ISI MN ADD KAR DO OR JABB EDIT HEALTH INFO BUTTON PA CLICK KAREN TO YE SECTION BHI US POPUP MN EDIT HNY K LIYE NANA CHYE 
+
+SAME TO SAME BUILD KRNA HAI FULLY FUMCTINAL WORKING ERROR FREE BUG FREE WORKING CODE WRITE KARNA HA
+
+
+<div style="background: rgb(255, 255, 255); border: 1px solid rgb(229, 227, 219); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 16px;"><div><div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;"><label style="font-size: 12.5px; font-weight: 700; color: rgb(26, 26, 26);">Past Illnesses</label></div><textarea rows="3" placeholder="e.g. Diabetes since 2019, Hypertension since 2021" style="width: 100%; padding: 10px 12px; border: 1.5px solid rgb(78, 93, 181); border-radius: 10px; font-size: 13px; outline: none; color: rgb(26, 26, 26); box-sizing: border-box; font-family: inherit; resize: none; overflow: hidden; line-height: 1.6; min-height: 72px; transition: border-color 0.15s, box-shadow 0.15s; box-shadow: rgba(78, 93, 181, 0.1) 0px 0px 0px 3px;" data-last-active-input="" data-qb-tmp-id="lt-303918" spellcheck="false" data-gramm="false"></textarea></div><div><div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;"><label style="font-size: 12.5px; font-weight: 700; color: rgb(26, 26, 26);">Past Surgeries</label></div><textarea rows="3" placeholder="e.g. Appendectomy 2018, Cholecystectomy 2022" style="width: 100%; padding: 10px 12px; border: 1.5px solid rgb(229, 227, 219); border-radius: 10px; font-size: 13px; outline: none; color: rgb(26, 26, 26); box-sizing: border-box; font-family: inherit; resize: none; overflow: hidden; line-height: 1.6; min-height: 72px; transition: border-color 0.15s, box-shadow 0.15s;"></textarea></div><div><div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;"><label style="font-size: 12.5px; font-weight: 700; color: rgb(26, 26, 26);">Hospitalizations</label></div><textarea rows="3" placeholder="e.g. Admitted for Dengue, City Hospital, 2020" style="width: 100%; padding: 10px 12px; border: 1.5px solid rgb(229, 227, 219); border-radius: 10px; font-size: 13px; outline: none; color: rgb(26, 26, 26); box-sizing: border-box; font-family: inherit; resize: none; overflow: hidden; line-height: 1.6; min-height: 72px; transition: border-color 0.15s, box-shadow 0.15s;"></textarea></div><div><div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;"><label style="font-size: 12.5px; font-weight: 700; color: rgb(26, 26, 26);">Family History</label></div><textarea rows="3" placeholder="e.g. Father — Hypertension, Diabetes. Mother — Thyroid Disorder" style="width: 100%; padding: 10px 12px; border: 1.5px solid rgb(229, 227, 219); border-radius: 10px; font-size: 13px; outline: none; color: rgb(26, 26, 26); box-sizing: border-box; font-family: inherit; resize: none; overflow: hidden; line-height: 1.6; min-height: 72px; transition: border-color 0.15s, box-shadow 0.15s;"></textarea></div><div><div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;"><label style="font-size: 12.5px; font-weight: 700; color: rgb(26, 26, 26);">Personal History</label></div><textarea rows="3" placeholder="e.g. Non-smoker, Occasional Alcohol, Sedentary Lifestyle, Software Engineer" style="width: 100%; padding: 10px 12px; border: 1.5px solid rgb(229, 227, 219); border-radius: 10px; font-size: 13px; outline: none; color: rgb(26, 26, 26); box-sizing: border-box; font-family: inherit; resize: none; overflow: hidden; line-height: 1.6; min-height: 72px; transition: border-color 0.15s, box-shadow 0.15s;"></textarea></div><div style="border-top: 1px solid rgb(240, 239, 235); padding-top: 16px;"><label style="font-size: 12.5px; font-weight: 700; color: rgb(26, 26, 26); display: block; margin-bottom: 6px;">Immunization History</label><textarea rows="3" placeholder="e.g. BCG ✓, OPV doses 1-2-3 ✓, DPT ✓, MMR Pending" style="width: 100%; padding: 10px 12px; border: 1.5px solid rgb(229, 227, 219); border-radius: 10px; font-size: 13px; outline: none; color: rgb(26, 26, 26); box-sizing: border-box; font-family: inherit; resize: none; overflow: hidden; line-height: 1.6; min-height: 72px; transition: border-color 0.15s, box-shadow 0.15s;"></textarea></div></div>
+
+    -webkit-text-size-adjust: 100%;
+    font-feature-settings: normal;
+    -webkit-tap-highlight-color: transparent;
+    font-variation-settings: normal;
+    tab-size: 4;
+    --lt-color-white: #fff !important;
+    --lt-color-black: #111213 !important;
+    --lt-color-transparent: rgba(255, 255, 255, 0) !important;
+    --lt-color-background-light: var(--lt-color-gray-100) !important;
+    --lt-color-background-default: var(--lt-color-gray-200) !important;
+    --lt-color-background-dark: var(--lt-color-gray-300) !important;
+    --lt-color-border-light: var(--lt-color-gray-200) !important;
+    --lt-color-border-default: var(--lt-color-gray-300) !important;
+    --lt-color-border-dark: var(--lt-color-gray-400) !important;
+    --lt-color-text-very-light: var(--lt-color-gray-500) !important;
+    --lt-color-text-light: var(--lt-color-gray-600) !important;
+    --lt-color-text-default: var(--lt-color-gray-700) !important;
+    --lt-color-text-dark: var(--lt-color-gray-800) !important;
+    --lt-color-overlay-default: #fff !important;
+    --lt-color-overlay-dark: #fff !important;
+    --lt-color-overlay-transparent: rgba(0, 0, 0, 0.1) !important;
+    --lt-shadow-website-overlay: 0 0 7px 0 rgba(0, 0, 0, 0.3) !important;
+    --qb-dialog-container-width: 320px;
+    --qb-dialog-container-height: 650px;
+    --qb-dialog-drag-handler-height: 16px;
+    --qb-toolbar-container-default-width: 48px;
+    --qb-comp-card-base-overflow: visible;
+    --qb-comp-card-base-background-color: transparent;
+    --qb-comp-card-base-box-shadow: none;
+    --qb-highlight-underline-thickness: 2px;
+    --qb-highlight-selected-underline-thickness: 2px;
+    --qb-highlight-underline-offset: 2px;
+    --qb-highlight-grammar-error-underline-color: #f2a6a6;
+    --qb-highlight-grammar-error-background-color: transparent;
+    --qb-highlight-grammar-error-selected-underline-color: #df2020;
+    --qb-highlight-grammar-error-selected-background-color: rgba(220, 38, 38, 0.1);
+    --qb-highlight-grammar-error-emphasized-underline-color: #df2020;
+    --qb-highlight-grammar-error-emphasized-background-color: rgba(220, 38, 38, 0.1);
+    --qb-highlight-spelling-error-underline-color: #f2a6a6;
+    --qb-highlight-spelling-error-background-color: transparent;
+    --qb-highlight-spelling-error-selected-underline-color: #df2020;
+    --qb-highlight-spelling-error-selected-background-color: rgba(220, 38, 38, 0.1);
+    --qb-highlight-spelling-error-emphasized-underline-color: #df2020;
+    --qb-highlight-spelling-error-emphasized-background-color: rgba(220, 38, 38, 0.1);
+    --qb-highlight-style-error-underline-color: #00000033;
+    --qb-highlight-style-error-background-color: transparent;
+    --qb-highlight-style-error-selected-underline-color: #b4b4b4;
+    --qb-highlight-style-error-selected-background-color: rgba(67, 67, 67, 0.1);
+    --qb-highlight-style-error-emphasized-underline-color: #b4b4b4;
+    --qb-highlight-style-error-emphasized-background-color: rgba(67, 67, 67, 0.1);
+    --qb-highlight-selection-paraphrase-word-underline-color: #0042d7;
+    --qb-highlight-selection-paraphrase-word-background-color: transparent;
+    --qb-highlight-selection-paraphrase-phrase-underline-color: #0042d7;
+    --qb-highlight-selection-paraphrase-phrase-background-color: rgb(0, 103, 197, 0.15);
+    --qb-highlight-selection-paraphrase-sentence-underline-color: transparent;
+    --qb-highlight-selection-paraphrase-sentence-background-color: rgb(0, 103, 197, 0.15);
+    --qb-highlight-selection-toolbox-word-underline-color: #00000033;
+    --qb-highlight-selection-toolbox-word-background-color: rgba(67, 67, 67, 0.1);
+    --qb-highlight-selection-toolbox-phrase-underline-color: #00000033;
+    --qb-highlight-selection-toolbox-phrase-background-color: rgb(0, 103, 197, 0.15);
+    --qb-highlight-selection-toolbox-sentence-underline-color: transparent;
+    --qb-highlight-selection-toolbox-sentence-background-color: rgb(0, 103, 197, 0.15);
+    --qb-highlight-sentence-from-hover-underline-color: transparent;
+    --qb-highlight-sentence-from-hover-background-color: rgba(67, 67, 67, 0.1);
+    --qb-highlight-word-from-hover-underline-color: transparent;
+    --qb-highlight-word-from-hover-background-color: rgba(67, 67, 67, 0.1);
+    --qb-highlight-sentence-from-caret-underline-color: #00000033;
+    --qb-highlight-sentence-from-caret-background-color: rgba(67, 67, 67, 0.1);
+    --qb-highlight-word-from-caret-underline-color: transparent;
+    --qb-highlight-word-from-caret-background-color: rgba(67, 67, 67, 0.1);
+    --qb-toolbox-onboarding-cta-pulse-color: rgba(23, 135, 51, 0.8);
+    --lt-color-gray-100: #f8f9fc;
+    --lt-color-gray-200: #f1f3f9;
+    --lt-color-gray-300: #dee3ed;
+    --lt-color-gray-400: #c2c9d6;
+    --lt-color-gray-500: #8f96a3;
+    --lt-color-gray-600: #5e636e;
+    --lt-color-gray-700: #2f3237;
+    --lt-color-gray-800: #1d1e20;
+    --lt-color-gray-900: #111213;
+    --lt-shadowDefault: 0 2px 6px -1px rgba(0, 0, 0, 0.16),0 1px 4px -1px rgba(0, 0, 0, 0.04);
+    --lt-shadowActive: 0 0 8px -2px rgba(0, 0, 0, 0.1),0 6px 20px -3px rgba(0, 0, 0, 0.2);
+    line-height: inherit;
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: -.01em;
+    font-family: Inter, sans-serif;
+    --tw-border-spacing-x: 0;
+    --tw-border-spacing-y: 0;
+    --tw-translate-x: 0;
+    --tw-translate-y: 0;
+    --tw-rotate: 0;
+    --tw-skew-x: 0;
+    --tw-skew-y: 0;
+    --tw-scale-x: 1;
+    --tw-scale-y: 1;
+    --tw-pan-x: ;
+    --tw-pan-y: ;
+    --tw-pinch-zoom: ;
+    --tw-scroll-snap-strictness: proximity;
+    --tw-gradient-from-position: ;
+    --tw-gradient-via-position: ;
+    --tw-gradient-to-position: ;
+    --tw-ordinal: ;
+    --tw-slashed-zero: ;
+    --tw-numeric-figure: ;
+    --tw-numeric-spacing: ;
+    --tw-numeric-fraction: ;
+    --tw-ring-inset: ;
+    --tw-ring-offset-width: 0px;
+    --tw-ring-offset-color: #fff;
+    --tw-ring-color: #3b82f680;
+    --tw-ring-offset-shadow: 0 0 #0000;
+    --tw-ring-shadow: 0 0 #0000;
+    --tw-shadow: 0 0 #0000;
+    --tw-shadow-colored: 0 0 #0000;
+    --tw-blur: ;
+    --tw-brightness: ;
+    --tw-contrast: ;
+    --tw-grayscale: ;
+    --tw-hue-rotate: ;
+    --tw-invert: ;
+    --tw-saturate: ;
+    --tw-sepia: ;
+    --tw-drop-shadow: ;
+    --tw-backdrop-blur: ;
+    --tw-backdrop-brightness: ;
+    --tw-backdrop-contrast: ;
+    --tw-backdrop-grayscale: ;
+    --tw-backdrop-hue-rotate: ;
+    --tw-backdrop-invert: ;
+    --tw-backdrop-opacity: ;
+    --tw-backdrop-saturate: ;
+    --tw-backdrop-sepia: ;
+    --tw-contain-size: ;
+    --tw-contain-layout: ;
+    --tw-contain-paint: ;
+    --tw-contain-style: ;
+    box-sizing: border-box;
+    background: rgb(255, 255, 255);
+    border: 1px solid rgb(229, 227, 219);
+    border-radius: 14px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;

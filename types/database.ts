@@ -16,11 +16,7 @@ export type ClinicRole = "owner" | "admin" | "staff";
 export type ServiceStatus = "active" | "inactive";
 
 export type AppointmentStatus =
-  | "pending"
-  | "confirmed"
-  | "completed"
-  | "cancelled"
-  | "no_show";
+  "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
 
 /** Where the booking was created. This phase only writes `dashboard`. */
 export type BookingSource = string;
@@ -201,11 +197,7 @@ export type DoctorVitalsConfig = {
  * specific doctor.
  */
 export type ServiceCategory =
-  | "consultation"
-  | "service"
-  | "diagnostic"
-  | "lab_test"
-  | "procedure";
+  "consultation" | "service" | "diagnostic" | "lab_test" | "procedure";
 
 export type Service = {
   id: string;
@@ -298,7 +290,8 @@ export type BlockedTime = {
 export type NotificationPreference = "email" | "whatsapp" | "both";
 
 /** The eight ABO/Rh groups accepted by DB CHECK `patients_blood_group_check`. */
-export type BloodGroup = "A+" | "A-" | "B+" | "B-" | "AB+" | "AB-" | "O+" | "O-";
+export type BloodGroup =
+  "A+" | "A-" | "B+" | "B-" | "AB+" | "AB-" | "O+" | "O-";
 
 export type Patient = {
   id: string;
@@ -321,6 +314,19 @@ export type Patient = {
   weight: number | null;
   /** Free-text current medications captured at registration. */
   current_medications: string | null;
+  /**
+   * Baseline past-history narrative captured on the patient row (migration
+   * 0046). Free text, not structured: these are sentences a doctor types at
+   * intake ("Appendectomy 2018, Cholecystectomy 2022"), not records with dates.
+   * Dated clinical events added over time live in `medical_history` (0045)
+   * instead.
+   */
+  past_illnesses: string | null;
+  past_surgeries: string | null;
+  hospitalizations: string | null;
+  family_history: string | null;
+  personal_history: string | null;
+  immunization_history: string | null;
   /** UHID, e.g. `CLI-2026-00001`. Trigger-assigned; null only pre-0029. */
   patient_code: string | null;
   blood_group: BloodGroup | null;
@@ -376,14 +382,14 @@ export type Appointment = {
   doctor_id: string | null;
   start_time: string;
   end_time: string;
-   status: AppointmentStatus;
-   booking_source: BookingSource;
-   notes: string | null;
-   /** Set once the reminder job dispatched this appointment's reminder. */
-   reminder_sent_at: string | null;
-consultation_type: ConsultationType;
-    created_at: string;
-    updated_at: string;
+  status: AppointmentStatus;
+  booking_source: BookingSource;
+  notes: string | null;
+  /** Set once the reminder job dispatched this appointment's reminder. */
+  reminder_sent_at: string | null;
+  consultation_type: ConsultationType;
+  created_at: string;
+  updated_at: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -431,18 +437,11 @@ export type PreConsultationAnswer = {
 
 /** Lifecycle of a physical patient visit (separate dimension from appointment status). */
 export type VisitStatus =
-  | "scheduled"
-  | "checked_in"
-  | "waiting"
-  | "in_consultation"
-  | "completed";
+  "scheduled" | "checked_in" | "waiting" | "in_consultation" | "completed";
 
 /** Independent payment-state dimension on a visit — not hard-wired to visit status. */
 export type PaymentStatus =
-  | "pending"
-  | "collected_pre"
-  | "collected_post"
-  | "not_required";
+  "pending" | "collected_pre" | "collected_post" | "not_required";
 
 /**
  * One row of the `visits` table. Created at check-in time (not at booking).
@@ -487,12 +486,154 @@ export type Vitals = {
   spo2: number | null;
   respiratory_rate: number | null;
   bmi: number | null;
+  /** Blood glucose in mg/dL. Optional — most check-ins do not measure it. */
+  blood_sugar: number | null;
   /** Phase 20 — clinic-defined custom vitals recorded for this visit. */
   custom_vitals: CustomVitalValue[] | null;
   recorded_at: string;
   created_at: string;
   updated_at: string;
 };
+
+/**
+ * One past-history fact: a surgical procedure, a chronic condition, a past
+ * illness, a hospitalization, a relative's condition, a social/lifestyle note,
+ * or an immunization (migration 0043, widened in 0048).
+ * `category` is the DB CHECK list; `relationship` only applies to `family`
+ * entries ("Father", "Mother", …). `date` is a partial history — plenty of
+ * these are known without a year — so it is nullable rather than defaulted.
+ * 0048 added `source` (who recorded it), `verification_status` (clinician
+ * approval — AI OCR / patient intake rows start `pending_approval`) and
+ * `clinical_status` (active / resolved / chronic).
+ * `report_date` (0052) is the date of the scanned document this entry came
+ * from — NOT the onset date, which is `date`.
+ */
+export type MedicalHistory = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  category:
+    | "surgical"
+    | "chronic"
+    | "past_illnesses"
+    | "hospitalization"
+    | "family"
+    | "social"
+    | "immunization";
+  condition: string;
+  date: string | null;
+  report_date: string | null;
+  notes: string | null;
+  relationship: string | null;
+  source: "patient_intake" | "ai_ocr" | "doctor_entry" | "receptionist";
+  verification_status: "verified" | "pending_approval";
+  clinical_status: "active" | "resolved" | "chronic";
+  created_by_name: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * A medicine tracked on a patient's medication list (migration 0050).
+ *
+ * AI OCR rows land with `status: "active_pending"` and `source: "ai_ocr"` so
+ * they never surface in the Overview "Active Medications" list until a clinician
+ * approves them; `report_name` is the scanned file they came from.
+ */
+export type PatientMedication = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  medicine_name: string;
+  strength: string | null;
+  frequency: string | null;
+  duration: string | null;
+  instructions: string | null;
+  report_name: string | null;
+  report_date: string | null;
+  status: "active_pending" | "active" | "discontinued";
+  source: "manual" | "ai_ocr";
+  created_by_user_id: string | null;
+  created_by_name: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * A single lab value read out of a scanned report, or entered by hand
+ * (migration 0053).
+ *
+ * `test_value` is TEXT, not numeric, on purpose: real reports contain "<0.01",
+ * "Positive", ">1000" and "Not Detected", and a numeric column would force all
+ * of those to null — which is to say, it would discard exactly the results that
+ * matter most. Range comparison happens where the report's own
+ * `reference_range` is available, not by parsing strings.
+ *
+ * `abnormal` is an enum rather than a boolean: "High", "Low" and "Critical" are
+ * three different signals, and a value inside the lab's stated range can still
+ * be clinically alarming, which a boolean has no way to say.
+ *
+ * AI OCR rows arrive `active_pending` and stay unread-by-clinicians until
+ * approved, exactly like `PatientMedication` — an unverified number in the
+ * prescription sidebar is worse than no number, because it looks authoritative.
+ */
+export type PatientLabResult = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  /** The scan this came from; null if that upload was later deleted. */
+  document_id: string | null;
+  test_name: string;
+  test_value: string | null;
+  unit: string | null;
+  /** The report's own range, verbatim — labs differ, so we do not hardcode. */
+  reference_range: string | null;
+  abnormal: "normal" | "high" | "low" | "critical" | null;
+  report_date: string | null;
+  report_name: string | null;
+  status: "active_pending" | "active" | "discontinued";
+  source: "manual" | "ai_ocr";
+  created_by_user_id: string | null;
+  created_by_name: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * A safety alert (allergy or known condition) staged from a scanned document
+ * (migration 0051). AI OCR rows arrive `active_pending`; approving one merges
+ * its `text` into the matching free-text column on `patients`
+ * (`known_allergies` for `allergy`, `medical_conditions` for `known_case`) so
+ * it can never reach the red Critical Safety Alerts block unverified.
+ */
+export type PatientAlert = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  alert_type: "allergy" | "known_case";
+  text: string;
+  report_name: string | null;
+  report_date: string | null;
+  status: "active_pending" | "approved" | "dismissed";
+  source: "ai_ocr";
+  created_by_user_id: string | null;
+  created_by_name: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * The six categories the intake form and OCR parser emit (migration 0049's
+ * extractor vocabularies map onto DB categories — past_illness → past_illnesses,
+ * surgery → surgical, lifestyle → social — see lib/medical-history-mapping.ts).
+ */
+export type IntakeHistoryCategory =
+  | "past_illness"
+  | "surgery"
+  | "hospitalization"
+  | "family_history"
+  | "lifestyle"
+  | "immunization";
 
 /** A single medicine entry within a prescription's medicines jsonb array. */
 export type MedicineEntry = {
@@ -505,10 +646,20 @@ export type MedicineEntry = {
   instructions: string;
 };
 
-/** A single lab order entry within a prescription's lab_orders jsonb array. */
+/**
+ * A single lab order entry within a prescription's lab_orders jsonb array.
+ *
+ * `sub_parameters` is optional because it was added after rows existed: an
+ * older order is the whole panel by definition. It lives in jsonb rather than a
+ * join table on purpose — a lab order is a line on a prescription, not a
+ * specimen with results, and nothing queries "all Platelets orders" across
+ * patients to justify normalising it.
+ */
 export type LabOrder = {
   test_name: string;
   notes: string;
+  /** The individual parameters of a panel order, e.g. ["Platelets", "ESR"]. */
+  sub_parameters?: string[];
 };
 
 /**
@@ -564,11 +715,7 @@ export type PrescriptionTemplate = {
  * Neither is reachable by paying; both are explicit staff actions.
  */
 export type PatientBillStatus =
-  | "pending"
-  | "paid"
-  | "partially_paid"
-  | "waived"
-  | "cancelled";
+  "pending" | "paid" | "partially_paid" | "waived" | "cancelled";
 
 /** What the bill was raised for. Drives the Bill Type capsules in the create modal. */
 export type PatientBillType = "consultation" | "procedure" | "other";
@@ -601,7 +748,8 @@ export const PATIENT_PAYMENT_METHODS_UI = [
   "waive",
 ] as const;
 
-export type PatientPaymentMethodUI = (typeof PATIENT_PAYMENT_METHODS_UI)[number];
+export type PatientPaymentMethodUI =
+  (typeof PATIENT_PAYMENT_METHODS_UI)[number];
 
 export type PatientBill = {
   id: string;
@@ -670,6 +818,9 @@ export type Receipt = {
  * go through a short-lived server-generated signed URL. `mime_type` and
  * `size_bytes` are DB-constrained (pdf/png/jpeg/webp, ≤ 10 MB) and must also be
  * validated server-side — a client `accept` attribute is not validation.
+ * `document_date` (0052) is the date printed on the document itself, distinct
+ * from `uploaded_at` (when the file reached us); null for manually uploaded
+ * files, which carry no such date.
  */
 export type PatientDocument = {
   id: string;
@@ -679,6 +830,7 @@ export type PatientDocument = {
   file_path: string;
   mime_type: string;
   size_bytes: number;
+  document_date: string | null;
   uploaded_by_user_id: string | null;
   uploaded_at: string;
 };
@@ -696,6 +848,34 @@ export const PATIENT_DOCUMENT_MAX_BYTES = 10_485_760;
 
 /** Private bucket id created in migration 0029. `public` is false — keep it false. */
 export const PATIENT_DOCUMENTS_BUCKET = "patient-documents";
+
+/**
+ * A transient scan staged between the browser and the AI parser (migration
+ * 0049). Also PRIVATE. Objects live at `{clinic_id}/{patient_id}/{uuid}-...`
+ * only for the few seconds it takes the server to read them back and hand them
+ * to the model — they are deleted when parsing finishes.
+ */
+export const AI_OCR_DOCUMENTS_BUCKET = "ai-ocr-documents";
+
+/**
+ * Shareable pre-intake form link (migration 0049). Only the SHA-256 hash of the
+ * raw token is stored — the raw 64-hex token exists solely in the URL the
+ * clinic sends the patient. RLS is enabled with no Data-API policies: reads and
+ * writes go through the service-role client with the token hash as the
+ * capability, exactly like `clinic_invites` (0011).
+ */
+export type PatientIntakeToken = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  /** SHA-256 hex of the raw token — never the token itself. */
+  token_hash: string;
+  status: "pending" | "used" | "revoked" | "expired";
+  created_by: string;
+  expires_at: string;
+  submitted_at: string | null;
+  created_at: string;
+};
 
 export type AiTone = "professional" | "friendly" | "casual" | "empathetic";
 
@@ -716,10 +896,7 @@ export type AiAgentTier = "chatbot" | "ai_agent";
 
 export type AiGreetingStyle = "custom_template" | "ai_generated";
 
-export type WhatsappConnectionStatus =
-  | "not_connected"
-  | "connected"
-  | "error";
+export type WhatsappConnectionStatus = "not_connected" | "connected" | "error";
 
 export type AiConversationOutcome = "success" | "failed" | "escalated";
 
@@ -881,10 +1058,7 @@ export type GrowthPostStatus = "draft" | "scheduled" | "published" | "failed";
  * from "sign in again", and `connecting` is a real state in between.
  */
 export type GrowthConnectionState =
-  | "not_connected"
-  | "connecting"
-  | "connected"
-  | "error";
+  "not_connected" | "connecting" | "connected" | "error";
 
 /** How often the scheduler writes a fresh post. */
 export type GrowthPostingFrequency = "weekly" | "biweekly" | "monthly";
@@ -1166,7 +1340,8 @@ export type PaymentMethod = {
   updated_at: string;
 };
 
-export type PaymentSubmissionStatus = "pending" | "approved" | "rejected" | "expired";
+export type PaymentSubmissionStatus =
+  "pending" | "approved" | "rejected" | "expired";
 
 export type PaymentSubmission = {
   id: string;
@@ -1203,12 +1378,7 @@ export type BillingEvent = {
 // Phase 9: Observability types
 // ---------------------------------------------------------------------------
 
-export type AppEventCategory =
-  | "api"
-  | "booking"
-  | "email"
-  | "auth"
-  | "billing";
+export type AppEventCategory = "api" | "booking" | "email" | "auth" | "billing";
 export type AppEventSeverity = "info" | "warning" | "error";
 
 export type AppEventLog = {
@@ -1749,6 +1919,12 @@ export type Database = {
           height?: number | null;
           weight?: number | null;
           current_medications?: string | null;
+          past_illnesses?: string | null;
+          past_surgeries?: string | null;
+          hospitalizations?: string | null;
+          family_history?: string | null;
+          personal_history?: string | null;
+          immunization_history?: string | null;
           /** Trigger-assigned UHID — never write it from application code. */
           patient_code?: never;
           blood_group?: BloodGroup | null;
@@ -1777,6 +1953,12 @@ export type Database = {
           height?: number | null;
           weight?: number | null;
           current_medications?: string | null;
+          past_illnesses?: string | null;
+          past_surgeries?: string | null;
+          hospitalizations?: string | null;
+          family_history?: string | null;
+          personal_history?: string | null;
+          immunization_history?: string | null;
           patient_code?: never;
           blood_group?: BloodGroup | null;
           registered_branch?: string | null;
@@ -1810,23 +1992,23 @@ export type Database = {
           booking_source?: BookingSource;
           notes?: string | null;
           reminder_sent_at?: string | null;
-           consultation_type?: "in_clinic" | "online" | "video";
-           created_at?: string;
-           updated_at?: string;
+          consultation_type?: "in_clinic" | "online" | "video";
+          created_at?: string;
+          updated_at?: string;
         };
         Update: {
-           id?: never;
-           clinic_id?: never;
-           patient_id?: string;
-           service_id?: string;
-           doctor_id?: string | null;
-           start_time?: string;
-           end_time?: string;
-           status?: AppointmentStatus;
-           booking_source?: string;
-           notes?: string | null;
-           reminder_sent_at?: string | null;
-           consultation_type?: "in_clinic" | "online" | "video";
+          id?: never;
+          clinic_id?: never;
+          patient_id?: string;
+          service_id?: string;
+          doctor_id?: string | null;
+          start_time?: string;
+          end_time?: string;
+          status?: AppointmentStatus;
+          booking_source?: string;
+          notes?: string | null;
+          reminder_sent_at?: string | null;
+          consultation_type?: "in_clinic" | "online" | "video";
           created_at?: never;
           updated_at?: string;
         };
@@ -2518,6 +2700,7 @@ export type Database = {
           spo2?: number | null;
           respiratory_rate?: number | null;
           bmi?: number | null;
+          blood_sugar?: number | null;
           custom_vitals?: unknown;
           recorded_at?: string;
           created_at?: string;
@@ -2538,6 +2721,7 @@ export type Database = {
           spo2?: number | null;
           respiratory_rate?: number | null;
           bmi?: number | null;
+          blood_sugar?: number | null;
           custom_vitals?: unknown;
           recorded_at?: string;
           created_at?: never;
@@ -2550,6 +2734,227 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "visits";
             referencedColumns: ["clinic_id", "id"];
+          },
+        ];
+      };
+      medical_history: {
+        Row: MedicalHistory;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          category: MedicalHistory["category"];
+          condition: string;
+          date?: string | null;
+          report_date?: string | null;
+          notes?: string | null;
+          relationship?: string | null;
+          source?: MedicalHistory["source"];
+          verification_status?: MedicalHistory["verification_status"];
+          clinical_status?: MedicalHistory["clinical_status"];
+          created_by_name?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          category?: MedicalHistory["category"];
+          condition?: string;
+          date?: string | null;
+          report_date?: string | null;
+          notes?: string | null;
+          relationship?: string | null;
+          source?: MedicalHistory["source"];
+          verification_status?: MedicalHistory["verification_status"];
+          clinical_status?: MedicalHistory["clinical_status"];
+          created_by_name?: string | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "medical_history_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "medical_history_patient_id_fkey";
+            columns: ["patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      patient_medications: {
+        Row: PatientMedication;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          medicine_name: string;
+          strength?: string | null;
+          frequency?: string | null;
+          duration?: string | null;
+          instructions?: string | null;
+          report_name?: string | null;
+          report_date?: string | null;
+          status?: PatientMedication["status"];
+          source?: PatientMedication["source"];
+          created_by_user_id?: string | null;
+          created_by_name?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          medicine_name?: string;
+          strength?: string | null;
+          frequency?: string | null;
+          duration?: string | null;
+          instructions?: string | null;
+          report_name?: string | null;
+          report_date?: string | null;
+          status?: PatientMedication["status"];
+          source?: PatientMedication["source"];
+          created_by_user_id?: never;
+          created_by_name?: string | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "patient_medications_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "patient_medications_patient_id_fkey";
+            columns: ["patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      patient_alerts: {
+        Row: PatientAlert;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          alert_type: PatientAlert["alert_type"];
+          text: string;
+          report_name?: string | null;
+          report_date?: string | null;
+          status?: PatientAlert["status"];
+          source?: PatientAlert["source"];
+          created_by_user_id?: string | null;
+          created_by_name?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          alert_type?: PatientAlert["alert_type"];
+          text?: string;
+          report_name?: string | null;
+          report_date?: string | null;
+          status?: PatientAlert["status"];
+          source?: PatientAlert["source"];
+          created_by_user_id?: never;
+          created_by_name?: string | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "patient_alerts_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "patient_alerts_patient_id_fkey";
+            columns: ["patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      patient_lab_results: {
+        Row: PatientLabResult;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          document_id?: string | null;
+          test_name: string;
+          test_value?: string | null;
+          unit?: string | null;
+          reference_range?: string | null;
+          abnormal?: PatientLabResult["abnormal"];
+          report_date?: string | null;
+          report_name?: string | null;
+          status?: PatientLabResult["status"];
+          source?: PatientLabResult["source"];
+          created_by_user_id?: string | null;
+          created_by_name?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          document_id?: string | null;
+          test_name?: string;
+          test_value?: string | null;
+          unit?: string | null;
+          reference_range?: string | null;
+          abnormal?: PatientLabResult["abnormal"];
+          report_date?: string | null;
+          report_name?: string | null;
+          status?: PatientLabResult["status"];
+          source?: PatientLabResult["source"];
+          created_by_user_id?: never;
+          created_by_name?: never;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "patient_lab_results_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "patient_lab_results_patient_id_fkey";
+            columns: ["patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "patient_lab_results_document_id_fkey";
+            columns: ["document_id"];
+            isOneToOne: false;
+            referencedRelation: "patient_documents";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -2811,6 +3216,7 @@ export type Database = {
           file_path: string;
           mime_type: string;
           size_bytes: number;
+          document_date?: string | null;
           uploaded_by_user_id?: string | null;
           uploaded_at?: string;
         };
@@ -2822,6 +3228,7 @@ export type Database = {
           file_path?: never;
           mime_type?: never;
           size_bytes?: never;
+          document_date?: string | null;
           uploaded_by_user_id?: never;
           uploaded_at?: never;
         };
@@ -2839,6 +3246,54 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "patients";
             referencedColumns: ["clinic_id", "id"];
+          },
+        ];
+      };
+      patient_intake_tokens: {
+        Row: PatientIntakeToken;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          token_hash: string;
+          status?: string;
+          created_by: string;
+          expires_at: string;
+          submitted_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          token_hash?: never;
+          status?: string;
+          created_by?: never;
+          expires_at?: never;
+          submitted_at?: string | null;
+          created_at?: never;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "patient_intake_tokens_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "patient_intake_tokens_patient_id_fkey";
+            columns: ["patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "patient_intake_tokens_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -3204,6 +3659,7 @@ export type Database = {
           p_spo2?: number | null;
           p_respiratory_rate?: number | null;
           p_custom_vitals?: unknown;
+          p_blood_sugar?: number | null;
         };
         Returns: Vitals;
       };
@@ -3293,4 +3749,4 @@ export type Database = {
     };
     CompositeTypes: Record<string, never>;
   };
-}
+};

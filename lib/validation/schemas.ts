@@ -2,11 +2,14 @@ import { randomUUID } from "node:crypto";
 
 import { z } from "zod";
 
-import { CLINIC_SLUG_REGEX, RESERVED_CLINIC_SLUGS, slugify, WEEKDAY_ORDER } from "@/lib/constants";
-import { isValidNaiveDate, todayNaiveUtc } from "@/lib/utils/datetime";
 import {
-  PATIENT_PAYMENT_METHODS_UI,
-} from "@/types/database";
+  CLINIC_SLUG_REGEX,
+  RESERVED_CLINIC_SLUGS,
+  slugify,
+  WEEKDAY_ORDER,
+} from "@/lib/constants";
+import { isValidNaiveDate, todayNaiveUtc } from "@/lib/utils/datetime";
+import { PATIENT_PAYMENT_METHODS_UI } from "@/types/database";
 
 /**
  * All server-side input validation lives here. Every Server Action must
@@ -242,9 +245,13 @@ const price = z
   .number({ message: "Price must be a number." })
   .min(0, "Price cannot be negative.")
   .max(1_000_000, "Price must be 1,000,000 or less.")
-  .refine((value) => Number.isFinite(value) && Math.round(value * 100) / 100 === value, {
-    message: "Price may have at most two decimal places.",
-  });
+  .refine(
+    (value) =>
+      Number.isFinite(value) && Math.round(value * 100) / 100 === value,
+    {
+      message: "Price may have at most two decimal places.",
+    },
+  );
 
 /**
  * Service create/edit. One schema for both: the edit form submits every
@@ -269,7 +276,11 @@ export const serviceSchema = z.object({
   durationMinutes: durationMinutes,
   price: price,
   // The action coalesces FormData null to "" before parsing.
-  doctorId: z.string().uuid("Select a valid doctor.").optional().or(z.literal("")),
+  doctorId: z
+    .string()
+    .uuid("Select a valid doctor.")
+    .optional()
+    .or(z.literal("")),
   status: z.enum(["active", "inactive"], {
     message: "Status must be active or inactive.",
   }),
@@ -291,7 +302,8 @@ export const serviceSchema = z.object({
     .trim()
     .transform((v) => (v === "" ? null : Number(v)))
     .refine((v) => v === null || (Number.isInteger(v) && v >= 1 && v <= 730), {
-      message: "Follow-up validity must be a whole number of days, weeks or months.",
+      message:
+        "Follow-up validity must be a whole number of days, weeks or months.",
     })
     .optional()
     .or(z.literal("")),
@@ -390,7 +402,8 @@ export const doctorSchema = z.object({
     .trim()
     .transform((v) => (v === "" ? null : Number(v)))
     .refine((v) => v === null || (Number.isInteger(v) && v >= 1 && v <= 730), {
-      message: "Follow-up validity must be a whole number of days, weeks or months.",
+      message:
+        "Follow-up validity must be a whole number of days, weeks or months.",
     })
     .optional()
     .or(z.literal("")),
@@ -446,7 +459,10 @@ const customVitalSchema = z
       .toLowerCase()
       .min(1, "Custom vital key is required.")
       .max(40, "Custom vital key must be 40 characters or fewer.")
-      .regex(/^[a-z0-9_]+$/, "Custom vital keys may only contain a-z, 0-9 and underscores."),
+      .regex(
+        /^[a-z0-9_]+$/,
+        "Custom vital keys may only contain a-z, 0-9 and underscores.",
+      ),
     label: z
       .string()
       .trim()
@@ -482,7 +498,10 @@ const doctorVitalsConfigDataSchema = z.object({
     .array(z.string().trim().min(1).max(40))
     .max(20, "At most 20 standard vitals.")
     .optional(),
-  customVitals: z.array(customVitalSchema).max(30, "At most 30 custom vitals.").optional(),
+  customVitals: z
+    .array(customVitalSchema)
+    .max(30, "At most 30 custom vitals.")
+    .optional(),
   displayOrder: z
     .array(z.string().trim().min(1).max(40))
     .max(50, "Too many display-order entries.")
@@ -514,8 +533,12 @@ const slotTemplateSchema = z
       .trim()
       .min(1, "Slot name is required.")
       .max(120, "Slot name must be 120 characters or fewer."),
-    startTime: z.string().regex(TIME_OF_DAY, "Start time must be in HH:MM 24-hour format."),
-    endTime: z.string().regex(TIME_OF_DAY, "End time must be in HH:MM 24-hour format."),
+    startTime: z
+      .string()
+      .regex(TIME_OF_DAY, "Start time must be in HH:MM 24-hour format."),
+    endTime: z
+      .string()
+      .regex(TIME_OF_DAY, "End time must be in HH:MM 24-hour format."),
     // Phase 21 per-slot capacity. NULL/absent = single patient (or the parent's
     // global cap for shared-window doctors). The client sends null in
     // single_slot mode; shared-window slots carry their own 1–50 limit.
@@ -549,7 +572,11 @@ export const doctorSlotTemplatesSchema = z.object({
         return [];
       }
     })
-    .pipe(z.array(slotTemplateSchema).max(400, "At most 400 slot templates are allowed.")),
+    .pipe(
+      z
+        .array(slotTemplateSchema)
+        .max(400, "At most 400 slot templates are allowed."),
+    ),
 });
 
 /**
@@ -568,7 +595,11 @@ export const serviceSlotTemplatesSchema = z.object({
         return [];
       }
     })
-    .pipe(z.array(slotTemplateSchema).max(400, "At most 400 slot templates are allowed.")),
+    .pipe(
+      z
+        .array(slotTemplateSchema)
+        .max(400, "At most 400 slot templates are allowed."),
+    ),
 });
 
 // ---------------------------------------------------------------------------
@@ -620,7 +651,8 @@ export const preConsultationQuestionsJsonSchema = z
       })
       .superRefine((draft, ctx) => {
         const total =
-          (draft.duringBooking?.length ?? 0) + (draft.afterBooking?.length ?? 0);
+          (draft.duringBooking?.length ?? 0) +
+          (draft.afterBooking?.length ?? 0);
         if (total > 3) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
@@ -656,6 +688,21 @@ export type PreConsultationQuestionsParsed = {
  */
 const formValue = <T extends z.ZodType>(schema: T) =>
   z.preprocess((value) => (value == null ? "" : value), schema);
+
+/**
+ * One of the past-history narrative fields on `patientSchema`. All six share one
+ * shape — optional free text with a length cap — so the cap and the "this may be
+ * absent" rule live here rather than being repeated six times.
+ */
+const pastHistoryText = (label: string) =>
+  formValue(
+    z
+      .string()
+      .trim()
+      .max(2000, `${label} must be 2000 characters or fewer.`)
+      .optional()
+      .or(z.literal("")),
+  );
 
 /**
  * One day's working hours. Times only matter when the day is enabled: disabled
@@ -711,7 +758,9 @@ const dayRule = z
  * rule per weekday as JSON.
  */
 export const availabilityPayloadSchema = z.object({
-  rules: z.array(dayRule).length(7, "All 7 days of the week must be submitted."),
+  rules: z
+    .array(dayRule)
+    .length(7, "All 7 days of the week must be submitted."),
 });
 
 /**
@@ -771,10 +820,7 @@ export const patientSchema = z.object({
       .or(z.literal("")),
   ),
   gender: formValue(
-    z
-      .enum(["male", "female", "other"])
-      .optional()
-      .or(z.literal("")),
+    z.enum(["male", "female", "other"]).optional().or(z.literal("")),
   ),
   city: formValue(
     z
@@ -811,7 +857,11 @@ export const patientSchema = z.object({
       .string()
       .trim()
       .refine(
-        (value) => value === "" || (/^\d{1,3}$/.test(value.trim()) && Number(value) >= 30 && Number(value) <= 300),
+        (value) =>
+          value === "" ||
+          (/^\d{1,3}$/.test(value.trim()) &&
+            Number(value) >= 30 &&
+            Number(value) <= 300),
         { message: "Height must be 30–300 cm." },
       )
       .optional()
@@ -822,7 +872,11 @@ export const patientSchema = z.object({
       .string()
       .trim()
       .refine(
-        (value) => value === "" || (/^\d{1,3}(\.\d{1,2})?$/.test(value.trim()) && Number(value) >= 1 && Number(value) <= 500),
+        (value) =>
+          value === "" ||
+          (/^\d{1,3}(\.\d{1,2})?$/.test(value.trim()) &&
+            Number(value) >= 1 &&
+            Number(value) <= 500),
         { message: "Weight must be 1–500 kg." },
       )
       .optional()
@@ -836,6 +890,16 @@ export const patientSchema = z.object({
       .optional()
       .or(z.literal("")),
   ),
+  // ── Past-history narrative (0046) ────────────────────────────────────────
+  // Six free-text answers captured once at intake and read on every visit.
+  // Optional throughout so quick-create callers (billing modals, appointment
+  // inline create) that submit none of them keep validating unchanged.
+  pastIllnesses: pastHistoryText("Past illnesses"),
+  pastSurgeries: pastHistoryText("Past surgeries"),
+  hospitalizations: pastHistoryText("Hospitalizations"),
+  familyHistory: pastHistoryText("Family history"),
+  personalHistory: pastHistoryText("Personal history"),
+  immunizationHistory: pastHistoryText("Immunization history"),
 });
 
 /**
@@ -856,7 +920,9 @@ export const patientSchema = z.object({
  */
 export const appointmentCreateSchema = z
   .object({
-    patientId: formValue(uuid("Select a patient.").optional().or(z.literal(""))),
+    patientId: formValue(
+      uuid("Select a patient.").optional().or(z.literal("")),
+    ),
     patientName: formValue(
       z
         .string()
@@ -877,28 +943,13 @@ export const appointmentCreateSchema = z
         .or(z.literal("")),
     ),
     patientAge: formValue(
-      z
-        .string()
-        .trim()
-        .max(4)
-        .optional()
-        .or(z.literal("")),
+      z.string().trim().max(4).optional().or(z.literal("")),
     ),
     patientGender: formValue(
-      z
-        .string()
-        .trim()
-        .max(10)
-        .optional()
-        .or(z.literal("")),
+      z.string().trim().max(10).optional().or(z.literal("")),
     ),
     patientCity: formValue(
-      z
-        .string()
-        .trim()
-        .max(100)
-        .optional()
-        .or(z.literal("")),
+      z.string().trim().max(100).optional().or(z.literal("")),
     ),
     knownAllergies: formValue(
       z
@@ -919,7 +970,9 @@ export const appointmentCreateSchema = z
     serviceId: formValue(
       uuid("Select a valid service.").optional().or(z.literal("")),
     ),
-    doctorId: formValue(uuid("Select a valid doctor.").optional().or(z.literal(""))),
+    doctorId: formValue(
+      uuid("Select a valid doctor.").optional().or(z.literal("")),
+    ),
     start: localDateTime,
     notes: formValue(
       z
@@ -932,9 +985,7 @@ export const appointmentCreateSchema = z
     consultationType: formValue(
       z.enum(["in_clinic", "online", "video"]).optional().or(z.literal("")),
     ),
-    bookingSource: formValue(
-      z.string().max(32).optional().or(z.literal("")),
-    ),
+    bookingSource: formValue(z.string().max(32).optional().or(z.literal(""))),
     /** FormData checkbox: present ("true") only when Emergency Mode is on. */
     emergencyMode: formValue(z.string().max(8).optional().or(z.literal(""))),
   })
@@ -1070,7 +1121,9 @@ export const aiSettingsSchema = z.object({
   // Phase 12 — WhatsApp channel toggle (independent of enabled/isActivated).
   whatsappEnabled: z.boolean(),
   // Stored preference; menu-based chatbot logic is not implemented yet.
-  agentTier: z.enum(["chatbot", "ai_agent"], { message: "Pick an agent tier." }),
+  agentTier: z.enum(["chatbot", "ai_agent"], {
+    message: "Pick an agent tier.",
+  }),
   greetingStyle: z.enum(["custom_template", "ai_generated"], {
     message: "Pick a greeting style.",
   }),
@@ -1096,7 +1149,9 @@ export const aiSettingsSchema = z.object({
     .array(faqEntry)
     .max(20, "At most 20 FAQs are allowed.")
     .transform((entries) =>
-      entries.filter((entry) => entry.question.length > 0 && entry.answer.length > 0),
+      entries.filter(
+        (entry) => entry.question.length > 0 && entry.answer.length > 0,
+      ),
     ),
   requiredPatientFields: z
     .array(z.enum(["name", "email", "phone"]))
@@ -1107,7 +1162,10 @@ export const aiSettingsSchema = z.object({
   widgetColor: z
     .string()
     .trim()
-    .regex(/^#[0-9A-Fa-f]{6}$/, "Color must be a valid hex color (e.g. #0D9488)."),
+    .regex(
+      /^#[0-9A-Fa-f]{6}$/,
+      "Color must be a valid hex color (e.g. #0D9488).",
+    ),
   widgetPosition: z.enum(["bottom-right", "bottom-left"], {
     message: "Position must be bottom-right or bottom-left.",
   }),
@@ -1187,10 +1245,7 @@ export const websiteSaveSchema = z.object({
         .or(z.literal("")),
     }),
     about: z.object({
-      bio: z
-        .string()
-        .trim()
-        .max(5000, "Bio must be 5000 characters or fewer."),
+      bio: z.string().trim().max(5000, "Bio must be 5000 characters or fewer."),
       credentials: z
         .string()
         .trim()
@@ -1394,9 +1449,12 @@ export const inviteRevokeSchema = z.object({
 /** Check-in action: appointment id + payment status. */
 export const checkInSchema = z.object({
   appointmentId: uuid("Missing appointment id."),
-  paymentStatus: z.enum(["pending", "collected_pre", "collected_post", "not_required"], {
-    message: "Select a payment status.",
-  }),
+  paymentStatus: z.enum(
+    ["pending", "collected_pre", "collected_post", "not_required"],
+    {
+      message: "Select a payment status.",
+    },
+  ),
 });
 
 /** Record vitals for a visit. All fields optional (partial vitals capture). */
@@ -1461,6 +1519,12 @@ export const vitalsSchema = z.object({
     .max(60, "Respiratory rate must be at most 60.")
     .optional()
     .or(z.literal("")),
+  bloodSugar: z
+    .number({ message: "Blood sugar must be a number." })
+    .positive("Blood sugar must be positive.")
+    .max(800, "Blood sugar must be at most 800.")
+    .optional()
+    .or(z.literal("")),
 });
 
 /** Reorder queue: visit id + new position. */
@@ -1499,6 +1563,11 @@ const medicineEntrySchema = z.object({
 const labOrderEntrySchema = z.object({
   test_name: z.string().trim().min(1, "Test name is required.").max(200),
   notes: z.string().trim().max(500).optional().or(z.literal("")),
+  /**
+   * Panel parameters, capped at 40: the widest panel here is LFT at 8, and a
+   * payload far past that is a malformed client, not a doctor selecting tests.
+   */
+  sub_parameters: z.array(z.string().trim().min(1).max(80)).max(40).optional(),
 });
 
 /** Save or update a prescription for a visit. */
@@ -1550,12 +1619,7 @@ export const savePrescriptionSchema = z.object({
       }
     })
     .pipe(z.array(labOrderEntrySchema)),
-  followUpDate: z
-    .string()
-    .trim()
-    .max(10)
-    .optional()
-    .or(z.literal("")),
+  followUpDate: z.string().trim().max(10).optional().or(z.literal("")),
   followUpNotes: z
     .string()
     .trim()
@@ -1578,18 +1642,8 @@ export const saveTemplateSchema = z.object({
     .trim()
     .min(1, "Template name is required.")
     .max(100, "Template name must be 100 characters or fewer."),
-  diagnosis: z
-    .string()
-    .trim()
-    .max(500)
-    .optional()
-    .or(z.literal("")),
-  customDiagnosis: z
-    .string()
-    .trim()
-    .max(500)
-    .optional()
-    .or(z.literal("")),
+  diagnosis: z.string().trim().max(500).optional().or(z.literal("")),
+  customDiagnosis: z.string().trim().max(500).optional().or(z.literal("")),
   medicines: z
     .string()
     .transform((val) => {
@@ -1612,12 +1666,7 @@ export const saveTemplateSchema = z.object({
       }
     })
     .pipe(z.array(labOrderEntrySchema)),
-  doctorNotes: z
-    .string()
-    .trim()
-    .max(5000)
-    .optional()
-    .or(z.literal("")),
+  doctorNotes: z.string().trim().max(5000).optional().or(z.literal("")),
 });
 
 /** Delete a prescription template. */
@@ -1662,7 +1711,12 @@ export const createPatientBillSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Enter a valid bill date.")
     .optional()
     .or(z.literal("")),
-  notes: z.string().trim().max(500, "Notes must be at most 500 characters.").optional().or(z.literal("")),
+  notes: z
+    .string()
+    .trim()
+    .max(500, "Notes must be at most 500 characters.")
+    .optional()
+    .or(z.literal("")),
 });
 
 /**
@@ -1788,9 +1842,7 @@ export const growthPostSaveSchema = z.object({
     .min(2, "Choose a writing tone.")
     .max(40, "Keep the tone under 40 characters."),
   /** Naive clinic-local `YYYY-MM-DDTHH:mm`, or empty to save as a draft now. */
-  scheduledFor: localDateTime
-    .or(z.literal(""))
-    .default(""),
+  scheduledFor: localDateTime.or(z.literal("")).default(""),
 });
 
 /**
@@ -1812,9 +1864,7 @@ export const growthSettingsSchema = z.object({
     .int()
     .min(0, "Choose a day.")
     .max(6, "Choose a day."),
-  preferredTime: z
-    .string()
-    .regex(TIME_OF_DAY, "Choose a time."),
+  preferredTime: z.string().regex(TIME_OF_DAY, "Choose a time."),
   requireApproval: z.boolean(),
 });
 
@@ -1822,8 +1872,6 @@ export const growthSettingsSchema = z.object({
 export const growthPostActionSchema = z.object({
   postId: uuid("Missing post id."),
 });
-
-
 
 // =============================================================================
 // Phase 25 — Integrations (migration 0043)

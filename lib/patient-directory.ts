@@ -102,44 +102,73 @@ export const PATIENT_SORT_LABELS: Record<PatientSort, string> = {
  * else in the module, so a colleague can be sent a link straight to someone's
  * medications and the browser Back button steps back through tabs.
  *
- * The set is the doctor's reading order rather than the storage layout:
- * Overview (the story + what's booked), History (every check-in), Clinical
- * (health info and vitals), Medications, then the two filing cabinets, and
- * finally Prescription — the *writing* surface for today's active visit, kept
- * last so it reads as an action, not another archive.
+ * The six tabs are the reference mockup's set, in its order (docs/pt001.txt):
+ * Overview, Health Info, Vitals, Prescriptions, Documents, All Appointments.
+ *
+ * There is deliberately no separate Visit History tab. Overview and Visit
+ * History used to sit next to each other showing partly the same facts in two
+ * places, so they were merged into one Overview tab: it opens on the patient's
+ * current state — AI summary, latest vitals, last encounter, recent encounters —
+ * and continues into the full visit timeline below. The timeline was not
+ * dropped, only folded in. `overview` is therefore the default, and the old
+ * `history` id is kept as an alias so existing links still open it.
+ *
+ * Nor is there a separate Past History tab. Its content — the six narrative
+ * answers (past illnesses, surgeries, hospitalizations, family, personal and
+ * immunisation history) — is captured and edited directly in Health Info, per
+ * `docs/HEALTH INFO.txt`, so a second tab would only have been a second place to
+ * look for the same facts. The older category-based `medical_history` table is
+ * untouched and still holds any entries recorded before that move.
+ *
+ * Nor a separate Prescription tab. It was a second writing surface for the very
+ * same form the banner's "Write Prescription" overlay already opens, so the
+ * overlay is the one way to write a prescription from the record — and the
+ * Prescriptions tab is the one way to read what has been written.
  */
 export const PATIENT_TABS = [
   "overview",
-  "history",
-  "clinical",
+  "health_info",
+  "vitals",
   "medications",
   "documents",
   "appointments",
-  "prescription",
 ] as const;
 export type PatientTab = (typeof PATIENT_TABS)[number];
 
+/** The tab a record opens on when the URL says nothing. */
+export const DEFAULT_PATIENT_TAB: PatientTab = "overview";
+
 export const PATIENT_TAB_LABELS: Record<PatientTab, string> = {
   overview: "Overview",
-  history: "History",
-  clinical: "Clinical",
-  medications: "Medications",
+  health_info: "History",
+  vitals: "Vitals",
+  medications: "Prescriptions",
   documents: "Documents",
-  appointments: "Appointments",
-  prescription: "Prescription",
+  appointments: "All Appointments",
 };
 
 /**
- * Pre-rename `?tab=` values. `visits` / `health` / `vitals` / `prescriptions`
- * were folded into the four doctor-facing tabs above; mapping them here means
- * an old bookmark or a shared link still opens a panel instead of falling back
- * to Overview with no explanation.
+ * Retired and renamed `?tab=` values. `clinical` used to bundle health info with
+ * vitals; it now resolves to History. `history` is the one that changed
+ * shape rather than name — the old Visit History tab was merged into Overview
+ * and now resolves there, so the id a link was shared with still opens the panel
+ * it was pointing at. Mapping them here means an old bookmark or a shared link
+ * still opens a panel instead of falling back with no explanation.
  */
 const PATIENT_TAB_ALIASES: Record<string, PatientTab> = {
-  visits: "history",
-  health: "clinical",
-  vitals: "clinical",
+  visits: "overview",
+  history: "overview",
+  health: "health_info",
+  clinical: "health_info",
+  vitals: "vitals",
   prescriptions: "medications",
+  // The retired Past History tab; its content now lives in Health Info.
+  past_history: "health_info",
+  medical_history: "health_info",
+  // The retired Prescription tab; the read side is Prescriptions, and writing
+  // now happens in the Write Prescription overlay the banner opens.
+  prescription: "medications",
+  rx: "medications",
 };
 
 export type PatientDirectoryParams = {
@@ -201,7 +230,7 @@ export function parsePatientDirectoryParams(
     selectedId: str("id").trim().slice(0, 64),
     tab: (PATIENT_TABS as readonly string[]).includes(rawTab)
       ? (rawTab as PatientTab)
-      : (PATIENT_TAB_ALIASES[rawTab] ?? "overview"),
+      : (PATIENT_TAB_ALIASES[rawTab] ?? DEFAULT_PATIENT_TAB),
   };
 }
 
@@ -223,8 +252,9 @@ export function patientDirectoryHref(
   if (params.sort && params.sort !== "name") search.set("sort", params.sort);
   if (params.page && params.page > 1) search.set("page", String(params.page));
   if (params.selectedId) search.set("id", params.selectedId);
-  // `tab` is meaningless without a selection, and `overview` is the default.
-  if (params.selectedId && params.tab && params.tab !== "overview") {
+  // `tab` is meaningless without a selection, and the default tab is omitted so
+  // the common URL stays clean.
+  if (params.selectedId && params.tab && params.tab !== DEFAULT_PATIENT_TAB) {
     search.set("tab", params.tab);
   }
 
