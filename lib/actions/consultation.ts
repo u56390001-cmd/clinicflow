@@ -63,6 +63,21 @@ export async function startConsultationAction(
 
 /**
  * Complete current consultation and advance to the next waiting patient.
+ *
+ * `complete_and_advance` deliberately refuses to complete a visit that is not
+ * already `in_consultation` — the queue is DB-owned and a visit that never
+ * entered consultation has no consultation to close. That strictness is right,
+ * but it made this action unusable from the prescription workspace, because the
+ * workspace is reachable straight from "Write Prescription" on a visit the
+ * doctor never pressed "Start Consultation" on. The doctor would write a valid
+ * prescription and then hit a raw database exception:
+ * "Visit not found or not currently in consultation."
+ *
+ * So the missing transition is performed here, through the same RPC the banner
+ * uses, rather than by writing `visits.status` from the client. The visit is
+ * read first so only the genuinely-open states are auto-started: a visit that is
+ * already `completed` (a double click, or a second tab) must not be resurrected
+ * into a fresh consultation just to be closed again.
  */
 export async function completeAndAdvanceAction(
   _prevState: ActionResult<string> | null,
@@ -88,6 +103,54 @@ export async function completeAndAdvanceAction(
   }
   if (!canManageClinical(access.role)) {
     return { ok: false, message: "Your role cannot manage consultations." };
+  }
+
+  // Why the visit is not completable yet, decided before touching the queue.
+  // `closed` stays unstarted on purpose: starting a completed visit would put
+  // the doctor back into consultation and hand them the next patient for a
+  // visit they already signed off.
+  const OPEN_STATUSES = ["waiting", "checked_in"] as const;
+  const { data: visitRow, error: visitError } = await supabase
+    .from("visits")
+    .select("id, status")
+    .eq("clinic_id", access.clinic.id)
+    .eq("id", parsed.data.visitId)
+    .maybeSingle();
+
+  if (visitError) {
+    return { ok: false, message: visitError.message };
+  }
+  if (!visitRow) {
+    return { ok: false, message: "Visit not found." };
+  }
+  const visitStatus = visitRow.status as string;
+  const needsStarting = OPEN_STATUSES.includes(
+    visitStatus as (typeof OPEN_STATUSES)[number],
+  );
+
+  if (visitStatus === "completed") {
+    return {
+      ok: false,
+      message:
+        "This visit is already completed. Refresh to see the current queue.",
+    };
+  }
+
+  if (needsStarting) {
+    // Goes through the advisory-locked RPC, so it still respects the one
+    // in-consultation-per-doctor rule. If this doctor is already with someone
+    // else, that RPC returns the reason and the doctor never sees the raw
+    // exception text.
+    const { error: startError } = await supabase.rpc("start_consultation", {
+      p_clinic_id: access.clinic.id,
+      p_visit_id: parsed.data.visitId,
+    });
+    if (startError) {
+      return {
+        ok: false,
+        message: startError.message || "Failed to start consultation.",
+      };
+    }
   }
 
   const { data, error } = await supabase.rpc("complete_and_advance", {

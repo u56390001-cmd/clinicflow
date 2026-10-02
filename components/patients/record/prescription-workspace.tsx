@@ -76,6 +76,7 @@ import { patientDocumentHref } from "@/lib/patient-documents-queries";
 import { avatarColorFor, initialsOf } from "@/lib/utils/avatar";
 import { ageFromDob, formatNaiveDate } from "@/lib/utils/datetime";
 import { computeBmi, deriveBloodPressure } from "@/lib/vitals-fields";
+import { parseOcrMedicineString } from "@/lib/ocr-medicine-parser";
 import { cn } from "@/lib/utils";
 
 import type { ConsultationPreAnswer } from "@/lib/consultation-queries";
@@ -192,19 +193,22 @@ function ScannedLabRow({ result }: { result: PatientLabResult }) {
   return (
     <li className="flex min-w-0 items-center justify-between gap-2 rounded-[8px] border border-hairline bg-surface px-2 py-1.5">
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="text-ink truncate text-[12px] font-bold">
+        {/* Typography only, matching the Scanned Medicines list: a lab value
+            read off a report is something the doctor checks, not a badge, so
+            the test name and its value both step up and gain leading. */}
+        <span className="text-ink truncate text-[13px] font-bold leading-snug tracking-[0.01em]">
           {result.test_name}
         </span>
-        <span className="truncate text-[11px] text-text-muted">
+        <span className="truncate text-[12px] leading-relaxed text-text-secondary">
           {result.report_date ? formatNaiveDate(result.report_date) : "No date"}
         </span>
       </span>
       <span className="flex shrink-0 items-baseline gap-1">
-        <span className="text-ink text-[12px] font-bold tabular-nums">
+        <span className="text-ink text-[13px] font-bold tabular-nums">
           {result.test_value ?? "—"}
         </span>
         {result.unit && (
-          <span className="text-[11px] text-text-muted">{result.unit}</span>
+          <span className="text-[12px] text-text-secondary">{result.unit}</span>
         )}
         {abnormal && (
           <Badge
@@ -280,21 +284,27 @@ function ScannedMedicineRow({
           verified ? "cursor-pointer" : "cursor-not-allowed",
         )}
       >
+        {/* Typography only — no border, background or width change. The clinical
+            rail is read by doctors who are looking through reading glasses at a
+            12px/11px pair, and a 1px difference between the drug name and its
+            dose is the difference between reading the rail and skimming it. The
+            name goes to 13px in near-black, the dose to 12px, and both gain
+            line-height so a two-line dose does not collide with the row below. */}
         <span
           className={cn(
-            "truncate text-[12px] font-semibold",
+            "truncate text-[13px] font-semibold leading-snug tracking-[0.01em]",
             verified ? "text-ink" : "text-text-muted",
           )}
         >
           {medication.medicine_name}
         </span>
         {details && (
-          <span className="truncate text-[11px] text-text-muted">
+          <span className="truncate text-[12px] leading-relaxed tracking-[0.01em] text-text-secondary">
             {details}
           </span>
         )}
         {!verified && (
-          <span className="text-ink-faint text-[10px] font-semibold uppercase tracking-[0.04em]">
+          <span className="text-ink-faint text-[11px] font-semibold uppercase leading-snug tracking-[0.06em]">
             {medication.status === "discontinued" ? "Discarded" : "Unverified"}
           </span>
         )}
@@ -505,6 +515,16 @@ export function PrescriptionWorkspace({
   const [isAdvancing, startAdvance] = useTransition();
   const [advanceError, setAdvanceError] = useState<string | null>(null);
 
+  /**
+   * Whether this visit has actually entered consultation.
+   *
+   * `completeAndAdvanceAction` will start the visit for us if it is still
+   * waiting (that is the bug this fixes), but the button says "Visit" or not
+   * based on it: a doctor who never pressed "Start Consultation" is not closing
+   * a visit they opened, and pretending otherwise overstates what happened.
+   */
+  const isConsulting = visit.status === "in_consultation";
+
   const handlePrint = useCallback(() => window.print(), []);
 
   /**
@@ -559,17 +579,34 @@ export function PrescriptionWorkspace({
       if (!draft) return;
       const name = medication.medicine_name.trim();
       if (!name) return;
-      const key = name.toLowerCase();
-      const present = draft.medicines.some(
-        (entry) => entry.name.trim().toLowerCase() === key,
-      );
+
+      // The row this tick controls is the row `medicineEntryFromMedication`
+      // builds, so the key has to be built from the same parse. Keying off the
+      // raw scan string instead meant the checkbox compared the tick against
+      // "tab. rivotril 0.5 mg" while the table held "rivotril 0.5 mg" — so
+      // `present` was always false, and unticking removed nothing while the
+      // tick lit up. The tick has to be able to find its own row.
+      const parsedName = medicineEntryFromMedication(medication)
+        .name.trim()
+        .toLowerCase();
+      if (!parsedName) return;
+
+      // Match the row, not any row: the doctor is allowed to edit the name, and
+      // an untick that removed every row starting with the same word would take
+      // their edit with it. Exact match, then the raw scan string as a fallback
+      // for a row written before the parser existed.
+      const isThisRow = (entry: { name: string }) => {
+        const rowName = entry.name.trim().toLowerCase();
+        return rowName === parsedName || rowName === name.toLowerCase();
+      };
+
+      const present = draft.medicines.some(isThisRow);
       if (checked === present) return;
+
       draftContext?.patch({
         medicines: checked
           ? [...draft.medicines, medicineEntryFromMedication(medication)]
-          : draft.medicines.filter(
-              (entry) => entry.name.trim().toLowerCase() !== key,
-            ),
+          : draft.medicines.filter((entry) => !isThisRow(entry)),
       });
     },
     [draft, draftContext],
@@ -604,11 +641,18 @@ export function PrescriptionWorkspace({
   );
 
   const inTable = useCallback(
-    (name: string) =>
-      !!draft?.medicines.some(
-        (entry) =>
-          entry.name.trim().toLowerCase() === name.trim().toLowerCase(),
-      ),
+    (name: string) => {
+      // Same reason as `toggleScanned`: the checkbox reflects a row that was
+      // built through the parser, so it has to look the row up by the parsed
+      // name. Keyed off the raw scan string this reported "not added" for a row
+      // that was plainly sitting in the table.
+      const parsed = parseOcrMedicineString(name).name.trim().toLowerCase();
+      const raw = name.trim().toLowerCase();
+      return !!draft?.medicines.some((entry) => {
+        const row = entry.name.trim().toLowerCase();
+        return row === parsed || row === raw;
+      });
+    },
     [draft],
   );
 
@@ -914,22 +958,28 @@ export function PrescriptionWorkspace({
                           AI OCR Summary
                         </span>
                         {aiLines.length > 0 ? (
-                          <ul className="flex flex-col gap-1">
+                          <ul className="flex flex-col gap-1.5">
                             {aiLines.map((line, index) => (
                               <li
                                 key={`${line.slice(0, 24)}-${index}`}
-                                className="flex gap-1.5 text-[12px] leading-snug text-text-primary"
+                                /* Typography only. A clinical summary is prose a
+                                   doctor actually reads — unlike a badge count,
+                                   which is glanced — so it gets 13px,
+                                   relaxed leading and a hair of tracking. At 12px
+                                   with `leading-snug` a three-line summary set
+                                   itself solid and the rail read as a wall. */
+                                className="flex gap-2 text-[13px] leading-relaxed tracking-[0.01em] text-text-primary"
                               >
                                 <span
                                   aria-hidden="true"
-                                  className="mt-[6px] size-1 shrink-0 rounded-full bg-primary"
+                                  className="mt-[7px] size-1 shrink-0 rounded-full bg-primary"
                                 />
                                 <span className="min-w-0">{line}</span>
                               </li>
                             ))}
                           </ul>
                         ) : (
-                          <p className="text-[12px] leading-snug text-text-muted">
+                          <p className="text-[13px] leading-relaxed tracking-[0.01em] text-text-muted">
                             {patient.visit_count > 0
                               ? "No summary yet. Generate one from the Overview tab."
                               : AI_SUMMARY_EMPTY_STATE}
@@ -1021,14 +1071,20 @@ export function PrescriptionWorkspace({
                                 title={reading.label}
                                 className="flex min-w-0 flex-col rounded-[8px] border border-hairline bg-surface px-2 py-1.5"
                               >
-                                <span className="truncate text-[9px] font-bold uppercase leading-none tracking-[0.05em] text-text-muted">
+                                {/* Typography only — the card keeps its size,
+                                    border and padding. The label is the one
+                                    genuinely unreadable piece left in the rail:
+                                    9px uppercase is a badge, not a reading, and
+                                    "SPO2" at 9px is a squint. The number
+                                    itself was always 15px and stays. */}
+                                <span className="truncate text-[11px] font-bold uppercase leading-tight tracking-[0.05em] text-text-secondary">
                                   {reading.label}
                                 </span>
                                 <span className="flex items-baseline gap-1">
                                   <span className="text-ink text-[15px] font-bold tabular-nums leading-tight">
                                     {reading.value}
                                   </span>
-                                  <span className="text-[10px] font-medium text-text-muted">
+                                  <span className="text-[11px] font-medium leading-tight text-text-secondary">
                                     {reading.unit}
                                   </span>
                                 </span>
@@ -1036,7 +1092,7 @@ export function PrescriptionWorkspace({
                             ))}
                           </div>
                         ) : (
-                          <p className="text-[12px] text-text-muted">
+                          <p className="text-[13px] leading-relaxed tracking-[0.01em] text-text-muted">
                             No vitals recorded for this visit.
                           </p>
                         )}
@@ -1377,7 +1433,11 @@ export function PrescriptionWorkspace({
                           data-icon="inline-start"
                           aria-hidden="true"
                         />
-                        {isAdvancing ? "Completing…" : "Save & Complete Visit"}
+                        {isAdvancing
+                          ? "Completing…"
+                          : isConsulting
+                            ? "Save & Complete Visit"
+                            : "Save & Complete"}
                       </Button>
                     </div>
                   </div>
@@ -1388,6 +1448,8 @@ export function PrescriptionWorkspace({
                       allergies: patient.known_allergies || undefined,
                       current_meds: patient.current_medications || undefined,
                     }}
+                    onUndo={draftContext?.undoLast}
+                    canUndo={draftContext?.canUndo ?? false}
                     onPopulateForm={(extracted: CopilotExtraction) => {
                       if (!draftContext) return;
 

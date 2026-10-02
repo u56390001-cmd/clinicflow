@@ -42,6 +42,7 @@ import {
 } from "@/components/patients/record/prescription-draft-context";
 import { labTestLabel } from "@/lib/lab-panels";
 import { OPD_MEDICINE_SUGGESTIONS } from "@/lib/opd-medicines";
+import { parseOcrMedicineString } from "@/lib/ocr-medicine-parser";
 import { formatShortDate, addDaysToNaive } from "@/lib/utils/datetime";
 import { cn } from "@/lib/utils";
 import type {
@@ -83,18 +84,44 @@ export function prescriptionFormData(
  *
  * `PatientMedication` records what a report *said* — a strength, a frequency, a
  * duration — while a prescription row records what the doctor is prescribing.
- * The mapping is deliberately mechanical and lossy: the doctor ticks it, sees
- * the row, and edits anything that needs editing. `strength` lands in Route
- * because the Route/Form cell shows `form` when set and `route` otherwise, so
- * "500 mg" is visible on the row until a real form is chosen.
+ * The doctor ticks it, sees the row, and edits anything that needs editing.
+ *
+ * WHAT THE ROW IS FILLED WITH, and why it is not simply the scan's own columns:
+ *
+ * - **Name** — the scan's `medicine_name` run through `parseOcrMedicineString`,
+ *   so "Tab. Rivotril 0.5 mg" becomes "Rivotril" rather than a name that matches
+ *   nothing in the catalogue. The stripped strength is not thrown away: it is
+ *   appended back onto the name, because this grid has no strength column and a
+ *   dose that exists only in the database is a dose nobody reads.
+ * - **Route/Form** — the scan's `strength` is used as the fallback the cell
+ *   already renders when no form is set, which is how "500 mg" stays visible
+ *   until a real form is chosen. When the parser *can* read a dosage form from
+ *   the text, that form wins, because a select showing "Tablet" is more useful
+ *   than one showing a number. A doctor's own edit to any of this simply
+ *   overwrites it — nothing here is locked.
+ * - **Frequency, duration, instructions** — passed through untouched. These are
+ *   the scan's own words and inventing a default would be a guess about a
+ *   clinical instruction.
  */
 export function medicineEntryFromMedication(
   medication: PatientMedication,
 ): MedEntry {
+  const parsed = parseOcrMedicineString(medication.medicine_name);
+  const cleanedName = parsed.name.trim() || medication.medicine_name.trim();
+
+  // Re-attach the strength the parser removed, and use it as the form fallback
+  // too, so a row created from a scan never loses its dose.
+  const strength = (medication.strength ?? "").trim() || parsed.strength;
+  const displayName =
+    parsed.strength &&
+    !cleanedName.toLowerCase().includes(parsed.strength.toLowerCase())
+      ? `${cleanedName} ${parsed.strength}`.trim()
+      : cleanedName;
+
   return {
-    name: medication.medicine_name.trim(),
-    route: medication.strength ?? "",
-    form: "",
+    name: displayName,
+    route: strength,
+    form: parsed.form,
     frequency: medication.frequency ?? "",
     duration: medication.duration ?? "",
     unit: "",
@@ -212,7 +239,26 @@ function followUpParts(
  */
 const NARRATIVE_LABEL = "text-[12px] font-semibold text-text-secondary";
 
-/** One labelled auto-growing field — the shared primitive, used controlled. */
+/**
+ * The ceiling on the two narrative fields, and on the private note below them.
+ *
+ * Chosen so that the widest case — a full consultation's findings — still leaves
+ * "Internal Doctor Notes" and the action bar visible on a laptop at the bottom of
+ * the prescription column. This is a layout guarantee, not a content limit: the
+ * box scrolls, so nothing is lost, only the growth past the cap.
+ */
+const NARRATIVE_MAX_H = "max-h-[150px]";
+
+/**
+ * One labelled auto-growing field — the shared primitive, used controlled.
+ *
+ * `NARRATIVE_MAX_H` caps the box. Without a ceiling, a long examination finding
+ * grows its card without limit and pushes "Internal Doctor Notes" and the action
+ * bar off the bottom of the screen — the two things the doctor needs after
+ * writing the findings. Auto-grow is kept (a three-line answer should not leave
+ * three empty lines below it) but it now stops at the cap and scrolls, so the
+ * initial height, the maximum height, and everything below it are all stable.
+ */
 function GrowField({
   id,
   name,
@@ -252,7 +298,8 @@ function GrowField({
         placeholder={placeholder}
         onChange={(event) => onValue(event.target.value)}
         className={cn(
-          "scrollbar-thin text-ink w-full resize-none rounded-[10px] border-[1.5px] bg-surface px-3.5 py-2.5 text-[13px] leading-relaxed transition-colors placeholder:text-text-muted/70 focus:outline-none",
+          "scrollbar-thin text-ink w-full resize-none overflow-y-auto rounded-[10px] border-[1.5px] bg-surface px-3.5 py-2.5 text-[13px] leading-relaxed transition-colors placeholder:text-text-muted/70 focus:outline-none",
+          NARRATIVE_MAX_H,
           fill && "flex-1",
           invalid ? "border-primary" : "border-hairline focus:border-primary",
         )}
@@ -1110,7 +1157,12 @@ export function RxBuilder({
         </div>
       </RxCard>
 
-      {/* Private note — never on the patient's copy. */}
+      {/* Private note — never on the patient's copy. Capped like the narrative
+             fields above, and for the same reason: it is the last card in the
+             column, so an uncapped note grows the form's total height rather
+             than pushing something else off-screen — but the action bar that
+             saves the visit must never end up below the fold because a remark
+             ran long. */}
       <RxCard icon={Lock} title="Internal Doctor Notes">
         <AutoGrowTextarea
           id="rx-doctor-notes"
@@ -1119,7 +1171,10 @@ export function RxBuilder({
           value={draft.doctorNotes}
           placeholder="Private clinical remarks — not printed on the patient's copy"
           onChange={(event) => patch({ doctorNotes: event.target.value })}
-          className="scrollbar-thin text-ink w-full resize-none rounded-[10px] border-[1.5px] border-hairline bg-surface px-3.5 py-2.5 text-[13px] leading-relaxed transition-colors placeholder:text-text-muted/70 focus:border-primary focus:outline-none"
+          className={cn(
+            "scrollbar-thin text-ink w-full resize-none overflow-y-auto rounded-[10px] border-[1.5px] border-hairline bg-surface px-3.5 py-2.5 text-[13px] leading-relaxed transition-colors placeholder:text-text-muted/70 focus:border-primary focus:outline-none",
+            NARRATIVE_MAX_H,
+          )}
         />
       </RxCard>
 

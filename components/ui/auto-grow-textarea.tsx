@@ -46,6 +46,9 @@ export function AutoGrowTextarea({
    * back down. This measures the content, records it as a floor, then releases
    * the box so CSS owns the height again. The field stays its own minimum size
    * and can only be pushed taller by its sibling.
+   *
+   * Respects any `max-h` the caller set; see `resize` for why that cannot be
+   * left to CSS alone.
    */
   fill?: boolean;
 }) {
@@ -54,15 +57,29 @@ export function AutoGrowTextarea({
   const resize = useCallback(() => {
     const el = ref.current;
     if (!el) return;
+
+    // The caller's `max-h` is a layout guarantee — "nothing below me moves" — so
+    // it has to be honoured here, not just in CSS. In `fill` mode the box is
+    // grown by writing an inline `min-height`, and CSS resolves min-height
+    // *before* max-height: a min-height larger than the cap wins, so a long note
+    // would push straight through the ceiling and the cap would silently do
+    // nothing. Measuring against the cap is what makes the two agree.
+    const cap = el.parentElement
+      ? Number.parseFloat(getComputedStyle(el).maxHeight)
+      : Number.NaN;
+    const ceiling = Number.isFinite(cap) && cap > 0 ? cap : Infinity;
+
     el.style.height = "auto";
     const content = el.scrollHeight;
+    const target = Math.min(content, ceiling);
+
     if (fill) {
-      el.style.minHeight = `${content}px`;
+      el.style.minHeight = `${target}px`;
       // Hand the height back to CSS so a taller sibling can stretch the box.
       el.style.height = "";
     } else {
       el.style.minHeight = "";
-      el.style.height = `${content}px`;
+      el.style.height = `${target}px`;
     }
   }, [fill]);
 

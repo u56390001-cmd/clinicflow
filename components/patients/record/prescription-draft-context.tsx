@@ -87,37 +87,66 @@ export type PrescriptionDraftContextValue = {
   markApplied: (keys: (keyof PrescriptionDraft)[]) => void;
   /** Drop every AI mark — a successful save IS the doctor's confirmation. */
   clearApplied: () => void;
+  /**
+   * Restore the draft as it stood before the copilot's last write, and report
+   * whether there was anything to restore.
+   *
+   * WHY it lives here rather than in the drawer: the drawer does not hold the
+   * draft — it only receives a finished `CopilotExtraction` — so it cannot take
+   * a "before" snapshot. The provider does, because every `patch` passes through
+   * it, and that is the one place a snapshot can be complete without any caller
+   * remembering to make one.
+   */
+  undoLast: () => boolean;
+  /** Whether an undoable write is on the stack. */
+  canUndo: boolean;
 };
 
 const PrescriptionDraftContext =
   createContext<PrescriptionDraftContextValue | null>(null);
+
+/**
+ * The live draft plus one level of undo, as a single state object.
+ *
+ * `undo` is part of `session` rather than a second `useState` because the two
+ * must move together: a snapshot taken by one update and consumed by the other
+ * is exactly the kind of half-applied state React cannot see. Keeping them in
+ * one object means every write goes through a single reducer-shaped updater and
+ * there is no ordering to get wrong.
+ */
+type DraftSession = {
+  visitId: string;
+  draft: PrescriptionDraft;
+  applied: Partial<Record<keyof PrescriptionDraft, true>>;
+  /**
+   * The state immediately before the last `patch`, or `null` when there is
+   * nothing to undo. One level deep on purpose — an undo *stack* invites
+   * "undo, undo, undo" until nobody remembers which state was real, and what is
+   * being protected here is a clinical note, not a text editor. A new visit
+   * clears it, because there is nothing meaningful to go back to.
+   */
+  undo: { draft: PrescriptionDraft; applied: Partial<Record<keyof PrescriptionDraft, true>> } | null;
+};
 
 export function PrescriptionDraftProvider({
   children,
 }: {
   children: ReactNode;
 }) {
-  const [session, setSession] = useState<{
-    visitId: string;
-    draft: PrescriptionDraft;
-    applied: Partial<Record<keyof PrescriptionDraft, true>>;
-  } | null>(null);
+  const [session, setSession] = useState<DraftSession | null>(null);
 
-  const ensure = useCallback(
-    (visitId: string, seed: PrescriptionDraft) => {
-      setSession((prev) => {
-        if (prev?.visitId !== visitId)
-          return { visitId, draft: seed, applied: {} };
-        // The form re-runs `ensure` on every provider change (tab switches
-        // included). Returning the same object for a no-op keeps React from
-        // re-rendering the subtree — and, critically, preserves `applied`:
-        // a reset here would wipe the copilot's amber marks whenever the
-        // doctor hops tabs mid-review.
-        return prev;
-      });
-    },
-    [],
-  );
+  const ensure = useCallback((visitId: string, seed: PrescriptionDraft) => {
+    setSession((prev) => {
+      if (prev?.visitId !== visitId)
+        return { visitId, draft: seed, applied: {}, undo: null };
+      // The form re-runs `ensure` on every provider change (tab switches
+      // included). Returning the same object for a no-op keeps React from
+      // re-rendering the subtree — and, critically, preserves `applied`:
+      // a reset here would wipe the copilot's amber marks whenever the
+      // doctor hops tabs mid-review.
+      return prev;
+    });
+  }, []);
 
   const patch = useCallback((updates: Partial<PrescriptionDraft>) => {
     setSession((prev) => {
@@ -128,7 +157,21 @@ export function PrescriptionDraftProvider({
       for (const key of Object.keys(updates) as (keyof PrescriptionDraft)[]) {
         delete applied[key];
       }
-      return { ...prev, draft: { ...prev.draft, ...updates }, applied };
+      return {
+        ...prev,
+        draft: { ...prev.draft, ...updates },
+        applied,
+        // The snapshot is taken here, before the write, because this is the one
+        // place every write passes through. `markApplied` runs after `patch`,
+        // so snapshotting there would capture the already-patched draft and the
+        // undo would restore the AI's own text instead of the doctor's.
+        //
+        // A field the doctor typed into is not an AI write worth undoing, so a
+        // patch that only carries manual edits does not push a snapshot: the
+        // copilot path always follows with `markApplied`, and undo is offered
+        // only when those amber marks exist.
+        undo: { draft: prev.draft, applied: prev.applied },
+      };
     });
   }, []);
 
@@ -145,7 +188,32 @@ export function PrescriptionDraftProvider({
   );
 
   const clearApplied = useCallback(() => {
-    setSession((prev) => (prev ? { ...prev, applied: {} } : prev));
+    setSession((prev) => (prev ? { ...prev, applied: {}, undo: null } : prev));
+  }, []);
+
+  /**
+   * Put back the draft as it stood before the copilot's last write.
+   *
+   * `clearApplied` is what runs on a successful save — once a note is saved,
+   * undo is meaningless (the saved row is the record) and the amber marks go
+   * with it, so the undo slot is released in the same step.
+   */
+  const undoLast = useCallback(() => {
+    let restored = false;
+    setSession((prev) => {
+      if (!prev?.undo) return prev;
+      restored = true;
+      // The restored state becomes the new baseline, and the slot is emptied
+      // rather than re-armed: undo is one step, not a toggle. Re-arming it
+      // would make a second Undo a no-op write of the same snapshot.
+      return {
+        visitId: prev.visitId,
+        draft: prev.undo.draft,
+        applied: prev.undo.applied,
+        undo: null,
+      };
+    });
+    return restored;
   }, []);
 
   const value = useMemo<PrescriptionDraftContextValue>(
@@ -157,8 +225,13 @@ export function PrescriptionDraftProvider({
       patch,
       markApplied,
       clearApplied,
+      undoLast,
+      // Only offered while the current draft still carries AI marks: once the
+      // doctor has edited an AI-filled field, the note is theirs and the
+      // snapshot is stale.
+      canUndo: Boolean(session?.undo) && Object.keys(session?.applied ?? {}).length > 0,
     }),
-    [session, ensure, patch, markApplied, clearApplied],
+    [session, ensure, patch, markApplied, clearApplied, undoLast],
   );
 
   return (

@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Mic, Square, Sparkles, ChevronRight, ChevronLeft, AlertTriangle, Send, X } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Mic, Square, Sparkles, ChevronRight, ChevronLeft, AlertTriangle, Send, X, Undo2, Zap, Check } from 'lucide-react';
 import { useAmbientRecorder } from '@/lib/copilot/hooks/useAmbientRecorder';
 import { CopilotExtraction, EMPTY_EXTRACTION } from '@/lib/copilot/types';
 import { fetchWithTimeout, COMMAND_TIMEOUT_MS } from '@/lib/copilot/fetch-with-timeout';
@@ -11,12 +11,43 @@ import { Spinner } from '@/components/ui/spinner';
 interface CopilotDrawerProps {
   patientProfile?: { allergies?: string; current_meds?: string };
   onPopulateForm: (data: CopilotExtraction) => void;
+  /** Restores the pre-copilot draft. Omitted where there is no undo to offer. */
+  onUndo?: () => boolean;
+  /** True while an AI-written draft is still unreviewed — drives the Undo button. */
+  canUndo?: boolean;
 }
 
-export function CopilotDrawer({ patientProfile, onPopulateForm }: CopilotDrawerProps) {
+/**
+ * AUTO-APPLY, and why it is on by default.
+ *
+ * Ambient capture exists to remove typing, and typing was what the doctor did
+ * next anyway: record a consultation, then read the extraction, then press
+ * "Populate Prescription Form". That button is the last piece of manual work in
+ * a flow whose entire premise is that the machine already listened. So a fresh
+ * extraction lands in the form the moment it exists.
+ *
+ * It is safe to do this because of three things that already exist and were not
+ * added for it: every AI-written field is marked amber in the form until the
+ * doctor edits it, one undo restores the draft, and nothing is written to the
+ * database until the doctor presses Save. Auto-apply changes what is on screen,
+ * not what is on file.
+ *
+ * Still a toggle, because "safe by default" is not the same as "always right":
+ * a doctor mid-consultation who has already typed the real findings should not
+ * have them overwritten by an extraction from a half-heard sentence, and a
+ * multi-speaker room with a background TV is exactly when the toggle earns its
+ * place.
+ */
+export function CopilotDrawer({
+  patientProfile,
+  onPopulateForm,
+  onUndo,
+  canUndo = false
+}: CopilotDrawerProps) {
   const [isOpen, setIsOpen] = useState<boolean>(true);
   const [commandInput, setCommandInput] = useState<string>('');
   const [isProcessingCommand, setIsProcessingCommand] = useState<boolean>(false);
+  const [autoApply, setAutoApply] = useState<boolean>(true);
 
   const {
     isRecording,
@@ -35,6 +66,45 @@ export function CopilotDrawer({ patientProfile, onPopulateForm }: CopilotDrawerP
   // path and the command path fail for the same reasons (no API key, no
   // network), so they should read the same way.
   const [commandError, setCommandError] = useState<string | null>(null);
+
+  // Which extraction is already in the form. Without this, auto-apply would
+  // fire again on every re-render, and — worse — a re-extraction of the *same*
+  // transcript would write the form again after the doctor had corrected it.
+  const appliedRef = useRef<CopilotExtraction | null>(null);
+
+  /** Write an extraction to the form, once. Returns true when it wrote. */
+  const applyOnce = useCallback(
+    (data: CopilotExtraction) => {
+      if (appliedRef.current === data) return false;
+      appliedRef.current = data;
+      onPopulateForm(data);
+      return true;
+    },
+    [onPopulateForm]
+  );
+
+  // The auto-apply itself. Keyed on the extracted object, not on a boolean, so
+  // it runs exactly once per extraction: `extractedData` is a new object only
+  // when a new recording or command produced one.
+  useEffect(() => {
+    if (!autoApply || !extractedData) return;
+    applyOnce(extractedData);
+  }, [autoApply, extractedData, applyOnce]);
+
+  // A new recording starts a new note, so the "already applied" mark goes too —
+  // otherwise the next extraction would be treated as a duplicate and skipped.
+  useEffect(() => {
+    if (isRecording) appliedRef.current = null;
+  }, [isRecording]);
+
+  /** Undo, then forget the mark so the same extraction is not silently re-applied. */
+  const handleUndo = useCallback(() => {
+    const restored = onUndo?.();
+    if (restored) {
+      appliedRef.current = null;
+      setExtractedData(null);
+    }
+  }, [onUndo, setExtractedData]);
 
   const handleCommandSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,6 +148,11 @@ export function CopilotDrawer({ patientProfile, onPopulateForm }: CopilotDrawerP
       if (result?.data) {
         setExtractedData(result.data);
         setCommandInput('');
+        // A typed command is just as complete a prescription as a recording, so
+        // it goes to the form by the same rule. Left on the manual button this
+        // would have meant the doctor typed a full order and then pressed one
+        // more key to send it — the one interaction auto-apply exists to remove.
+        if (autoApply) applyOnce(result.data);
       } else {
         throw new Error('The copilot did not return a prescription. Try rephrasing the command.');
       }
@@ -145,14 +220,60 @@ export function CopilotDrawer({ patientProfile, onPopulateForm }: CopilotDrawerP
           )}
 
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <div className="flex items-center gap-2">
-              <Sparkles className="size-[18px] text-teal-500" />
-              <h3 className="text-sm font-semibold text-slate-900">Ambient Copilot</h3>
+          <div className="flex flex-col gap-3 border-b border-slate-200 pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="size-[18px] text-teal-500" />
+                <h3 className="text-sm font-semibold text-slate-900">Ambient Copilot</h3>
+              </div>
+              <span className="rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[10px] font-medium tracking-wide text-teal-700">
+                {isRecording ? 'LISTENING' : 'READY'}
+              </span>
             </div>
-            <span className="rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[10px] font-medium tracking-wide text-teal-700">
-              {isRecording ? 'LISTENING' : 'READY'}
-            </span>
+
+            {/* Auto-apply, in the header rather than buried in the mic card:
+                it changes what every future recording does, so it is a setting
+                of the panel, not of one button. Undo sits beside it because it
+                is the escape hatch for the same setting and is useless apart
+                from it. */}
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setAutoApply((on) => !on)}
+                aria-pressed={autoApply}
+                title={
+                  autoApply
+                    ? 'Extracted notes are written into the prescription form as soon as they are ready.'
+                    : 'Extracted notes wait for you to press Populate Prescription Form.'
+                }
+                className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 transition hover:text-teal-700"
+              >
+                <span
+                  className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${
+                    autoApply ? 'bg-teal-600' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block size-3 rounded-full bg-white shadow-sm transition-transform ${
+                      autoApply ? 'translate-x-3.5' : 'translate-x-0.5'
+                    }`}
+                  />
+                </span>
+                Auto-fill form
+                {autoApply && <Zap className="size-3 text-teal-600" aria-hidden="true" />}
+              </button>
+
+              {canUndo && (
+                <button
+                  type="button"
+                  onClick={handleUndo}
+                  className="flex items-center gap-1 text-[11px] font-medium text-slate-500 transition hover:text-amber-700"
+                >
+                  <Undo2 className="size-3" aria-hidden="true" />
+                  Undo
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Ambient Mic Controller */}
@@ -249,13 +370,23 @@ export function CopilotDrawer({ patientProfile, onPopulateForm }: CopilotDrawerP
                 </p>
               </div>
 
-              <Button
-                onClick={() => onPopulateForm(extractedData)}
-                className="w-full justify-center bg-teal-600 text-xs font-semibold text-white shadow-md hover:bg-teal-700"
-                size="sm"
-              >
-                Populate Prescription Form
-              </Button>
+              {appliedRef.current === extractedData ? (
+                /* Already in the form. The button becomes the confirmation it
+                   really is, instead of disappearing — the doctor needs to see
+                   that the note landed here and not somewhere else. */
+                <div className="flex items-center justify-center gap-1.5 rounded-lg border border-teal-300 bg-white/70 px-3 py-2 text-[11px] font-medium text-teal-800">
+                  <Check className="size-3.5" aria-hidden="true" />
+                  Written to the prescription form
+                </div>
+              ) : (
+                <Button
+                  onClick={() => onPopulateForm(extractedData)}
+                  className="w-full justify-center bg-teal-600 text-xs font-semibold text-white shadow-md hover:bg-teal-700"
+                  size="sm"
+                >
+                  Populate Prescription Form
+                </Button>
+              )}
             </div>
           )}
 
