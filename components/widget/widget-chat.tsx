@@ -180,6 +180,55 @@ function getDaysFromNow(count: number): Array<{ label: string; shortLabel: strin
   return days;
 }
 
+type WidgetGlobalApi = { open?: () => void };
+
+/**
+ * Publishes `window.MedBookWidget` for a contained (in-preview) instance and
+ * hands back a teardown function.
+ *
+ * More than one contained instance can be alive at the same time: the builder
+ * keeps its docked canvas mounted underneath the fullscreen overlay. A lone
+ * global key cannot represent both, and simply deleting it on unmount is what
+ * broke the booking buttons — closing fullscreen tore down the key while the
+ * canvas underneath never re-registered, because its effect had no reason to
+ * run again. Every link then waited out its fallback window and navigated to the
+ * standalone page.
+ *
+ * So instances stack up instead, and the global points at the most recently
+ * mounted one — the preview the user is actually looking at. Unmounting hands
+ * the key back to the next one down rather than clearing it, and only a builder
+ * with no live previews left ends up with no global at all.
+ *
+ * The stack hangs off `window` rather than module scope: module-level state would
+ * be shared across server requests, and the key also lets two copies of this
+ * module agree on a single owner.
+ */
+function claimGlobalWidget(open: () => void): () => void {
+  const host = window as typeof window & {
+    MedBookWidget?: WidgetGlobalApi;
+    __medbookWidgetStack?: WidgetGlobalApi[];
+  };
+  const stack = (host.__medbookWidgetStack ??= []);
+  const api: WidgetGlobalApi = { open };
+  stack.push(api);
+  host.MedBookWidget = api;
+
+  return () => {
+    const index = stack.indexOf(api);
+    if (index !== -1) stack.splice(index, 1);
+
+    // Only redirect if the departing instance was the visible one. If something
+    // below us unmounts while an overlay is open, the overlay keeps the key.
+    if (host.MedBookWidget === api) {
+      const next = stack[stack.length - 1];
+      if (next) host.MedBookWidget = next;
+      else delete host.MedBookWidget;
+    }
+
+    if (stack.length === 0) delete host.__medbookWidgetStack;
+  };
+}
+
 export function WidgetChat(props: WidgetProps) {
   const {
     slug,
@@ -228,24 +277,18 @@ export function WidgetChat(props: WidgetProps) {
   // the visitor to a separate chat page. The standalone widget page gets this
   // for free because `public/widget.js` defines the global; the builder preview
   // has no such script, so the same contract is published here.
+  //
+  // `contained` arrives as a fresh object literal from the preview, so the
+  // effect keys off whether the mode is on rather than the object's identity —
+  // otherwise every re-render tore down and rebuilt the registration.
+  const containedMode = Boolean(contained);
   useEffect(() => {
-    if (!contained) return;
-    const host = window as { MedBookWidget?: { open?: () => void } };
-    const api = {
-      open: () => {
-        setError(null);
-        setIsOpen(true);
-      },
-    };
-    host.MedBookWidget = api;
-    return () => {
-      // Only give the global up if it is still ours. The builder keeps the docked
-      // canvas mounted underneath the fullscreen overlay, so closing fullscreen
-      // unmounts the instance that currently owns the key — and a blind delete
-      // would leave the visible canvas unable to open its own chat.
-      if (host.MedBookWidget === api) delete host.MedBookWidget;
-    };
-  }, [contained]);
+    if (!containedMode) return;
+    return claimGlobalWidget(() => {
+      setError(null);
+      setIsOpen(true);
+    });
+  }, [containedMode]);
 
   useEffect(() => {
     if (openSignal === undefined || openSignal === 0) return;
