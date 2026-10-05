@@ -2,13 +2,25 @@
  * MedBook AI Widget — Embeddable Chat Launcher
  *
  * Usage:
- *   <script src="https://app.example.com/widget.js" data-clinic="clinic-slug"></script>
+ *   <script src="https://app.example.com/widget.js"
+ *           data-clinic="clinic-slug"
+ *           data-position="bottom-right"
+ *           data-language="en"
+ *           data-color="#0D9488"></script>
  *
  * This script:
- * 1. Reads data-clinic from its own <script> tag
+ * 1. Reads its own attributes from the <script> tag
  * 2. Fetches the clinic's widget settings from /api/widget/[slug]/settings
  * 3. Injects a Shadow DOM–isolated launcher + chat panel onto the host page
  * 4. Communicates with /api/widget/chat for the AI conversation
+ *
+ * Script attributes override the clinic-wide defaults the settings endpoint
+ * returns, so one clinic can run several differently-branded sites:
+ *
+ *   data-clinic    (required) clinic slug
+ *   data-position  bottom-right | bottom-left
+ *   data-language  en | ur | ar — also sets dir on the host element
+ *   data-color     #RRGGBB accent colour
  *
  * CSS isolation: all styles are scoped inside a Shadow DOM so they cannot
  * conflict with the host page's styles. No global selectors are used.
@@ -31,14 +43,37 @@
     baseUrl = urlObj.origin;
   }
 
+  // Placement, language and colour chosen in the website builder. The settings
+  // endpoint only knows the clinic-wide default, so a site has to be able to
+  // override it — otherwise the toggles in the builder would save correctly and
+  // change nothing on screen.
+  //
+  // Read as attributes rather than fetched, so the widget can render its frame in
+  // the right place immediately instead of jumping across the viewport once the
+  // settings request lands.
+  var hostPosition = scriptTag.getAttribute("data-position");
+  var hostLanguage = scriptTag.getAttribute("data-language");
+  var hostColor = scriptTag.getAttribute("data-color");
+
   var container = document.createElement("div");
   container.id = "medbook-widget-root";
+  // Mirrors the "Language it opens in" setting from the builder. Setting it on
+  // the host (rather than on individual nodes) lets the shadow DOM inherit
+  // direction for the whole panel, including the message bubbles.
+  if (hostLanguage) {
+    container.setAttribute("lang", hostLanguage);
+    container.setAttribute("dir", hostLanguage === "ar" ? "rtl" : "ltr");
+  }
   document.body.appendChild(container);
 
   var shadow = container.attachShadow({ mode: "open" });
 
   var state = {
     isOpen: false,
+    /* A host CTA can be clicked before the settings fetch lands. Remember the
+       intent so the panel still opens the moment it is ready, instead of the
+       click being swallowed. */
+    openWhenReady: false,
     messages: [],
     input: "",
     pending: false,
@@ -129,6 +164,37 @@
     }
   }
 
+  function fmtPrice(price) {
+    if (typeof price !== "number" || !isFinite(price)) return "";
+    return price === 0 ? "Free" : "$" + price.toFixed(2);
+  }
+
+  function fmtDuration(minutes) {
+    if (typeof minutes !== "number" || !isFinite(minutes) || minutes < 0) return "";
+    if (minutes < 60) return minutes + " min";
+    var h = Math.floor(minutes / 60);
+    var m = minutes % 60;
+    return m > 0 ? h + "h " + m + "m" : h + "h";
+  }
+
+  /**
+   * Strip residual markdown from model output.
+   *
+   * The system prompt asks for plain text, but models still slip in bold marks
+   * and bullet dashes, which read as noise inside a chat bubble. Cheap to strip
+   * and it keeps the panel looking like a chat rather than a pasted document.
+   */
+  function stripMarkdown(text) {
+    return String(text)
+      .replace(/\*\*(.+?)\*\*/g, "$1")
+      .replace(/__(.+?)__/g, "$1")
+      .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "$1")
+      .replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, "$1")
+      .replace(/^#{1,6}\s+/gm, "")
+      .replace(/^\s*[-*]\s+/gm, "• ")
+      .replace(/`([^`]+)`/g, "$1");
+  }
+
   function esc(s) {
     var div = document.createElement("div");
     div.textContent = s;
@@ -138,8 +204,14 @@
   function render() {
     if (!state.settings) return;
 
-    var color = state.settings.widget.color;
-    var position = state.settings.widget.position;
+    // The site's own brand colour wins over the clinic-wide default. Invalid hex
+    // is ignored rather than trusted, so a bad `data-color` can never paint the
+    // panel black-on-black.
+    var color =
+      hostColor && /^#[0-9A-Fa-f]{6}$/.test(hostColor)
+        ? hostColor
+        : state.settings.widget.color;
+    var position = hostPosition || state.settings.widget.position;
     var agentName = state.settings.widget.agentName;
     var clinicName = state.settings.clinic.name;
     var headerSub = state.settings.widget.headerSubtitle || clinicName;
@@ -178,26 +250,41 @@
     }
 
     state.messages.forEach(function (msg) {
+      // Hidden messages exist only to carry appointment details back to the
+      // model on later turns. Rendering them would show the visitor a wall of
+      // internal bookkeeping.
+      if (msg.hidden) return;
+
       var isUser = msg.role === "user";
+      var align = isUser ? "flex-end" : "flex-start";
       var bubbleStyle = isUser
         ? "background:" + color + ";color:#fff;border-radius:16px 16px 4px 16px"
         : "border:1px solid #E5E7EB;background:#F9FAFB;color:#111827;border-radius:16px 16px 16px 4px";
-      messagesHtml +=
-        '<div style="display:flex;justify-content:' +
-        (isUser ? "flex-end" : "flex-start") +
-        '">' +
-        '<div style="max-width:85%;white-space:pre-wrap;padding:10px 14px;font-size:14px;line-height:1.5;' +
-        bubbleStyle +
-        '">' +
-        esc(msg.content) +
-        "</div></div>";
 
-      if (msg.slots && msg.slots.length > 0) {
+      // A confirmation card speaks for itself, so its message carries no
+      // caption. Everything else shows `text` — the deterministic caption when
+      // a component is attached, otherwise the model's full reply.
+      if (msg.text) {
+        messagesHtml +=
+          '<div style="display:flex;justify-content:' +
+          align +
+          '">' +
+          '<div style="max-width:85%;white-space:pre-wrap;padding:10px 14px;font-size:14px;line-height:1.5;' +
+          bubbleStyle +
+          '">' +
+          esc(stripMarkdown(msg.text)) +
+          "</div></div>";
+      }
+
+      var component = msg.component;
+
+      if (component && component.type === "slotList" && Array.isArray(component.data)) {
         messagesHtml +=
           '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;justify-content:' +
-          (isUser ? "flex-end" : "flex-start") +
+          align +
           '">';
-        msg.slots.forEach(function (slot) {
+        component.data.forEach(function (slot) {
+          if (!slot || typeof slot.startTime !== "string") return;
           messagesHtml +=
             '<button class="w-slot" data-msg="I\'d like the ' +
             esc(fmtTime(slot.startTime)) +
@@ -209,10 +296,17 @@
         messagesHtml += "</div>";
       }
 
-      if (msg.services && msg.services.length > 0) {
+      if (
+        component &&
+        component.type === "serviceList" &&
+        Array.isArray(component.data)
+      ) {
         messagesHtml +=
           '<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;max-width:85%">';
-        msg.services.forEach(function (svc) {
+        component.data.forEach(function (svc) {
+          if (!svc || typeof svc.name !== "string") return;
+          var duration = fmtDuration(svc.durationMinutes);
+          var price = fmtPrice(svc.price);
           messagesHtml +=
             '<button class="w-service" data-msg="I\'d like to book &quot;' +
             esc(svc.name) +
@@ -227,22 +321,31 @@
                 esc(svc.description) +
                 "</div>"
               : "") +
-            '<div style="font-size:11px;color:#9CA3AF;margin-top:3px">' +
-            (svc.durationMinutes < 60
-              ? svc.durationMinutes + " min"
-              : Math.floor(svc.durationMinutes / 60) +
-                (svc.durationMinutes % 60 > 0 ? "h " + (svc.durationMinutes % 60) + "m" : "h")) +
-            "</div></div>" +
-            '<div style="font-weight:600;font-size:14px;color:' +
-            color +
-            ';white-space:nowrap;flex-shrink:0">' +
-            (svc.price === 0 ? "Free" : "$" + svc.price.toFixed(2)) +
-            "</div></div></button>";
+            (duration
+              ? '<div style="font-size:11px;color:#9CA3AF;margin-top:3px">' +
+                esc(duration) +
+                "</div>"
+              : "") +
+            "</div>" +
+            (price
+              ? '<div style="font-weight:600;font-size:14px;color:' +
+                color +
+                ";white-space:nowrap;flex-shrink:0\">" +
+                esc(price) +
+                "</div>"
+              : "") +
+            "</div></button>";
         });
         messagesHtml += "</div>";
       }
 
-      if (msg.booking) {
+      if (
+        component &&
+        component.type === "confirmation" &&
+        component.data &&
+        typeof component.data.startTime === "string"
+      ) {
+        var booking = component.data;
         messagesHtml +=
           '<div style="margin-top:8px;padding:14px;border-radius:12px;border:2px solid ' +
           lighten(color, 0.5) +
@@ -256,14 +359,20 @@
           '<span style="font-weight:600;font-size:14px;color:' +
           accentDark +
           '">Appointment Confirmed</span></div>' +
+          (booking.serviceName
+            ? '<div style="font-size:13px;color:#374151;margin-bottom:4px"><strong>Service:</strong> ' +
+              esc(booking.serviceName) +
+              "</div>"
+            : "") +
           '<div style="font-size:13px;color:#374151;line-height:1.6">' +
           "<div><strong>Date:</strong> " +
-          esc(fmtDate(msg.booking.startTime)) +
+          esc(fmtDate(booking.startTime)) +
           "</div>" +
           "<div><strong>Time:</strong> " +
-          esc(fmtTime(msg.booking.startTime)) +
-          " – " +
-          esc(fmtTime(msg.booking.endTime)) +
+          esc(fmtTime(booking.startTime)) +
+          (typeof booking.endTime === "string"
+            ? " – " + esc(fmtTime(booking.endTime))
+            : "") +
           "</div></div></div>";
       }
     });
@@ -567,8 +676,16 @@
     state.pending = true;
     state.typing = true;
     state.error = null;
-    state.messages.push({ role: "user", content: trimmed });
+    state.messages.push({ role: "user", text: trimmed, reply: trimmed });
     render();
+
+    // History is built from `reply`, not `text`. `text` is the short
+    // deterministic caption shown beside a card, so sending it back would strip
+    // the model's reasoning about what it just did — which is what makes
+    // follow-ups like "move it to 3pm" work.
+    var history = state.messages.map(function (msg) {
+      return { role: msg.role, content: msg.reply };
+    });
 
     fetch(baseUrl + "/api/widget/chat", {
       method: "POST",
@@ -576,7 +693,7 @@
       body: JSON.stringify({
         slug: clinicSlug,
         sessionId: state.sessionId,
-        messages: state.messages,
+        messages: history,
       }),
     })
       .then(function (res) {
@@ -593,18 +710,50 @@
             state.messages.pop();
           }
         } else {
-          var toolData = result.data.toolData;
-          var slotsToShow = state.slotChosen ? undefined : (toolData ? toolData.slots : undefined);
-          var servicesToShow = state.serviceChosen ? undefined : (toolData ? toolData.services : undefined);
-          if (slotsToShow && slotsToShow.length > 0) state.slotChosen = true;
-          if (servicesToShow && servicesToShow.length > 0) state.serviceChosen = true;
+          // The model re-calls getServices/getAvailability on later turns even
+          // though the visitor already picked from those lists. Re-rendering a
+          // stale list under fresh cards makes the panel look broken, so a
+          // component type is shown once and then suppressed.
+          var component = result.data.component;
+          if (state.serviceChosen && component && component.type === "serviceList") {
+            component = undefined;
+          }
+          if (state.slotChosen && component && component.type === "slotList") {
+            component = undefined;
+          }
+          // Flag only after the check above, so the first list is not swallowed.
+          if (component && component.type === "serviceList") state.serviceChosen = true;
+          if (component && component.type === "slotList") state.slotChosen = true;
+
+          var isConfirmation = component && component.type === "confirmation";
           state.messages.push({
             role: "assistant",
-            content: result.data.reply,
-            slots: slotsToShow,
-            booking: toolData ? toolData.booking : undefined,
-            services: servicesToShow,
+            text: isConfirmation
+              ? ""
+              : component && result.data.caption
+                ? result.data.caption
+                : result.data.reply,
+            reply: result.data.reply,
+            component: component,
           });
+
+          // After a booking, record what was booked so the assistant can act on
+          // "can I move it?" or "cancel that" without asking the visitor to
+          // repeat everything. Hidden from the UI, kept in the history above.
+          if (result.data.sessionContext) {
+            state.messages.push({
+              role: "user",
+              text: result.data.sessionContext,
+              reply: result.data.sessionContext,
+              hidden: true,
+            });
+            state.messages.push({
+              role: "assistant",
+              text: "",
+              reply: "Understood. I have noted the appointment details.",
+              hidden: true,
+            });
+          }
         }
         state.pending = false;
         render();
@@ -622,7 +771,13 @@
   // from their own CTAs: window.MedBookWidget.open()
   window.MedBookWidget = {
     open: function () {
-      if (!state.settings) return;
+      // Settings still in flight: hold the request and honour it on arrival.
+      // Returning quietly here is what used to send a visitor away from the
+      // page they were reading.
+      if (!state.settings) {
+        state.openWhenReady = true;
+        return;
+      }
       state.isOpen = true;
       state.error = null;
       render();
@@ -630,19 +785,25 @@
   };
 
   // ── Bootstrap ──
+  // A non-`ok` response is the clinic's own master switch being off (the
+  // endpoint answers 403 for unknown and deactivated clinics alike). That is a
+  // deliberate "no assistant here", not a failure, so it leaves the page alone
+  // rather than showing an error bubble.
   fetch(baseUrl + "/api/widget/" + encodeURIComponent(clinicSlug) + "/settings")
     .then(function (res) {
       return res.json();
     })
     .then(function (data) {
-      if (!data.ok) {
-        console.warn("[MedBook Widget] Clinic not available:", data.error);
-        return;
-      }
+      if (!data.ok) return;
       state.settings = data;
+      if (state.openWhenReady) {
+        state.openWhenReady = false;
+        state.isOpen = true;
+      }
       render();
     })
-    .catch(function (err) {
-      console.error("[MedBook Widget] Failed to load settings:", err);
+    .catch(function () {
+      // Never let a failed settings fetch throw out of the widget — the host
+      // page keeps working, it just has no assistant.
     });
 })();

@@ -25,12 +25,19 @@ export function AppHeaderShell({
   notifications = [],
   conversations = [],
   clinicId = null,
+  clinicLogoUrl = null,
 }: {
   userEmail: string | null;
   userName: string | null;
   notifications?: HeaderNotification[];
   conversations?: HeaderConversation[];
   clinicId?: string | null;
+  /**
+   * Clinic logo for the top-left brand slot. Null when the clinic has not set
+   * one, in which case nothing is rendered — a permanent placeholder icon in the
+   * header would be noise on every page of every clinic that never uploads one.
+   */
+  clinicLogoUrl?: string | null;
 }) {
   const { open, setOpen } = useMobileNav();
   const pathname = usePathname();
@@ -65,7 +72,7 @@ export function AppHeaderShell({
       className="sticky top-0 z-30 shrink-0 bg-surface/95 backdrop-blur"
     >
       {/* ── Row 1: Logo · Search · Chat · Notifications · User ── */}
-      <div className="flex items-center justify-between border-b border-border-light px-6 py-3">
+      <div className="border-border-light flex items-center justify-between border-b px-6 py-3">
         <div className="flex items-center gap-3">
           <Button
             type="button"
@@ -78,6 +85,25 @@ export function AppHeaderShell({
           >
             {open ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
           </Button>
+
+          {clinicLogoUrl && (
+            <>
+              {/* Decorative: the wordmark link beside it already labels this
+                  region as "MedBook AI home", so an alt text here would only
+                  add a second, redundant announcement. The clinic's own name
+                  is not in the header, so there is nothing further to convey. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={clinicLogoUrl}
+                alt=""
+                className="border-border-light size-8 shrink-0 rounded-control border object-cover"
+              />
+              <span
+                aria-hidden="true"
+                className="bg-border-light hidden h-6 w-px sm:block"
+              />
+            </>
+          )}
 
           <Link
             href={APP_ROUTES.app.dashboard}
@@ -114,7 +140,7 @@ export function AppHeaderShell({
       </div>
 
       {/* ── Row 2: Tabs (left) · New Appointment (right) ── */}
-      <div className="flex items-center justify-between border-b border-border-light px-6 py-2">
+      <div className="border-border-light flex items-center justify-between border-b px-6 py-2">
         <nav aria-label="Dashboard views" className="flex items-center gap-1">
           <Link
             href={APP_ROUTES.app.dashboard}
@@ -123,7 +149,7 @@ export function AppHeaderShell({
               "px-3 py-1.5 text-sm font-medium transition-colors",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
               isDashboardArea
-                ? "border-b-2 border-primary text-text-primary font-semibold"
+                ? "border-b-2 border-primary font-semibold text-text-primary"
                 : "border-b-2 border-transparent text-text-secondary hover:text-text-primary",
             )}
           >

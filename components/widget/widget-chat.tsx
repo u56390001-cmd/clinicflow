@@ -11,6 +11,24 @@ type WidgetProps = {
   headerSubtitle: string | null;
   agentName: string;
   welcomeMessage: string | null;
+  /**
+   * Render inside a host element instead of over the whole viewport.
+   *
+   * The website builder previews a whole scrolling page inside one frame, and the
+   * live widget is pinned to the viewport. The host gets that by giving this a
+   * zero-height box it has already stuck to the bottom of its scroll pane; the
+   * panel then sizes against the measured frame rather than `100vw`/`100vh`,
+   * because on a 390px phone preview a viewport-relative panel would be wider
+   * than the page it is supposed to belong to.
+   */
+  contained?: { maxWidth: number; maxHeight: number };
+  /**
+   * Increment to open the panel from outside the widget.
+   *
+   * Lets the builder's booking buttons drive the same panel a visitor gets by
+   * clicking the bubble, without this component having to hand its state out.
+   */
+  openSignal?: number;
 };
 
 type ChatMessage = {
@@ -172,6 +190,8 @@ export function WidgetChat(props: WidgetProps) {
     headerSubtitle,
     agentName,
     welcomeMessage,
+    contained,
+    openSignal,
   } = props;
 
   const [isOpen, setIsOpen] = useState(false);
@@ -203,6 +223,34 @@ export function WidgetChat(props: WidgetProps) {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [isOpen]);
+
+  // A booking button anywhere on the page opens this panel instead of sending
+  // the visitor to a separate chat page. The standalone widget page gets this
+  // for free because `public/widget.js` defines the global; the builder preview
+  // has no such script, so the same contract is published here.
+  useEffect(() => {
+    if (!contained) return;
+    const host = window as { MedBookWidget?: { open?: () => void } };
+    const api = {
+      open: () => {
+        setError(null);
+        setIsOpen(true);
+      },
+    };
+    host.MedBookWidget = api;
+    return () => {
+      // Only give the global up if it is still ours. The builder keeps the docked
+      // canvas mounted underneath the fullscreen overlay, so closing fullscreen
+      // unmounts the instance that currently owns the key — and a blind delete
+      // would leave the visible canvas unable to open its own chat.
+      if (host.MedBookWidget === api) delete host.MedBookWidget;
+    };
+  }, [contained]);
+
+  useEffect(() => {
+    if (openSignal === undefined || openSignal === 0) return;
+    setIsOpen(true);
+  }, [openSignal]);
 
   const toggle = useCallback(() => {
     setIsOpen((prev) => {
@@ -327,13 +375,36 @@ export function WidgetChat(props: WidgetProps) {
   const isPositionLeft = widgetPosition === "bottom-left";
   const greeting = welcomeMessage || `Hi! I'm ${agentName}, the AI assistant for ${clinicName}. How can I help you today?`;
 
-  return (
-    <div
-      style={{
+  /* Full-bleed: pinned to the viewport, which is what the published site needs.
+     Contained: fills a zero-height box that the host has already pinned to the
+     bottom of its scroll pane, so the launcher stays in the corner at every
+     scroll position. Deliberately not another `sticky` — a sticky element is
+     trapped by its containing block, so nesting one inside a zero-height wrapper
+     would leave it with nowhere to move to. */
+  const rootStyle: React.CSSProperties = contained
+    ? {
+        position: "absolute",
+        inset: 0,
+        pointerEvents: "none",
+      }
+    : {
         position: "fixed",
         inset: 0,
         pointerEvents: "none",
         zIndex: 2147483647,
+      };
+
+  const panelWidth = contained
+    ? `min(400px, calc(${contained.maxWidth}px - 32px))`
+    : "min(400px, calc(100vw - 32px))";
+  const panelHeight = contained
+    ? `min(580px, calc(${contained.maxHeight}px - 140px))`
+    : "min(580px, calc(100vh - 120px))";
+
+  return (
+    <div
+      style={{
+        ...rootStyle,
         fontFamily: 'Inter, system-ui, -apple-system, "Segoe UI", sans-serif',
       }}
     >
@@ -346,8 +417,8 @@ export function WidgetChat(props: WidgetProps) {
             position: "absolute",
             bottom: "90px",
             ...(isPositionLeft ? { left: "16px" } : { right: "16px" }),
-            width: "min(400px, calc(100vw - 32px))",
-            height: "min(580px, calc(100vh - 120px))",
+            width: panelWidth,
+            height: panelHeight,
             display: "flex",
             flexDirection: "column",
             borderRadius: "16px",

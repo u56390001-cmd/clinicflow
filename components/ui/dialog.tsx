@@ -34,8 +34,15 @@ const DialogContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     /** Dense clinical popups read better wide and short than centred and tall. */
     size?: "default" | "wide";
+    /**
+     * Set false when the dialog draws its own close control — e.g. a branded
+     * header bar with a white X on a solid `bg-primary` background, where the
+     * built-in muted-slate X would read as a smudge. The trigger still closes the
+     * dialog; only the built-in affordance is dropped.
+     */
+    showCloseButton?: boolean;
   }
->(({ className, children, size = "default", ...props }, ref) => (
+>(({ className, children, size = "default", showCloseButton = true, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -48,15 +55,17 @@ const DialogContent = React.forwardRef<
       {...props}
     >
       {children}
-      <DialogPrimitive.Close
-        className={cn(
-          "absolute right-3 top-3 flex size-6 items-center justify-center rounded-control text-text-muted outline-none transition-colors",
-          "hover:text-ink hover:bg-app focus-visible:shadow-focus-ring",
-        )}
-      >
-        <X aria-hidden="true" className="size-3.5" />
-        <span className="sr-only">Close</span>
-      </DialogPrimitive.Close>
+      {showCloseButton ? (
+        <DialogPrimitive.Close
+          className={cn(
+            "absolute right-3 top-3 flex size-6 items-center justify-center rounded-control text-text-muted outline-none transition-colors",
+            "hover:text-ink hover:bg-app focus-visible:shadow-focus-ring",
+          )}
+        >
+          <X aria-hidden="true" className="size-3.5" />
+          <span className="sr-only">Close</span>
+        </DialogPrimitive.Close>
+      ) : null}
     </DialogPrimitive.Content>
   </DialogPortal>
 ));

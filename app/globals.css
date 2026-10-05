@@ -44,6 +44,18 @@
     @apply bg-primary/20 text-primary;
   }
 
+  /**
+   * A clinic website is a one-pager: every header link is an anchor into this
+   * same document, so smooth scrolling is what makes those links feel like
+   * navigation instead of a jump cut. Skipped when the visitor has asked for
+   * reduced motion.
+   */
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
   *:focus-visible {
     outline: 2px solid #0d9488;
     outline-offset: 2px;

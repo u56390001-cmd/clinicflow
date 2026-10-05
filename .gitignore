@@ -37,6 +37,7 @@ yarn-error.log*
 # dev server logs and pids
 *.log
 *.pid
+*.err
 .server-pid
 
 # local editor/MCP config — holds personal access tokens

@@ -29,6 +29,12 @@ export type BookingSource = string;
 export type AppointmentsViewMode = "queue" | "list";
 
 /**
+ * Shape given to new patient IDs (UHID). See `clinics.patient_code_format`,
+ * migration 0055.
+ */
+export type PatientCodeFormat = "sequence" | "year_sequence";
+
+/**
  * Row types are `type` aliases (not interfaces) so they satisfy supabase-js's
  * `GenericTable` constraint, which requires `Row: Record<string, unknown>`.
  * TypeScript only infers implicit index signatures for object-literal type
@@ -46,11 +52,65 @@ export type Clinic = {
   /** Google Business review link (Phase 16) — encoded into the QR tool. */
   google_review_url: string | null;
   /**
+   * Object path inside the public `clinic-logos` bucket, or null when the
+   * clinic has no logo (migration 0054). Public bucket because the logo also
+   * renders on unauthenticated patient-facing pages.
+   */
+  logo_url: string | null;
+  /**
    * UHID prefix, 2–6 uppercase letters, default `CLI`. Feeds
    * `assign_patient_code` to produce `CLI-2026-00001` (migration 0029).
    * Changing it does not renumber existing patients.
    */
   patient_code_prefix: string;
+  /**
+   * Shape given to NEW patient IDs (migration 0055). `year_sequence` yields
+   * `CLI-2026-00001` and restarts each calendar year in the clinic's timezone —
+   * the only behaviour before 0055, and still the default. `sequence` yields
+   * `CLI-00001`, running continuously across year boundaries.
+   *
+   * Existing `patients.patient_code` values are never rewritten by a change
+   * here; the setting only affects codes minted after it is saved.
+   */
+  patient_code_format: PatientCodeFormat;
+  /**
+   * Organization settings → Billing (migration 0056).
+   *
+   * `bill_number_prefix` and `receipt_prefix` are not display-only: they are
+   * read by the `assign_bill_number` and `assign_receipt_code` triggers, so the
+   * values generated in the database always match what the settings card
+   * previews. Both are constrained to 2–6 uppercase letters.
+   */
+  bill_number_prefix: string;
+  receipt_prefix: string;
+  /** Send the receipt over WhatsApp automatically once a payment is collected. */
+  auto_send_whatsapp_receipt: boolean;
+  /** Printed at the bottom of receipts. */
+  receipt_footer_message: string | null;
+  /**
+   * When true, printed receipts carry `gst_number` and the SGST/CGST split of
+   * `gst_rate`. Both fields are ignored while this is false, so turning it off
+   * is enough to stop showing tax without losing the numbers.
+   */
+  show_gst_on_receipt: boolean;
+  gst_number: string | null;
+  /** Total GST percentage (0–100), split evenly into SGST and CGST. */
+  gst_rate: number | null;
+  /** Shown on the bill detail modal and receipt print view. Capped at 1000 words. */
+  bill_terms: string | null;
+  /**
+   * Organization settings → Prescription (migration 0057).
+   *
+   * When false, printed prescriptions omit the clinic name, address, phone and
+   * the `PRESCRIPTION` title, leaving a clean sheet for clinics that print onto
+   * their own letterhead. The patient QR is part of that block and goes with it.
+   *
+   * Defaults to true: a clinic that has never opened this tab keeps printing the
+   * header it prints today. Both print paths (`consultation-view.tsx` and
+   * `prescription-workspace.tsx`) read this one column, so the answer is set
+   * once per clinic rather than per workstation.
+   */
+  show_prescription_header: boolean;
   /**
    * Queue Management preference, written by the /app/integrations dashboard
    * (migration 0043). `queue` renders the live waiting queue on the
@@ -58,6 +118,33 @@ export type Clinic = {
    * is the behaviour the appointments page already had.
    */
   appointments_view_mode: AppointmentsViewMode;
+  /**
+   * Public booking page settings (migration 0058).
+   *
+   * `booking_slug` is the short name in the public link
+   * `/book/<booking_slug>`. It is nullable and defaults to null: a clinic with
+   * no custom slug falls back to `slug` when the link is built, so upgrading
+   * clinics keep working without a backfill. The partial unique index on this
+   * column makes the value globally unique across every clinic, which is why
+   * the availability check is a lookup rather than a scoped one.
+   */
+  booking_slug: string | null;
+  /**
+   * Master switch for the public booking page. When false the public route
+   * still resolves but renders the "booking unavailable" state, so links
+   * shared before a clinic pauses bookings do not 404.
+   */
+  is_public_booking_enabled: boolean;
+  /** Length of one bookable slot in minutes; drives the slot grid. */
+  slot_duration_minutes: number;
+  /** How far ahead patients may book. Null means no limit. */
+  max_advance_days: number | null;
+  /**
+   * When true a submitted booking is confirmed immediately instead of waiting
+   * for staff approval. The public form reads this to decide whether to show
+   * a "request sent" or a "confirmed" message.
+   */
+  auto_approve_bookings: boolean;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -647,6 +734,36 @@ export type MedicineEntry = {
 };
 
 /**
+ * A row in a clinic's medicine catalogue — Organization settings → Prescription
+ * → "Manage Medicines" (migration 0057).
+ *
+ * Distinct from the three things that also involve medicines:
+ *   * `MedicineEntry` above is a line inside ONE prescription's jsonb array.
+ *   * `PatientMedication` (0050) is one patient's medication history, usually
+ *     OCR-extracted.
+ *   * `OPD_MEDICINE_SUGGESTIONS` in `lib/opd-medicines.ts` is a hard-coded
+ *     general list.
+ *
+ * This is the clinic's own editable list. `is_active` is a soft flag rather than
+ * a delete, so a drug retired from the suggestion list keeps the name available
+ * for prescriptions that already mention it.
+ */
+export type ClinicMedicine = {
+  id: string;
+  clinic_id: string;
+  /** Drug name without the strength, e.g. "Amlodipine". */
+  name: string;
+  /** Dosage variant, e.g. "5mg". Null when the drug has one form. */
+  strength: string | null;
+  /** Free text, e.g. "Tablet", "Capsule", "Soap". */
+  category: string | null;
+  is_active: boolean;
+  created_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
  * A single lab order entry within a prescription's lab_orders jsonb array.
  *
  * `sub_parameters` is optional because it was added after rows existed: an
@@ -804,7 +921,19 @@ export type Receipt = {
   id: string;
   clinic_id: string;
   bill_id: string;
+  /**
+   * Ordering key: a per-clinic counter. Kept as an integer because three
+   * existing RPCs (0025, 0028, 0031) assign it as `max(...) + 1`.
+   *
+   * Do not use it for display — that is `receipt_code`.
+   */
   receipt_number: number;
+  /**
+   * Human-facing receipt ID, `{PREFIX}-{YYYYMMDD}-{NNN}` (migration 0056).
+   * Filled by the `assign_receipt_code` BEFORE INSERT trigger from
+   * `clinics.receipt_prefix`, so it respects the prefix set in Billing settings.
+   */
+  receipt_code: string;
   generated_at: string;
   pdf_path: string | null;
 };
@@ -1003,11 +1132,18 @@ export type WebsiteStatus = "draft" | "published" | "unpublished";
 
 export type WebsiteTemplate = "classic" | "modern" | "minimal";
 
+/** DNS state of a clinic's custom domain (migration 0059). */
+export type WebsiteDomainStatus = "none" | "pending" | "verified" | "failed";
+
 /**
  * A clinic's website configuration. One row per clinic (1:1 via unique on
  * clinic_id). `content_json` holds editable content (hero, about, contact,
  * section ordering/visibility). `theme_json` holds visual settings (colors,
  * fonts). `template` selects the presentational layer.
+ *
+ * 0059 added the custom-domain columns and `seo_json`. `domain` is null for the
+ * ordinary case — the site is served from the ClinicFlow subdomain — so every
+ * reader must treat "no domain" as normal rather than as missing data.
  */
 export type Website = {
   id: string;
@@ -1017,6 +1153,14 @@ export type Website = {
   status: WebsiteStatus;
   content_json: Record<string, unknown>;
   theme_json: Record<string, unknown>;
+  widget_json: Record<string, unknown>;
+  seo_json: Record<string, unknown>;
+  locale_json: Record<string, unknown>;
+  domain: string | null;
+  domain_status: WebsiteDomainStatus;
+  domain_verification_token: string | null;
+  domain_verified_at: string | null;
+  doctor_page_slug: string | null;
   published_at: string | null;
   created_at: string;
   updated_at: string;
@@ -1407,8 +1551,42 @@ export type Database = {
           email?: string | null;
           address?: string | null;
           google_review_url?: string | null;
+          logo_url?: string | null;
           patient_code_prefix?: string;
+          patient_code_format?: PatientCodeFormat;
+
+          /** Organization settings ? Billing (migration 0056). See the Clinic row type. */
+
+          bill_number_prefix?: string;
+
+          receipt_prefix?: string;
+
+          auto_send_whatsapp_receipt?: boolean;
+
+          receipt_footer_message?: string | null;
+
+          show_gst_on_receipt?: boolean;
+
+          gst_number?: string | null;
+
+          gst_rate?: number | null;
+
+          bill_terms?: string | null;
+          show_prescription_header?: boolean;
           appointments_view_mode?: AppointmentsViewMode;
+
+          /** Public booking settings (migration 0058). See the Clinic row type. */
+
+          booking_slug?: string | null;
+
+          is_public_booking_enabled?: boolean;
+
+          slot_duration_minutes?: number;
+
+          max_advance_days?: number | null;
+
+          auto_approve_bookings?: boolean;
+
           created_by: string;
           created_at?: string;
           updated_at?: string;
@@ -1423,8 +1601,40 @@ export type Database = {
           email?: string | null;
           address?: string | null;
           google_review_url?: string | null;
+          logo_url?: string | null;
           patient_code_prefix?: string;
+          patient_code_format?: PatientCodeFormat;
+
+          /** Organization settings ? Billing (migration 0056). See the Clinic row type. */
+
+          bill_number_prefix?: string;
+
+          receipt_prefix?: string;
+
+          auto_send_whatsapp_receipt?: boolean;
+
+          receipt_footer_message?: string | null;
+
+          show_gst_on_receipt?: boolean;
+
+          gst_number?: string | null;
+
+          gst_rate?: number | null;
+
+          bill_terms?: string | null;
+          show_prescription_header?: boolean;
           appointments_view_mode?: AppointmentsViewMode;
+
+          booking_slug?: string | null;
+
+          is_public_booking_enabled?: boolean;
+
+          slot_duration_minutes?: number;
+
+          max_advance_days?: number | null;
+
+          auto_approve_bookings?: boolean;
+
           created_by?: string;
           created_at?: never;
           updated_at?: string;
@@ -1433,6 +1643,51 @@ export type Database = {
           {
             foreignKeyName: "clinics_created_by_fkey";
             columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "auth.users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      /**
+       * Clinic medicine catalogue (migration 0057) — Organization settings →
+       * Prescription → "Manage Medicines".
+       */
+      medicines: {
+        Row: ClinicMedicine;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          name: string;
+          strength?: string | null;
+          category?: string | null;
+          is_active?: boolean;
+          created_by_user_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          name?: string;
+          strength?: string | null;
+          category?: string | null;
+          is_active?: boolean;
+          created_by_user_id?: never;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "medicines_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "medicines_created_by_user_id_fkey";
+            columns: ["created_by_user_id"];
             isOneToOne: false;
             referencedRelation: "auth.users";
             referencedColumns: ["id"];
@@ -2322,6 +2577,14 @@ export type Database = {
           status?: WebsiteStatus;
           content_json?: Record<string, unknown>;
           theme_json?: Record<string, unknown>;
+          widget_json?: Record<string, unknown>;
+          seo_json?: Record<string, unknown>;
+          locale_json?: Record<string, unknown>;
+          domain?: string | null;
+          domain_status?: WebsiteDomainStatus;
+          domain_verification_token?: string | null;
+          domain_verified_at?: string | null;
+          doctor_page_slug?: string | null;
           published_at?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -2334,9 +2597,17 @@ export type Database = {
           status?: WebsiteStatus;
           content_json?: Record<string, unknown>;
           theme_json?: Record<string, unknown>;
+          widget_json?: Record<string, unknown>;
+          seo_json?: Record<string, unknown>;
+          locale_json?: Record<string, unknown>;
+          domain?: string | null;
+          domain_status?: WebsiteDomainStatus;
+          domain_verification_token?: string | null;
+          domain_verified_at?: string | null;
+          doctor_page_slug?: string | null;
           published_at?: string | null;
           created_at?: never;
-          updated_at?: string;
+          updated_at?: never;
         };
         Relationships: [
           {
@@ -3185,6 +3456,7 @@ export type Database = {
           clinic_id: string;
           bill_id: string;
           receipt_number: number;
+          receipt_code: string;
           generated_at?: string;
           pdf_path?: string | null;
         };
@@ -3193,6 +3465,7 @@ export type Database = {
           clinic_id?: never;
           bill_id?: never;
           receipt_number?: number;
+          receipt_code?: string;
           generated_at?: string;
           pdf_path?: string | null;
         };
@@ -3624,6 +3897,42 @@ export type Database = {
           p_rules: unknown;
         };
         Returns: undefined;
+      };
+      /**
+       * Migration 0055. What the next patient inserted right now would be
+       * given, without inserting one. Declared here rather than cast at the
+       * call site so `supabase.rpc(...)` keeps its `this` binding — detaching
+       * the method (`const rpc = supabase.rpc`) makes `this` undefined and
+       * throws `Cannot read properties of undefined (reading 'rest')`, since
+       * the client delegates to `this.rest`.
+       */
+      preview_next_patient_code: {
+        Args: {
+          p_clinic_id: string;
+          p_prefix: string;
+          p_format: string;
+        };
+        Returns: string;
+      };
+      /**
+       * Migration 0056. Next bill / receipt code without creating one, using the
+       * same LIKE patterns the triggers use.
+       */
+      preview_bill_number: {
+        Args: {
+          p_clinic_id: string;
+          p_prefix: string;
+          p_at?: string;
+        };
+        Returns: string;
+      };
+      preview_receipt_code: {
+        Args: {
+          p_clinic_id: string;
+          p_prefix: string;
+          p_at?: string;
+        };
+        Returns: string;
       };
       activate_subscription: {
         Args: {

@@ -26,6 +26,17 @@ export type CurrentClinicAccess = {
      * appointments page read the same column.
      */
     appointments_view_mode: AppointmentsViewMode;
+    /**
+     * UHID prefix, `not null default 'CLI'` since migration 0029 — safe to read
+     * in the critical select above.
+     *
+     * `patient_code_format` (migration 0055) is deliberately NOT read here. A
+     * column that does not exist yet makes PostgREST reject the whole nested
+     * select, which fails the header, the dashboard and every other page at once
+     * — the same "Set up your clinic" regression `logo_url` caused. The Patient
+     * ID settings page reads it through its own tolerant query instead.
+     */
+    patient_code_prefix: string;
   };
 };
 
@@ -44,31 +55,34 @@ export const getCurrentClinic = cache(
   async (
     supabase: SupabaseClient<Database>,
   ): Promise<CurrentClinicAccess | null> => {
-  const { data: memberships } = await supabase
-    .from("clinic_members")
-    .select("role, clinics(id, name, slug, timezone, doctor_name, phone, email, address, google_review_url, appointments_view_mode)")
-    .order("created_at", { ascending: false })
-    .limit(1);
+    const { data: memberships } = await supabase
+      .from("clinic_members")
+      .select(
+        "role, clinics(id, name, slug, timezone, doctor_name, phone, email, address, google_review_url, appointments_view_mode, patient_code_prefix)",
+      )
+      .order("created_at", { ascending: false })
+      .limit(1);
 
-  const membership = memberships?.[0];
-  const clinic = membership?.clinics ?? null;
-  if (!membership || !clinic) return null;
+    const membership = memberships?.[0];
+    const clinic = membership?.clinics ?? null;
+    if (!membership || !clinic) return null;
 
-  return {
-    role: membership.role,
-    clinic: {
-      id: clinic.id,
-      name: clinic.name,
-      slug: clinic.slug,
-      timezone: clinic.timezone,
-      doctor_name: clinic.doctor_name,
-      phone: clinic.phone,
-      email: clinic.email,
-      address: clinic.address,
-      google_review_url: clinic.google_review_url,
-      appointments_view_mode: clinic.appointments_view_mode,
-    },
-  };
+    return {
+      role: membership.role,
+      clinic: {
+        id: clinic.id,
+        name: clinic.name,
+        slug: clinic.slug,
+        timezone: clinic.timezone,
+        doctor_name: clinic.doctor_name,
+        phone: clinic.phone,
+        email: clinic.email,
+        address: clinic.address,
+        google_review_url: clinic.google_review_url,
+        appointments_view_mode: clinic.appointments_view_mode,
+        patient_code_prefix: clinic.patient_code_prefix,
+      },
+    };
   },
 );
 

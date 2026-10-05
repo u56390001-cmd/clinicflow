@@ -64,10 +64,62 @@ export default async function WidgetPage({ params }: Props) {
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0 }}>
+    <>
+      {/* The widget is `position: fixed` and pointer-transparent apart from its
+          own panel, so this is purely what a direct visitor sees behind it.
+          Without it the route is blank white with a lone button in the corner,
+          which reads as a broken page rather than a chat window — and this URL
+          is still the one an iframe embed or a bookmarked link lands on. */}
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "2rem",
+          fontFamily: 'Inter, system-ui, -apple-system, "Segoe UI", sans-serif',
+          backgroundColor: "#F8FAFC",
+        }}
+      >
+        <div style={{ maxWidth: "26rem", textAlign: "center" }}>
+          <div
+            aria-hidden="true"
+            style={{
+              width: "48px",
+              height: "48px",
+              margin: "0 auto 1.25rem",
+              borderRadius: "9999px",
+              backgroundColor: settings.widget_color ?? "#0D9488",
+              opacity: 0.12,
+            }}
+          />
+          <h1
+            style={{
+              margin: 0,
+              fontSize: "1.25rem",
+              fontWeight: 600,
+              color: "#0F172A",
+            }}
+          >
+            {clinic.name}
+          </h1>
+          <p
+            style={{
+              margin: "0.5rem 0 0",
+              fontSize: "0.9375rem",
+              lineHeight: 1.6,
+              color: "#64748B",
+            }}
+          >
+            Questions about treatments, doctors or appointments? Our assistant
+            can help you book.
+          </p>
+        </div>
+      </div>
+
       <style
         dangerouslySetInnerHTML={{
-          __html: `*{margin:0;padding:0;box-sizing:border-box}body{overflow:hidden}`,
+          __html: `*{margin:0;padding:0;box-sizing:border-box}`,
         }}
       />
       <WidgetChat
@@ -80,7 +132,7 @@ export default async function WidgetPage({ params }: Props) {
         agentName={settings.agent_name}
         welcomeMessage={settings.welcome_message}
       />
-    </div>
+    </>
   );
 }
 

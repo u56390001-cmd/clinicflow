@@ -1,9 +1,10 @@
-import { randomUUID } from "node:crypto";
+
 
 import { z } from "zod";
 
 import {
   CLINIC_SLUG_REGEX,
+  COMMON_TIMEZONES,
   RESERVED_CLINIC_SLUGS,
   slugify,
   WEEKDAY_ORDER,
@@ -123,9 +124,18 @@ export const clinicSchema = z
   });
 
 /**
- * Clinic profile editing (Clinic Settings). Same validation as creation,
- * except `slug` is optional: leave blank to keep the current slug.
- * `email` is optional because an existing clinic may not have one set.
+ * Clinic profile editing (Clinic Settings). Same validation as creation.
+ *
+ * Required: name, doctorName, timezone, phone, email. Optional: `address` —
+ * a clinic can operate without a posted address, and forcing one would only
+ * teach the doctor to type a placeholder. `slug` may be left blank, in which
+ * case it is derived from the clinic name, so it still always resolves to a
+ * value (the column is NOT NULL) without the doctor having to invent one.
+ *
+ * These are application-level requirements only. The `clinics` columns for
+ * doctor_name/phone/email stay nullable so that rows written before this
+ * change cannot block an owner from completing their profile — the
+ * requirement bites when the form is next saved.
  */
 export const clinicSettingsSchema = z
   .object({
@@ -148,9 +158,8 @@ export const clinicSettingsSchema = z
     doctorName: z
       .string()
       .trim()
-      .max(120, "Doctor name must be 120 characters or fewer.")
-      .optional()
-      .or(z.literal("")),
+      .min(1, "Doctor name is required.")
+      .max(120, "Doctor name must be 120 characters or fewer."),
     timezone: z
       .string()
       .min(1, "Timezone is required.")
@@ -158,10 +167,9 @@ export const clinicSettingsSchema = z
     phone: z
       .string()
       .trim()
-      .max(32, "Phone must be 32 characters or fewer.")
-      .optional()
-      .or(z.literal("")),
-    email: email.optional().or(z.literal("")),
+      .min(3, "Phone is required.")
+      .max(32, "Phone must be 32 characters or fewer."),
+    email: email,
     address: z
       .string()
       .trim()
@@ -764,6 +772,222 @@ export const availabilityPayloadSchema = z.object({
 });
 
 /**
+ * Organization settings payload for the "Timezone & Working Hours" card: one
+ * IANA timezone, the weekdays the clinic opens, and a single opening/closing
+ * range shared by every selected day.
+ *
+ * The timezone is checked against `COMMON_TIMEZONES` rather than accepted as
+ * free text, because the value is written straight into `clinics.timezone` and
+ * later handed to the date library as an IANA zone — an arbitrary string there
+ * would throw at appointment-scheduling time, not at save time.
+ */
+export const timezoneWorkingHoursSchema = z
+  .object({
+    timezone: z
+      .string()
+      .trim()
+      .min(1, "Timezone is required.")
+      .max(64, "Timezone must be 64 characters or fewer.")
+      .refine(
+        (value) => (COMMON_TIMEZONES as readonly string[]).includes(value),
+        { message: "Choose a timezone from the list." },
+      ),
+    days: z
+      .array(z.number().int().min(0).max(6))
+      .min(1, "Select at least one working day."),
+    startTime: z
+      .string()
+      .regex(TIME_OF_DAY, "Opening time must be in HH:MM 24-hour format."),
+    endTime: z
+      .string()
+      .regex(TIME_OF_DAY, "Closing time must be in HH:MM 24-hour format."),
+  })
+  .refine((value) => value.endTime > value.startTime, {
+    path: ["endTime"],
+    message: "Closing time must be after opening time.",
+  });
+
+/**
+ * Organization settings → Patient ID tab.
+ *
+ * `prefix` mirrors the `clinics_patient_code_prefix_check` constraint added in
+ * migration 0029 (`^[A-Z]{2,6}$`) exactly, so a value that passes here can
+ * never be rejected by the database and surface as a raw constraint violation.
+ * Normalising to uppercase first means the field tolerates a lowercase entry
+ * rather than making the owner retype it.
+ *
+ * `format` must match `clinics_patient_code_format_check` from migration 0055.
+ */
+export const patientCodeSettingsSchema = z.object({
+  prefix: z
+    .string()
+    .trim()
+    .transform((value) => value.toUpperCase())
+    .pipe(
+      z
+        .string()
+        .regex(/^[A-Z]{2,6}$/, "Prefix must be 2 to 6 letters, A–Z only."),
+    ),
+  format: z.enum(["sequence", "year_sequence"], {
+    message: "Choose an ID format.",
+  }),
+});
+
+/**
+ * A single form value standing in for a boolean.
+ *
+ * `z.coerce.boolean()` is deliberately not used: it runs `Boolean(value)`, and
+ * `Boolean("false")` is `true`, so a hidden field carrying `"false"` would be
+ * read as ON — the switch would appear to save nothing while flipping it on.
+ */
+const booleanField = z
+  .enum(["true", "false"])
+  .transform((value) => value === "true");
+
+/**
+ * GSTIN: 2 digit state code, 10 char PAN, entity digit, literal `Z`, checksum.
+ * Matches the `08ABCDE1234F1Z5` example in the settings markup. Upper-cased and
+ * whitespace-stripped first so a pasted value with spaces is accepted.
+ */
+const gstNumberField = z
+  .string()
+  .trim()
+  .transform((value) => value.toUpperCase().replace(/\s+/g, ""))
+  .refine(
+    (value) =>
+      value === "" ||
+      /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]$/.test(value),
+    {
+      message: "Enter a valid GST number, e.g. 08ABCDE1234F1Z5.",
+    },
+  );
+
+/**
+ * Organization settings → Billing (migration 0056).
+ *
+ * The two prefixes mirror `clinics_bill_number_prefix_check` and
+ * `clinics_receipt_prefix_check` exactly. GST fields are only validated when
+ * `show_gst_on_receipt` is on, so a clinic that keeps GST off is not forced to
+ * supply a number it never displays — while still catching a typo the moment
+ * they switch it on.
+ */
+export const billingSettingsSchema = z
+  .object({
+    billNumberPrefix: z
+      .string()
+      .trim()
+      .transform((value) => value.toUpperCase())
+      .pipe(
+        z
+          .string()
+          .regex(/^[A-Z]{2,6}$/, "Prefix must be 2 to 6 letters, A–Z only."),
+      ),
+    receiptPrefix: z
+      .string()
+      .trim()
+      .transform((value) => value.toUpperCase())
+      .pipe(
+        z
+          .string()
+          .regex(/^[A-Z]{2,6}$/, "Prefix must be 2 to 6 letters, A–Z only."),
+      ),
+    autoSendWhatsappReceipt: booleanField,
+    receiptFooterMessage: z
+      .string()
+      .trim()
+      .max(200, "Keep the footer under 200 characters."),
+    showGstOnReceipt: booleanField,
+    gstNumber: gstNumberField,
+    gstRate: z.coerce
+      // Zod 4 renamed `invalid_type_error` to `error`.
+      .number({ error: "Enter a GST rate." })
+      .min(0, "GST rate cannot be negative.")
+      .max(100, "GST rate cannot exceed 100."),
+    billTerms: z.string().max(20000, "Terms are too long."),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.showGstOnReceipt) return;
+
+    if (!value.gstNumber) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["gstNumber"],
+        message: "GST number is required when GST is shown on receipts.",
+      });
+    }
+    // The markup ships the rate as 18 with the helper "SGST 9.0% + CGST 9.0%",
+    // i.e. the stored value is the TOTAL, split evenly for display.
+    if (Number.isNaN(value.gstRate)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["gstRate"],
+        message: "Enter a GST rate.",
+      });
+    }
+  });
+
+/** Maximum words allowed in bill terms, per the billing settings markup. */
+export const BILL_TERMS_MAX_WORDS = 1000;
+
+/**
+ * Word count used by the "N/1000 words" counter. Matches `split(/\s+/)` so the
+ * count on screen agrees with the server-side limit rather than drifting.
+ */
+export function countWords(value: string): number {
+  const trimmed = value.trim();
+  return trimmed === "" ? 0 : trimmed.split(/\s+/).length;
+}
+
+/**
+ * Organization settings → Prescription (migration 0057).
+ *
+ * One boolean today, but the tab is the natural home for later print
+ * preferences too, so it is validated as an object rather than read as a bare
+ * form value.
+ */
+export const prescriptionSettingsSchema = z.object({
+  showPrescriptionHeader: booleanField,
+});
+
+
+/**
+ * Field limits for a catalogue medicine.
+ *
+ * `name` is bounded by the longest thing anyone types into a drug box —
+ * "Paracetamol + Ibuprofen + Caffeine" — rather than by the database, which has
+ * no limit on a `text` column. An unbounded name would let one pasted paragraph
+ * become a row that no longer fits the list row it is rendered in.
+ *
+ * The DB CHECK is `btrim(name) <> ''`; the `.trim()` here plus `.min(1)` is the
+ * same rule in Zod, so a whitespace-only name is caught before the round trip.
+ */
+export const MEDICINE_NAME_MAX = 120;
+export const MEDICINE_STRENGTH_MAX = 60;
+export const MEDICINE_CATEGORY_MAX = 60;
+
+/** One medicine as the Manage Medicines form submits it. */
+export const medicineSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Enter the medicine name.")
+    .max(
+      MEDICINE_NAME_MAX,
+      `Keep the name under ${MEDICINE_NAME_MAX} characters.`,
+    ),
+  strength: z.string().trim().max(MEDICINE_STRENGTH_MAX),
+  category: z.string().trim().max(MEDICINE_CATEGORY_MAX),
+  isActive: booleanField,
+});
+
+/**
+ * How the Manage Medicines list is filtered. `all` is the only value that can
+ * reach the server without a filter, so the query builder can treat a missing
+ * value as "active only" rather than "everything".
+ */
+export const medicineFilterSchema = z.enum(["active", "inactive", "all"]);
+
+/**
  * Patient create/edit. One schema for both: the edit form submits every
  * field. Email/phone are optional but format-validated when present (the DB
  * CHECK constraints mirror these limits). `dateOfBirth` is an optional
@@ -1083,7 +1307,7 @@ const faqEntry = z
     is_custom: z.boolean().optional(),
   })
   .transform((value) => ({
-    id: value.id ?? randomUUID(),
+    id: value.id ?? Math.random().toString(36).slice(2,10),
     question: value.question,
     answer: value.answer,
     active: value.active ?? true,
@@ -1206,74 +1430,99 @@ export const aiSettingsSchema = z.object({
 // ---------------------------------------------------------------------------
 
 const websiteSectionSchema = z.object({
-  id: z.enum(["hero", "about", "services", "gallery", "contact"]),
+  id: z.enum([
+    "hero",
+    "doctors",
+    "about",
+    "services",
+    "booking",
+    "gallery",
+    "experience",
+    "faq",
+    "contact",
+  ]),
   label: z.string(),
   visible: z.boolean(),
-  order: z.number().int().min(0).max(10),
+  order: z.number().int().min(0).max(20),
 });
 
-/** Schema for saving the full website config from the editor. */
+/** One short line of copy. The 120 cap is what stops a pasted paragraph landing
+ *  in a stat tile, and it is the same cap the FAQ answers use. */
+const shortText = (max: number, label: string) =>
+  z.string().trim().max(max, `${label} must be ${max} characters or fewer.`);
+
+/** Schema for saving the full website config from the builder. */
 export const websiteSaveSchema = z.object({
   template: z.enum(["classic", "modern", "minimal"], {
     message: "Template must be classic, modern, or minimal.",
   }),
   content: z.object({
     hero: z.object({
-      headline: z
-        .string()
-        .trim()
-        .max(200, "Headline must be 200 characters or fewer."),
-      description: z
-        .string()
-        .trim()
-        .max(1000, "Description must be 1000 characters or fewer."),
-      ctaText: z
-        .string()
-        .trim()
-        .max(60, "CTA text must be 60 characters or fewer."),
-      ctaUrl: z
-        .string()
-        .trim()
-        .max(500, "CTA URL must be 500 characters or fewer.")
+      headline: shortText(200, "Headline"),
+      description: shortText(1000, "Description"),
+      ctaText: shortText(60, "CTA text"),
+      ctaUrl: shortText(500, "CTA URL").optional().or(z.literal("")),
+      ctaSecondaryLabel: shortText(60, "Secondary CTA text")
         .optional()
         .or(z.literal("")),
-      ctaSecondaryLabel: z
-        .string()
-        .trim()
-        .max(60, "Secondary CTA text must be 60 characters or fewer.")
-        .optional()
-        .or(z.literal("")),
+    }),
+    doctors: z.object({
+      title: shortText(120, "Doctors heading"),
+      description: shortText(600, "Doctors description"),
+      limit: z.number().int().min(1, "Show at least one doctor.").max(24),
+      ctaText: shortText(60, "Doctors CTA text"),
     }),
     about: z.object({
-      bio: z.string().trim().max(5000, "Bio must be 5000 characters or fewer."),
-      credentials: z
-        .string()
-        .trim()
-        .max(2000, "Credentials must be 2000 characters or fewer."),
+      title: shortText(120, "About heading"),
+      bio: shortText(5000, "Biography"),
+      credentials: shortText(2000, "Credentials"),
       certifications: z
-        .array(
-          z
-            .string()
-            .trim()
-            .min(1, "Certification cannot be empty.")
-            .max(120, "Certification must be 120 characters or fewer."),
-        )
+        .array(shortText(120, "Certification").min(1, "Certification cannot be empty."))
         .max(20, "At most 20 certifications are allowed.")
         .optional(),
+      facilities: z
+        .array(shortText(120, "Facility").min(1, "Facility cannot be empty."))
+        .max(12, "At most 12 facilities are allowed.")
+        .optional(),
+    }),
+    booking: z.object({
+      title: shortText(120, "Booking heading"),
+      description: shortText(600, "Booking description"),
+      ctaText: shortText(60, "Booking CTA text"),
+      showNextSlot: z.boolean(),
+    }),
+    experience: z.object({
+      title: shortText(120, "Experience heading"),
+      yearsLabel: shortText(80, "Experience label"),
+      stats: z
+        .array(
+          z.object({
+            value: shortText(20, "Stat value"),
+            label: shortText(60, "Stat label"),
+          }),
+        )
+        .max(4, "At most 4 statistics are allowed."),
+    }),
+    faq: z.object({
+      title: shortText(120, "Questions heading"),
+      items: z
+        .array(
+          z.object({
+            id: z.string().trim().min(1).max(40),
+            question: shortText(200, "Question"),
+            answer: shortText(1500, "Answer"),
+          }),
+        )
+        .max(12, "At most 12 questions are allowed."),
     }),
     contact: z.object({
+      title: shortText(120, "Contact heading"),
       showPhone: z.boolean(),
       showEmail: z.boolean(),
       showAddress: z.boolean(),
       showHours: z.boolean(),
-      bookingCtaText: z
-        .string()
-        .trim()
-        .max(60, "Booking CTA text must be 60 characters or fewer."),
-      mapEmbedUrl: z
-        .string()
-        .trim()
-        .max(1000, "Map embed URL must be 1000 characters or fewer.")
+      bookingCtaText: shortText(60, "Booking CTA text"),
+      mapEmbedUrl: shortText(1000, "Map embed URL")
         .refine((url) => url === "" || url.startsWith("https://"), {
           message: "Map embed URL must be a https:// embed URL.",
         })
@@ -1282,18 +1531,74 @@ export const websiteSaveSchema = z.object({
     }),
     sections: z
       .array(websiteSectionSchema)
-      .length(5, "Exactly 5 sections are required."),
+      .min(1, "Keep at least one section on the page.")
+      .max(9, "A page cannot hold more than 9 sections."),
   }),
   theme: z.object({
     primaryColor: z
       .string()
       .trim()
       .regex(/^#[0-9A-Fa-f]{6}$/, "Color must be a valid hex color."),
-    fontFamily: z
+    textColor: z
       .string()
       .trim()
-      .max(60, "Font family must be 60 characters or fewer."),
+      .regex(/^#[0-9A-Fa-f]{6}$/, "Color must be a valid hex color."),
+    fontFamily: shortText(60, "Font family"),
+    headingFont: z.enum(["same", "serif", "wide", "humanist"]),
+    buttonStyle: z.enum(["solid", "soft", "outline", "inverse"]),
+    cornerStyle: z.enum(["sharp", "soft", "round"]),
+    logoUrl: shortText(1000, "Logo URL")
+      .refine((url) => url === "" || /^https?:\/\//.test(url), {
+        message: "Logo must be an http(s) URL.",
+      })
+      .optional()
+      .or(z.literal("")),
+    showHeader: z.boolean(),
+    alignment: z.enum(["left", "center"]),
   }),
+  widget: z.object({
+    enabled: z.boolean(),
+    position: z.enum(["bottom-right", "bottom-left"]),
+    language: z.enum(["en", "ur", "ar"]),
+    colorMode: z.enum(["brand", "custom"]),
+    color: z
+      .string()
+      .trim()
+      .regex(/^#[0-9A-Fa-f]{6}$/, "Color must be a valid hex color."),
+  }),
+  seo: z.object({
+    title: shortText(70, "Page title").optional().or(z.literal("")),
+    description: shortText(180, "Page description").optional().or(z.literal("")),
+    keywords: shortText(200, "Keywords").optional().or(z.literal("")),
+    ogImage: shortText(1000, "Sharing image")
+      .refine((url) => url === "" || /^https?:\/\//.test(url), {
+        message: "Sharing image must be an http(s) URL.",
+      })
+      .optional()
+      .or(z.literal("")),
+    noindex: z.boolean(),
+  }),
+  locale: z.object({
+    language: z.enum(["en", "ur", "ar"]),
+    direction: z.enum(["ltr", "rtl"]),
+  }),
+});
+
+/**
+ * Custom domain claim. The hostname is normalised to lowercase and trimmed by
+ * the caller; this schema only enforces shape and rejects a wildcard or a bare
+ * TLD, both of which would resolve nowhere.
+ */
+export const websiteDomainSchema = z.object({
+  domain: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .max(253, "Domain must be 253 characters or fewer.")
+    .regex(
+      /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/,
+      "Enter a domain like drsmithclinic.com — without https:// or a path.",
+    ),
 });
 
 /** Schema for changing website publish status. */

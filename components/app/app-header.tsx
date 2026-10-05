@@ -1,6 +1,7 @@
 import { AppHeaderShell } from "@/components/app/app-header-shell";
 import { getSessionIdentity } from "@/lib/auth-session";
 import { getCurrentClinic } from "@/lib/clinic-access";
+import { clinicLogoPublicUrl, readClinicLogoPath } from "@/lib/clinic-logo";
 import {
   fetchHeaderConversations,
   fetchHeaderNotifications,
@@ -21,18 +22,20 @@ export async function AppHeader() {
   const displayName = session?.fullName ?? null;
 
   const clinicId = access?.clinic.id ?? null;
-  const [notifications, conversations] = clinicId
-    ? await Promise.all([
-        fetchHeaderNotifications(supabase, clinicId),
-        fetchHeaderConversations(supabase, clinicId),
-      ])
-    : [[], []];
+  const [logoPath, notifications, conversations] = await Promise.all([
+    // Null until the clinic sets one, and null-safe if migration 0054 has not
+    // been applied yet — see readClinicLogoPath.
+    clinicId ? readClinicLogoPath(clinicId) : null,
+    clinicId ? fetchHeaderNotifications(supabase, clinicId) : [],
+    clinicId ? fetchHeaderConversations(supabase, clinicId) : [],
+  ]);
 
   return (
     <AppHeaderShell
       userEmail={email}
       userName={displayName}
-      clinicId={access?.clinic.id ?? null}
+      clinicId={clinicId}
+      clinicLogoUrl={clinicLogoPublicUrl(logoPath)}
       notifications={notifications}
       conversations={conversations}
     />

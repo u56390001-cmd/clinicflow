@@ -5,7 +5,11 @@ import { z } from "zod";
 import { getCurrentClinic, canWriteClinic } from "@/lib/clinic-access";
 import { createClient } from "@/lib/supabase/server";
 import { clinicLocalToUtcIso } from "@/lib/time";
-import { availabilityPayloadSchema, blockedTimeSchema } from "@/lib/validation/schemas";
+import {
+  availabilityPayloadSchema,
+  blockedTimeSchema,
+  timezoneWorkingHoursSchema,
+} from "@/lib/validation/schemas";
 import type { ActionResult } from "@/types";
 
 const blockedTimeIdSchema = z.object({ blockedTimeId: z.uuid() });
@@ -46,7 +50,9 @@ export async function saveAvailabilityRulesAction(
     });
     return {
       ok: false,
-      message: parsed.error.issues[0]?.message ?? "Check the working hours and try again.",
+      message:
+        parsed.error.issues[0]?.message ??
+        "Check the working hours and try again.",
     };
   }
 
@@ -57,9 +63,16 @@ export async function saveAvailabilityRulesAction(
 
   const supabase = await createClient();
   const access = await getCurrentClinic(supabase);
-  if (!access) return { ok: false, message: "You must have a clinic to set availability." };
+  if (!access)
+    return {
+      ok: false,
+      message: "You must have a clinic to set availability.",
+    };
   if (!canWriteClinic(access.role)) {
-    return { ok: false, message: "Only owners and admins can edit availability." };
+    return {
+      ok: false,
+      message: "Only owners and admins can edit availability.",
+    };
   }
 
   const rules = parsed.data.rules.map((rule) => ({
@@ -78,19 +91,140 @@ export async function saveAvailabilityRulesAction(
   });
 
   if (error) {
-    console.error("[saveAvailabilityRulesAction] upsert_availability_rules failed", {
-      clinicId: access.clinic.id,
-      doctorId: scope.data.doctorId,
-      code: error.code,
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-    });
+    console.error(
+      "[saveAvailabilityRulesAction] upsert_availability_rules failed",
+      {
+        clinicId: access.clinic.id,
+        doctorId: scope.data.doctorId,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      },
+    );
     const isDoctorMissing = String(error.message).includes("DOCTOR_NOT_FOUND");
     return {
       ok: false,
       message: isDoctorMissing
         ? "That doctor is no longer available. Refresh and try again."
+        : "We couldn't save your working hours. Please try again.",
+    };
+  }
+
+  return { ok: true, data: undefined };
+}
+
+/**
+ * Save the Organization settings card: one timezone for the clinic plus the
+ * set of weekdays it opens, all sharing a single opening/closing range.
+ *
+ * Both halves are written because the card presents them as one unit, but they
+ * live in two different tables (`clinics.timezone` and
+ * `availability_rules`). There is no cross-table transaction available through
+ * PostgREST, so the timezone is committed first and a working-hours failure is
+ * reported as such rather than rolled back — the timezone the owner picked is a
+ * valid setting on its own, and silently discarding it would be worse than
+ * asking them to press save again.
+ *
+ * Days the owner turned off are written as `enabled = false` with the submitted
+ * range rather than deleted. The RPC upserts exactly one row per weekday, so
+ * keeping the row means a previously-closed day cannot silently resurrect
+ * yesterday's hours from a stale row.
+ */
+export async function saveTimezoneWorkingHoursAction(
+  _prevState: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const raw = formData.get("settings");
+  if (typeof raw !== "string") {
+    return { ok: false, message: "Missing timezone or working hours." };
+  }
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    return { ok: false, message: "Invalid timezone or working hours." };
+  }
+
+  const parsed = timezoneWorkingHoursSchema.safeParse(json);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const key = issue?.path[0];
+    const fieldErrors: Record<string, string> = {};
+    if (typeof key === "string" && issue) fieldErrors[key] = issue.message;
+    return {
+      ok: false,
+      message: issue?.message ?? "Check the timezone and working hours.",
+      fieldErrors,
+    };
+  }
+
+  const supabase = await createClient();
+  const access = await getCurrentClinic(supabase);
+  if (!access) {
+    return {
+      ok: false,
+      message: "You must have a clinic to set working hours.",
+    };
+  }
+  if (!canWriteClinic(access.role)) {
+    return {
+      ok: false,
+      message: "Only owners and admins can edit working hours.",
+    };
+  }
+
+  const { timezone, days, startTime, endTime } = parsed.data;
+  const selected = new Set(days);
+
+  const timezoneChanged = timezone !== access.clinic.timezone;
+  if (timezoneChanged) {
+    const { error } = await supabase
+      .from("clinics")
+      .update({ timezone })
+      .eq("id", access.clinic.id);
+
+    if (error) {
+      console.error("[saveTimezoneWorkingHoursAction] clinics update failed", {
+        clinicId: access.clinic.id,
+        code: error.code,
+        message: error.message,
+      });
+      return {
+        ok: false,
+        message: "We couldn't save the timezone. Please try again.",
+      };
+    }
+  }
+
+  const rules = Array.from({ length: 7 }, (_, dayOfWeek) => ({
+    dayOfWeek,
+    startTime,
+    endTime,
+    enabled: selected.has(dayOfWeek),
+  }));
+
+  const { error } = await supabase.rpc("upsert_availability_rules", {
+    p_clinic_id: access.clinic.id,
+    p_doctor_id: null,
+    p_rules: rules,
+  });
+
+  if (error) {
+    console.error(
+      "[saveTimezoneWorkingHoursAction] upsert_availability_rules failed",
+      {
+        clinicId: access.clinic.id,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      },
+    );
+    return {
+      ok: false,
+      message: timezoneChanged
+        ? "Timezone saved, but we couldn't save your working hours. Please try again."
         : "We couldn't save your working hours. Please try again.",
     };
   }
@@ -115,7 +249,9 @@ export async function addBlockedTimeAction(
   if (!parsed.success) {
     return {
       ok: false,
-      message: parsed.error.issues[0]?.message ?? "Check the blocked time and try again.",
+      message:
+        parsed.error.issues[0]?.message ??
+        "Check the blocked time and try again.",
     };
   }
 
@@ -126,9 +262,16 @@ export async function addBlockedTimeAction(
 
   const supabase = await createClient();
   const access = await getCurrentClinic(supabase);
-  if (!access) return { ok: false, message: "You must have a clinic to add blocked times." };
+  if (!access)
+    return {
+      ok: false,
+      message: "You must have a clinic to add blocked times.",
+    };
   if (!canWriteClinic(access.role)) {
-    return { ok: false, message: "Only owners and admins can edit blocked times." };
+    return {
+      ok: false,
+      message: "Only owners and admins can edit blocked times.",
+    };
   }
 
   const { error } = await supabase.from("blocked_times").insert({
@@ -147,7 +290,10 @@ export async function addBlockedTimeAction(
       details: error.details,
       hint: error.hint,
     });
-    return { ok: false, message: "We couldn't add this blocked time. Please try again." };
+    return {
+      ok: false,
+      message: "We couldn't add this blocked time. Please try again.",
+    };
   }
 
   return { ok: true, data: undefined };
@@ -160,16 +306,25 @@ export async function deleteBlockedTimeAction(
   _prevState: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
-  const parsed = blockedTimeIdSchema.safeParse({ blockedTimeId: formData.get("blockedTimeId") });
+  const parsed = blockedTimeIdSchema.safeParse({
+    blockedTimeId: formData.get("blockedTimeId"),
+  });
   if (!parsed.success) {
     return { ok: false, message: "Missing blocked time id." };
   }
 
   const supabase = await createClient();
   const access = await getCurrentClinic(supabase);
-  if (!access) return { ok: false, message: "You must have a clinic to manage blocked times." };
+  if (!access)
+    return {
+      ok: false,
+      message: "You must have a clinic to manage blocked times.",
+    };
   if (!canWriteClinic(access.role)) {
-    return { ok: false, message: "Only owners and admins can edit blocked times." };
+    return {
+      ok: false,
+      message: "Only owners and admins can edit blocked times.",
+    };
   }
 
   const { error } = await supabase
@@ -187,7 +342,10 @@ export async function deleteBlockedTimeAction(
       details: error.details,
       hint: error.hint,
     });
-    return { ok: false, message: "We couldn't remove this blocked time. Please try again." };
+    return {
+      ok: false,
+      message: "We couldn't remove this blocked time. Please try again.",
+    };
   }
 
   return { ok: true, data: undefined };

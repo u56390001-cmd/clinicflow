@@ -17,13 +17,17 @@ interface SubmitButtonProps extends Omit<ButtonProps, "type"> {
 export function SubmitButton({
   loadingText = "Please wait…",
   children,
+  disabled,
   ...props
 }: SubmitButtonProps) {
   const { pending } = useFormStatus();
   return (
     <Button
       type="submit"
-      disabled={pending}
+      // OR'd rather than `{...props}`-last: a caller's `disabled` (the
+      // Prescription card's "nothing changed yet") would otherwise land after
+      // this prop and re-enable the button mid-submit, allowing a double save.
+      disabled={pending || disabled}
       aria-busy={pending}
       {...props}
     >

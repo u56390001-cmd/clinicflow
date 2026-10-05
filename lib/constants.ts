@@ -32,6 +32,11 @@ export const APP_ROUTES = {
     aiTest: "/app/ai-test",
     settings: "/app/settings",
     team: "/app/settings/team",
+    settingsPatientId: "/app/settings/patient-id",
+    settingsBilling: "/app/settings/billing",
+    settingsPrescription: "/app/settings/prescription",
+    settingsTvDisplay: "/app/settings/tv-display",
+    bookingPage: "/app/booking-page",
     website: "/app/website",
     growthAgent: "/app/growth-agent",
     integrations: "/app/integrations",
@@ -76,6 +81,7 @@ export const APP_NAV_SECTIONS = [
     label: "Workspace",
     items: [
       { label: "Website", href: APP_ROUTES.app.website },
+      { label: "Booking Page", href: APP_ROUTES.app.bookingPage },
       { label: "Growth Agent", href: APP_ROUTES.app.growthAgent },
       { label: "Integrations", href: APP_ROUTES.app.integrations },
       { label: "Billing", href: APP_ROUTES.app.billing },
@@ -89,6 +95,74 @@ export const APP_NAV_ITEMS: ReadonlyArray<{
   label: string;
   href: string;
 }> = APP_NAV_SECTIONS.flatMap((section) => [...section.items]);
+
+/**
+ * The rail that sits inside the Settings tab — a second level of navigation for
+ * the things a clinic owner configures, separate from the app-wide sidebar.
+ *
+ * `comingSoon` marks a section whose page does not exist yet. Those items stay
+ * in the rail so the shape of the finished settings surface is visible and
+ * reviewable, but they are rendered disabled rather than as links that would
+ * 404. Flipping one to `false` and adding `app/app/settings/<slug>/page.tsx`
+ * is the whole of going live.
+ *
+ * `icon` is a key rather than a component so this stays a plain data module —
+ * the same split `APP_NAV_SECTIONS` uses, with the icon map living next to the
+ * component that draws it.
+ */
+export const SETTINGS_NAV_ITEMS = [
+  {
+    key: "organization",
+    label: "Organization",
+    href: APP_ROUTES.app.settings,
+    icon: "building",
+    comingSoon: false,
+    /** Team is organization settings in everything but its own URL. */
+    alsoActiveAt: [APP_ROUTES.app.team],
+  },
+  {
+    key: "team",
+    label: "Manage Team",
+    href: APP_ROUTES.app.team,
+    icon: "users",
+    comingSoon: false,
+    alsoActiveAt: [],
+  },
+  {
+    key: "patient-id",
+    label: "Patient ID",
+    href: APP_ROUTES.app.settingsPatientId,
+    icon: "refresh",
+    /** Live since 0055 — the prefix and format are both editable here. */
+    comingSoon: false,
+    alsoActiveAt: [],
+  },
+  {
+    key: "billing",
+    label: "Billing",
+    href: APP_ROUTES.app.settingsBilling,
+    icon: "save",
+    /** Live since 0056 — prefixes, receipt preferences, GST and bill terms. */
+    comingSoon: false,
+    alsoActiveAt: [],
+  },
+  {
+    key: "prescription",
+    label: "Prescription",
+    href: APP_ROUTES.app.settingsPrescription,
+    icon: "file-pen",
+    comingSoon: false,
+    alsoActiveAt: [],
+  },
+  {
+    key: "tv-display",
+    label: "TV Display",
+    href: APP_ROUTES.app.settingsTvDisplay,
+    icon: "tv",
+    comingSoon: false,
+    alsoActiveAt: [],
+  },
+] as const;
 
 /** Weekday order (0 = Monday ... 6 = Sunday) matching `day_of_week`. */
 export const WEEKDAY_ORDER = [
@@ -123,11 +197,26 @@ export const APPOINTMENT_STATUS_META: Record<
   "pending" | "confirmed" | "completed" | "cancelled" | "no_show",
   { label: string; badge: string }
 > = {
-  pending: { label: "Pending", badge: "bg-amber-50 text-amber-700 ring-amber-600/20" },
-  confirmed: { label: "Confirmed", badge: "bg-emerald-50 text-emerald-700 ring-emerald-600/20" },
-  completed: { label: "Completed", badge: "bg-slate-100 text-slate-700 ring-slate-500/20" },
-  cancelled: { label: "Cancelled", badge: "bg-red-50 text-red-700 ring-red-600/20" },
-  no_show: { label: "No-show", badge: "bg-orange-50 text-orange-700 ring-orange-600/20" },
+  pending: {
+    label: "Pending",
+    badge: "bg-amber-50 text-amber-700 ring-amber-600/20",
+  },
+  confirmed: {
+    label: "Confirmed",
+    badge: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
+  },
+  completed: {
+    label: "Completed",
+    badge: "bg-slate-100 text-slate-700 ring-slate-500/20",
+  },
+  cancelled: {
+    label: "Cancelled",
+    badge: "bg-red-50 text-red-700 ring-red-600/20",
+  },
+  no_show: {
+    label: "No-show",
+    badge: "bg-orange-50 text-orange-700 ring-orange-600/20",
+  },
 } as const;
 
 /**
@@ -137,14 +226,38 @@ export const SUBSCRIPTION_STATUS_META: Record<
   string,
   { label: string; badge: string }
 > = {
-  pending_payment: { label: "Pending Payment", badge: "bg-slate-100 text-slate-700 ring-slate-500/20" },
-  payment_submitted: { label: "Under Review", badge: "bg-blue-50 text-blue-700 ring-blue-600/20" },
-  under_review: { label: "Under Review", badge: "bg-blue-50 text-blue-700 ring-blue-600/20" },
-  approved: { label: "Approved", badge: "bg-emerald-50 text-emerald-700 ring-emerald-600/20" },
-  active: { label: "Active", badge: "bg-emerald-50 text-emerald-700 ring-emerald-600/20" },
-  expiring: { label: "Expiring Soon", badge: "bg-amber-50 text-amber-700 ring-amber-600/20" },
-  expired: { label: "Expired", badge: "bg-red-50 text-red-700 ring-red-600/20" },
-  rejected: { label: "Rejected", badge: "bg-red-50 text-red-700 ring-red-600/20" },
+  pending_payment: {
+    label: "Pending Payment",
+    badge: "bg-slate-100 text-slate-700 ring-slate-500/20",
+  },
+  payment_submitted: {
+    label: "Under Review",
+    badge: "bg-blue-50 text-blue-700 ring-blue-600/20",
+  },
+  under_review: {
+    label: "Under Review",
+    badge: "bg-blue-50 text-blue-700 ring-blue-600/20",
+  },
+  approved: {
+    label: "Approved",
+    badge: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
+  },
+  active: {
+    label: "Active",
+    badge: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
+  },
+  expiring: {
+    label: "Expiring Soon",
+    badge: "bg-amber-50 text-amber-700 ring-amber-600/20",
+  },
+  expired: {
+    label: "Expired",
+    badge: "bg-red-50 text-red-700 ring-red-600/20",
+  },
+  rejected: {
+    label: "Rejected",
+    badge: "bg-red-50 text-red-700 ring-red-600/20",
+  },
 } as const;
 
 /**
@@ -154,10 +267,22 @@ export const PAYMENT_STATUS_META: Record<
   string,
   { label: string; badge: string }
 > = {
-  pending: { label: "Pending", badge: "bg-amber-50 text-amber-700 ring-amber-600/20" },
-  approved: { label: "Approved", badge: "bg-emerald-50 text-emerald-700 ring-emerald-600/20" },
-  rejected: { label: "Rejected", badge: "bg-red-50 text-red-700 ring-red-600/20" },
-  expired: { label: "Expired", badge: "bg-slate-100 text-slate-700 ring-slate-500/20" },
+  pending: {
+    label: "Pending",
+    badge: "bg-amber-50 text-amber-700 ring-amber-600/20",
+  },
+  approved: {
+    label: "Approved",
+    badge: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
+  },
+  rejected: {
+    label: "Rejected",
+    badge: "bg-red-50 text-red-700 ring-red-600/20",
+  },
+  expired: {
+    label: "Expired",
+    badge: "bg-slate-100 text-slate-700 ring-slate-500/20",
+  },
 } as const;
 
 /** Visit status display metadata (Phase 17). */
@@ -165,11 +290,26 @@ export const VISIT_STATUS_META: Record<
   string,
   { label: string; badge: string }
 > = {
-  scheduled: { label: "Scheduled", badge: "bg-blue-50 text-blue-700 ring-blue-600/20" },
-  checked_in: { label: "Checked In", badge: "bg-emerald-50 text-emerald-700 ring-emerald-600/20" },
-  waiting: { label: "Waiting", badge: "bg-amber-50 text-amber-700 ring-amber-600/20" },
-  in_consultation: { label: "In Consultation", badge: "bg-purple-50 text-purple-700 ring-purple-600/20" },
-  completed: { label: "Completed", badge: "bg-slate-100 text-slate-700 ring-slate-500/20" },
+  scheduled: {
+    label: "Scheduled",
+    badge: "bg-blue-50 text-blue-700 ring-blue-600/20",
+  },
+  checked_in: {
+    label: "Checked In",
+    badge: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
+  },
+  waiting: {
+    label: "Waiting",
+    badge: "bg-amber-50 text-amber-700 ring-amber-600/20",
+  },
+  in_consultation: {
+    label: "In Consultation",
+    badge: "bg-purple-50 text-purple-700 ring-purple-600/20",
+  },
+  completed: {
+    label: "Completed",
+    badge: "bg-slate-100 text-slate-700 ring-slate-500/20",
+  },
 } as const;
 
 /**
@@ -224,10 +364,22 @@ export const VISIT_PAYMENT_STATUS_META: Record<
   string,
   { label: string; badge: string }
 > = {
-  pending: { label: "Payment Pending", badge: "bg-amber-50 text-amber-700 ring-amber-600/20" },
-  collected_pre: { label: "Paid (Pre)", badge: "bg-emerald-50 text-emerald-700 ring-emerald-600/20" },
-  collected_post: { label: "Paid (Post)", badge: "bg-blue-50 text-blue-700 ring-blue-600/20" },
-  not_required: { label: "No Payment", badge: "bg-slate-100 text-slate-700 ring-slate-500/20" },
+  pending: {
+    label: "Payment Pending",
+    badge: "bg-amber-50 text-amber-700 ring-amber-600/20",
+  },
+  collected_pre: {
+    label: "Paid (Pre)",
+    badge: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
+  },
+  collected_post: {
+    label: "Paid (Post)",
+    badge: "bg-blue-50 text-blue-700 ring-blue-600/20",
+  },
+  not_required: {
+    label: "No Payment",
+    badge: "bg-slate-100 text-slate-700 ring-slate-500/20",
+  },
 } as const;
 
 /**
@@ -239,11 +391,26 @@ export const PATIENT_BILL_STATUS_META: Record<
   PatientBillStatus,
   { label: string; badge: string }
 > = {
-  pending: { label: "Pending", badge: "bg-amber-50 text-amber-700 ring-amber-600/20" },
-  paid: { label: "Paid", badge: "bg-emerald-50 text-emerald-700 ring-emerald-600/20" },
-  partially_paid: { label: "Partial", badge: "bg-blue-50 text-blue-700 ring-blue-600/20" },
-  waived: { label: "Waived", badge: "bg-violet-50 text-violet-700 ring-violet-600/20" },
-  cancelled: { label: "Cancelled", badge: "bg-slate-100 text-slate-600 ring-slate-500/20" },
+  pending: {
+    label: "Pending",
+    badge: "bg-amber-50 text-amber-700 ring-amber-600/20",
+  },
+  paid: {
+    label: "Paid",
+    badge: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
+  },
+  partially_paid: {
+    label: "Partial",
+    badge: "bg-blue-50 text-blue-700 ring-blue-600/20",
+  },
+  waived: {
+    label: "Waived",
+    badge: "bg-violet-50 text-violet-700 ring-violet-600/20",
+  },
+  cancelled: {
+    label: "Cancelled",
+    badge: "bg-slate-100 text-slate-600 ring-slate-500/20",
+  },
 } as const;
 
 /**
@@ -330,8 +497,7 @@ export const GROWTH_METRIC_RANGES = [
   { id: "ytd", label: "Year to date", window: 0, compareWindow: 0 },
 ] as const;
 
-export type GrowthMetricRangeId =
-  (typeof GROWTH_METRIC_RANGES)[number]["id"];
+export type GrowthMetricRangeId = (typeof GROWTH_METRIC_RANGES)[number]["id"];
 
 /** Posting-frequency labels. Values must match `growth_settings_schema`. */
 export const GROWTH_FREQUENCY_LABELS = [
@@ -352,12 +518,54 @@ export const COMMON_TIMEZONES = [
   "Europe/Paris",
   "Africa/Cairo",
   "Asia/Dubai",
+  "Asia/Karachi",
   "Asia/Kolkata",
   "Asia/Singapore",
   "Asia/Shanghai",
   "Australia/Sydney",
   "Pacific/Auckland",
 ];
+
+/**
+ * Display labels for the timezone picker.
+ *
+ * The stored value stays the bare IANA identifier — that is what
+ * `clinics.timezone` and `clinicLocalToUtcIso` rely on, and it keeps DST
+ * handling correct. The abbreviation and offset here are a *reading aid*
+ * computed from standard time, so a clinic in New York still resolves to
+ * UTC-4 during daylight saving even though the label says UTC-5:00.
+ */
+export const TIMEZONE_LABELS: Record<string, { abbr: string; offset: string }> =
+  {
+    UTC: { abbr: "UTC", offset: "UTC+0:00" },
+    "America/New_York": { abbr: "EST", offset: "UTC-5:00" },
+    "America/Chicago": { abbr: "CST", offset: "UTC-6:00" },
+    "America/Denver": { abbr: "MST", offset: "UTC-7:00" },
+    "America/Los_Angeles": { abbr: "PST", offset: "UTC-8:00" },
+    "Europe/London": { abbr: "GMT", offset: "UTC+0:00" },
+    "Europe/Berlin": { abbr: "CET", offset: "UTC+1:00" },
+    "Europe/Paris": { abbr: "CET", offset: "UTC+1:00" },
+    "Africa/Cairo": { abbr: "EET", offset: "UTC+2:00" },
+    "Asia/Dubai": { abbr: "GST", offset: "UTC+4:00" },
+    "Asia/Karachi": { abbr: "PKT", offset: "UTC+5:00" },
+    "Asia/Kolkata": { abbr: "IST", offset: "UTC+5:30" },
+    "Asia/Singapore": { abbr: "SGT", offset: "UTC+8:00" },
+    "Asia/Shanghai": { abbr: "CST", offset: "UTC+8:00" },
+    "Australia/Sydney": { abbr: "AEST", offset: "UTC+10:00" },
+    "Pacific/Auckland": { abbr: "NZST", offset: "UTC+12:00" },
+  };
+
+/**
+ * "Asia/Kolkata (IST) · UTC+5:30" — the label shown in the picker and in the
+ * saved summary. `Asia/New York` in the reference mockup is written that way
+ * for readability; we keep the real IANA spelling because that is the value the
+ * database stores.
+ */
+export function formatTimezoneOption(zone: string): string {
+  const known = TIMEZONE_LABELS[zone];
+  if (!known) return zone;
+  return `${zone} (${known.abbr}) - ${known.offset}`;
+}
 
 /**
  * Clinic slug format — must match the CHECK constraint in
