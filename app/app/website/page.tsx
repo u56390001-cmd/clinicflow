@@ -101,7 +101,7 @@ export default async function WebsitePage() {
   const { data: doctors } = await supabase
     .from("doctors")
     .select(
-      "id, name, specialty, photo_url, years_of_experience, qualification, professional_description",
+      "id, name, specialty, photo_url, years_of_experience, qualification, professional_description, credentials, consultation_fee, follow_up_fee, follow_up_valid_for, follow_up_period",
     )
     .eq("clinic_id", access.clinic.id)
     .eq("is_visible", true)

@@ -69,6 +69,11 @@ type Props = {
     years_of_experience: number | null;
     qualification: string | null;
     professional_description: string | null;
+    credentials?: string[] | null;
+    consultation_fee?: number | null;
+    follow_up_fee?: number | null;
+    follow_up_valid_for?: number | null;
+    follow_up_period?: "days" | "weeks" | "months" | null;
   }>;
 };
 

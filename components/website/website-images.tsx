@@ -560,7 +560,7 @@ export function ImageManager({
       <SingleImage
         kind="hero"
         label="Hero banner"
-        hint="Sits behind the headline with a colour wash over it. A wide photo works best."
+        hint="The figure on the hero's right, shown as-is with no box behind it. A doctor cut out on a transparent background works best — portrait 4:5, about 1200x1500px."
         images={images}
         clinicId={clinicId}
         onChange={onChange}

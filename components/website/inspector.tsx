@@ -279,6 +279,38 @@ function ContentTab({
         </InspectorGroup>
       ) : null}
 
+      {selectedSectionId === "hero" ? (
+        <InspectorGroup
+          title="Hero photo cards"
+          description="The two cards floating over the corners of the hero photograph."
+        >
+          <TextField
+            label="Badge on the photo (top-left)"
+            value={content.hero.imageBadgeText}
+            onChange={(value) =>
+              patch({ hero: { ...content.hero, imageBadgeText: value } })
+            }
+            placeholder="No. 1 Top Best Hospital"
+            maxLength={60}
+            hint="The glass pill over the left corner. A claim your clinic gets to make — keep it true."
+          />
+          <TextField
+            label="Stat on the photo (bottom-right)"
+            value={content.hero.imageStatText}
+            onChange={(value) =>
+              patch({ hero: { ...content.hero, imageStatText: value } })
+            }
+            placeholder="870+ Doctors"
+            maxLength={60}
+            hint="The glass card over the right corner. Empty either field to hide that card."
+          />
+          <p className="text-[11px] leading-relaxed text-text-muted">
+            The photo behind these cards is the <strong>Hero banner</strong> image —
+            upload or swap it in the Images section.
+          </p>
+        </InspectorGroup>
+      ) : null}
+
       {selectedSectionId === "doctors" ? (
         <InspectorGroup title="Doctors" description="Your team, pulled from ClinicFlow.">
           <LiveDataNote>

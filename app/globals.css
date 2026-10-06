@@ -40,6 +40,77 @@
     @apply bg-app font-sans text-text-primary antialiased;
   }
 
+  /* ---------------------------------------------------------------------------
+     Clinic website design layer
+     ---------------------------------------------------------------------------
+     A generated clinic site is not the app, and it must not inherit the app's
+     palette. Every clinic picks its own brand colour at runtime, so the site
+     reads one brand token (`--site-primary`) and one ink token (`--site-ink`),
+     both written inline onto the site root by `themeCssVars()`.
+
+     Everything else here is derived from those two, which is what keeps a
+     clinic's site coherent whatever colour they choose: the body copy, the
+     hairlines and the tints are all mixes of the ink and the accent, so no
+     section can drift away from the brand the way hard-coded greys do.
+
+     Re-declared on every element that sets one of the two inputs, not just on
+     `:root`. A custom property's `var()` references are substituted on the
+     element that *declares* it, so a token declared only on `:root` would bake
+     in the fallback ink: every clinic would get the same grey hairlines, and the
+     dark footer — which flips `--site-ink` to white — would leave its ink scale
+     behind and render near-black on near-black. The same applies to the dark
+     section surfaces (`experience: "ink"`, `booking: "primary"`), so
+     `.site-on-dark` recomputes the scale there too. `:root` stays as the
+     fallback for the pages that style a site root without going through the
+     template.
+     --------------------------------------------------------------------------- */
+  :root,
+  .site-root,
+  .site-footer,
+  .site-on-dark {
+    --site-hairline: color-mix(in srgb, var(--site-ink, #0f172a) 11%, transparent);
+    --site-hairline-soft: color-mix(in srgb, var(--site-ink, #0f172a) 6%, transparent);
+    --site-body: color-mix(in srgb, var(--site-ink, #0f172a) 76%, transparent);
+    /* The two steps below carry text, so their percentages are contrast floors
+       rather than taste. Measured against white: 56% ink is 4.12:1 and 34% is
+       2.17:1 — both below the 4.5:1 WCAG AA needs for body copy, and both are
+       used on 13px `.site-meta` (the opening-hours "Closed" row, the doctor's
+       meta line). 68% is 6.19:1 and 60% is 4.69:1, which clears AA with room for
+       the value to sit lighter than `--site-body` rather than collapsing onto it.
+       Do not lower these for a softer look; soften the size or the weight. */
+    --site-muted: color-mix(in srgb, var(--site-ink, #0f172a) 68%, transparent);
+    --site-faint: color-mix(in srgb, var(--site-ink, #0f172a) 60%, transparent);
+    --site-tint: color-mix(in srgb, var(--site-primary, #0d9488) 4%, transparent);
+    --site-tint-strong: color-mix(
+      in srgb,
+      var(--site-primary, #0d9488) 9%,
+      transparent
+    );
+    --site-on-primary-soft: color-mix(
+      in srgb,
+      var(--site-primary, #0d9488) 14%,
+      transparent
+    );
+    /* The page ground itself. Sections sit on this rather than on white: a
+       pure-white page under white cards, white chips and a white glass header
+       left nothing reading as a surface, and every hairline had to fight for
+       contrast. One step down — still light, clearly not white — lifts the
+       cards and the header without turning the site grey. */
+    --site-page: #f1f3f6;
+  }
+
+  :root {
+    /* Apples use almost no drop shadow — separation comes from a hairline and from
+       space. These two are therefore very soft and very wide, and the lift only
+       appears on hover. A tighter shadow under every card is what makes a layout
+       read as a kit of tiles rather than as a page. */
+    --site-shadow-rest: 0 1px 2px rgba(15, 23, 42, 0.04);
+    --site-shadow-lift: 0 2px 4px rgba(15, 23, 42, 0.04),
+      0 18px 40px -18px rgba(15, 23, 42, 0.18);
+    --site-shadow-float: 0 4px 8px rgba(15, 23, 42, 0.05),
+      0 32px 64px -24px rgba(15, 23, 42, 0.28);
+  }
+
   ::selection {
     @apply bg-primary/20 text-primary;
   }
@@ -56,9 +127,346 @@
     }
   }
 
+  /* Keyboard focus.
+     The ring follows `--site-primary` so a clinic that picked blue gets a blue
+     ring; it was a hardcoded teal, which meant a blue-branded clinic showed the
+     app's colour at every keyboard stop. `outline` rather than `box-shadow` so it
+     survives on rounded buttons and never gets clipped by a parent's overflow, and
+     `outline-offset` keeps it clear of the text it is marking. */
   *:focus-visible {
-    outline: 2px solid #0d9488;
+    outline: 2px solid var(--site-primary, #0d9488);
     outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* ---------------------------------------------------------------------------
+     Clinic website layout
+     ---------------------------------------------------------------------------
+     These breakpoints are *container* queries, not viewport media queries, and
+     that distinction is load-bearing rather than a preference.
+
+     The builder previews a mobile site by squeezing the frame to `max-w-[390px]`
+     inside an ordinary desktop browser window. A viewport media query evaluates
+     against the window, so `sm:`/`lg:` are still true inside a 390px frame and
+     the preview silently renders the desktop layout on a phone-width canvas —
+     the mobile design becomes something nobody can see before publishing.
+
+     Querying the site's own width instead means the frame's width is the input,
+     so the preview and the published page agree, and a site embedded in a narrow
+     container (a campaign landing page, an iframe on someone else's site)
+     responds to the space it actually has rather than to the visitor's monitor.
+
+     `container-type` also applies layout containment, which is why `position:
+     absolute` inside the site resolves against the site root instead of the
+     page — the mobile menu panel below hangs off the sticky header and cannot
+     escape the preview frame the way a `fixed` overlay would.
+     --------------------------------------------------------------------------- */
+  .site-root {
+    container-type: inline-size;
+    container-name: site;
+    /* Carries the ground under the hero (which is transparent on purpose) and
+       every other spot a section does not paint itself, so overscroll and the
+       gaps between blocks never flash a different colour. */
+    background-color: var(--site-page);
+  }
+
+  /* A doctor's bio page. The portrait sits beside the identity block once there
+     is room for both without the name wrapping under a 160px circle, and the
+     portrait keeps a 4:5 ratio at every width — a fixed square on a phone made
+     the same headshot look cropped on one screen and letterboxed on the next. */
+  .site-profile-head {
+    display: grid;
+    gap: 1.75rem;
+    margin-top: 1rem;
+  }
+
+  /* --- Type scale ------------------------------------------------------------
+     Weight stops at 600. A 700-weight display face is the loudest signal that a
+     page was generated rather than art-directed, and Apple-style restraint is
+     mostly this: the same size in semibold with tight tracking reads as
+     confident where bold reads as needy. */
+
+  .site-display {
+    font-family: var(--site-heading-font);
+    font-size: clamp(2.125rem, 1.5rem + 2.7cqi, 3.75rem);
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -0.032em;
+    text-wrap: balance;
+  }
+
+  .site-h2 {
+    font-family: var(--site-heading-font);
+    font-size: clamp(1.625rem, 1.25rem + 1.6cqi, 2.375rem);
+    font-weight: 600;
+    line-height: 1.12;
+    letter-spacing: -0.024em;
+    text-wrap: balance;
+  }
+
+  .site-h3 {
+    font-family: var(--site-heading-font);
+    font-size: 1.0625rem;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.012em;
+  }
+
+  /* Body copy is capped at 58ch. Long measure is the other thing that makes a
+     healthcare page feel untrustworthy — nobody wants a 100-character line. */
+  .site-lede {
+    max-width: 58ch;
+    font-size: 1.0625rem;
+    line-height: 1.6;
+    color: var(--site-body);
+  }
+
+  .site-body {
+    max-width: 62ch;
+    font-size: 0.9375rem;
+    line-height: 1.65;
+    color: var(--site-body);
+  }
+
+  .site-meta {
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--site-muted);
+  }
+
+  /* --- Layout switches ------------------------------------------------------- */
+
+  .site-hero {
+    display: grid;
+    gap: 2.5rem;
+    align-items: center;
+  }
+
+  .site-about-grid {
+    display: grid;
+    gap: 2.5rem;
+    align-items: start;
+  }
+
+  /* A call-to-action row. Stacked and full-bleed by default because that is the
+     only arrangement that fits a 320px screen, then side by side once there is
+     room for both labels on one line. Written as a container query rather than
+     `sm:flex-row` on purpose — see `.site-root`. */
+  .site-cta-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .site-cta-row > .site-cta {
+    width: 100%;
+  }
+
+  /* Two-column definition list, used where the pairs are short enough that
+     stacking them just doubles the section's height. */
+  .site-facts {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    column-gap: 2rem;
+  }
+
+  /* Doctor profile cards and service cards share one grid — they are the same
+     card anatomy, and two different column schedules made the sections look
+     like they came from different templates: one column on a phone, two from
+     30rem, three from 68rem. The breakpoints stay on the container for the same
+     reason the rest of the site does — the builder's 390px frame has to show
+     the phone arrangement, and a viewport query would never let it. */
+  .site-doctors,
+  .site-services {
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  /* The opening-time chips inside a doctor card. They scroll sideways on a
+     phone, so the scrollbar is hidden rather than stealing 12px from a row that
+     is only ever one line tall. */
+  .site-chip-row {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .site-chip-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .site-contact-grid {
+    display: grid;
+    gap: 2.5rem;
+  }
+
+  .site-stats {
+    display: grid;
+    gap: 1.75rem;
+  }
+
+  .site-footer-grid {
+    display: grid;
+    gap: 2rem;
+  }
+
+  .site-gallery {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  /* --- Navigation ------------------------------------------------------------
+     The desktop row and the hamburger are both driven by the container, so the
+     builder's 390px frame shows the phone header rather than a desktop header
+     squeezed into a phone's width. */
+  .site-nav-desktop,
+  .site-nav-toggle {
+    display: none;
+  }
+
+  /* --- Card kit ---------------------------------------------------------------
+     The appointment box that used to float over the hero photograph is gone —
+     the photograph now carries floating detail cards over its corners. What
+     stays is the resting card, and the float shadow token for hover states. */
+  .site-card-rest {
+    border-radius: var(--site-radius);
+    background-color: #ffffff;
+    box-shadow: var(--site-shadow-rest);
+  }
+
+  /* Hairline-separated rows. This is the main escape from the identical-card kit:
+     where content is a list, a 1px rule reads quieter than a box around every
+     item, and the page keeps its air. */
+  .site-rule-top {
+    border-top: 1px solid var(--site-hairline);
+  }
+
+  .site-rule-bottom {
+    border-bottom: 1px solid var(--site-hairline);
+  }
+
+  /* --- Breakpoints -----------------------------------------------------------
+     Sized to the site's own container rather than to Tailwind's device scale. A
+     390px phone, a 768px tablet and a 1100px desktop each get their own answer,
+     and so does a narrow embed. */
+  @container site (min-width: 30rem) {
+    .site-stats {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .site-gallery {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .site-doctors,
+    .site-services {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .site-facts {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    /* The bio page's two columns. 30rem is where a portrait wider than about
+       12rem stops competing with the name beside it, and it is the same
+       threshold the rest of the site's column switches use. */
+    .site-profile-head {
+      grid-template-columns: minmax(0, 12rem) minmax(0, 1fr);
+      align-items: start;
+      gap: 2.5rem;
+      margin-top: 2rem;
+    }
+  }
+
+  /* The CTA row is the last thing to go horizontal. Two buttons side by side need
+     roughly 30rem of real width; below that they stack, and on a centered
+     template they stay stacked so they remain centred rather than collapsing
+     into a left-aligned pair. */
+  @container site (min-width: 30rem) {
+    .site-cta-row {
+      flex-direction: row;
+      align-items: center;
+    }
+
+    .site-cta-row > .site-cta {
+      width: auto;
+    }
+
+    .site-cta-row-centered {
+      justify-content: center;
+    }
+  }
+
+  @container site (min-width: 40rem) {
+    .site-footer-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .site-gallery {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    /* The first tile is the one worth looking at, so it takes double width on
+       every screen. A grid of equal squares is what made the old gallery read
+       as a stock grid; the asymmetry is the whole difference. */
+    .site-gallery > :first-child {
+      grid-column: span 2;
+      grid-row: span 2;
+    }
+
+    /* Reintroduce the phone header row once there is room for it. */
+    .site-nav-desktop {
+      display: flex;
+    }
+
+    .site-nav-toggle {
+      display: none;
+    }
+  }
+
+  @container site (min-width: 56rem) {
+    .site-about-grid {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+      gap: 4rem;
+    }
+
+    /* The image column stops scrolling away once the copy beside it is taller
+       than the viewport, so the photograph and the paragraph it belongs to stay
+       in view together instead of leaving a bare half-column. */
+    .site-sticky-column {
+      position: sticky;
+      top: 7rem;
+    }
+
+    .site-hero {
+      grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+      gap: 3.5rem;
+    }
+
+    .site-contact-grid {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 3.5rem;
+    }
+
+    .site-footer-grid {
+      grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr));
+      gap: 3rem;
+    }
+  }
+
+  @container site (min-width: 68rem) {
+    .site-doctors,
+    .site-services {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .site-root * {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
   }
 }
 

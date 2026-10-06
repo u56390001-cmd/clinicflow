@@ -66,6 +66,16 @@ export type WebsiteHeroContent = {
   ctaUrl: string;
   /** Optional secondary CTA label — renders as a tel: link to the clinic phone. */
   ctaSecondaryLabel?: string;
+  /**
+   * Text on the glass pill floating over the top-left of the hero image,
+   * e.g. "No. 1 Top Best Hospital". Editorial copy the clinic owns.
+   */
+  imageBadgeText: string;
+  /**
+   * Text on the glass card floating over the bottom-right of the hero image,
+   * e.g. "870+ Doctors". Editorial copy the clinic owns.
+   */
+  imageStatText: string;
 };
 
 export type WebsiteDoctorsContent = {
@@ -277,6 +287,8 @@ export const DEFAULT_CONTENT: WebsiteContent = {
     ctaText: "Book an Appointment",
     ctaUrl: "",
     ctaSecondaryLabel: "",
+    imageBadgeText: "No. 1 Top Best Hospital",
+    imageStatText: "870+ Doctors",
   },
   doctors: {
     title: "Our doctors",
@@ -509,6 +521,18 @@ const CORNER_RADIUS: Record<WebsiteTheme["cornerStyle"], string> = {
   round: "9999px",
 };
 
+/**
+ * Radius for controls only.
+ *
+ * Capped well short of a full pill even in `round`: a 9999px button is the
+ * intended reading, but a 9999px card is a circle, and one setting drives both.
+ */
+const CONTROL_RADIUS: Record<WebsiteTheme["cornerStyle"], string> = {
+  sharp: "0px",
+  soft: "10px",
+  round: "9999px",
+};
+
 const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/;
 
 /**
@@ -537,12 +561,24 @@ export function resolveWidgetColor(
  * Turn theme choices into the handful of CSS custom properties the templates
  * read. Kept as inline custom properties rather than Tailwind classes because
  * the values are chosen per clinic at runtime and cannot exist in the build.
+ *
+ * Only the inputs a clinic actually chooses go in here. Everything the redesigned
+ * layout also needs — the ink scale, hairlines, tints and shadows — is *derived*
+ * from these two in `app/globals.css` with `color-mix`, rather than computed in
+ * JS. That is deliberate: a CSS-derived token updates itself for every site at
+ * once and can never be forgotten by the next section someone adds, whereas a
+ * JS-computed one has to be threaded through every call site.
+ *
+ * `--site-surface` exists because `cornerStyle: "round"` means pill buttons —
+ * but it must not also make the gallery photographs and the hero card circular.
+ * Controls read it; large blocks keep `--site-radius`.
  */
 export function themeCssVars(theme: WebsiteTheme): Record<string, string> {
   return {
     "--site-primary": theme.primaryColor,
     "--site-ink": theme.textColor,
     "--site-radius": CORNER_RADIUS[theme.cornerStyle],
+    "--site-surface": CONTROL_RADIUS[theme.cornerStyle],
     "--site-font": theme.fontFamily,
     "--site-heading-font": headingFontStack(theme),
   };
@@ -577,8 +613,11 @@ function headingFontStack(theme: WebsiteTheme): string {
  * square cards. `buttonStyle` only chooses the treatment.
  */
 export function buttonClass(theme: WebsiteTheme): string {
+  /* `min-h-11` (44px) rather than a fixed padding: every CTA on the site now has
+     to clear the touch-target minimum, and padding alone silently fails it on
+     the header's compact buttons, which override it downward anyway. */
   const base =
-    "inline-flex items-center justify-center gap-2 px-7 py-3 text-sm font-semibold transition";
+    "inline-flex min-h-11 items-center justify-center gap-2 px-6 py-3 text-sm font-semibold transition";
   const radius =
     theme.cornerStyle === "sharp"
       ? "rounded-none"

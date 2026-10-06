@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doctor Profile Card - ClinicFlow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        teal: { 50: '#f0fdfa', 100: '#ccfbf1', 600: '#0D9488', 700: '#0F766E' },
+                        slate: { 700: '#334155', 800: '#1E293B', 900: '#0F172A' }
+                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Physician",
+      "name": "Dr. Umar Farooq",
+      "medicalSpecialty": "Dentistry",
+      "affiliation": {
+        "@type": "MedicalClinic",
+        "name": "SkinDotClinics"
+      },
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "DHA Phase 2",
+        "addressLocality": "Karachi",
+        "addressCountry": "PK"
+      }
+    }
+    </script>
+    <style>
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-slate-100 flex items-center justify-center min-h-screen p-4 font-sans">
+
+    <!-- Main Card (12px Radius Standard with Center Profile & Dotted Layout) -->
+    <div class="max-w-sm w-full bg-white rounded-[12px] shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow duration-300 relative pt-10">
+        
+        <!-- Top Centered Profile Photo (Overlapping / Floating) -->
+        <div class="absolute -top-2 left-1/2 transform -translate-x-1/2">
+            <div class="relative">
+                <img src="https://ui-avatars.com/api/?name=Dr+Umar+Farooq&background=0D9488&color=fff&size=128" alt="Dr. Umar Farooq" class="w-20 h-20 rounded-full object-cover shadow-md border-4 border-white">
+                <span class="absolute bottom-0 right-0 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></span>
+            </div>
+        </div>
+
+        <!-- Header Info Section (Centered) -->
+        <div class="px-5 pt-4 pb-3 text-center">
+            <div class="flex items-center justify-center gap-1.5">
+                <h2 class="text-lg font-bold text-slate-900 leading-tight">Dr. Umar Farooq</h2>
+                <svg class="w-4 h-4 text-teal-600" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"></path></svg>
+            </div>
+            <p class="text-[13px] text-gray-600 font-medium mt-0.5">Dentistry • DDS</p>
+        </div>
+
+        <!-- Dotted Separator 1 -->
+        <div class="px-5">
+            <div class="border-t border-dashed border-gray-300 my-1"></div>
+        </div>
+
+        <!-- Metrics Section -->
+        <div class="px-5 py-2.5 flex justify-center gap-6 text-[12px] text-gray-600">
+            <div class="flex items-center gap-1 font-semibold">
+                💼 <span class="text-slate-800">5 yrs exp.</span>
+            </div>
+            <div class="flex items-center gap-1 font-semibold">
+                ⭐ <span class="text-slate-800">0.0 (5 Reviews)</span>
+            </div>
+        </div>
+
+        <!-- Dotted Separator 2 -->
+        <div class="px-5">
+            <div class="border-t border-dashed border-gray-300 my-1"></div>
+        </div>
+
+        <!-- Middle Info: Clinic & Pricing -->
+        <div class="px-5 py-3">
+            <div class="bg-gray-50 rounded-lg p-3 border border-gray-100 flex flex-col gap-2.5">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        🏥 <p class="text-[13px] font-semibold text-slate-700">SkinDotClinics, DHA</p>
+                    </div>
+                    <span class="text-[11px] font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> Active</span>
+                </div>
+                
+                <hr class="border-gray-200 my-0.5">
+                
+                <div class="flex justify-between items-center">
+                    <div>
+                        <p class="text-[15px] font-bold text-slate-900">Rs 2,000</p>
+                        <p class="text-[11px] text-gray-500">Per session</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-[13px] font-semibold text-teal-700">Rs 1,500</p>
+                        <p class="text-[11px] text-teal-600">Follow-up (3 Days)</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dotted Separator 3 -->
+        <div class="px-5">
+            <div class="border-t border-dashed border-gray-300 my-1"></div>
+        </div>
+
+        <!-- Bottom Action Section: Interactive Slots -->
+        <div class="p-5 pt-2">
+            <div class="flex justify-between items-center mb-2.5">
+                <p class="text-[13px] font-semibold text-slate-800 flex items-center gap-1.5">
+                    📅 Next Available Slots
+                </p>
+            </div>
+            
+            <!-- Horizontal Scroll Slots UI with Interactive Click State Logic -->
+            <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-hide" id="slot-container">
+                <button onclick="selectSlot(this)" class="slot-btn flex-shrink-0 bg-teal-50 border-teal-600 text-teal-700 border-2 rounded-[8px] px-4 py-1.5 text-[13px] font-bold hover:bg-teal-600 hover:text-white transition cursor-pointer">
+                    09:00 AM
+                </button>
+                <button onclick="selectSlot(this)" class="slot-btn flex-shrink-0 border border-gray-200 text-slate-600 bg-white rounded-[8px] px-4 py-1.5 text-[13px] font-medium hover:border-teal-600 hover:text-teal-700 transition cursor-pointer">
+                    09:30 AM
+                </button>
+                <button onclick="selectSlot(this)" class="slot-btn flex-shrink-0 border border-gray-200 text-slate-600 bg-white rounded-[8px] px-4 py-1.5 text-[13px] font-medium hover:border-teal-600 hover:text-teal-700 transition cursor-pointer">
+                    10:00 AM
+                </button>
+                <button onclick="selectSlot(this)" class="slot-btn flex-shrink-0 border border-gray-200 text-slate-600 bg-white rounded-[8px] px-4 py-1.5 text-[13px] font-medium hover:border-teal-600 hover:text-teal-700 transition cursor-pointer">
+                    10:30 AM
+                </button>
+            </div>
+
+            <!-- Dotted Separator 4 -->
+            <div class="border-t border-dashed border-gray-300 my-3"></div>
+
+            <!-- Call to Actions -->
+            <div class="flex gap-2.5">
+                <button onclick="alert('Viewing Profile for Dr. Umar Farooq')" class="flex-1 bg-white border border-gray-200 text-slate-700 font-medium text-[14px] py-2.5 rounded-[8px] hover:bg-gray-50 hover:text-slate-900 transition shadow-sm cursor-pointer">
+                    View Profile
+                </button>
+                <button onclick="alert('Booking appointment successfully initiated!')" class="flex-1 bg-teal-600 text-white font-semibold text-[14px] py-2.5 rounded-[8px] hover:bg-teal-700 transition shadow-md cursor-pointer">
+                    Book Visit →
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Interactive Slot Selection Script -->
+    <script>
+        function selectSlot(button) {
+            // Remove active styles from all buttons
+            const buttons = document.querySelectorAll('.slot-btn');
+            buttons.forEach(btn => {
+                btn.classList.remove('bg-teal-50', 'border-teal-600', 'text-teal-700', 'border-2', 'font-bold');
+                btn.classList.add('border', 'border-gray-200', 'text-slate-600', 'bg-white', 'font-medium');
+            });
+            // Apply active styles to clicked button
+            button.classList.remove('border', 'border-gray-200', 'text-slate-600', 'bg-white', 'font-medium');
+            button.classList.add('bg-teal-50', 'border-teal-600', 'text-teal-700', 'border-2', 'font-bold');
+        }
+    </script>
+</body>
+</html>

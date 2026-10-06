@@ -2,12 +2,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { ArrowLeft } from "lucide-react";
 
 import { CLINIC_SLUG_REGEX, getSiteUrl } from "@/lib/constants";
 import { createWidgetClient } from "@/lib/supabase/widget";
-import { openWidgetFallback, siteRootStyle } from "@/components/website/site-sections";
+import { siteRootStyle } from "@/components/website/site-sections";
+import { SiteCta } from "@/components/website/site-ui";
 import { configFromWebsite, resolveWidgetColor } from "@/types/website";
-import { Button } from "@/components/ui/button";
 
 type Props = { params: Promise<{ slug: string; doctorId: string }> };
 
@@ -15,6 +16,12 @@ type Props = { params: Promise<{ slug: string; doctorId: string }> };
 function summarize(text: string | null | undefined, max = 160): string {
   if (!text) return "";
   return text.replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+/** Collapse a free-text field onto one line without truncating it. */
+function oneLine(text: string | null | undefined): string {
+  if (!text) return "";
+  return text.replace(/\s+/g, " ").trim();
 }
 
 type Loaded = {
@@ -131,7 +138,11 @@ export default async function DoctorPage({ params }: Props) {
   const config = configFromWebsite(website);
   const theme = config.theme;
 
-  const credentials = summarize(doctor.qualification);
+  /* `oneLine`, not `summarize`: that helper exists to cap a *meta description*
+     at 160 characters, and running a qualification through it meant a long
+     degree string was silently cut off mid-word on the page. Here the only
+     thing wanted is the line breaks a free-text field picked up. */
+  const credentials = oneLine(doctor.qualification);
   const facts = [
     doctor.specialty ? { label: "Specialty", value: doctor.specialty } : null,
     credentials ? { label: "Qualification", value: credentials } : null,
@@ -139,11 +150,13 @@ export default async function DoctorPage({ params }: Props) {
       ? { label: "Experience", value: `${doctor.years_of_experience} years` }
       : null,
     clinic.address ? { label: "Clinic", value: clinic.address } : null,
-    clinic.phone ? { label: "Phone", value: clinic.phone } : null,
   ].filter((row): row is { label: string; value: string } => row !== null);
 
   return (
-    <div style={siteRootStyle(theme)} dir={config.locale.direction}>
+    /* `site-root` so this page answers to its own width and inherits the derived
+       ink tokens — without it the bio sat on the app's palette and a clinic
+       with a blue brand got the app's teal booking button. */
+    <div className="site-root min-h-screen" style={siteRootStyle(theme)} dir={config.locale.direction}>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -182,69 +195,121 @@ export default async function DoctorPage({ params }: Props) {
         />
       ) : null}
 
-      <article className="mx-auto max-w-3xl px-6 py-16">
+      <article className="mx-auto max-w-5xl px-6 py-14 sm:py-20">
         <Link
           href={`/site/${website.slug}`}
-          className="text-sm font-medium underline underline-offset-4"
-          style={{ color: theme.primaryColor }}
+          className="site-meta inline-flex min-h-11 items-center transition-colors hover:text-[var(--site-ink)]"
         >
-          &larr; Back to {clinic.name}
+          <ArrowLeft className="size-4 shrink-0" aria-hidden="true" />
+          {clinic.name}
         </Link>
 
-        <header className="mt-8 flex flex-col items-start gap-6 sm:flex-row">
-          <div className="relative h-40 w-40 flex-shrink-0 overflow-hidden rounded-full bg-black/5">
+        {/* Portrait and identity on one row, bio beneath. The portrait is a
+            rounded rectangle at the site's radius rather than a circle: a
+            headshot in a ring is the oldest possible signal for "hospital
+            website", and it also crops a 4:5 portrait down to a 1:1 disc and
+            loses the shoulders. */}
+        <header className="site-profile-head">
+          <div className="relative aspect-[4/5] w-full overflow-hidden rounded-[var(--site-radius)] bg-[var(--site-tint-strong)]">
             {doctor.photo_url ? (
               <Image
                 src={doctor.photo_url}
                 alt={doctor.name}
                 fill
                 priority
-                sizes="160px"
+                sizes="(min-width: 768px) 22rem, 60vw"
                 className="object-cover"
               />
             ) : (
-              <div className="flex h-full items-center justify-center text-5xl font-semibold text-[var(--site-primary)]">
+              <span
+                aria-hidden="true"
+                className="absolute inset-0 flex items-center justify-center font-semibold"
+                style={{
+                  fontSize: "clamp(3.5rem, 9cqi, 6rem)",
+                  color: theme.primaryColor,
+                }}
+              >
                 {doctor.name.trim().charAt(0).toUpperCase()}
-              </div>
+              </span>
             )}
           </div>
 
-          <div>
-            <h1 className="text-3xl font-semibold text-[var(--site-ink)]">{doctor.name}</h1>
+          <div className="min-w-0">
+            <h1
+              className="site-display text-[var(--site-ink)]"
+              style={{ fontFamily: "var(--site-heading-font)" }}
+            >
+              {doctor.name}
+            </h1>
+
             {doctor.specialty ? (
-              <p className="mt-2 text-lg font-medium" style={{ color: theme.primaryColor }}>
+              <p
+                className="mt-3 text-[1.0625rem] font-medium"
+                style={{ color: theme.primaryColor }}
+              >
                 {doctor.specialty}
               </p>
             ) : null}
-            <div className="mt-5">
-              <Button asChild>
-                <a href={`/widget/${clinic.slug}`} onClick={openWidgetFallback}>
-                  Book an appointment
+
+            {/* Experience and qualification are the two things a patient is
+                actually choosing between doctors on, so they sit under the name
+                rather than being buried in a details list further down. */}
+            {doctor.years_of_experience || credentials ? (
+              <p className="site-meta mt-3">
+                {[
+                  doctor.years_of_experience
+                    ? `${doctor.years_of_experience} years of experience`
+                    : null,
+                  credentials,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            ) : null}
+
+            {/* Booking is the point of the page, so it is the one full-width
+                action on a phone and the first thing in the row on a desktop.
+                `SiteCta` rather than the app's `Button`, so it wears the
+                clinic's brand colour instead of the app's teal. */}
+            <div className="site-cta-row mt-7">
+              <SiteCta widgetSlug={clinic.slug} theme={theme} className="site-cta">
+                Book an appointment
+              </SiteCta>
+              {clinic.phone ? (
+                <a
+                  href={`tel:${clinic.phone}`}
+                  className="site-cta inline-flex min-h-11 items-center justify-center rounded-[var(--site-radius)] border border-black/15 px-6 py-3 text-sm font-medium text-[var(--site-ink)] transition-colors hover:bg-black/[0.03]"
+                >
+                  Call the clinic
                 </a>
-              </Button>
+              ) : null}
             </div>
           </div>
         </header>
 
         {doctor.professional_description ? (
-          <section className="mt-12">
-            <h2 className="text-xl font-semibold text-[var(--site-ink)]">About</h2>
-            <p className="mt-3 whitespace-pre-line leading-relaxed text-black/70">
+          <section className="mt-14 sm:mt-16">
+            <h2 className="site-h2 text-[var(--site-ink)]">About {doctor.name.split(" ")[0]}</h2>
+            <p className="site-body mt-5 whitespace-pre-line">
               {doctor.professional_description}
             </p>
           </section>
         ) : null}
 
         {facts.length > 0 ? (
-          <section className="mt-12">
-            <h2 className="text-xl font-semibold text-[var(--site-ink)]">Details</h2>
-            <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+          <section className="mt-14 sm:mt-16">
+            <h2 className="site-h2 text-[var(--site-ink)]">Details</h2>
+            {/* Hairline-separated rows rather than a two-column grid of boxed
+                facts. A grid of six identical cells is the generic pattern here,
+                and it puts a border around data that a rule between rows orders
+                better. */}
+            <dl className="site-facts mt-6 max-w-2xl">
               {facts.map((row) => (
-                <div key={row.label}>
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-black/50">
-                    {row.label}
-                  </dt>
-                  <dd className="mt-1 text-[var(--site-ink)]">{row.value}</dd>
+                <div key={row.label} className="site-rule-bottom py-4">
+                  <dt className="site-meta">{row.label}</dt>
+                  <dd className="mt-1.5 text-[0.9375rem] text-[var(--site-ink)]">
+                    {row.value}
+                  </dd>
                 </div>
               ))}
             </dl>
