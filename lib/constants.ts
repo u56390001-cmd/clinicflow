@@ -40,7 +40,10 @@ export const APP_ROUTES = {
     website: "/app/website",
     growthAgent: "/app/growth-agent",
     integrations: "/app/integrations",
+    addons: "/app/addons",
     patientBilling: "/app/patient-billing",
+    support: "/app/support",
+    whatsapp: "/app/whatsapp",
     billing: "/app/billing",
     billingCheckout: "/app/billing/checkout",
     adminBilling: "/app/admin/billing",
@@ -84,9 +87,15 @@ export const APP_NAV_SECTIONS = [
       { label: "Booking Page", href: APP_ROUTES.app.bookingPage },
       { label: "Growth Agent", href: APP_ROUTES.app.growthAgent },
       { label: "Integrations", href: APP_ROUTES.app.integrations },
+      { label: "Add-ons", href: APP_ROUTES.app.addons },
+      { label: "WhatsApp Setup", href: APP_ROUTES.app.whatsapp },
       { label: "Billing", href: APP_ROUTES.app.billing },
       { label: "Settings", href: APP_ROUTES.app.settings },
     ],
+  },
+  {
+    label: "Support",
+    items: [{ label: "Help & Support", href: APP_ROUTES.app.support }],
   },
 ] as const;
 

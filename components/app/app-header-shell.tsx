@@ -9,8 +9,8 @@ import { HeaderPatientSearch } from "@/components/app/header-patient-search";
 import { MessagesLink } from "@/components/app/messages-link";
 import { useMobileNav } from "@/components/app/mobile-nav-context";
 import { NotificationBell } from "@/components/app/notification-bell";
-import { UserMenu } from "@/components/app/user-menu";
 import { Wordmark } from "@/components/brand";
+import { ProfileDropdown } from "@/components/navigation/profile-dropdown";
 import { Button } from "@/components/ui/button";
 import { APP_ROUTES } from "@/lib/constants";
 import type {
@@ -18,10 +18,12 @@ import type {
   HeaderNotification,
 } from "@/lib/header-activity";
 import { cn } from "@/lib/utils";
+import type { ClinicRole } from "@/types/database";
 
 export function AppHeaderShell({
   userEmail,
   userName,
+  role = null,
   notifications = [],
   conversations = [],
   clinicId = null,
@@ -29,6 +31,7 @@ export function AppHeaderShell({
 }: {
   userEmail: string | null;
   userName: string | null;
+  role?: ClinicRole | null;
   notifications?: HeaderNotification[];
   conversations?: HeaderConversation[];
   clinicId?: string | null;
@@ -135,7 +138,9 @@ export function AppHeaderShell({
 
           <NotificationBell notifications={notifications} clinicId={clinicId} />
 
-          <UserMenu userEmail={userEmail} userName={userName} />
+          <ProfileDropdown
+            user={{ name: userName, email: userEmail, role }}
+          />
         </div>
       </div>
 

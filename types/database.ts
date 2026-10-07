@@ -1289,6 +1289,93 @@ export type ClinicIntegrationSecret = {
 };
 
 /**
+ * Add-ons marketplace (migration 0060).
+ *
+ * `Addon` is one catalog row — the storefront's data source. `slug` is the
+ * feature-gate key handed to `public.is_addon_active()`; `sort_order` drives
+ * the curated marketplace order; `price_pkr` is rendered through
+ * `lib/utils/currency.ts`, never formatted by hand.
+ */
+export type AddonCategory = "Automation" | "Growth & Marketing" | "Operations";
+
+export type Addon = {
+  id: string;
+  slug: string;
+  name: string;
+  category: AddonCategory;
+  description: string;
+  /** Monthly price in PKR. */
+  price_pkr: number;
+  billing_period: string;
+  /** Seat/display add-ons are bought per unit; feature add-ons are single. */
+  is_quantity_based: boolean;
+  /** Transient storefront label, e.g. "Coming Soon". Null renders no badge. */
+  badge_text: string | null;
+  sort_order: number;
+  created_at: string;
+};
+
+/**
+ * Add-on subscription lifecycle. `active` means the feature is live today;
+ * `cancelled` is a real state — the row is kept for history and an
+ * unambiguous re-enable — rather than the absence of a row.
+ */
+export type AddonSubscriptionStatus =
+  | "active"
+  | "pending_approval"
+  | "cancelled"
+  | "expired";
+
+/** One clinic's subscription for a single add-on (migration 0060). */
+export type ClinicAddon = {
+  id: string;
+  clinic_id: string;
+  addon_id: string;
+  status: AddonSubscriptionStatus;
+  /** Units for seat/display add-ons; 1 for feature add-ons. */
+  quantity: number;
+  /** Future compatibility bag, e.g. `{ "ai_credits": 1000 }`. */
+  metadata: Record<string, unknown>;
+  activated_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * Support tickets (migration 0061, /app/support).
+ *
+ * `clinic_id` is nullable by design — a user may have to file a ticket before
+ * their clinic exists. `type` and `priority` mirror the support form's
+ * dropdown values; `status` is written by the support operator (`open` on
+ * insert), not by the app UI.
+ */
+export type SupportTicketType =
+  | "Bug Report"
+  | "Feature Improvement Request"
+  | "General Help & Support";
+
+export type SupportTicketPriority = "Low" | "Medium" | "High";
+
+export type SupportTicketStatus =
+  | "open"
+  | "in_progress"
+  | "resolved"
+  | "closed";
+
+export type SupportTicket = {
+  id: string;
+  clinic_id: string | null;
+  user_id: string;
+  type: SupportTicketType;
+  subject: string;
+  description: string;
+  priority: SupportTicketPriority;
+  status: SupportTicketStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
  * One clinic's Growth Agent configuration. 1:1 with a clinic (unique on
  * `clinic_id`). Carries both the Google connection and the auto-publishing
  * preferences because the same person configures both at the same time.
@@ -2731,6 +2818,49 @@ export type Database = {
           },
         ];
       };
+      support_tickets: {
+        Row: SupportTicket;
+        Insert: {
+          id?: string;
+          clinic_id?: string | null;
+          user_id: string;
+          type: SupportTicketType;
+          subject: string;
+          description: string;
+          priority?: SupportTicketPriority;
+          status?: SupportTicketStatus;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          user_id?: never;
+          type?: SupportTicketType;
+          subject?: string;
+          description?: string;
+          priority?: SupportTicketPriority;
+          status?: SupportTicketStatus;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "support_tickets_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       payment_methods: {
         Row: PaymentMethod;
         Insert: {
@@ -3778,6 +3908,77 @@ export type Database = {
           },
         ];
       };
+      addons: {
+        Row: Addon;
+        Insert: {
+          id?: string;
+          slug: string;
+          name: string;
+          category: AddonCategory;
+          description: string;
+          price_pkr: number;
+          billing_period?: string;
+          is_quantity_based?: boolean;
+          badge_text?: string | null;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: never;
+          slug?: string;
+          name?: string;
+          category?: AddonCategory;
+          description?: string;
+          price_pkr?: number;
+          billing_period?: string;
+          is_quantity_based?: boolean;
+          badge_text?: string | null;
+          sort_order?: number;
+          created_at?: never;
+        };
+        Relationships: [];
+      };
+      clinic_addons: {
+        Row: ClinicAddon;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          addon_id: string;
+          status?: AddonSubscriptionStatus;
+          quantity?: number;
+          metadata?: Record<string, unknown>;
+          activated_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          addon_id?: never;
+          status?: AddonSubscriptionStatus;
+          quantity?: number;
+          metadata?: Record<string, unknown>;
+          activated_at?: string | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "clinic_addons_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "clinic_addons_addon_id_fkey";
+            columns: ["addon_id"];
+            isOneToOne: false;
+            referencedRelation: "addons";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       clinic_integrations: {
         Row: ClinicIntegration;
         Insert: {
@@ -3944,6 +4145,19 @@ export type Database = {
       has_active_subscription: {
         Args: {
           p_clinic_id: string;
+        };
+        Returns: boolean;
+      };
+      /**
+       * Migration 0060. Feature gate for the add-ons marketplace. SECURITY
+       * DEFINER so a component or policy can name an add-on by slug without a
+       * join; call only with a clinic_id the caller belongs to (see
+       * `lib/actions/addons.ts`).
+       */
+      is_addon_active: {
+        Args: {
+          p_clinic_id: string;
+          p_addon_slug: string;
         };
         Returns: boolean;
       };

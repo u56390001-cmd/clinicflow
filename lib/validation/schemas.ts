@@ -2239,3 +2239,75 @@ export const setAppointmentsViewModeSchema = z.object({
     message: "Mode must be either queue or list.",
   }),
 });
+
+// ---------------------------------------------------------------------------
+// Add-ons marketplace (migration 0060, /app/addons)
+// ---------------------------------------------------------------------------
+//
+// The catalog slug is validated against the seeded slugs rather than as free
+// text, so a crafted request can never name an add-on that does not exist.
+// Keep this list in step with the seed in 0060_addons_marketplace.sql.
+const ADDON_SLUGS = [
+  "whatsapp-ai-receptionist",
+  "ai-review-assistant",
+  "growth-agent",
+  "extra-doctor-seat",
+  "extra-tv-display",
+  "queue-management-system",
+] as const;
+
+export const addonSlugSchema = z.enum(ADDON_SLUGS, {
+  message: "That add-on does not exist.",
+});
+
+/** Subscribe (or re-activate) an add-on. `quantity` is for seat/display units. */
+export const subscribeAddonSchema = z.object({
+  slug: addonSlugSchema,
+  quantity: z.number().int().min(1, "Quantity must be at least 1.").max(50).default(1),
+});
+
+/** Change the number of units on a quantity-based add-on. */
+export const updateAddonQuantitySchema = z.object({
+  addonId: z.string().uuid("Invalid add-on."),
+  quantity: z.number().int().min(1, "Quantity must be at least 1.").max(50),
+});
+
+/** Request cancellation of a subscription. The row stays for history. */
+export const cancelAddonSchema = z.object({
+  addonId: z.string().uuid("Invalid add-on."),
+});
+
+// ---------------------------------------------------------------------------
+// Help & Support (migration 0061, /app/support)
+// ---------------------------------------------------------------------------
+//
+// The request-type and priority dropdowns in the support form iterate these
+// lists, and the schema validates against them. Keep the two lists and the
+// CHECK constraints in 0061_support_tickets.sql in step with each other.
+
+export const SUPPORT_TICKET_TYPES = [
+  "Bug Report",
+  "Feature Improvement Request",
+  "General Help & Support",
+] as const;
+
+export const SUPPORT_TICKET_PRIORITIES = ["Low", "Medium", "High"] as const;
+
+export const supportTicketSchema = z.object({
+  type: z.enum(SUPPORT_TICKET_TYPES, {
+    message: "Pick a request type.",
+  }),
+  subject: z
+    .string()
+    .trim()
+    .min(3, "Subject needs at least 3 characters.")
+    .max(200, "Subject is too long (max 200 characters)."),
+  description: z
+    .string()
+    .trim()
+    .min(10, "Describe the issue in a bit more detail (min 10 characters).")
+    .max(4000, "Description is too long (max 4000 characters)."),
+  priority: z.enum(SUPPORT_TICKET_PRIORITIES, {
+    message: "Pick a priority.",
+  }),
+});

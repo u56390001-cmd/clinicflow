@@ -34,6 +34,7 @@ export async function AppHeader() {
     <AppHeaderShell
       userEmail={email}
       userName={displayName}
+      role={access?.role ?? null}
       clinicId={clinicId}
       clinicLogoUrl={clinicLogoPublicUrl(logoPath)}
       notifications={notifications}

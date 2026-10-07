@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { AppHeader } from "@/components/app/app-header";
 import { AppSidebar } from "@/components/app/app-sidebar";
 import { MobileNavProvider } from "@/components/app/mobile-nav-context";
+import { PwaInstallListener } from "@/components/app/pwa-install-listener";
 
 function AppHeaderFallback() {
   return (
@@ -30,6 +31,7 @@ export default function AppLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <MobileNavProvider>
+      <PwaInstallListener />
       <div className="flex min-h-svh flex-col bg-app">
         <Suspense fallback={<AppHeaderFallback />}>
           <AppHeader />

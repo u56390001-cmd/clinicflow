@@ -7,6 +7,7 @@ import {
   Bot,
   CalendarCheck,
   CalendarDays,
+  CircleHelp,
   CreditCard,
   FileText,
   Globe,
@@ -14,10 +15,12 @@ import {
   LayoutDashboard,
   LogOut,
   Megaphone,
+  MessageCircle,
   PanelLeftClose,
   PanelLeftOpen,
   Puzzle,
   Settings,
+  Sparkles,
   Stethoscope,
   Users,
   type LucideIcon,
@@ -46,9 +49,12 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   [APP_ROUTES.app.website]: Globe,
   [APP_ROUTES.app.growthAgent]: Megaphone,
   [APP_ROUTES.app.integrations]: Puzzle,
+  [APP_ROUTES.app.addons]: Sparkles,
   [APP_ROUTES.app.billing]: CreditCard,
   [APP_ROUTES.app.patientBilling]: FileText,
   [APP_ROUTES.app.settings]: Settings,
+  [APP_ROUTES.app.support]: CircleHelp,
+  [APP_ROUTES.app.whatsapp]: MessageCircle,
 };
 
 type ShowTip = (label: string, enabled?: boolean) => TipHandlers;
