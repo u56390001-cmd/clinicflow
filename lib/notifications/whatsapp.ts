@@ -67,6 +67,14 @@ const reminderPayload = z.object({
   time: dateField,
   service: serviceField,
   clinicName: nameField,
+  doctorName: nameField.optional(),
+  /**
+   * Clinic-authored reminder copy from the Engagement page
+   * (engagement_templates.appointment_reminder). When present it replaces the
+   * hardcoded reminder text and gets the same variable interpolation.
+   */
+  template: z.string().trim().max(2000).optional(),
+  location: nonEmpty(2048).optional(),
 });
 
 /**
@@ -122,6 +130,9 @@ function renderBody(
     }
     case "appointment_reminder": {
       const p = reminderPayload.parse(payload);
+      if (p.template) {
+        return interpolateReminderTemplate(p);
+      }
       return [
         `Hi ${p.patientName}! A friendly reminder about your upcoming appointment at ${p.clinicName}:`,
         `${p.service} — ${p.date} at ${p.time}.`,
@@ -140,6 +151,19 @@ function renderBody(
     default:
       return null;
   }
+}
+
+function interpolateReminderTemplate(p: z.infer<typeof reminderPayload>): string {
+  const location = p.location?.trim() ? p.location.trim() : p.clinicName;
+  return p.template!
+    .replace(/\{patient_name\}/g, p.patientName)
+    .replace(/\{doctor_name\}/g, p.doctorName ?? "")
+    .replace(/\{clinic_name\}/g, p.clinicName)
+    .replace(/\{appointment_date\}/g, p.date)
+    .replace(/\{appointment_time\}/g, p.time)
+    .replace(/\{service\}/g, p.service)
+    .replace(/\{slot_name\}/g, p.service)
+    .replace(/\{clinic_location\}/g, location);
 }
 
 const PATIENT_FACING_TYPES: ReadonlySet<NotifyInput["type"]> = new Set([

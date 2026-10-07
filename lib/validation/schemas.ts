@@ -2311,3 +2311,131 @@ export const supportTicketSchema = z.object({
     message: "Pick a priority.",
   }),
 });
+
+/**
+ * Engagement module (migration 0062). These mirror the CHECK constraints on
+ * the four engagement tables; the page and the server actions both run them
+ * before any write.
+ */
+export const ENGAGEMENT_TEMPLATE_TYPES = [
+  "appointment_confirmation",
+  "appointment_reminder",
+  "review_request",
+  "prescription_delivery",
+  "receipt_delivery",
+  "check_in",
+  "no_show_recovery",
+  "auto_follow_up",
+] as const;
+
+export const ENGAGEMENT_AUTOMATION_TYPES = [
+  ...ENGAGEMENT_TEMPLATE_TYPES,
+  "general",
+] as const;
+
+export const engagementTemplateTextSchema = z
+  .string()
+  .trim()
+  .min(1, "Message can't be empty.")
+  .max(2000, "Message is too long (max 2000 characters).");
+
+/** Toggle + JSON config for one automation, e.g. a delay or a maps link. */
+export const engagementAutomationSchema = z.object({
+  automationType: z.enum(ENGAGEMENT_AUTOMATION_TYPES),
+  enabled: z.boolean(),
+  config: z.record(z.string(), z.unknown()).default({}),
+});
+
+/** Template edit (review card, confirmation modal, reminder editor). */
+export const engagementTemplateSchema = z.object({
+  type: z.enum(ENGAGEMENT_TEMPLATE_TYPES),
+  templateText: engagementTemplateTextSchema,
+  enabled: z.boolean().default(true),
+});
+
+/** General settings: timezone + Google Maps link shown on reminder messages. */
+export const engagementGeneralSettingsSchema = z.object({
+  timezone: z.string().trim().min(1, "Pick a timezone."),
+  mapsLink: z
+    .string()
+    .trim()
+    .max(2048, "The link must be 2048 characters or fewer.")
+    .optional()
+    .or(z.literal("")),
+});
+
+/**
+ * The "Create New Reminder" / "Edit Message" form (Reminders tab popup).
+ * `appointment_confirmation` only uses the name/header/body — the delay and
+ * doctor-scope fields are skipped for it; `appointment_reminder` uses them all.
+ */
+export const engagementReminderFormSchema = z.object({
+  type: z.enum(["appointment_reminder", "appointment_confirmation"]),
+  templateName: z
+    .string()
+    .trim()
+    .min(1, "Give this reminder a name.")
+    .max(80, "Template name is too long (max 80 characters)."),
+  templateHeader: z
+    .string()
+    .trim()
+    .max(120, "Message header is too long (max 120 characters).")
+    .optional()
+    .or(z.literal("")),
+  headerType: z.enum(["text", "image", "none"]).optional(),
+  headerImage: z
+    .string()
+    .trim()
+    .max(2048, "Image URL is too long.")
+    .optional()
+    .or(z.literal("")),
+  templateText: engagementTemplateTextSchema,
+  trigger: z.enum(["before", "after"]).optional(),
+  delayValue: z
+    .number("Enter how long before the appointment to send.")
+    .int("Delay must be a whole number.")
+    .min(1, "Delay must be at least 1.")
+    .max(365, "Delay must be at most 365.")
+    .optional(),
+  delayUnit: z.enum(["hours", "days"]).optional(),
+  doctorScope: z.enum(["all", "specific"]).optional(),
+  doctorId: z
+    .string()
+    .trim()
+    .max(64, "Doctor selection is invalid.")
+    .optional()
+    .or(z.literal("")),
+});
+
+/** Logging a Google review from the metrics card. */
+export const addClinicReviewSchema = z.object({
+  rating: z
+    .number()
+    .int("Rating must be a whole number.")
+    .min(1, "Rating must be at least 1.")
+    .max(5, "Rating must be at most 5."),
+  reviewerName: z
+    .string()
+    .trim()
+    .max(100, "Reviewer name is too long (max 100 characters).")
+    .optional()
+    .or(z.literal("")),
+  comment: z
+    .string()
+    .trim()
+    .max(2000, "Comment is too long (max 2000 characters).")
+    .optional()
+    .or(z.literal("")),
+});
+
+export type EngagementAutomationInput = z.infer<
+  typeof engagementAutomationSchema
+>;
+export type EngagementTemplateInput = z.infer<typeof engagementTemplateSchema>;
+export type EngagementGeneralSettingsInput = z.infer<
+  typeof engagementGeneralSettingsSchema
+>;
+export type AddClinicReviewInput = z.infer<typeof addClinicReviewSchema>;
+export type EngagementReminderFormInput = z.infer<
+  typeof engagementReminderFormSchema
+>;

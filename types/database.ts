@@ -1376,6 +1376,79 @@ export type SupportTicket = {
 };
 
 /**
+ * Per-clinic engagement rows backing the /app/engagement page (migration
+ * 0062). Text keys (not Postgres enums) mirror the CHECK constraints so the
+ * automation catalogue can grow without a migration.
+ */
+export type EngagementAutomationType =
+  | "appointment_reminder"
+  | "appointment_confirmation"
+  | "review_request"
+  | "prescription_delivery"
+  | "receipt_delivery"
+  | "check_in"
+  | "no_show_recovery"
+  | "auto_follow_up"
+  | "general";
+
+export type EngagementTemplateType =
+  | "appointment_confirmation"
+  | "appointment_reminder"
+  | "review_request"
+  | "prescription_delivery"
+  | "receipt_delivery"
+  | "check_in"
+  | "no_show_recovery"
+  | "auto_follow_up";
+
+export type EngagementMessageStatus =
+  | "queued"
+  | "sent"
+  | "failed"
+  | "delivered";
+
+export type EngagementAutomation = {
+  id: string;
+  clinic_id: string;
+  automation_type: string;
+  enabled: boolean;
+  config: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EngagementTemplate = {
+  id: string;
+  clinic_id: string;
+  type: string;
+  template_text: string;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EngagementLog = {
+  id: string;
+  clinic_id: string;
+  patient_id: string | null;
+  automation_type: string;
+  message_status: EngagementMessageStatus;
+  response_data: Record<string, unknown>;
+  sent_at: string;
+  created_at: string;
+};
+
+export type ClinicReview = {
+  id: string;
+  clinic_id: string;
+  rating: number;
+  reviewer_name: string | null;
+  comment: string | null;
+  source: "google" | "manual";
+  created_at: string;
+};
+
+/**
  * One clinic's Growth Agent configuration. 1:1 with a clinic (unique on
  * `clinic_id`). Carries both the Google connection and the auto-publishing
  * preferences because the same person configures both at the same time.
@@ -2861,6 +2934,135 @@ export type Database = {
           },
         ];
       };
+      engagement_automations: {
+        Row: EngagementAutomation;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          automation_type: string;
+          enabled?: boolean;
+          config?: Record<string, unknown>;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          automation_type?: never;
+          enabled?: boolean;
+          config?: Record<string, unknown>;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "engagement_automations_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      engagement_templates: {
+        Row: EngagementTemplate;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          type: string;
+          template_text: string;
+          enabled?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          type?: never;
+          template_text?: string;
+          enabled?: boolean;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "engagement_templates_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      engagement_logs: {
+        Row: EngagementLog;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id?: string | null;
+          automation_type: string;
+          message_status?: EngagementMessageStatus;
+          response_data?: Record<string, unknown>;
+          sent_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          automation_type?: never;
+          message_status?: never;
+          response_data?: never;
+          sent_at?: never;
+          created_at?: never;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "engagement_logs_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "engagement_logs_patient_id_fkey";
+            columns: ["patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      clinic_reviews: {
+        Row: ClinicReview;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          rating: number;
+          reviewer_name?: string | null;
+          comment?: string | null;
+          source?: "google" | "manual";
+          created_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          rating?: number;
+          reviewer_name?: string | null;
+          comment?: string | null;
+          source?: never;
+          created_at?: never;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "clinic_reviews_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       payment_methods: {
         Row: PaymentMethod;
         Insert: {
@@ -4160,6 +4362,12 @@ export type Database = {
           p_addon_slug: string;
         };
         Returns: boolean;
+      };
+      ensure_engagement_defaults: {
+        Args: {
+          p_clinic_id: string;
+        };
+        Returns: undefined;
       };
       check_in_patient: {
         Args: {
