@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { checkRateLimit, envInt } from "@/lib/ai/rate-limit";
@@ -76,12 +76,16 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const messages = parseWebhookMessages(rawBody);
-  for (const message of messages) {
-    // Fire-and-forget: respond to Meta instantly, never block on AI latency.
-    void handleInboundMessage(message).catch((error) => {
-      console.error("[whatsapp-webhook] unhandled processing error", error);
-    });
-  }
+  // Fire-and-forget, but scheduled through `after()` so serverless platforms
+  // (Vercel) keep the function alive past the 200 response — otherwise the
+  // AI turn / outgoing reply can be frozen right after Meta gets its ACK.
+  after(async () => {
+    for (const message of messages) {
+      await handleInboundMessage(message).catch((error) => {
+        console.error("[whatsapp-webhook] unhandled processing error", error);
+      });
+    }
+  });
   return NextResponse.json({ received: true });
 }
 

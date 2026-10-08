@@ -86,6 +86,19 @@ function isAuthorized(request: Request): boolean {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  return runReminderSweep(request);
+}
+
+/**
+ * Vercel Cron invokes the endpoint with HTTP GET and a `Bearer CRON_SECRET`
+ * authorization header, so the scheduler path must be exported as GET too;
+ * POST stays for manual curl runs (GitHub Actions, ad-hoc triggers).
+ */
+export async function GET(request: Request): Promise<Response> {
+  return runReminderSweep(request);
+}
+
+async function runReminderSweep(request: Request): Promise<Response> {
   if (!isAuthorized(request)) {
     return new Response("Unauthorized", { status: 401 });
   }

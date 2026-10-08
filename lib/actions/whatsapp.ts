@@ -297,6 +297,132 @@ export async function disconnectWhatsappAction(): Promise<ActionResult> {
   return { ok: true, data: undefined };
 }
 
+/**
+ * Manual credential paste (test/dev path) — the alternative to Embedded
+ * Signup. The caller supplies the values Meta shows on its API Setup page
+ * (test number / temporary token, or a System User permanent token) and we
+ * store them exactly the way the signup completion does: non-secret state in
+ * `clinic_whatsapp_config`, the token alone in `clinic_whatsapp_secrets`.
+ *
+ * Why it exists: the Embedded Signup popup needs a Facebook Login for Business
+ * config and an app in live mode, which local/dev testing does not have. This
+ * action bypasses only the popup — webhook, adapter, and reminders are
+ * untouched. The token never crosses back to the browser on read.
+ */
+export async function connectWhatsappManualAction(
+  rawPhoneNumberId: unknown,
+  rawAccessToken: unknown,
+  rawWabaId?: unknown,
+  rawDisplayPhone?: unknown,
+): Promise<ActionResult> {
+  const phoneNumberId =
+    typeof rawPhoneNumberId === "string" ? rawPhoneNumberId.trim() : "";
+  const accessToken =
+    typeof rawAccessToken === "string" ? rawAccessToken.trim() : "";
+  const wabaId = typeof rawWabaId === "string" ? rawWabaId.trim() : "";
+  const displayPhone =
+    typeof rawDisplayPhone === "string" ? rawDisplayPhone.trim() : "";
+
+  // Meta ids are numeric; the token is an opaque string with a DB cap (1024).
+  if (!/^\d{5,32}$/.test(phoneNumberId)) {
+    return { ok: false, message: "Invalid Phone Number ID." };
+  }
+  if (!accessToken || accessToken.length > 1024) {
+    return { ok: false, message: "Invalid access token." };
+  }
+  if (wabaId && !/^\d{5,32}$/.test(wabaId)) {
+    return { ok: false, message: "Invalid WhatsApp Business Account ID." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "You must be signed in." };
+
+  const access = await getCurrentClinic(supabase);
+  if (!access) {
+    return { ok: false, message: "You must have a clinic to connect WhatsApp." };
+  }
+  if (!canWriteClinic(access.role)) {
+    return { ok: false, message: "Only owners and admins can connect WhatsApp." };
+  }
+
+  // Validate the token against Meta before saving: a dead/expired token would
+  // only fail later, when a patient actually messages us. Lookup of the phone
+  // number doubles as the display-number discovery the signup flow does.
+  let displayPhoneResolved = displayPhone.slice(0, 32) || null;
+  try {
+    const version = process.env.META_GRAPH_VERSION ?? DEFAULT_GRAPH_VERSION;
+    const res = await fetch(
+      `${GRAPH_BASE}/${version}/${phoneNumberId}?fields=display_phone_number&access_token=${encodeURIComponent(accessToken)}`,
+      { method: "GET", cache: "no-store" },
+    );
+    if (!res.ok) {
+      return {
+        ok: false,
+        message:
+          "Meta rejected this token or phone number ID. If the token was just generated, copy it again and retry.",
+      };
+    }
+    const json = (await res.json()) as { display_phone_number?: string };
+    displayPhoneResolved = json.display_phone_number ?? displayPhoneResolved;
+  } catch {
+    // Network hiccup — save anyway; connectivity will be proven by the first
+    // real send. Never block a credentials paste on a transient fetch error.
+    console.warn("[whatsapp] token validation probe failed (continuing)");
+  }
+
+  const serviceRole = createWidgetClient();
+  const { data: configRow, error: configError } = await serviceRole
+    .from("clinic_whatsapp_config")
+    .upsert(
+      {
+        clinic_id: access.clinic.id,
+        whatsapp_business_account_id: wabaId || null,
+        phone_number_id: phoneNumberId,
+        display_phone_number: displayPhoneResolved,
+        connection_status: "connected",
+        status_message: null,
+        connected_at: new Date().toISOString(),
+      },
+      { onConflict: "clinic_id" },
+    )
+    .select("id")
+    .single();
+
+  if (configError || !configRow) {
+    console.error("[whatsapp] manual config upsert failed", {
+      code: configError?.code,
+      message: configError?.message,
+    });
+    return {
+      ok: false,
+      message: "We couldn't save your WhatsApp connection. Please try again.",
+    };
+  }
+
+  const { error: secretError } = await serviceRole
+    .from("clinic_whatsapp_secrets")
+    .upsert(
+      { config_id: configRow.id, access_token: accessToken },
+      { onConflict: "config_id" },
+    );
+
+  if (secretError) {
+    console.error("[whatsapp] manual secret upsert failed", {
+      code: secretError.code,
+      message: secretError.message,
+    });
+    return {
+      ok: false,
+      message: "We couldn't save your WhatsApp connection. Please try again.",
+    };
+  }
+
+  return { ok: true, data: undefined };
+}
+
 /** Record a terminal connection state without touching credentials. */
 async function markConnectionState(
   clinicId: string,
