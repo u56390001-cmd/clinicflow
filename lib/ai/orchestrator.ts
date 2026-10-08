@@ -121,15 +121,15 @@ const CLAIM_CANCEL =
   /\b(appointment)\b[^.!?\n]{0,60}\b(cancelled|canceled)\b|\b(cancelled|canceled)\b[^.!?\n]{0,60}\b(appointment)\b/i;
 
 const BOOKING_OVERRIDE =
-  "I'm sorry, I couldn't complete that booking. Please try a different time or contact the clinic directly.";
+  "Sorry 😊 I couldn't complete that booking. Would you like to try a different time, or contact the clinic directly?";
 const RESCHEDULE_OVERRIDE =
-  "I'm sorry, I couldn't reschedule that appointment. Please try a different time or contact the clinic directly.";
+  "Sorry 😊 I couldn't reschedule that appointment. Would you like to try a different time, or contact the clinic directly?";
 const CANCEL_OVERRIDE =
-  "I'm sorry, I couldn't cancel that appointment. Please contact the clinic directly.";
+  "Sorry 😊 I couldn't cancel that appointment. Please contact the clinic directly and they will help you.";
 
 /** Block message when createAppointment is called but user intent is reschedule/cancel. */
 const RESCHEDULE_CANCEL_BLOCK =
-  "It looks like you want to reschedule or cancel an existing appointment rather than create a new one. Could you tell me which appointment you'd like to change? Please provide the date and time of your existing booking so I can help.";
+  "Sure 😊 it looks like you want to change an existing appointment rather than book a new one. Could you tell me the date and time of the booking you'd like to change?";
 
 /**
  * Detect whether the user's recent messages indicate a reschedule or cancel
@@ -336,7 +336,7 @@ export async function runReceptionistTurn(
   reply = guardClaim(reply, flags);
   if (!reply) {
     reply =
-      "I wasn't able to answer that just now. Please try again or contact the clinic directly.";
+      "Sorry 😊 I wasn't able to answer that just now. Please try again, or contact the clinic directly.";
   }
 
   const escalated = reply

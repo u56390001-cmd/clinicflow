@@ -409,7 +409,7 @@ async function handleInteractiveTap(
   }
   if (id === "bk-no") {
     await persistAndReply(input, ctx.conversation.id, clearFlow(ctx.session), [
-      "Okay, I won't book that. Is there anything else I can help you with?",
+      "Okay, I won't book that 😊 Is there anything else I can help you with?",
     ]);
     return true;
   }
@@ -453,7 +453,7 @@ async function handleServiceTap(
     rows.push({ id: "doc:any", title: "No preference" });
     await persistAndReply(input, ctx.conversation.id, { ...ctx.session, flow }, [], {
       list: {
-        body: `${service.name} — which doctor would you like to see?`,
+        body: `Sure 😊 ${service.name} — which doctor would you like to see?`,
         buttonText: "Choose doctor",
         header: "Select a doctor",
         rows,
@@ -519,7 +519,7 @@ async function handleDateTap(
 
   if (!result.ok || result.slots.length === 0) {
     await persistAndReply(input, ctx.conversation.id, { ...ctx.session, flow }, [
-      `I'm sorry, ${input.clinic.name} has no open times on that day. Please pick another date:`,
+      `Sorry 😊 ${input.clinic.name} has no open times on that day. Here are other dates you can pick:`,
     ], {
       list: {
         body: "Available dates",
@@ -530,7 +530,9 @@ async function handleDateTap(
     return true;
   }
 
-  const rows: WhatsappListRow[] = result.slots.slice(0, 10).map((start) => ({
+  // Keep the list short — a handful of options is easier to choose from
+  // than a wall of times (Human Receptionist guide: "limited slots").
+  const rows: WhatsappListRow[] = result.slots.slice(0, 6).map((start) => ({
     id: `slot:${start.slice(11, 16)}`,
     title: start.slice(11, 16),
     description: "available",
@@ -540,7 +542,7 @@ async function handleDateTap(
     input,
     ctx.conversation.id,
     { ...ctx.session, flow: { ...flow, step: "slot", date } },
-    [`Here are the open times on ${formatNaive(`${date}T00:00`)}:`],
+    [`Sure 😊 Here are the open times on ${formatNaive(`${date}T00:00`)}:`],
     {
       list: {
         body: `Available times for ${flow.serviceName}`,
@@ -575,7 +577,7 @@ async function handleSlotTap(
       flow: { ...flow, step: "date", slot: undefined },
     };
     await persistAndReply(input, ctx.conversation.id, next, [
-      "I'm sorry, that time was just taken. Please choose another date:",
+      "Sorry 😊 that time was just taken. Here are other dates you can pick:",
     ], {
       list: {
         body: "Available dates",
@@ -608,7 +610,7 @@ async function handleSlotTap(
       flow: { ...flow, step: "preconsult", slot: time, preConsult },
     };
     await persistAndReply(input, ctx.conversation.id, next, [
-      "Before we confirm — a few quick questions:",
+      "Before we confirm 😊 a few quick questions:",
       `1. ${preConsult.questions[0].text}`,
       'Reply "skip" to any you would rather not answer.',
     ]);
@@ -623,7 +625,7 @@ async function handleSlotTap(
   }
 
   await persistAndReply(input, ctx.conversation.id, { ...ctx.session, flow: chosen }, [
-    `Great — ${formatNaive(`${flow.date}T${time}`)} is available. What is your full name?`,
+    `Great 😊 ${formatNaive(`${flow.date}T${time}`)} is available. May I know your full name please?`,
   ]);
   return true;
 }
@@ -637,10 +639,10 @@ async function sendBookingConfirmationAsk(
   if (!flow) return;
   await persistAndReply(input, conversationId, nextState, [summaryLine(input.clinic.name, flow)], {
     buttons: {
-      body: "Shall I book this for you?",
+      body: "Shall I book this for you? 😊",
       buttons: [
         { id: "bk-yes", title: "Confirm booking" },
-        { id: "bk-no", title: "Cancel" },
+        { id: "bk-no", title: "Not now" },
       ],
     },
   });
@@ -648,7 +650,7 @@ async function sendBookingConfirmationAsk(
 
 function summaryLine(clinicName: string, flow: FlowState): string {
   const parts = [
-    "Please confirm your appointment",
+    "Here's your appointment summary 😊",
     `Service: ${flow.serviceName ?? ""}`.trim(),
     `When: ${flow.date && flow.slot ? formatNaive(`${flow.date}T${flow.slot}`) : ""}`,
     flow.doctorName ? `Doctor: ${flow.doctorName}` : "",
@@ -712,7 +714,7 @@ async function confirmBooking(
       ctx.conversation.id,
       { ...ctx.session, flow: { ...flow, step: "date", slot: undefined } },
       [
-        `I'm sorry, I couldn't complete that booking (${result.message}) Here are other dates you can try:`,
+        `Sorry 😊 I couldn't complete that booking (${result.message}) Here are other dates you can try:`,
       ],
       {
         list: {
@@ -737,12 +739,12 @@ async function confirmBooking(
   );
 
   const confirmation = [
-    "Your appointment is booked.",
+    "🎉 Your appointment is booked!",
     `Service: ${flow.serviceName}`,
     `When: ${formatNaive(`${flow.date}T${flow.slot}`)}`,
     flow.doctorName ? `Doctor: ${flow.doctorName}` : "",
     `Clinic: ${input.clinic.name}`,
-    "You can reply here anytime if you need to reschedule or cancel.",
+    "You can reply here anytime if you need to reschedule or cancel 😊",
   ]
     .filter(Boolean)
     .join("\n");
@@ -841,7 +843,7 @@ async function runAiTurn(
     provider = await resolveProviderForClinic(clinic.id);
   } catch {
     await sendDeterministicReplies(credentials, inbound.fromWaId, [
-      "I'm sorry, the assistant isn't available right now. Please try again later.",
+      "I'm sorry, the assistant isn't available right now 😊 Please try again in a little while.",
     ]);
     return;
   }
@@ -909,10 +911,10 @@ async function applyTurnResult(
     );
     if (pending) sessionNext.pendingFollowUp = pending;
     const lines = [
-      "Your appointment is booked.",
+      "🎉 Your appointment is booked!",
       `When: ${formatNaive(booking.startTime)}`,
       `Clinic: ${clinic.name}`,
-      "You can reply here anytime if you need to reschedule or cancel.",
+      "You can reply here anytime if you need to reschedule or cancel 😊",
     ];
     await persistOutboundAndState(input, ctx.conversation.id, lines, sessionNext);
     return;
@@ -964,7 +966,8 @@ async function applyTurnResult(
       ...(serviceId ? { serviceId, serviceName: ctx.session.flow?.serviceName } : {}),
       doctorId,
     };
-    const rows = slots.slice(0, 10).map((slot) => ({
+    // A handful of times is easier to choose from than a full wall of slots.
+    const rows = slots.slice(0, 6).map((slot) => ({
       id: `slot:${slot.startTime.slice(11, 16)}`,
       title: slot.startTime.slice(11, 16),
       description: "available",
@@ -1003,14 +1006,14 @@ async function handleIntakeText(
     const name = text.replace(/\s+/g, " ").trim().slice(0, 120);
     if (name.length < 2 || /@/.test(name)) {
       await persistAndReply(input, ctx.conversation.id, ctx.session, [
-        "Could you please share your full name so I can book that for you?",
+        "Could you please share your full name so I can book that for you? 😊",
       ]);
       return;
     }
     const required = input.settings?.required_patient_fields ?? ["name"];
     if (required.includes("email")) {
       await persistAndReply(input, ctx.conversation.id, { ...ctx.session, flow: { ...flow, step: "email", patientName: name } }, [
-        `Thank you, ${name}. What email address should we use for your booking?`,
+        `Thank you, ${name} 😊 What email address should we use for your booking?`,
       ]);
       return;
     }
@@ -1026,7 +1029,7 @@ async function handleIntakeText(
     const email = text.trim().slice(0, 254);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       await persistAndReply(input, ctx.conversation.id, ctx.session, [
-        "That doesn't look like a valid email address. Could you check it and send it again?",
+        "That doesn't look like a valid email address. Could you check and send it again?",
       ]);
       return;
     }
@@ -1071,7 +1074,7 @@ async function handlePreConsultText(
       flow: { ...flow, preConsult: { ...pre, answers, index: nextIndex } },
     };
     await persistAndReply(input, ctx.conversation.id, next, [
-      "Got it, thank you.",
+      "Got it, thank you 😊",
       `${nextIndex + 1}. ${pre.questions[nextIndex].text}`,
     ]);
     return;
@@ -1093,7 +1096,7 @@ async function handlePreConsultText(
     input,
     ctx.conversation.id,
     { ...ctx.session, flow: completed },
-    ["Thank you! Please confirm — what is your full name?"],
+    ["Thank you 😊 Just to confirm — what is your full name?"],
   );
 }
 
@@ -1136,7 +1139,7 @@ async function captureFollowUpAnswer(
   delete ctx.session.pendingFollowUp;
   await saveSessionState(input.supabase, ctx.conversation.id, ctx.session);
   await persistAndReply(input, ctx.conversation.id, null, [
-    "Thank you — the clinic has received your answers. Is there anything else I can help you with?",
+    "Thank you — the clinic has received your answers 😊 Is there anything else I can help you with?",
   ]);
 }
 
@@ -1299,7 +1302,7 @@ async function sendDateStep(
   conversationId: string,
   nextState: SessionStateShape,
 ): Promise<void> {
-  await persistAndReply(input, conversationId, nextState, ["Great choice. Which day works for you?"], {
+  await persistAndReply(input, conversationId, nextState, ["Great choice 😊 Which day works for you?"], {
     list: {
       body: "Available dates",
       buttonText: "Pick a date",

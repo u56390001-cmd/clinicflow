@@ -91,7 +91,7 @@ const getClinicInfoSchema = z.object({ clinicId: clinicIdSchema });
 const getClinicInfo: Tool = {
   name: "getClinicInfo",
   description:
-    "Return the clinic's name, doctor, address, phone, email, working hours, and its configured FAQs, booking rules and cancellation policy. Use this to answer questions about clinic policies, hours, contact details and FAQs.",
+    "Return the clinic's name, doctor, address, phone, email, working hours, its configured FAQs, booking rules and cancellation policy, plus every bookable doctor's profile (specialty, qualification, experience, consultation fee, short bio). Use this to answer questions about clinic policies, hours, contact details, FAQs, doctor fees and doctor profiles.",
   parameters: objectSchema(
     {
       clinicId: { type: "string", description: "The clinic id (optional)." },
@@ -116,7 +116,9 @@ const getClinicInfo: Tool = {
           .order("day_of_week", { ascending: true }),
         ctx.supabase
           .from("doctors")
-          .select("id, name, specialty")
+          .select(
+            "id, name, specialty, qualification, years_of_experience, consultation_fee, professional_description",
+          )
           .eq("clinic_id", clinicAccess.clinicId)
           .eq("is_visible", true)
           .order("created_at", { ascending: true }),
@@ -148,6 +150,10 @@ const getClinicInfo: Tool = {
         id: doctor.id,
         name: doctor.name,
         specialty: doctor.specialty,
+        qualification: doctor.qualification,
+        yearsOfExperience: doctor.years_of_experience,
+        consultationFee: doctor.consultation_fee,
+        about: doctor.professional_description,
       })),
       workingHours: buildWorkingHoursSummary(ruleViews),
       agentName: s?.agent_name ?? null,
