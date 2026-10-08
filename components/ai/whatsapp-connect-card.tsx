@@ -18,6 +18,7 @@ export type WhatsappConfigView = {
   connection_status: "not_connected" | "connected" | "error";
   display_phone_number: string | null;
   whatsapp_business_account_id: string | null;
+  phone_number_id: string | null;
   status_message: string | null;
 };
 
@@ -43,10 +44,10 @@ export function WhatsappConnectCard({
   const [savingManual, setSavingManual] = useState(false);
   const [manualError, setManualError] = useState<string | null>(null);
   const [manualForm, setManualForm] = useState({
-    phoneNumberId: "",
+    phoneNumberId: config?.phone_number_id ?? "",
     accessToken: "",
-    wabaId: "",
-    displayPhone: "",
+    wabaId: config?.whatsapp_business_account_id ?? "",
+    displayPhone: config?.display_phone_number ?? "",
   });
 
   const status = config?.connection_status ?? "not_connected";
@@ -148,7 +149,7 @@ export function WhatsappConnectCard({
         </p>
       )}
 
-      {status !== "connected" && canWrite && (
+      {canWrite && (
         <div className="border-t border-hairline pt-3">
           <button
             type="button"
@@ -157,7 +158,9 @@ export function WhatsappConnectCard({
           >
             <span className="inline-flex items-center gap-1.5">
               <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />
-              Manual token setup (dev/test) — paste Meta test credentials
+              {status === "connected"
+                ? "Update token (Meta test tokens expire daily)"
+                : "Manual token setup (dev/test) — paste Meta test credentials"}
             </span>
             {showManual ? (
               <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />

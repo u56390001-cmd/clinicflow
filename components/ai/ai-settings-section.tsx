@@ -32,7 +32,7 @@ export async function AiSettingsSection() {
   const { data: whatsappConfig } = await supabase
     .from("clinic_whatsapp_config")
     .select(
-      "connection_status, display_phone_number, whatsapp_business_account_id, status_message",
+      "connection_status, display_phone_number, whatsapp_business_account_id, phone_number_id, status_message",
     )
     .eq("clinic_id", access.clinic.id)
     .maybeSingle();
