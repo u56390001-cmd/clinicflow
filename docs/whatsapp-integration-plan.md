@@ -204,6 +204,21 @@ is required (`lib/notifications/whatsapp.ts`).
 | Nothing processed inbound | `clinic_ai_settings.whatsapp_enabled` false | Enable WhatsApp channel in AI Settings |
 | Reminder not sent | patient preference not `whatsapp`/`both`, or `whatsapp_number` null, or outside window | Fix patient record; see §8 |
 | Token rejected by Graph | temporary token expired | Refresh token (Meta API Setup) or use System User permanent token |
+| Graph `401 code 190`, sends fail silently | temporary API-Setup token expired (Meta kills it at 00:00 PDT) | Paste a permanent **System User** token (§3 Step 5) via *AI Settings → Update token* |
+| Inbound stored in `whatsapp_messages` but no AI reply, no log error | conversation has `human_takeover = true` — adapter returns silently after persisting | Turn off takeover in the Inbox, or `UPDATE whatsapp_conversations SET human_takeover = false` |
+| Manual reply fails with "Nothing was sent" | outbound Graph call rejected (usually expired token) | `vercel logs --json` → look for `[whatsapp-client] send failed`, then refresh token |
+
+### Permanent token — Business Manager System Users (recommended)
+
+1. <https://business.facebook.com> → **Settings** (gear, bottom-left) → **Users → System Users** → **Add**
+   (name `medbook-ai-token`, role `Admin`).
+2. Select the user → **Add Assets → Apps →** your app → **Admin** → Save.
+   (Skipping this gives *"No permissions available"* in the token dialog.)
+3. **Generate new token** → app → **Never expires** → grant
+   `whatsapp_business_messaging` + `whatsapp_business_management` → generate/copy.
+4. Paste it in **AI Settings → WhatsApp → "Update token"** (phone/WABA IDs are prefilled).
+5. Verify: `GET https://graph.facebook.com/v23.0/<PHONE_NUMBER_ID>?fields=display_phone_number&access_token=<token>`
+   must return the number, not `code 190`.
 
 ---
 
@@ -213,5 +228,6 @@ is required (`lib/notifications/whatsapp.ts`).
 2. Set env vars locally and on Vercel (§4) → redeploy
 3. Set webhook Callback URL + Verify Token in Meta → subscribe `messages`
 4. Code changes (§5): manual connect, cron GET, webhook `after()`, `vercel.json` crons
-5. Paste credentials via manual-connect UI
+5. Paste credentials via manual-connect UI — prefer a **System User permanent token** (§9)
 6. Test inbound AI reply + reminders locally (tunnel) then on Vercel (logs)
+7. If inbound is stored but no reply arrives: check `whatsapp_conversations.human_takeover` (§9)
