@@ -52,6 +52,9 @@ type ChatMessage = {
   /** Hidden messages are only for API history (session context injection),
    *  not rendered visually in the chat UI. */
   hidden?: boolean;
+  /** Optional follow-up actions rendered under this message (single-intent
+   *  turns like consultation fees offer exactly the next logical steps). */
+  followUp?: "fees";
 };
 
 type WidgetServiceItem = {
@@ -228,17 +231,81 @@ function groupSlots(slots: WidgetSlotItem[]): SlotGroup[] {
   ].filter((group) => group.slots.length > 0);
 }
 
-/** Welcome-screen shortcuts. `text` intents go to the AI; `action` shortcuts
- *  are handled by the widget itself (doctor cards, date strip). */
+/** The one question each welcome button sends to the AI. Kept in one place so
+ *  the button grid, the fee follow-ups and the service card CTA stay in sync. */
+const BOOKING_INTENT = "I'd like to book an appointment";
+const SERVICES_INTENT =
+  "I'm not sure which service I need — can you recommend one based on my concern?";
+
+/** Concern → service-area keyword map. Used to keep a described concern from
+ *  surfacing unrelated service cards (a dental concern at a skin clinic must
+ *  never render the skin menu). */
+const CONCERN_CATEGORIES: Array<{ category: string; terms: string[] }> = [
+  {
+    category: "dental",
+    terms: ["cavity", "cavities", "tooth", "teeth", "dental", "gum", "gums", "braces", "toothache", "molar", "filling", "dentist"],
+  },
+  {
+    category: "skin",
+    terms: ["skin", "acne", "pimple", "pigment", "scar", "mole", "rash", "eczema", "dermat", "peel", "wrinkle", "psoriasis"],
+  },
+  {
+    category: "hair",
+    terms: ["hair", "bald", "dandruff", "hairfall", "hair loss"],
+  },
+  {
+    category: "child",
+    terms: ["child", "children", "kid", "baby", "infant", "son", "daughter", "pediatric", "paediatric", "vaccination"],
+  },
+  {
+    category: "cosmetic",
+    terms: ["cosmetic", "botox", "filler", "laser", "facial"],
+  },
+  {
+    category: "general",
+    terms: ["checkup", "check up", "general consultation", "fever", "cold", "cough"],
+  },
+];
+
+function matchConcernCategories(text: string): string[] {
+  const lower = text.toLowerCase();
+  return CONCERN_CATEGORIES.filter((entry) =>
+    entry.terms.some((term) => lower.includes(term)),
+  ).map((entry) => entry.category);
+}
+
+function serviceMatchesConcern(svc: WidgetServiceItem, categories: string[]): boolean {
+  const haystack = `${svc.name} ${svc.description ?? ""}`.toLowerCase();
+  return categories.some((category) => {
+    const entry = CONCERN_CATEGORIES.find((c) => c.category === category);
+    return entry ? entry.terms.some((term) => haystack.includes(term)) : false;
+  });
+}
+
+/** Shown when the model answered a concern with the service menu but nothing
+ *  on the menu actually matches — asks for detail instead of showing cards. */
+const CONCERN_NO_MATCH_REPLY =
+  "I don't have a matching service for that exact concern 😊 Could you tell me a little more about what you need? I can suggest the closest option we offer.";
+
+/** True when the patient explicitly asked to see the full menu/treatments
+ *  (as opposed to describing a concern or asking for a recommendation). */
+function explicitBrowseRequest(text: string): boolean {
+  return (
+    /\b(servic\w*|treatments?|menu)\b/i.test(text) &&
+    !/\b(recommend|suggest|not sure|which (one|service))\b/i.test(text)
+  );
+}
+
+/** Welcome-screen shortcuts: the four primary patient intents only.
+ *  `text` intents go to the AI; the `doctors` shortcut is handled by the
+ *  widget itself (department prompt → doctor cards). */
 const QUICK_ACTIONS: Array<
-  { icon: string; label: string } & ({ text: string; action?: never } | { action: "doctors" | "dates"; text?: never })
+  { icon: string; label: string } & ({ text: string; action?: never } | { action: "doctors"; text?: never })
 > = [
-  { icon: "🩺", label: "Book Appointment", text: "I'd like to book an appointment" },
+  { icon: "🩺", label: "Book Appointment", text: BOOKING_INTENT },
+  { icon: "💆", label: "Services & Treatments", text: SERVICES_INTENT },
   { icon: "👨‍⚕️", label: "Find a Doctor", action: "doctors" },
-  { icon: "💆", label: "Services & Treatments", text: "What services do you offer?" },
-  { icon: "💰", label: "Consultation Fee", text: "What are your consultation fees?" },
-  { icon: "📍", label: "Clinic Location", text: "Where is the clinic located?" },
-  { icon: "📅", label: "Browse Dates", action: "dates" },
+  { icon: "💰", label: "Consultation Fees", text: "What are your consultation fees?" },
 ];
 
 function getDaysFromNow(count: number): Array<{ label: string; shortLabel: string; dateStr: string; dayOfWeek: string }> {
@@ -338,6 +405,17 @@ export function WidgetChat(props: WidgetProps) {
   /** Text of the message that failed, kept so "Try again" can resend it. */
   const [retryText, setRetryText] = useState<string | null>(null);
   const [doctorsLoading, setDoctorsLoading] = useState(false);
+  /** Whether a long service list has been fully expanded by the visitor. */
+  const [servicesExpanded, setServicesExpanded] = useState(false);
+  /** Roster fetched via "Find a Doctor" but no department chosen yet — drives
+   *  the "Which department do you need?" prompt under the transcript. */
+  const [departmentPrompt, setDepartmentPrompt] = useState<{
+    doctors: WidgetDoctorItem[];
+    departments: string[];
+  } | null>(null);
+  /** Dates stay hidden until a service, doctor or slot has been picked —
+   *  browsing dates is a booking step, not a starting point. */
+  const [datesUnlocked, setDatesUnlocked] = useState(false);
   const sessionIdRef = useRef(crypto.randomUUID());
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -395,6 +473,11 @@ export function WidgetChat(props: WidgetProps) {
       const trimmed = text.trim();
       if (!trimmed || pending) return;
 
+      // A consultation-fee question is a single-intent turn: it gets a fee
+      // answer and nothing else (no service or slot cards), plus two optional
+      // follow-up actions on the reply.
+      const feeTurn = /consultation\s+fee/i.test(trimmed);
+
       setPending(true);
       setError(null);
       setRetryText(null);
@@ -403,6 +486,7 @@ export function WidgetChat(props: WidgetProps) {
       setDraft(null);
       setDraftName("");
       setDraftForOther(false);
+      setServicesExpanded(false);
 
       // Roll the outgoing message back on failure so the retry path can resend
       // it cleanly instead of duplicating it in the transcript and in history.
@@ -455,18 +539,57 @@ export function WidgetChat(props: WidgetProps) {
         // (redundantly), which populates data.component. We must prevent those
         // stale components from re-rendering — the user already picked.
         let componentToShow = data.component;
-        if (serviceChosenRef.current && componentToShow?.type === "serviceList") {
+        // An explicit "show me your services" request may re-open the menu
+        // even after a (filtered) list was shown earlier this conversation.
+        if (
+          serviceChosenRef.current &&
+          componentToShow?.type === "serviceList" &&
+          !explicitBrowseRequest(trimmed)
+        ) {
           componentToShow = undefined;
         }
         if (slotChosenRef.current && componentToShow?.type === "slotList") {
           componentToShow = undefined;
         }
+        // Single-intent guard: a fee question never shows service/slot cards.
+        if (feeTurn && (componentToShow?.type === "serviceList" || componentToShow?.type === "slotList")) {
+          componentToShow = undefined;
+        }
+        // Relevance safety net: when the patient described a concern, keep
+        // only services matching that area. If nothing matches (e.g. a dental
+        // concern at a skin clinic), drop the menu entirely — dumping
+        // unrelated service cards would be worse than no cards at all.
+        let concernFiltered = false;
+        let concernNoMatch = false;
+        if (componentToShow?.type === "serviceList") {
+          const concerns = matchConcernCategories(trimmed);
+          if (concerns.length > 0) {
+            const all = componentToShow.data as WidgetServiceItem[];
+            const matches = all.filter((svc) => serviceMatchesConcern(svc, concerns));
+            if (matches.length > 0) {
+              concernFiltered = true;
+              componentToShow = { ...componentToShow, data: matches };
+            } else {
+              componentToShow = undefined;
+              concernNoMatch = true;
+            }
+          }
+        }
         // Update refs AFTER deduplication check so first-time components are flagged
-        if (data.component?.type === "serviceList" && !serviceChosenRef.current) {
+        if (componentToShow?.type === "serviceList" && !serviceChosenRef.current) {
           serviceChosenRef.current = true;
         }
-        if (data.component?.type === "slotList" && !slotChosenRef.current) {
+        if (componentToShow?.type === "slotList" && !slotChosenRef.current) {
           slotChosenRef.current = true;
+        }
+        // Dates become browseable once a service, slot or confirmation exists.
+        if (
+          componentToShow &&
+          (componentToShow.type === "serviceList" ||
+            componentToShow.type === "slotList" ||
+            componentToShow.type === "confirmation")
+        ) {
+          setDatesUnlocked(true);
         }
 
         // Architectural split: text is a short deterministic caption when a
@@ -475,11 +598,31 @@ export function WidgetChat(props: WidgetProps) {
         // For confirmation cards, no text bubble — the card speaks for itself.
         const hasComponent = !!componentToShow;
         const isConfirmation = componentToShow?.type === "confirmation";
+        // When the menu was dropped for an unrelated concern, the model's raw
+        // reply is usually the canned "Here are our services:" line — swap it
+        // for an honest follow-up question instead of a dangling caption.
+        let concernFallback: string | null = null;
+        if (concernNoMatch) {
+          const raw = data.reply.trim();
+          concernFallback =
+            raw.length > 0 && !/^(here are|these are|following are|our services|services:)/i.test(raw)
+              ? raw
+              : CONCERN_NO_MATCH_REPLY;
+        }
         const assistantMsg: ChatMessage = {
           role: "assistant",
-          text: isConfirmation ? "" : hasComponent && data.caption ? data.caption : data.reply,
-          reply: data.reply,
+          text: isConfirmation
+            ? ""
+            : concernFallback
+              ? concernFallback
+              : hasComponent && data.caption
+                ? concernFiltered
+                  ? "Based on your concern, here are the closest matches:"
+                  : data.caption
+                : data.reply,
+          reply: concernFallback ?? data.reply,
           component: componentToShow,
+          followUp: feeTurn && !isConfirmation ? "fees" : undefined,
         };
         setMessages((current) => {
           const updated = [...current, assistantMsg];
@@ -510,9 +653,11 @@ export function WidgetChat(props: WidgetProps) {
     void send(retryText);
   }
 
-  /** Welcome-screen "Find a Doctor": fetch the clinic roster and render doctor
-   *  cards locally. Falls back to the AI text answer if the roster is empty or
-   *  the endpoint is unreachable, so the intent still gets a response. */
+  /** Welcome-screen "Find a Doctor": fetch the clinic roster. With several
+   *  departments on file, ask which department first and only then show the
+   *  matching doctor cards; a single-department roster shows cards straight
+   *  away. Falls back to the AI text answer if the roster is empty or the
+   *  endpoint is unreachable, so the intent still gets a response. */
   async function openDoctors(): Promise<void> {
     if (doctorsLoading || pending) return;
     setDoctorsLoading(true);
@@ -524,17 +669,15 @@ export function WidgetChat(props: WidgetProps) {
       const data: { ok?: boolean; doctors?: WidgetDoctorItem[] } = await res.json();
       const doctors = res.ok && data.ok && Array.isArray(data.doctors) ? data.doctors : [];
       if (doctors.length === 0) throw new Error("empty");
-      const names = doctors.map((d) => `${d.name} (${d.specialty ?? "Doctor"})`).join(", ");
-      setMessages((current) => [
-        ...current,
-        { role: "user", text: "👨‍⚕️ Find a doctor", reply: "Find a doctor" },
-        {
-          role: "assistant",
-          text: "Here are our doctors:",
-          reply: `Here are our doctors: ${names}`,
-          component: { type: "doctorList", data: doctors },
-        },
-      ]);
+      const departments = Array.from(
+        new Set(doctors.map((d) => d.specialty?.trim()).filter((s): s is string => !!s)),
+      );
+      if (departments.length > 1) setDepartmentPrompt({ doctors, departments });
+      else
+        showDoctorCards(doctors, {
+          tapText: "👨‍⚕️ Find a doctor",
+          tapReply: "Find a doctor",
+        });
     } catch {
       // Roster unavailable — let the AI answer the request in text instead.
       await send("I'd like to find a doctor");
@@ -542,6 +685,48 @@ export function WidgetChat(props: WidgetProps) {
       setTyping(false);
       setDoctorsLoading(false);
     }
+  }
+
+  /** Pushes a local (no API call) doctor-cards turn onto the transcript.
+   *  `tap*` is the visitor-facing message for the choice they just made. */
+  function showDoctorCards(
+    doctors: WidgetDoctorItem[],
+    opts: { department?: string; tapText: string; tapReply: string },
+  ): void {
+    const { department, tapText, tapReply } = opts;
+    const names = doctors.map((d) => `${d.name} (${d.specialty ?? "Doctor"})`).join(", ");
+    setDatesUnlocked(true);
+    setMessages((current) => [
+      ...current,
+      { role: "user", text: tapText, reply: tapReply },
+      {
+        role: "assistant",
+        text: department ? `Here are our doctors in ${department}:` : "Here are our doctors:",
+        reply: `Here are our doctors${department ? ` in ${department}` : ""}: ${names}`,
+        component: { type: "doctorList", data: doctors },
+      },
+    ]);
+  }
+
+  /** Department chip picked on the "Find a Doctor" prompt — show only that
+   *  department's cards (or the full roster for the "not sure" chip). */
+  function chooseDepartment(department: string | null): void {
+    if (!departmentPrompt) return;
+    const { doctors } = departmentPrompt;
+    setDepartmentPrompt(null);
+    if (!department) {
+      showDoctorCards(doctors, {
+        tapText: "👨‍⚕️ Show all doctors",
+        tapReply: "Show me all doctors",
+      });
+      return;
+    }
+    const matches = doctors.filter((d) => d.specialty?.trim() === department);
+    showDoctorCards(matches.length > 0 ? matches : doctors, {
+      department,
+      tapText: `👨‍⚕️ ${department}`,
+      tapReply: `Show me doctors in the ${department} department`,
+    });
   }
 
   /** Confirm the booking summary: forward the picked slot (plus identity, when
@@ -747,7 +932,7 @@ export function WidgetChat(props: WidgetProps) {
             }}
             aria-live="polite"
           >
-            {messages.length === 0 && !pending && (
+            {messages.length === 0 && !pending && !departmentPrompt && (
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 <div
                   style={{
@@ -783,10 +968,7 @@ export function WidgetChat(props: WidgetProps) {
                       disabled={doctorsLoading}
                       onClick={() => {
                         if (action.action === "doctors") void openDoctors();
-                        else if (action.action === "dates") {
-                          setDraft(null);
-                          setShowDatePicker(true);
-                        } else if (action.text) void send(action.text);
+                        else if (action.text) void send(action.text);
                       }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.borderColor = widgetColor;
@@ -831,6 +1013,27 @@ export function WidgetChat(props: WidgetProps) {
                 msg.role === "assistant" && msg.text ? parseOptionChips(msg.text) : null;
               const bubbleText = parsed ? parsed.body : msg.text;
               const chips = parsed?.options ?? [];
+
+              // If the model returns the full service menu without the visitor
+              // having asked about services (concern-first conversations), show
+              // the first cards and hide the rest behind an expander instead of
+              // flooding the chat with every service at once.
+              const serviceItems =
+                msg.component?.type === "serviceList"
+                  ? (msg.component.data as WidgetServiceItem[])
+                  : null;
+              const lastUserText = serviceItems
+                ? [...messages].reverse().find((m) => m.role === "user" && !m.hidden)?.text ?? ""
+                : "";
+              const explicitBrowse = serviceItems ? explicitBrowseRequest(lastUserText) : false;
+              const visibleServices = serviceItems
+                ? explicitBrowse || servicesExpanded
+                  ? serviceItems
+                  : serviceItems.slice(0, 3)
+                : [];
+              const hiddenServiceCount = serviceItems
+                ? serviceItems.length - visibleServices.length
+                : 0;
               return (
               <div key={i}>
                 {bubbleText ? (
@@ -984,7 +1187,7 @@ export function WidgetChat(props: WidgetProps) {
                 )}
 
                 {/* Service cards — name, benefit, duration, price + booking CTA */}
-                {msg.component?.type === "serviceList" && (msg.component.data as WidgetServiceItem[]).length > 0 && (
+                {serviceItems && serviceItems.length > 0 && (
                   <div
                     style={{
                       display: "flex",
@@ -995,7 +1198,7 @@ export function WidgetChat(props: WidgetProps) {
                       maxWidth: "85%",
                     }}
                   >
-                    {(msg.component.data as WidgetServiceItem[]).map((svc) => (
+                    {visibleServices.map((svc) => (
                       <button
                         key={svc.id}
                         onClick={() => {
@@ -1078,13 +1281,36 @@ export function WidgetChat(props: WidgetProps) {
                         </span>
                       </button>
                     ))}
+                    {/* Rest of a long menu, only on request */}
+                    {hiddenServiceCount > 0 && (
+                      <button
+                        onClick={() => setServicesExpanded(true)}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = lightenHex(widgetColor, 0.95);
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "transparent";
+                        }}
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: "8px",
+                          border: `1px dashed ${lightenHex(widgetColor, 0.5)}`,
+                          background: "transparent",
+                          color: widgetColor,
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                          textAlign: "center",
+                          transition: "background 0.15s ease",
+                        }}
+                      >
+                        Show all {serviceItems?.length} services ▾
+                      </button>
+                    )}
                     {/* Concern-based recommendation: skip the list, ask the AI */}
                     <button
-                      onClick={() =>
-                        void send(
-                          "I'm not sure which service I need — can you recommend one based on my concern?",
-                        )
-                      }
+                      onClick={() => void send(SERVICES_INTENT)}
                       disabled={pending}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.background = lightenHex(widgetColor, 0.95);
@@ -1329,9 +1555,137 @@ export function WidgetChat(props: WidgetProps) {
                     ))}
                   </div>
                 )}
+                {/* Fee answer offers exactly the two next steps */}
+                {msg.followUp === "fees" && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: "6px",
+                      marginTop: "6px",
+                      paddingLeft: "4px",
+                    }}
+                  >
+                    <button
+                      onClick={() => void send(BOOKING_INTENT)}
+                      disabled={pending}
+                      style={{
+                        fontSize: "13px",
+                        padding: "6px 12px",
+                        borderRadius: "999px",
+                        border: `1px solid ${lightenHex(widgetColor, 0.55)}`,
+                        background: lightenHex(widgetColor, 0.95),
+                        color: widgetColor,
+                        cursor: pending ? "not-allowed" : "pointer",
+                        fontFamily: "inherit",
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      🩺 Book Appointment
+                    </button>
+                    <button
+                      onClick={() => void send(SERVICES_INTENT)}
+                      disabled={pending}
+                      style={{
+                        fontSize: "13px",
+                        padding: "6px 12px",
+                        borderRadius: "999px",
+                        border: `1px solid ${lightenHex(widgetColor, 0.55)}`,
+                        background: lightenHex(widgetColor, 0.95),
+                        color: widgetColor,
+                        cursor: pending ? "not-allowed" : "pointer",
+                        fontFamily: "inherit",
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      💆 View Services
+                    </button>
+                  </div>
+                )}
               </div>
               );
             })}
+
+            {/* "Find a Doctor" asks the department before revealing cards */}
+            {departmentPrompt && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <div
+                  style={{
+                    maxWidth: "85%",
+                    whiteSpace: "pre-wrap",
+                    borderRadius: "16px 16px 16px 4px",
+                    padding: "10px 14px",
+                    fontSize: "14px",
+                    lineHeight: 1.5,
+                    border: "1px solid #E5E7EB",
+                    background: "#F9FAFB",
+                    color: "#111827",
+                  }}
+                >
+                  Sure 😊 I can help you find the right doctor. Which department do you need?
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "6px",
+                    paddingLeft: "4px",
+                  }}
+                >
+                  {departmentPrompt.departments.map((department) => (
+                    <button
+                      key={department}
+                      onClick={() => chooseDepartment(department)}
+                      disabled={pending}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = lightenHex(widgetColor, 0.85);
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = lightenHex(widgetColor, 0.95);
+                      }}
+                      style={{
+                        fontSize: "13px",
+                        padding: "6px 12px",
+                        borderRadius: "999px",
+                        border: `1px solid ${lightenHex(widgetColor, 0.55)}`,
+                        background: lightenHex(widgetColor, 0.95),
+                        color: widgetColor,
+                        cursor: pending ? "not-allowed" : "pointer",
+                        fontFamily: "inherit",
+                        lineHeight: 1.4,
+                        transition: "background 0.15s ease",
+                      }}
+                    >
+                      {department}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => chooseDepartment(null)}
+                    disabled={pending}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = lightenHex(widgetColor, 0.85);
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = lightenHex(widgetColor, 0.95);
+                    }}
+                    style={{
+                      fontSize: "13px",
+                      padding: "6px 12px",
+                      borderRadius: "999px",
+                      border: `1px solid ${lightenHex(widgetColor, 0.55)}`,
+                      background: lightenHex(widgetColor, 0.95),
+                      color: widgetColor,
+                      cursor: pending ? "not-allowed" : "pointer",
+                      fontFamily: "inherit",
+                      lineHeight: 1.4,
+                      transition: "background 0.15s ease",
+                    }}
+                  >
+                    🤔 Not sure — show all
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Typing indicator */}
             {typing && (
@@ -1807,6 +2161,9 @@ export function WidgetChat(props: WidgetProps) {
                 outline: "none",
               }}
             />
+            {/* Dates are a booking step — only offered after a service,
+                doctor or slot has actually been picked. */}
+            {datesUnlocked && (
             <button
               type="button"
               onClick={() => {
@@ -1844,6 +2201,7 @@ export function WidgetChat(props: WidgetProps) {
                 <path d="M12 18h.01" />
               </svg>
             </button>
+            )}
             <button
               type="submit"
               disabled={pending || input.trim().length === 0}

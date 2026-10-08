@@ -91,7 +91,7 @@ const getClinicInfoSchema = z.object({ clinicId: clinicIdSchema });
 const getClinicInfo: Tool = {
   name: "getClinicInfo",
   description:
-    "Return the clinic's name, doctor, address, phone, email, working hours, its configured FAQs, booking rules and cancellation policy, plus every bookable doctor's profile (specialty, qualification, experience, consultation fee, short bio). Use this to answer questions about clinic policies, hours, contact details, FAQs, doctor fees and doctor profiles.",
+    "Return the clinic's name, doctor, address, phone, email, working hours, its configured FAQs, booking rules and cancellation policy, every bookable doctor's profile (specialty, qualification, experience, consultation fee, short bio), and the compact service list (id, name, description, duration, price). Use this to answer questions about clinic policies, hours, contact details, FAQs, doctor fees and doctor profiles — and to recommend the right service for a concern, check whether the clinic offers something, answer service/price questions, and take the serviceId needed for booking, WITHOUT displaying the full service menu.",
   parameters: objectSchema(
     {
       clinicId: { type: "string", description: "The clinic id (optional)." },
@@ -104,7 +104,7 @@ const getClinicInfo: Tool = {
     const clinicAccess = resolveClinicId(ctx, parsed.data.clinicId);
     if (!clinicAccess.ok) return { ok: false, error: clinicAccess.error };
 
-    const [{ data: rules }, { data: doctors }, { data: clinicRow }] =
+    const [{ data: rules }, { data: doctors }, { data: clinicRow }, { data: services }] =
       await Promise.all([
         ctx.supabase
           .from("availability_rules")
@@ -127,6 +127,12 @@ const getClinicInfo: Tool = {
           .select("name, doctor_name, phone, email, address")
           .eq("id", clinicAccess.clinicId)
           .maybeSingle(),
+        ctx.supabase
+          .from("services")
+          .select("id, name, description, duration_minutes, price")
+          .eq("clinic_id", clinicAccess.clinicId)
+          .eq("status", "active")
+          .order("name", { ascending: true }),
       ]);
 
     const ruleViews: RuleView[] = (rules ?? []).map((rule) => ({
@@ -155,6 +161,16 @@ const getClinicInfo: Tool = {
         consultationFee: doctor.consultation_fee,
         about: doctor.professional_description,
       })),
+      // Compact service list — lets the model recommend a service, quote
+      // prices and take a serviceId without calling getServices (whose
+      // result is rendered to the patient as the full menu).
+      services: (services ?? []).map((service) => ({
+        id: service.id,
+        name: service.name,
+        description: service.description,
+        durationMinutes: service.duration_minutes,
+        price: service.price,
+      })),
       workingHours: buildWorkingHoursSummary(ruleViews),
       agentName: s?.agent_name ?? null,
       welcomeMessage: s?.welcome_message ?? null,
@@ -172,7 +188,7 @@ const getServicesSchema = z.object({ clinicId: clinicIdSchema });
 const getServices: Tool = {
   name: "getServices",
   description:
-    "Return the clinic's active (bookable) services with name, description, duration, price and the doctor tied to the service when one is. Use this to answer questions about services and pricing.",
+    "Return the clinic's active (bookable) services with name, description, duration, price and the doctor tied to the service when one is. IMPORTANT: this result is rendered to the patient as the FULL service menu in one message — only call it when the patient explicitly asks to browse all services. For recommendations, price checks or serviceIds, use getClinicInfo instead.",
   parameters: objectSchema(
     { clinicId: { type: "string", description: "The clinic id (optional)." } },
   ),
@@ -218,7 +234,7 @@ const getAvailability: Tool = {
   parameters: objectSchema(
     {
       clinicId: { type: "string", description: "The clinic id (optional)." },
-      serviceId: { type: "string", description: "The service id from getServices." },
+      serviceId: { type: "string", description: "The service id from getClinicInfo (services) or getServices." },
       date: { type: "string", description: "Clinic-local date YYYY-MM-DD." },
       preferredTime: { type: "string", description: "Optional preferred start time HH:MM (clinic-local)." },
       doctorId: { type: "string", description: "Optional doctor id from getClinicInfo when the patient chose one." },
@@ -270,7 +286,7 @@ const getPreConsultationQuestions: Tool = {
   parameters: objectSchema(
     {
       clinicId: { type: "string", description: "The clinic id (optional)." },
-      serviceId: { type: "string", description: "The service id from getServices." },
+      serviceId: { type: "string", description: "The service id from getClinicInfo (services) or getServices." },
       doctorId: { type: "string", description: "Optional doctor id from getClinicInfo when the patient chose one." },
     },
     ["serviceId"],
@@ -340,7 +356,7 @@ const createAppointment: Tool = {
         },
         required: ["name"],
       },
-      serviceId: { type: "string", description: "The service id from getServices." },
+      serviceId: { type: "string", description: "The service id from getClinicInfo (services) or getServices." },
       doctorId: { type: "string", description: "Optional doctor id from getClinicInfo when the patient chose one." },
       startTime: { type: "string", description: "Exact clinic-local start YYYY-MM-DDTHH:mm from getAvailability." },
       timezone: { type: "string", description: "The clinic's IANA timezone (optional)." },
