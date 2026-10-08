@@ -42,9 +42,11 @@ type ChatMessage = {
    *  as `text`. */
   reply: string;
   /** Structured UI component sourced directly from tool-call results.
-   *  Rendered as dedicated UI elements, independent of the text bubble. */
+   *  Rendered as dedicated UI elements, independent of the text bubble.
+   *  `doctorList` is assembled locally by the widget from the public
+   *  directory endpoint — it never arrives from the chat API. */
   component?: {
-    type: "serviceList" | "slotList" | "confirmation";
+    type: "serviceList" | "slotList" | "confirmation" | "doctorList";
     data: unknown;
   };
   /** Hidden messages are only for API history (session context injection),
@@ -71,6 +73,18 @@ type WidgetBookingData = {
   endTime: string;
   status: string;
   serviceName?: string;
+};
+
+/** A doctor from the public directory endpoint (`/api/widget/[slug]/directory`),
+ *  used to render doctor cards locally without involving the chat API. */
+type WidgetDoctorItem = {
+  id: string;
+  name: string;
+  specialty: string | null;
+  qualification: string | null;
+  yearsOfExperience: number | null;
+  consultationFee: number | null;
+  about: string | null;
 };
 
 type ChatResponse =
@@ -162,6 +176,71 @@ function formatDuration(minutes: number): string {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
+/** The system prompt tells the model to offer choices as emoji-numbered lines
+ *  (1️⃣ 2️⃣ 3️⃣). Parsing those back out turns the model's listed options —
+ *  concerns, alternatives, times — into tappable chips instead of plain text. */
+const EMOJI_NUMERALS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣"];
+
+function parseOptionChips(text: string): { body: string; options: string[] } {
+  const options: string[] = [];
+  const bodyLines: string[] = [];
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    const index = EMOJI_NUMERALS.findIndex((emoji) => trimmed.startsWith(emoji));
+    if (index !== -1) {
+      const option = trimmed
+        .slice(EMOJI_NUMERALS[index].length)
+        .replace(/^[\s.、:：\-–—]+/, "")
+        .trim();
+      if (option) {
+        options.push(option);
+        continue;
+      }
+    }
+    bodyLines.push(line);
+  }
+  return {
+    body: bodyLines.join("\n").replace(/\n{3,}/g, "\n\n").trim(),
+    options: options.length >= 2 ? options : [],
+  };
+}
+
+/** Group slots into morning / afternoon / evening sections so a list of times
+ *  reads at a glance instead of as a wall of pills. */
+type SlotGroup = { emoji: string; label: string; slots: WidgetSlotItem[] };
+
+function groupSlots(slots: WidgetSlotItem[]): SlotGroup[] {
+  const groups: Record<"morning" | "afternoon" | "evening", WidgetSlotItem[]> = {
+    morning: [],
+    afternoon: [],
+    evening: [],
+  };
+  for (const slot of slots) {
+    const hour = new Date(slot.startTime).getHours();
+    if (hour < 12) groups.morning.push(slot);
+    else if (hour < 17) groups.afternoon.push(slot);
+    else groups.evening.push(slot);
+  }
+  return [
+    { emoji: "☀️", label: "Morning", slots: groups.morning },
+    { emoji: "🌤", label: "Afternoon", slots: groups.afternoon },
+    { emoji: "🌙", label: "Evening", slots: groups.evening },
+  ].filter((group) => group.slots.length > 0);
+}
+
+/** Welcome-screen shortcuts. `text` intents go to the AI; `action` shortcuts
+ *  are handled by the widget itself (doctor cards, date strip). */
+const QUICK_ACTIONS: Array<
+  { icon: string; label: string } & ({ text: string; action?: never } | { action: "doctors" | "dates"; text?: never })
+> = [
+  { icon: "🩺", label: "Book Appointment", text: "I'd like to book an appointment" },
+  { icon: "👨‍⚕️", label: "Find a Doctor", action: "doctors" },
+  { icon: "💆", label: "Services & Treatments", text: "What services do you offer?" },
+  { icon: "💰", label: "Consultation Fee", text: "What are your consultation fees?" },
+  { icon: "📍", label: "Clinic Location", text: "Where is the clinic located?" },
+  { icon: "📅", label: "Browse Dates", action: "dates" },
+];
+
 function getDaysFromNow(count: number): Array<{ label: string; shortLabel: string; dateStr: string; dayOfWeek: string }> {
   const days: Array<{ label: string; shortLabel: string; dateStr: string; dayOfWeek: string }> = [];
   const today = new Date();
@@ -250,6 +329,15 @@ export function WidgetChat(props: WidgetProps) {
   const [error, setError] = useState<string | null>(null);
   const [typing, setTyping] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  /** Service name chosen via a service card — shown in the booking summary. */
+  const [selectedService, setSelectedService] = useState<string | null>(null);
+  /** Pre-booking summary: the picked slot awaiting a Confirm / Change decision. */
+  const [draft, setDraft] = useState<{ startTime: string; endTime: string } | null>(null);
+  const [draftName, setDraftName] = useState("");
+  const [draftForOther, setDraftForOther] = useState(false);
+  /** Text of the message that failed, kept so "Try again" can resend it. */
+  const [retryText, setRetryText] = useState<string | null>(null);
+  const [doctorsLoading, setDoctorsLoading] = useState(false);
   const sessionIdRef = useRef(crypto.randomUUID());
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -309,7 +397,22 @@ export function WidgetChat(props: WidgetProps) {
 
       setPending(true);
       setError(null);
+      setRetryText(null);
       setTyping(true);
+      // A new turn supersedes any open booking summary.
+      setDraft(null);
+      setDraftName("");
+      setDraftForOther(false);
+
+      // Roll the outgoing message back on failure so the retry path can resend
+      // it cleanly instead of duplicating it in the transcript and in history.
+      const popFailedUserMessage = () =>
+        setMessages((current) => {
+          const last = current[current.length - 1];
+          return last && last.role === "user" && last.reply === trimmed
+            ? current.slice(0, -1)
+            : current;
+        });
 
       // Build the user message for local state (uses `text` field)
       const userMsg: ChatMessage = { role: "user", text: trimmed, reply: trimmed };
@@ -342,9 +445,8 @@ export function WidgetChat(props: WidgetProps) {
               ? data.error
               : "The assistant couldn't reply. Please try again.";
           setError(msg);
-          if (response.status === 429) {
-            setMessages((current) => current.slice(0, -1));
-          }
+          setRetryText(trimmed);
+          popFailedUserMessage();
           return;
         }
 
@@ -393,13 +495,66 @@ export function WidgetChat(props: WidgetProps) {
         });
       } catch {
         setTyping(false);
-        setError("Network error — check your connection and try again.");
+        setError("Connection problem 😓 Please check your internet and try again.");
+        setRetryText(trimmed);
+        popFailedUserMessage();
       } finally {
         setPending(false);
       }
     },
     [messages, pending, slug],
   );
+
+  function retryLast(): void {
+    if (!retryText || pending) return;
+    void send(retryText);
+  }
+
+  /** Welcome-screen "Find a Doctor": fetch the clinic roster and render doctor
+   *  cards locally. Falls back to the AI text answer if the roster is empty or
+   *  the endpoint is unreachable, so the intent still gets a response. */
+  async function openDoctors(): Promise<void> {
+    if (doctorsLoading || pending) return;
+    setDoctorsLoading(true);
+    setError(null);
+    setRetryText(null);
+    setTyping(true);
+    try {
+      const res = await fetch(`/api/widget/${slug}/directory`);
+      const data: { ok?: boolean; doctors?: WidgetDoctorItem[] } = await res.json();
+      const doctors = res.ok && data.ok && Array.isArray(data.doctors) ? data.doctors : [];
+      if (doctors.length === 0) throw new Error("empty");
+      const names = doctors.map((d) => `${d.name} (${d.specialty ?? "Doctor"})`).join(", ");
+      setMessages((current) => [
+        ...current,
+        { role: "user", text: "👨‍⚕️ Find a doctor", reply: "Find a doctor" },
+        {
+          role: "assistant",
+          text: "Here are our doctors:",
+          reply: `Here are our doctors: ${names}`,
+          component: { type: "doctorList", data: doctors },
+        },
+      ]);
+    } catch {
+      // Roster unavailable — let the AI answer the request in text instead.
+      await send("I'd like to find a doctor");
+    } finally {
+      setTyping(false);
+      setDoctorsLoading(false);
+    }
+  }
+
+  /** Confirm the booking summary: forward the picked slot (plus identity, when
+   *  given) as the same slot-selection message the flow always sent, so the AI
+   *  keeps collecting whatever details it still needs. */
+  function confirmDraft(): void {
+    if (!draft) return;
+    const parts = [`I'd like the ${formatSlotTime(draft.startTime)} slot`];
+    const name = draftName.trim();
+    if (draftForOther) parts.push(name ? `It's for a family member. Their name is ${name}` : "It's for a family member, not me");
+    else if (name) parts.push(`My name is ${name}`);
+    void send(`${parts.join(". ")}.`);
+  }
 
   function onSubmit(e: FormEvent<HTMLFormElement>): void {
     e.preventDefault();
@@ -593,53 +748,92 @@ export function WidgetChat(props: WidgetProps) {
             aria-live="polite"
           >
             {messages.length === 0 && !pending && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                <p style={{ fontSize: "14px", color: "#6B7280", lineHeight: 1.5 }}>
-                  {greeting}
-                </p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                  {["What services do you offer?", "I'd like to book an appointment", "Browse available dates"].map(
-                    (s) => (
-                      <button
-                        key={s}
-                        onClick={() => {
-                          if (s === "Browse available dates") {
-                            setShowDatePicker(true);
-                          } else {
-                            void send(s);
-                          }
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = lightenHex(widgetColor, 0.85);
-                          e.currentTarget.style.borderColor = widgetColor;
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = lightenHex(widgetColor, 0.95);
-                          e.currentTarget.style.borderColor = lightenHex(widgetColor, 0.6);
-                        }}
-                        style={{
-                          fontSize: "13px",
-                          padding: "6px 12px",
-                          borderRadius: "999px",
-                          border: `1px solid ${lightenHex(widgetColor, 0.6)}`,
-                          background: lightenHex(widgetColor, 0.95),
-                          color: widgetColor,
-                          cursor: "pointer",
-                          whiteSpace: "nowrap",
-                          transition: "background 0.15s ease, border-color 0.15s ease",
-                        }}
-                      >
-                        {s}
-                      </button>
-                    ),
-                  )}
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "10px",
+                    padding: "12px 14px",
+                    borderRadius: "12px",
+                    border: `1px solid ${lightenHex(widgetColor, 0.6)}`,
+                    background: lightenHex(widgetColor, 0.96),
+                  }}
+                >
+                  <span style={{ fontSize: "20px", lineHeight: 1.4 }} aria-hidden>
+                    👋
+                  </span>
+                  <p style={{ fontSize: "14px", color: "#374151", lineHeight: 1.55, margin: 0 }}>
+                    {greeting}
+                  </p>
+                </div>
+
+                {/* Quick actions — trigger AI intents or widget shortcuts */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                    gap: "8px",
+                  }}
+                  aria-label="Quick actions"
+                >
+                  {QUICK_ACTIONS.map((action) => (
+                    <button
+                      key={action.label}
+                      disabled={doctorsLoading}
+                      onClick={() => {
+                        if (action.action === "doctors") void openDoctors();
+                        else if (action.action === "dates") {
+                          setDraft(null);
+                          setShowDatePicker(true);
+                        } else if (action.text) void send(action.text);
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = widgetColor;
+                        e.currentTarget.style.background = lightenHex(widgetColor, 0.93);
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = lightenHex(widgetColor, 0.5);
+                        e.currentTarget.style.background = "#ffffff";
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "10px 12px",
+                        borderRadius: "12px",
+                        border: `1.5px solid ${lightenHex(widgetColor, 0.5)}`,
+                        background: "#ffffff",
+                        color: "#111827",
+                        cursor: doctorsLoading ? "wait" : "pointer",
+                        textAlign: "left",
+                        fontSize: "13px",
+                        fontWeight: 500,
+                        lineHeight: 1.3,
+                        fontFamily: "inherit",
+                        transition: "border-color 0.15s ease, background 0.15s ease",
+                      }}
+                    >
+                      <span style={{ fontSize: "16px", flexShrink: 0 }} aria-hidden>
+                        {action.icon}
+                      </span>
+                      <span style={{ minWidth: 0 }}>{action.label}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
 
-            {messages.filter((msg) => !msg.hidden).map((msg, i) => (
+            {messages.filter((msg) => !msg.hidden).map((msg, i) => {
+              // Emoji-numbered lines in an AI reply become tappable chips
+              // (concerns, alternatives, times) instead of plain text.
+              const parsed =
+                msg.role === "assistant" && msg.text ? parseOptionChips(msg.text) : null;
+              const bubbleText = parsed ? parsed.body : msg.text;
+              const chips = parsed?.options ?? [];
+              return (
               <div key={i}>
-                {msg.text ? (
+                {bubbleText ? (
                 <div
                   style={{
                     display: "flex",
@@ -666,70 +860,136 @@ export function WidgetChat(props: WidgetProps) {
                           }),
                     }}
                   >
-                    {stripMarkdown(msg.text)}
+                    {stripMarkdown(bubbleText)}
                   </div>
                 </div>
                 ) : null}
 
-                {/* Slot cards — sourced from component, not text */}
-                {msg.component?.type === "slotList" && (msg.component.data as WidgetSlotItem[]).length > 0 && (
+                {/* Option chips parsed from the AI's emoji-numbered choices */}
+                {chips.length > 0 && (
                   <div
                     style={{
                       display: "flex",
                       flexWrap: "wrap",
-                      gap: "8px",
-                      marginTop: "8px",
-                      paddingLeft: msg.role === "user" ? "0" : "4px",
-                      justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
+                      gap: "6px",
+                      marginTop: "6px",
+                      paddingLeft: "4px",
                     }}
                   >
-                    {(msg.component.data as WidgetSlotItem[]).map((slot, j) => (
+                    {chips.map((option, j) => (
                       <button
-                        key={j}
-                        onClick={() => {
-                          slotChosenRef.current = true;
-                          void send(`I'd like the ${formatSlotTime(slot.startTime)} slot`);
-                        }}
+                        key={`${j}-${option}`}
+                        onClick={() => void send(option)}
+                        disabled={pending}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.background = lightenHex(widgetColor, 0.95);
-                          e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.08)";
+                          e.currentTarget.style.background = lightenHex(widgetColor, 0.85);
                         }}
                         onMouseLeave={(e) => {
-                          e.currentTarget.style.background = "#ffffff";
-                          e.currentTarget.style.boxShadow = "none";
+                          e.currentTarget.style.background = lightenHex(widgetColor, 0.95);
                         }}
                         style={{
                           fontSize: "13px",
-                          padding: "8px 14px",
-                          borderRadius: "10px",
-                          border: `1.5px solid ${widgetColor}`,
-                          background: "#ffffff",
+                          padding: "6px 12px",
+                          borderRadius: "999px",
+                          border: `1px solid ${lightenHex(widgetColor, 0.55)}`,
+                          background: lightenHex(widgetColor, 0.95),
                           color: widgetColor,
-                          cursor: "pointer",
-                          textAlign: "center",
+                          cursor: pending ? "not-allowed" : "pointer",
+                          fontFamily: "inherit",
                           lineHeight: 1.4,
-                          minWidth: "100px",
-                          transition: "background 0.15s ease, box-shadow 0.15s ease",
+                          transition: "background 0.15s ease",
                         }}
                       >
-                        <div style={{ fontWeight: 600 }}>{formatSlotTime(slot.startTime)}</div>
-                        {slot.startTime !== slot.endTime && (
-                          <div style={{ fontSize: "11px", opacity: 0.7 }}>
-                            to {formatSlotTime(slot.endTime)}
-                          </div>
-                        )}
+                        {option}
                       </button>
                     ))}
                   </div>
                 )}
 
-                {/* Service cards — sourced from component, not text */}
+                {/* Slot cards — grouped morning / afternoon / evening, max 6 */}
+                {msg.component?.type === "slotList" && (msg.component.data as WidgetSlotItem[]).length > 0 && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "10px",
+                      marginTop: "8px",
+                      paddingLeft: msg.role === "user" ? "0" : "4px",
+                    }}
+                  >
+                    {groupSlots((msg.component.data as WidgetSlotItem[]).slice(0, 6)).map((group) => (
+                      <div
+                        key={group.label}
+                        style={{ display: "flex", flexDirection: "column", gap: "6px" }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            fontWeight: 600,
+                            color: "#6B7280",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.04em",
+                          }}
+                        >
+                          {group.emoji} {group.label}
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                          {group.slots.map((slot, j) => (
+                            <button
+                              key={j}
+                              onClick={() => {
+                                // Open the booking summary instead of sending —
+                                // the patient confirms (with optional name /
+                                // identity) before anything reaches the AI.
+                                setShowDatePicker(false);
+                                setDraftName("");
+                                setDraftForOther(false);
+                                setDraft({ startTime: slot.startTime, endTime: slot.endTime });
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = lightenHex(widgetColor, 0.95);
+                                e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.08)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = "#ffffff";
+                                e.currentTarget.style.boxShadow = "none";
+                              }}
+                              style={{
+                                fontSize: "13px",
+                                padding: "8px 14px",
+                                borderRadius: "10px",
+                                border: `1.5px solid ${widgetColor}`,
+                                background: "#ffffff",
+                                color: widgetColor,
+                                cursor: "pointer",
+                                textAlign: "center",
+                                lineHeight: 1.4,
+                                minWidth: "100px",
+                                fontFamily: "inherit",
+                                transition: "background 0.15s ease, box-shadow 0.15s ease",
+                              }}
+                            >
+                              <div style={{ fontWeight: 600 }}>{formatSlotTime(slot.startTime)}</div>
+                              {slot.startTime !== slot.endTime && (
+                                <div style={{ fontSize: "11px", opacity: 0.7 }}>
+                                  to {formatSlotTime(slot.endTime)}
+                                </div>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Service cards — name, benefit, duration, price + booking CTA */}
                 {msg.component?.type === "serviceList" && (msg.component.data as WidgetServiceItem[]).length > 0 && (
                   <div
                     style={{
                       display: "flex",
                       flexDirection: "column",
-                      gap: "6px",
+                      gap: "8px",
                       marginTop: "8px",
                       paddingLeft: msg.role === "user" ? "0" : "4px",
                       maxWidth: "85%",
@@ -740,79 +1000,115 @@ export function WidgetChat(props: WidgetProps) {
                         key={svc.id}
                         onClick={() => {
                           serviceChosenRef.current = true;
+                          setSelectedService(svc.name);
                           void send(`I'd like to book "${svc.name}"`);
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.borderColor = widgetColor;
-                          e.currentTarget.style.background = lightenHex(widgetColor, 0.97);
+                          e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.06)";
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.borderColor = lightenHex(widgetColor, 0.4);
-                          e.currentTarget.style.background = "#ffffff";
+                          e.currentTarget.style.boxShadow = "none";
                         }}
                         style={{
                           display: "flex",
-                          alignItems: "center",
-                          gap: "12px",
-                          padding: "10px 14px",
-                          borderRadius: "10px",
+                          flexDirection: "column",
+                          gap: "6px",
+                          padding: "12px 14px",
+                          borderRadius: "12px",
                           border: `1.5px solid ${lightenHex(widgetColor, 0.4)}`,
                           background: "#ffffff",
                           cursor: "pointer",
                           textAlign: "left",
                           width: "100%",
-                          transition: "border-color 0.15s ease, background 0.15s ease",
+                          fontFamily: "inherit",
+                          transition: "border-color 0.15s ease, box-shadow 0.15s ease",
                         }}
                       >
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div
-                            style={{
-                              fontWeight: 600,
-                              fontSize: "13px",
-                              color: "#111827",
-                              lineHeight: 1.3,
-                            }}
-                          >
-                            {svc.name}
-                          </div>
-                          {svc.description && (
-                            <div
-                              style={{
-                                fontSize: "12px",
-                                color: "#6B7280",
-                                lineHeight: 1.3,
-                                marginTop: "2px",
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                              }}
-                            >
-                              {svc.description}
-                            </div>
-                          )}
-                          <div
-                            style={{
-                              fontSize: "11px",
-                              color: "#9CA3AF",
-                              marginTop: "3px",
-                            }}
-                          >
-                            {formatDuration(svc.durationMinutes)}
-                          </div>
+                        <div style={{ fontWeight: 600, fontSize: "14px", color: "#111827", lineHeight: 1.3 }}>
+                          {svc.name}
                         </div>
+                        {svc.description && (
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              color: "#6B7280",
+                              lineHeight: 1.4,
+                              display: "-webkit-box",
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: "vertical",
+                              overflow: "hidden",
+                            }}
+                          >
+                            {svc.description}
+                          </div>
+                        )}
                         <div
                           style={{
-                            fontWeight: 600,
-                            fontSize: "14px",
-                            color: widgetColor,
-                            whiteSpace: "nowrap",
-                            flexShrink: 0,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "8px",
+                            marginTop: "2px",
                           }}
                         >
-                          {formatPrice(svc.price)}
+                          <span style={{ fontSize: "11px", color: "#9CA3AF" }}>
+                            ⏱ {formatDuration(svc.durationMinutes)}
+                          </span>
+                          <span style={{ fontWeight: 600, fontSize: "14px", color: widgetColor }}>
+                            {formatPrice(svc.price)}
+                          </span>
                         </div>
+                        <span
+                          style={{
+                            display: "block",
+                            marginTop: "4px",
+                            padding: "8px 12px",
+                            borderRadius: "8px",
+                            background: widgetColor,
+                            color: "#ffffff",
+                            fontSize: "13px",
+                            fontWeight: 600,
+                            textAlign: "center",
+                            lineHeight: 1.3,
+                          }}
+                        >
+                          Book Consultation
+                        </span>
                       </button>
                     ))}
+                    {/* Concern-based recommendation: skip the list, ask the AI */}
+                    <button
+                      onClick={() =>
+                        void send(
+                          "I'm not sure which service I need — can you recommend one based on my concern?",
+                        )
+                      }
+                      disabled={pending}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = lightenHex(widgetColor, 0.95);
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "transparent";
+                      }}
+                      style={{
+                        marginTop: "2px",
+                        padding: "6px 10px",
+                        borderRadius: "8px",
+                        border: "none",
+                        background: "transparent",
+                        color: widgetColor,
+                        fontSize: "12px",
+                        fontWeight: 500,
+                        cursor: pending ? "not-allowed" : "pointer",
+                        fontFamily: "inherit",
+                        textAlign: "center",
+                        transition: "background 0.15s ease",
+                      }}
+                    >
+                      🤔 Not sure which one? Get a personal recommendation
+                    </button>
                   </div>
                 )}
 
@@ -876,12 +1172,166 @@ export function WidgetChat(props: WidgetProps) {
                           <strong>Service:</strong> {booking.serviceName}
                         </div>
                       )}
+                      <div>
+                        <strong>Clinic:</strong> {clinicName}
+                      </div>
+                      <div style={{ color: "#6B7280", fontSize: "12px", marginTop: "2px" }}>
+                        Appointment ID: {booking.id.slice(0, 8)}
+                      </div>
+                    </div>
+                    {/* Post-booking actions — plain intents the AI already handles
+                        via the injected appointment context. */}
+                    <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
+                      <button
+                        onClick={() => void send("I'd like to reschedule my appointment")}
+                        disabled={pending}
+                        style={{
+                          flex: 1,
+                          padding: "7px 10px",
+                          borderRadius: "8px",
+                          border: `1.5px solid ${lightenHex(widgetColor, 0.5)}`,
+                          background: "#ffffff",
+                          color: widgetColor,
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          cursor: pending ? "not-allowed" : "pointer",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        🔁 Reschedule
+                      </button>
+                      <button
+                        onClick={() => void send("I'd like to cancel my appointment")}
+                        disabled={pending}
+                        style={{
+                          flex: 1,
+                          padding: "7px 10px",
+                          borderRadius: "8px",
+                          border: "1.5px solid #FECACA",
+                          background: "#ffffff",
+                          color: "#DC2626",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          cursor: pending ? "not-allowed" : "pointer",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        🗑 Cancel
+                      </button>
                     </div>
                   </div>
                   );
                 })()}
+
+                {/* Doctor cards — assembled locally from the directory endpoint */}
+                {msg.component?.type === "doctorList" && (msg.component.data as WidgetDoctorItem[]).length > 0 && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "8px",
+                      marginTop: "8px",
+                      paddingLeft: "4px",
+                      maxWidth: "90%",
+                    }}
+                  >
+                    {(msg.component.data as WidgetDoctorItem[]).map((doc) => (
+                      <div
+                        key={doc.id}
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "6px",
+                          padding: "12px 14px",
+                          borderRadius: "12px",
+                          border: `1.5px solid ${lightenHex(widgetColor, 0.4)}`,
+                          background: "#ffffff",
+                          boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ fontSize: "18px" }} aria-hidden>
+                            👨‍⚕️
+                          </span>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, fontSize: "14px", color: "#111827" }}>
+                              {doc.name}
+                            </div>
+                            <div style={{ fontSize: "12px", color: widgetColor, fontWeight: 500 }}>
+                              {doc.specialty || "Doctor"}
+                              {doc.qualification ? ` · ${doc.qualification}` : ""}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: "12px", color: "#6B7280" }}>
+                          {doc.yearsOfExperience != null && doc.yearsOfExperience > 0
+                            ? `${doc.yearsOfExperience} years experience`
+                            : "Experienced specialist"}
+                          {doc.consultationFee != null ? ` · ${formatPrice(doc.consultationFee)}` : ""}
+                        </div>
+                        {doc.about && (
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              color: "#6B7280",
+                              lineHeight: 1.4,
+                              display: "-webkit-box",
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: "vertical",
+                              overflow: "hidden",
+                            }}
+                          >
+                            {doc.about}
+                          </div>
+                        )}
+                        <div style={{ display: "flex", gap: "8px", marginTop: "2px" }}>
+                          <button
+                            onClick={() => void send(`Show me available times for ${doc.name}`)}
+                            disabled={pending}
+                            style={{
+                              flex: 1,
+                              padding: "7px 10px",
+                              borderRadius: "8px",
+                              border: `1.5px solid ${widgetColor}`,
+                              background: "#ffffff",
+                              color: widgetColor,
+                              fontSize: "12px",
+                              fontWeight: 600,
+                              cursor: pending ? "not-allowed" : "pointer",
+                              fontFamily: "inherit",
+                            }}
+                          >
+                            📅 View Slots
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedService(null);
+                              void send(`I'd like to book an appointment with ${doc.name}`);
+                            }}
+                            disabled={pending}
+                            style={{
+                              flex: 1,
+                              padding: "7px 10px",
+                              borderRadius: "8px",
+                              border: "none",
+                              background: widgetColor,
+                              color: "#ffffff",
+                              fontSize: "12px",
+                              fontWeight: 600,
+                              cursor: pending ? "not-allowed" : "pointer",
+                              fontFamily: "inherit",
+                            }}
+                          >
+                            🩺 Book
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            ))}
+              );
+            })}
 
             {/* Typing indicator */}
             {typing && (
@@ -909,14 +1359,48 @@ export function WidgetChat(props: WidgetProps) {
               </div>
             )}
 
-            {/* Error */}
+            {/* Error — friendly card with a one-tap retry */}
             {error && (
-              <p
+              <div
                 role="alert"
-                style={{ fontSize: "13px", color: "#DC2626", textAlign: "center" }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "10px 12px",
+                  borderRadius: "10px",
+                  border: "1px solid #FECACA",
+                  background: "#FEF2F2",
+                  fontSize: "13px",
+                  color: "#B91C1C",
+                  lineHeight: 1.4,
+                }}
               >
-                {error}
-              </p>
+                <span style={{ fontSize: "15px", flexShrink: 0 }} aria-hidden>
+                  ⚠️
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>{error}</span>
+                {retryText && (
+                  <button
+                    onClick={retryLast}
+                    disabled={pending}
+                    style={{
+                      padding: "5px 12px",
+                      borderRadius: "999px",
+                      border: "1px solid #FECACA",
+                      background: "#ffffff",
+                      color: "#B91C1C",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      cursor: pending ? "not-allowed" : "pointer",
+                      fontFamily: "inherit",
+                      flexShrink: 0,
+                    }}
+                  >
+                    Try again
+                  </button>
+                )}
+              </div>
             )}
 
           </div>
@@ -1129,6 +1613,166 @@ export function WidgetChat(props: WidgetProps) {
             </div>
           )}
 
+          {/* Booking summary — review & confirm before the slot reaches the AI */}
+          {draft && (
+            <div
+              style={{
+                padding: "10px 12px",
+                borderTop: "1px solid #F3F4F6",
+                background: lightenHex(widgetColor, 0.97),
+                flexShrink: 0,
+              }}
+              role="group"
+              aria-label="Booking summary"
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: "8px",
+                }}
+              >
+                <span style={{ fontSize: "12px", fontWeight: 600, color: "#374151" }}>
+                  📋 Booking summary
+                </span>
+                <button
+                  onClick={() => {
+                    setDraft(null);
+                    setDraftName("");
+                    setDraftForOther(false);
+                  }}
+                  aria-label="Close booking summary"
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: "2px",
+                    cursor: "pointer",
+                    color: "#9CA3AF",
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div style={{ fontSize: "13px", color: "#374151", lineHeight: 1.7 }}>
+                {selectedService && (
+                  <div>
+                    <strong>Service:</strong> {selectedService}
+                  </div>
+                )}
+                <div>
+                  <strong>Date:</strong> {formatSlotDate(draft.startTime)}
+                </div>
+                <div>
+                  <strong>Time:</strong> {formatSlotTime(draft.startTime)} – {formatSlotTime(draft.endTime)}
+                </div>
+              </div>
+
+              <input
+                type="text"
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    confirmDraft();
+                  }
+                }}
+                placeholder={draftForOther ? "Patient's full name (optional)" : "Your full name (optional)"}
+                aria-label="Patient name"
+                maxLength={120}
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  marginTop: "8px",
+                  padding: "7px 10px",
+                  borderRadius: "8px",
+                  border: "1px solid #D1D5DB",
+                  fontSize: "13px",
+                  fontFamily: "inherit",
+                  color: "#111827",
+                  background: "#ffffff",
+                  outline: "none",
+                }}
+              />
+
+              {/* Patient identity — never assume the account owner is the patient */}
+              <div style={{ display: "flex", gap: "6px", marginTop: "8px" }}>
+                {[
+                  { key: false, label: "For me" },
+                  { key: true, label: "For someone else" },
+                ].map((option) => (
+                  <button
+                    key={String(option.key)}
+                    onClick={() => setDraftForOther(option.key)}
+                    style={{
+                      padding: "5px 10px",
+                      borderRadius: "999px",
+                      border: `1.5px solid ${draftForOther === option.key ? widgetColor : "#D1D5DB"}`,
+                      background: draftForOther === option.key ? lightenHex(widgetColor, 0.9) : "#ffffff",
+                      color: draftForOther === option.key ? widgetColor : "#6B7280",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
+                <button
+                  onClick={confirmDraft}
+                  disabled={pending}
+                  style={{
+                    flex: 1,
+                    padding: "9px 10px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: widgetColor,
+                    color: "#ffffff",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    cursor: pending ? "not-allowed" : "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  ✅ Confirm Booking
+                </button>
+                <button
+                  onClick={() => {
+                    setDraft(null);
+                    setDraftName("");
+                    setDraftForOther(false);
+                  }}
+                  disabled={pending}
+                  style={{
+                    flex: 1,
+                    padding: "9px 10px",
+                    borderRadius: "8px",
+                    border: `1.5px solid ${lightenHex(widgetColor, 0.5)}`,
+                    background: "#ffffff",
+                    color: widgetColor,
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    cursor: pending ? "not-allowed" : "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  ✏️ Change Details
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Input */}
           <form
             onSubmit={onSubmit}
@@ -1165,7 +1809,12 @@ export function WidgetChat(props: WidgetProps) {
             />
             <button
               type="button"
-              onClick={() => setShowDatePicker((prev) => !prev)}
+              onClick={() => {
+                setShowDatePicker((prev) => {
+                  if (!prev) setDraft(null);
+                  return !prev;
+                });
+              }}
               aria-label={showDatePicker ? "Hide date picker" : "Show date picker"}
               title="Browse dates"
               style={{
