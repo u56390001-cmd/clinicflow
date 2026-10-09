@@ -1,0 +1,61 @@
+========================================================================================================================
+[ MAIN HERO CONTAINER ]
+Max-Width: 1280px | Min-Height: 680px | Padding: Top 20px, Bottom 60px, Left/Right 32px
+Background: Linear Gradient (#F4F8FA 0%, #FFFFFF 100%) or Clean White (#FFFFFF)
+========================================================================================================================
+
+|======================================================================================================================|
+|  1. NAVIGATION BAR CONTAINER [ Width: 100% | Height: 72px | Margin-Bottom: 40px | Flex Row: Space-Between ]         |
+|                                                                                                                      |
+|  +------------------------+                                                     +---------------------------------+  |
+|  | LOGO AREA              | ..................................................  | NAV LINKS & CTA BUTTON          |  |
+|  | Width: 180px           |                                                     | Gap: 32px                       |  |
+|  | Height: 40px           |                                                     | [Home] [About] [Services] [CTA] |  |
+|  +------------------------+                                                     +---------------------------------+  |
+|======================================================================================================================|
+|                                                                                                                      |
+|  2. HERO MAIN GRID CONTAINER [ Display: Grid / Flex | Gap: 48px | Align-Items: Center ]                              |
+|                                                                                                                      |
+|  +----------------------------------------------------+  +----------------------------------------------------+  |
+|  | LEFT COLUMN: TEXT & CTA CONTENT                    |  | RIGHT COLUMN: HERO IMAGE & BADGES CANVAS           |  |
+|  | Width: 52% (~620px) | Flex Direction: Column     |  | Width: 48% (~560px) | Position: Relative           |  |
+|  |                                                    |  | Height: 520px                                      |  |
+|  | [1. TOP RATING BADGE]                              |  |                                                    |  |
+|  | Width: Auto (Fit-content) | Height: 36px           |  |   [FLOATING BADGE 1: TOP-LEFT]                     |  |
+|  | Padding: 6px 16px | Radius: 50px | Font: 13px      |  |   Position: Absolute | Top: 40px | Left: -15px     |  |
+|  | Content: "⭐ Top Rated Clinic in Karachi"          |  |   Width: 190px | Height: 54px | Radius: 16px       |  |
+|  | Margin-Bottom: 20px                              |  |   Shadow: 0 10px 25px rgba(0,0,0,0.08)             |  |
+|  |                                                    |  |   Content: [ 🩺 870+ Expert Doctors ]              |  |
+|  | [2. MAIN HEADLINE (H1)]                            |  |                                                    |  |
+|  | Font-Size: 52px | Line-Height: 1.15 | Weight: 800  |  |   +--------------------------------------------+   |  |
+|  | Color: #0F172A (Dark Slate)                        |  |   | BACKGROUND DECORATIVE BACKDROP CANVAS      |   |  |
+|  | Text: "Your Partner in Health & Complete Wellness" |  |   | Width: 440px | Height: 440px | Radius: 50%  |   |  |
+|  | Margin-Bottom: 20px                              |  |   | Background: Radial Gradient (#E0F2FE 0%)   |   |  |
+|  |                                                    |  |   | Margin: Auto (Centered in Right Col)       |   |  |
+|  | [3. SUBHEADLINE DESCRIPTION]                       |  |   |                                            |   |  |
+|  | Font-Size: 18px | Line-Height: 1.6 | Weight: 400   |  |   |   +------------------------------------+   |   |  |
+|  | Color: #475569 | Max-Width: 520px                   |  |   |   | TRANSPARENT DOCTOR PNG IMAGE       |   |   |  |
+|  | Text: "Book top certified specialists online..."   |  |   |   | Width: 420px | Height: Auto (500px)|   |   |  |
+|  | Margin-Bottom: 32px                              |  |   |   | Position: Relative | Z-Index: 2      |   |   |  |
+|  |                                                    |  |   |   |                                    |   |   |  |
+|  | [4. CTA BUTTON GROUP] (Flex Row | Gap: 16px)       |  |   |   | * CSS Mask Edge Fade Effect *      |   |   |  |
+|  | +----------------------+  +---------------------+  |  |   |   | (Bottom 18% fades smooth to trans) |   |   |  |
+|  | | Primary CTA Button   |  | Secondary CTA       |  |  |   |   +------------------------------------+   |   |  |
+|  | | Width: 180px x 54px  |  | Width: 160px x 54px |  |  |   +--------------------------------------------+   |  |
+|  | | Radius: 12px         |  | Radius: 12px        |  |  |                                                    |  |
+|  | | Text: [ Book Now → ] |  | Text: [▶ Watch ]    |  |  |   [FLOATING BADGE 2: BOTTOM-RIGHT]                 |  |
+|  | +----------------------+  +---------------------+  |  |   Position: Absolute | Bottom: 30px | Right: 10px |  |
+|  | Margin-Bottom: 40px                              |  |   Width: 210px | Height: 60px | Radius: 16px       |  |
+|  |                                                    |  |   Shadow: 0 10px 25px rgba(0,0,0,0.08)             |  |
+|  | [5. TRUST STATS STRIP]                             |  |   Content: [ ⭐ 150K+ Patients Recovered ]         |  |
+|  | Avatars (32px each) + "150K+ Happy Patients"       |  |                                                    |  |
+|  +----------------------------------------------------+  +----------------------------------------------------+  |
+|                                                                                                                      |
+|======================================================================================================================|
+|  3. BOTTOM INTEGRATED QUICK APPOINTMENT WIDGET                                                                       |
+|  Width: 100% | Height: 96px | Margin-Top: 24px | Radius: 20px | Background: #FFFFFF | Border: 1px solid #E2E8F0      |
+|  Box-Shadow: 0 20px 40px -15px rgba(0,0,0,0.07) | Z-Index: 10 (Overlaps section bottom border)                         |
+|                                                                                                                      |
+|  [ 📅 Select Date ]   |   [ 🩺 Specialization ∇ ]   |   [ 📍 Location / Clinic ∇ ]   |   [ 🔍 Search Doctor CTA ] |
+|  Width: 22%          |   Width: 25%                |   Width: 25%                   |   Width: 20% (Primary Color)|
+|======================================================================================================================|

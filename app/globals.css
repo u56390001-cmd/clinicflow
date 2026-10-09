@@ -237,10 +237,13 @@
 
   /* --- Layout switches ------------------------------------------------------- */
 
+  /* Both columns share the section's full height so the figure in the right
+     column can rest on the bottom edge instead of floating in the middle: the
+     copy column re-centres its own content, the image column bottom-aligns. */
   .site-hero {
     display: grid;
     gap: 2.5rem;
-    align-items: center;
+    align-items: stretch;
   }
 
   .site-about-grid {

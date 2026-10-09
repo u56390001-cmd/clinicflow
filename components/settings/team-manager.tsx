@@ -30,12 +30,21 @@ import {
 } from "@/lib/actions/team";
 import type { ActionResult } from "@/types";
 import type { ClinicRole } from "@/types/database";
+import { ROLE_LABELS } from "@/lib/auth/rbac-config";
 
-const ROLE_LABELS: Record<ClinicRole, string> = {
-  owner: "Owner",
-  admin: "Admin",
-  staff: "Staff",
-};
+const ASSIGNABLE_ROLES: ClinicRole[] = [
+  "clinic_admin",
+  "admin",
+  "doctor",
+  "receptionist",
+  "nurse",
+  "accountant",
+  "staff",
+];
+
+function isAdminRole(role: ClinicRole): boolean {
+  return role === "owner" || role === "admin" || role === "clinic_admin";
+}
 
 type TeamData = {
   members: TeamMemberView[];
@@ -91,7 +100,7 @@ export function TeamManager({ viewerRole }: { viewerRole: ClinicRole }) {
 
   return (
     <div className="space-y-6">
-      {isAdmin ? <InviteForm onInvited={load} /> : null}
+      {isAdmin ? <InviteForm viewerRole={data.viewerRole} onInvited={load} /> : null}
 
       <Card>
         <CardHeader>
@@ -147,15 +156,19 @@ function MemberRow({
   const [error, setError] = useState<string | null>(null);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
 
-  const canManage = viewerRole === "owner" || viewerRole === "admin";
+  const viewerIsOwner = viewerRole === "owner";
+  const canManage = isAdminRole(viewerRole);
   const targetIsOwner = member.role === "owner";
   // Admins can't manage owners; nobody edits the last owner; only the owner
   // may see or grant the owner role. (The server re-checks all of this.)
   const roleEditable =
-    canManage && !isOnlyOwner && !(viewerRole === "admin" && targetIsOwner);
-  const roleOptions: ClinicRole[] =
-    viewerRole === "owner" ? ["owner", "admin", "staff"] : ["admin", "staff"];
-  const removable = canManage && !isOnlyOwner && !(viewerRole === "admin" && targetIsOwner);
+    canManage && !isOnlyOwner && !(!viewerIsOwner && targetIsOwner);
+  const roleOptions: ClinicRole[] = viewerIsOwner
+    ? ["owner", ...ASSIGNABLE_ROLES]
+    : ASSIGNABLE_ROLES.filter(
+        (role) => role !== "admin" && role !== "clinic_admin",
+      );
+  const removable = canManage && !isOnlyOwner && !(!viewerIsOwner && targetIsOwner);
 
   const changeRole = (role: string) => {
     setError(null);
@@ -256,7 +269,13 @@ function MemberRow({
   );
 }
 
-function InviteForm({ onInvited }: { onInvited: () => void }) {
+function InviteForm({
+  viewerRole,
+  onInvited,
+}: {
+  viewerRole: ClinicRole;
+  onInvited: () => void;
+}) {
   const [state, formAction] = useActionState<ActionResult<string> | null, FormData>(
     inviteTeamMemberAction,
     null,
@@ -307,16 +326,24 @@ function InviteForm({ onInvited }: { onInvited: () => void }) {
             <div className="space-y-2">
               <Label htmlFor="invite-role">Role</Label>
               <NativeSelect id="invite-role" name="role" defaultValue="staff">
-                <option value="staff">Staff</option>
-                <option value="admin">Admin</option>
+                {ASSIGNABLE_ROLES.filter(
+                  (role) =>
+                    viewerRole === "owner" ||
+                    (role !== "admin" && role !== "clinic_admin"),
+                ).map((role) => (
+                  <option key={role} value={role}>
+                    {ROLE_LABELS[role]}
+                  </option>
+                ))}
               </NativeSelect>
             </div>
             <SubmitButton>Send invite</SubmitButton>
           </div>
 
           <p className="text-xs text-text-muted">
-            Staff manage appointments and patients. Admins also manage services,
-            availability, AI settings, and the website. Only you can manage owners.
+            Staff, doctors and receptionists work the clinical floor. Admins also
+            manage services, availability, AI settings, and the website. Only you
+            can manage owners.
           </p>
         </form>
       </CardContent>

@@ -33,8 +33,13 @@ import { useHoverTip, type TipHandlers } from "@/components/ui/hover-tip";
 import { useMobileNav } from "@/components/app/mobile-nav-context";
 import { usePersistedBoolean } from "@/hooks/use-persisted-boolean";
 import { logoutAction } from "@/lib/actions/auth";
-import { APP_NAV_SECTIONS, APP_ROUTES } from "@/lib/constants";
+import { APP_ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+
+export type NavSection = {
+  label: string;
+  items: ReadonlyArray<{ label: string; href: string }>;
+};
 
 /** Remembered across sessions — see `usePersistedBoolean`. */
 const SIDEBAR_COLLAPSED_KEY = "medbook-app-sidebar-collapsed";
@@ -79,10 +84,12 @@ function SidebarHeader() {
 }
 
 function SidebarNav({
+  sections,
   pathname,
   collapsed,
   tipProps,
 }: {
+  sections: readonly NavSection[];
   pathname: string;
   collapsed: boolean;
   tipProps: ShowTip;
@@ -95,7 +102,7 @@ function SidebarNav({
       {/* Sections collapse into one run of icons, so the dividers below carry
           the grouping the section labels carry when expanded. */}
       <div className={collapsed ? "space-y-1" : "space-y-6"}>
-        {APP_NAV_SECTIONS.map((section, sectionIndex) => (
+        {sections.map((section, sectionIndex) => (
           <div key={section.label}>
             {collapsed ? (
               sectionIndex > 0 ? (
@@ -184,7 +191,13 @@ function SidebarFooter({
   );
 }
 
-export function AppSidebarShell({ userEmail }: { userEmail: string | null }) {
+export function AppSidebarShell({
+  userEmail,
+  sections,
+}: {
+  userEmail: string | null;
+  sections: readonly NavSection[];
+}) {
   const { open } = useMobileNav();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = usePersistedBoolean(
@@ -224,6 +237,7 @@ export function AppSidebarShell({ userEmail }: { userEmail: string | null }) {
           {/* The drawer stays full width: collapsing is a desktop concern, and
               a phone has no rail to save. */}
           <SidebarNav
+            sections={sections}
             pathname={pathname}
             collapsed={false}
             tipProps={tipProps}
@@ -243,7 +257,12 @@ export function AppSidebarShell({ userEmail }: { userEmail: string | null }) {
           collapsed ? "w-[72px]" : "w-64",
         )}
       >
-        <SidebarNav pathname={pathname} collapsed={collapsed} tipProps={tipProps} />
+        <SidebarNav
+          sections={sections}
+          pathname={pathname}
+          collapsed={collapsed}
+          tipProps={tipProps}
+        />
 
         <div className="shrink-0 border-t border-text-muted/30 p-2">
           <button

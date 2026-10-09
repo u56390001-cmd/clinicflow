@@ -152,8 +152,16 @@ export function HeroBody({
   // would be a value the clinic has to type twice.
   const specialty = specialtyLine(context.doctors);
 
+  /* `flex flex-col justify-center` because the hero grid now stretches both
+     columns to the section's full height (so the figure can reach the bottom
+     edge) — this column re-centres its own copy inside that taller box. */
   return (
-    <div className={cn(centered && "mx-auto max-w-3xl text-center")}>
+    <div
+      className={cn(
+        "flex flex-col justify-center",
+        centered && "mx-auto max-w-3xl text-center",
+      )}
+    >
       {specialty ? (
         <p
           className={cn(

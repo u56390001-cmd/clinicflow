@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { logoutAction } from "@/lib/actions/auth";
+import { ROLE_LABELS } from "@/lib/auth/rbac-config";
 import { APP_ROUTES } from "@/lib/constants";
 import {
   clearDeferredPrompt,
@@ -39,11 +40,7 @@ type Notice = {
   message: string;
 };
 
-const ROLE_BADGE_LABELS: Record<ClinicRole, string> = {
-  owner: "Owner",
-  admin: "Admin",
-  staff: "Staff",
-};
+const ROLE_BADGE_LABELS = ROLE_LABELS;
 
 function initialsOf(name: string | null, email: string | null): string {
   const source = name?.trim() || email?.trim() || "?";

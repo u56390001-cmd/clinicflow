@@ -227,12 +227,12 @@ export function WebsiteLayout({
                     a texture behind the words. */}
                 <div
                   aria-hidden="true"
-                  className="pointer-events-none absolute inset-x-0 top-0 h-[26rem]"
+                  className="pointer-events-none absolute inset-0"
                   style={{
-                    background: `linear-gradient(to bottom, ${theme.primaryColor}14, transparent)`,
+                    background: `linear-gradient(to bottom, ${theme.primaryColor}14, transparent 72%)`,
                   }}
                 />
-                <div className="site-hero relative mx-auto max-w-6xl">
+                <div className="site-hero relative mx-auto w-full max-w-6xl lg:min-h-[min(85vh,50rem)]">
                   <HeroBody config={config} context={context} theme={theme} />
                   <HeroAside config={config} context={context} theme={theme} />
                 </div>
@@ -405,9 +405,17 @@ function renderBody(
  *
  * The image has no box: no background, no border, no rounding. It is meant to
  * be a figure cut out on transparent background (PNG/WebP), so it reads as part
- * of the section rather than a framed photograph. The wrapper is only there to
- * give the floating cards something to anchor to and to reserve the column. A
- * portrait (4:5) figure fills the space best, uploaded at about 1200x1500px.
+ * of the section rather than a framed photograph. The column fills the section's
+ * height and the picture is cropped to it (object-cover) with the crop anchored
+ * to the bottom, so the figure stands on the section's bottom edge — the
+ * negative margin cancels the section's own bottom padding — and reaches up to
+ * the top of the column instead of floating in the middle. A portrait (4:5)
+ * figure fills the space best, uploaded at about 1200x1500px; a wider photograph
+ * fills the height and loses its sides to the crop.
+ *
+ * When no photograph has been uploaded the column falls back to an arch in the
+ * clinic's tint: same footprint, same bottom anchor, same cards — an intentional
+ * shape rather than an empty image box.
  */
 function HeroAside({
   config,
@@ -426,60 +434,77 @@ function HeroAside({
     .slice(0, 3);
 
   return (
-    <div className="relative">
-      <div className="relative aspect-[4/5] w-full">
+    /* The negative bottom margin cancels the section's own bottom padding
+       (pb-14 / sm:pb-20), so the bottom edge of this column is the bottom edge
+       of the section — the figure stands on the line rather than hovering. */
+    <div className="relative -mb-14 flex min-h-[16rem] items-end justify-center sm:-mb-20 sm:min-h-[24rem] lg:min-h-[34.375rem] lg:justify-end">
+      {/* The wrapper is 2.5rem wider than its column and, with the outer row
+          justifying to the end, the surplus runs left into the 3.5rem gutter
+          between the copy and the figure — the photo is wider than its column
+          while its right edge stays on the container grid. Width is set here
+          rather than on the image because a percentage on the image would have
+          to resolve against this box, which is itself sized by its content.
+
+          Height comes from the section (inherited at lg), so the picture is
+          cropped to it instead of letterboxed: there is never a strip of empty
+          box above the photo for the cards to drift into. */}
+      <div className="relative flex w-[calc(100%_+_2.5rem)] shrink-0 items-end justify-end lg:h-full">
         {heroImage ? (
           <Image
             src={heroImage.url}
             alt={heroImage.alt}
-            fill
+            width={1200}
+            height={1500}
             priority
-            sizes="(min-width: 896px) 40vw, 90vw"
-            className="object-contain"
+            sizes="(min-width: 896px) 44vw, 100vw"
+            className="aspect-[4/5] h-auto w-full select-none object-cover object-bottom drop-shadow-[0_14px_24px_rgba(15,23,42,0.14)] lg:h-full"
           />
         ) : (
           <span
             aria-hidden="true"
-            className="absolute inset-0 flex items-center justify-center opacity-60"
-            style={{ color: theme.primaryColor }}
+            className="flex aspect-[4/5] w-full items-center justify-center rounded-t-full border border-b-0 border-[var(--site-hairline)] bg-[var(--site-tint-strong)]"
           >
-            <Hospital className="size-16" strokeWidth={1.5} />
+            <Hospital
+              className="size-14"
+              strokeWidth={1.25}
+              style={{ color: theme.primaryColor }}
+            />
           </span>
         )}
-      </div>
 
-      {imageBadgeText ? (
-        <div className="absolute left-3 top-6 z-20 flex max-w-[calc(100%-1.5rem)] items-center gap-2 rounded-full border border-white/40 bg-white/85 px-4 py-2 shadow-xl backdrop-blur-md md:left-8 md:top-[18%]">
-          <ShieldCheck
-            className="size-4 shrink-0"
-            aria-hidden="true"
-            style={{ color: theme.primaryColor }}
-          />
-          <span className="truncate text-xs font-semibold leading-snug text-[var(--site-ink)]">
-            {imageBadgeText}
-          </span>
-        </div>
-      ) : null}
-
-      {imageStatText ? (
-        <div className="absolute bottom-6 right-3 z-20 flex max-w-[calc(100%-1.5rem)] items-center gap-3 rounded-[12px] border border-white/40 bg-white/85 p-4 shadow-xl backdrop-blur-md md:bottom-[18%] md:right-8">
-          {doctorPhotos.length > 0 ? (
-            <span className="flex shrink-0">
-              {doctorPhotos.map((url, index) => (
-                <span
-                  key={`${url}-${index}`}
-                  className="relative -ml-1.5 first:ml-0 size-7 overflow-hidden rounded-full border-2 border-white"
-                >
-                  <Image src={url} alt="" fill sizes="2rem" className="object-cover" />
-                </span>
-              ))}
+        {imageBadgeText ? (
+          <div className="absolute left-3 top-6 z-20 flex max-w-[calc(100%-1.5rem)] items-center gap-2 rounded-full border border-white/40 bg-white/85 px-4 py-2 shadow-xl backdrop-blur-md md:left-8 md:top-[18%]">
+            <ShieldCheck
+              className="size-4 shrink-0"
+              aria-hidden="true"
+              style={{ color: theme.primaryColor }}
+            />
+            <span className="truncate text-xs font-semibold leading-snug text-[var(--site-ink)]">
+              {imageBadgeText}
             </span>
-          ) : null}
-          <span className="text-sm font-semibold leading-tight text-[var(--site-ink)]">
-            {imageStatText}
-          </span>
-        </div>
-      ) : null}
+          </div>
+        ) : null}
+
+        {imageStatText ? (
+          <div className="absolute bottom-6 right-3 z-20 flex max-w-[calc(100%-1.5rem)] items-center gap-3 rounded-[12px] border border-white/40 bg-white/85 p-4 shadow-xl backdrop-blur-md md:bottom-[18%] md:right-8">
+            {doctorPhotos.length > 0 ? (
+              <span className="flex shrink-0">
+                {doctorPhotos.map((url, index) => (
+                  <span
+                    key={`${url}-${index}`}
+                    className="relative -ml-1.5 first:ml-0 size-7 overflow-hidden rounded-full border-2 border-white"
+                  >
+                    <Image src={url} alt="" fill sizes="2rem" className="object-cover" />
+                  </span>
+                ))}
+              </span>
+            ) : null}
+            <span className="text-sm font-semibold leading-tight text-[var(--site-ink)]">
+              {imageStatText}
+            </span>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
