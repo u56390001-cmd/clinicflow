@@ -1,12 +1,40 @@
 /** Application-wide constants shared between client and server. */
 
 import type {
+  FacilitySize,
   GrowthPostStatus,
   IntegrationKey,
+  OrganizationType,
   PatientBillStatus,
   PatientBillType,
   PatientPaymentMethod,
 } from "@/types/database";
+
+/**
+ * Onboarding organization shape (migration 0074). Ordered most- to least
+ * common so the wizard's selection cards lead with a clinic.
+ */
+export const ORGANIZATION_TYPES: readonly OrganizationType[] = [
+  "clinic",
+  "polyclinic",
+  "hospital",
+];
+
+export const ORGANIZATION_TYPE_LABELS: Record<OrganizationType, string> = {
+  clinic: "Clinic",
+  polyclinic: "Polyclinic",
+  hospital: "Hospital",
+};
+
+export const FACILITY_SIZES: readonly FacilitySize[] = [
+  "single_location",
+  "multi_branch",
+];
+
+export const FACILITY_SIZE_LABELS: Record<FacilitySize, string> = {
+  single_location: "One location",
+  multi_branch: "Multiple branches",
+};
 
 /** Route groups used by middleware and redirect logic. */
 export const APP_ROUTES = {
@@ -190,14 +218,22 @@ export const WEEKDAY_ORDER = [
  * Role names that may manage clinic data (services, availability, settings).
  * `staff` members are read-only.
  */
-export const CLINIC_WRITE_ROLES = ["owner", "admin"] as const;
+export const CLINIC_WRITE_ROLES = ["owner", "admin", "clinic_admin"] as const;
 
 /**
  * Roles that work the clinical floor (patients, appointments). In Phase 3 all
  * members — including `staff` — manage these, mirroring the RLS policy that
  * any member can read/write patients and appointments.
  */
-export const CLINICAL_ROLES = ["owner", "admin", "staff"] as const;
+export const CLINICAL_ROLES = [
+  "owner",
+  "admin",
+  "clinic_admin",
+  "doctor",
+  "receptionist",
+  "nurse",
+  "staff",
+] as const;
 
 /**
  * Appointment status display metadata: stable DB enum value -> label and badge

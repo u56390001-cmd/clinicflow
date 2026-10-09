@@ -22,6 +22,22 @@ function fieldError<T extends { issues?: Array<{ message?: string }> }>(
 }
 
 /**
+ * Resolve an internal post-auth redirect. Only same-origin absolute paths are
+ * allowed — anything else (external URLs, `//host` protocol-relative links)
+ * falls back to the dashboard. Used by both login and signup so an invite link
+ * can hand the user straight back to `/invite/<token>` after they sign in.
+ */
+function safeInternalPath(
+  value: unknown,
+  fallback: string = APP_ROUTES.app.dashboard,
+): string {
+  if (typeof value === "string" && value.startsWith("/") && !value.startsWith("//")) {
+    return value;
+  }
+  return fallback;
+}
+
+/**
  * Log the raw Supabase auth error in development only. The user-facing message
  * stays generic — Supabase deliberately does not distinguish "unconfirmed
  * user", "wrong password", or "user not found" in its login error, and we must
@@ -96,8 +112,9 @@ export async function signupAction(
 
   if (data.session) {
     // Email confirmation is disabled for this project, so a session already
-    // exists and we can go straight to the app.
-    redirect(APP_ROUTES.app.dashboard);
+    // exists and we can go straight back to where the user came from (e.g. an
+    // invite link) — never to an external URL.
+    redirect(safeInternalPath(formData.get("next")));
   }
 
   // Email confirmation is enabled: the user must verify before they can log in.
@@ -129,11 +146,7 @@ export async function loginAction(
   }
 
   const next = formData.get("next");
-  const safeNext =
-    typeof next === "string" && next.startsWith("/app")
-      ? next
-      : APP_ROUTES.app.dashboard;
-  redirect(safeNext);
+  redirect(safeInternalPath(next));
 }
 
 export async function forgotPasswordAction(

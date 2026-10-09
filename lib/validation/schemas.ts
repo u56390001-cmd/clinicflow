@@ -1727,16 +1727,27 @@ export const teamInviteSchema = z.object({
     .email("Enter a valid email address.")
     .max(254, "Email must be 254 characters or fewer.")
     .transform((value) => value.toLowerCase()),
-  role: z.enum(["admin", "staff"], {
-    message: "Choose a role for the new member.",
-  }),
+  role: z.enum(
+    ["admin", "clinic_admin", "doctor", "receptionist", "nurse", "accountant", "staff"],
+    { message: "Choose a role for the new member." },
+  ),
 });
 
 export const memberRoleChangeSchema = z.object({
   memberId: uuid("Missing member id."),
-  role: z.enum(["owner", "admin", "staff"], {
-    message: "Choose a valid role.",
-  }),
+  role: z.enum(
+    [
+      "owner",
+      "admin",
+      "clinic_admin",
+      "doctor",
+      "receptionist",
+      "nurse",
+      "accountant",
+      "staff",
+    ],
+    { message: "Choose a valid role." },
+  ),
 });
 
 export const memberRemovalSchema = z.object({
@@ -1746,6 +1757,85 @@ export const memberRemovalSchema = z.object({
 export const inviteRevokeSchema = z.object({
   inviteId: uuid("Missing invite id."),
 });
+
+/* -------------------------------------------------------------------------- */
+/*  Fast-track onboarding + staff invites (migration 0074)                    */
+/* -------------------------------------------------------------------------- */
+
+/** Roles a fresh clinic can hand out during onboarding / from the team page. */
+const assignableRole = z.enum(
+  ["clinic_admin", "doctor", "receptionist", "nurse", "accountant", "admin", "staff"],
+  { message: "Choose a role for the new member." },
+);
+
+const inviteEmail = z
+  .string()
+  .trim()
+  .min(1, "Email is required.")
+  .email("Enter a valid email address.")
+  .max(254, "Email must be 254 characters or fewer.")
+  .transform((value) => value.toLowerCase());
+
+const optionalContactEmail = z.union([email, z.literal("")]).optional();
+
+export const staffInviteSchema = z.object({
+  email: inviteEmail,
+  role: assignableRole,
+});
+
+export const onboardingInviteSchema = z.object({
+  email: inviteEmail,
+  role: assignableRole,
+});
+
+/**
+ * One payload for the whole wizard: the clinic's shape and details plus the
+ * optional first batch of staff invites. Keeping it a single schema means the
+ * wizard is validated in one pass and the action can never half-apply a step.
+ */
+export const onboardingClinicSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Clinic name is required.")
+    .max(120, "Clinic name must be 120 characters or fewer."),
+  organizationType: z.enum(["clinic", "polyclinic", "hospital"], {
+    message: "Choose what you're setting up.",
+  }),
+  facilitySize: z.enum(["single_location", "multi_branch"], {
+    message: "Choose whether you have one location or several.",
+  }),
+  timezone: z
+    .string()
+    .min(1, "Timezone is required.")
+    .max(64, "Timezone must be 64 characters or fewer."),
+  phone: z
+    .string()
+    .trim()
+    .max(32, "Phone must be 32 characters or fewer.")
+    .optional()
+    .or(z.literal("")),
+  email: optionalContactEmail,
+  address: z
+    .string()
+    .trim()
+    .max(240, "Address must be 240 characters or fewer.")
+    .optional()
+    .or(z.literal("")),
+  city: z
+    .string()
+    .trim()
+    .max(120, "City must be 120 characters or fewer.")
+    .optional()
+    .or(z.literal("")),
+  invites: z
+    .array(onboardingInviteSchema)
+    .max(10, "You can invite up to 10 people at a time.")
+    .optional(),
+});
+
+export type OnboardingClinicInput = z.infer<typeof onboardingClinicSchema>;
+export type OnboardingInviteInput = z.infer<typeof onboardingInviteSchema>;
 
 // ---------------------------------------------------------------------------
 // Phase 17: Check-In / Queue / Vitals

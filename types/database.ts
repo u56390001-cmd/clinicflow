@@ -11,7 +11,31 @@
  * constraint — derived mapped types like `Partial<Clinic>` do not.
  */
 
-export type ClinicRole = "owner" | "admin" | "staff";
+/**
+ * Clinic membership role (DB enum `clinic_role`). `admin`/`staff` are the
+ * original Phase-1 roles; `clinic_admin`, `doctor`, `receptionist`, `nurse` and
+ * `accountant` were added by migration 0072 (RBAC). Granular permission
+ * mappings live in `lib/auth/rbac-config.ts`.
+ */
+export type ClinicRole =
+  | "owner"
+  | "admin"
+  | "clinic_admin"
+  | "doctor"
+  | "receptionist"
+  | "nurse"
+  | "accountant"
+  | "staff";
+
+/**
+ * Organization kind captured in the fast-track onboarding wizard (migration
+ * 0074). Purely descriptive metadata for now — it shapes copy and can drive
+ * multi-branch behaviour later via `parent_organization_id`.
+ */
+export type OrganizationType = "clinic" | "polyclinic" | "hospital";
+
+/** Footprint captured during onboarding: one site vs. several (migration 0074). */
+export type FacilitySize = "single_location" | "multi_branch";
 
 export type ServiceStatus = "active" | "inactive";
 
@@ -44,6 +68,14 @@ export type Clinic = {
   id: string;
   name: string;
   slug: string;
+  /**
+   * Organization shape captured during onboarding (migration 0074). Defaulted
+   * in the DB so every legacy clinic reads as a single-location `clinic`.
+   */
+  organization_type: OrganizationType;
+  facility_size: FacilitySize;
+  /** Parent clinic for multi-branch organizations (migration 0074). */
+  parent_organization_id: string | null;
   doctor_name: string | null;
   timezone: string;
   phone: string | null;
@@ -157,6 +189,11 @@ export type ClinicMember = {
   role: ClinicRole;
   /** Denormalized from auth.users at join time — the roster's label. */
   email: string;
+  /**
+   * Per-member RBAC overrides `{ "<permission>": boolean }` (migration 0072).
+   * Empty object = inherit the role defaults from `lib/auth/rbac-config.ts`.
+   */
+  permissions: Record<string, boolean>;
   created_at: string;
 };
 
@@ -173,11 +210,33 @@ export type ClinicInvite = {
   clinic_id: string;
   email: string;
   role: ClinicRole;
+  /**
+   * Per-member RBAC overrides carried by the invite and applied on accept
+   * (migration 0074). Empty = inherit the role defaults.
+   */
+  permissions: Record<string, boolean>;
   token_hash: string;
   status: ClinicInviteStatus;
   expires_at: string;
   invited_by: string;
   accepted_at: string | null;
+  created_at: string;
+};
+
+/**
+ * An immutable healthcare audit entry (migration 0072). Append-only: the DB
+ * blocks UPDATE even for the service role, and no UPDATE policy exists.
+ */
+export type AuditLog = {
+  id: string;
+  clinic_id: string;
+  user_id: string;
+  /** e.g. "PATIENT_VIEW", "PRESCRIPTION_CREATE", "BILL_REFUND". */
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  details: Record<string, unknown>;
+  ip_address: string | null;
   created_at: string;
 };
 
@@ -1699,12 +1758,56 @@ export type AppEventLog = {
 export type Database = {
   public: {
     Tables: {
+      audit_logs: {
+        Row: AuditLog;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          user_id: string;
+          action: string;
+          resource_type: string;
+          resource_id?: string | null;
+          details?: Record<string, unknown>;
+          ip_address?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: string;
+          user_id?: string;
+          action?: string;
+          resource_type?: string;
+          resource_id?: string | null;
+          details?: Record<string, unknown>;
+          ip_address?: string | null;
+          created_at?: never;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "audit_logs_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "auth.users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       clinics: {
         Row: Clinic;
         Insert: {
           id?: string;
           name: string;
           slug: string;
+          organization_type?: OrganizationType;
+          facility_size?: FacilitySize;
+          parent_organization_id?: string | null;
           doctor_name?: string | null;
           timezone?: string;
           phone?: string | null;
@@ -1755,6 +1858,9 @@ export type Database = {
           id?: never;
           name?: string;
           slug?: string;
+          organization_type?: OrganizationType;
+          facility_size?: FacilitySize;
+          parent_organization_id?: string | null;
           doctor_name?: string | null;
           timezone?: string;
           phone?: string | null;
@@ -1862,6 +1968,7 @@ export type Database = {
           user_id: string;
           role?: ClinicRole;
           email: string;
+          permissions?: Record<string, boolean>;
           created_at?: string;
         };
         Update: {
@@ -1870,6 +1977,7 @@ export type Database = {
           user_id?: string;
           role?: ClinicRole;
           email?: string;
+          permissions?: Record<string, boolean>;
           created_at?: never;
         };
         Relationships: [
@@ -1896,6 +2004,7 @@ export type Database = {
           clinic_id: string;
           email: string;
           role?: ClinicRole;
+          permissions?: Record<string, boolean>;
           token_hash: string;
           status?: ClinicInviteStatus;
           expires_at: string;
@@ -1908,6 +2017,7 @@ export type Database = {
           clinic_id?: string;
           email?: string;
           role?: ClinicRole;
+          permissions?: Record<string, boolean>;
           token_hash?: string;
           status?: ClinicInviteStatus;
           expires_at?: string;

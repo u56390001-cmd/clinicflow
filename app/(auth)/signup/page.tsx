@@ -11,7 +11,13 @@ import {
 
 export const metadata: Metadata = { title: "Create account" };
 
-export default function SignupPage() {
+export default async function SignupPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ email?: string; next?: string }>;
+}) {
+  const params = await searchParams;
+
   return (
     <Card>
       <CardHeader className="text-center">
@@ -21,7 +27,7 @@ export default function SignupPage() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <SignupForm />
+        <SignupForm initialEmail={params.email} next={params.next} />
       </CardContent>
     </Card>
   );

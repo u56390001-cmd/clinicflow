@@ -14,6 +14,7 @@ import { revalidatePath } from "next/cache";
 import { getCurrentClinic } from "@/lib/clinic-access";
 import { APP_ROUTES } from "@/lib/constants";
 import { notifyPatient } from "@/lib/notifications";
+import { logAuditEvent } from "@/lib/auth/role-guard";
 import { createClient } from "@/lib/supabase/server";
 import { createWidgetClient } from "@/lib/supabase/widget";
 import {
@@ -26,6 +27,14 @@ import type { ActionResult } from "@/types";
 import type { ClinicInvite, ClinicMember, ClinicRole } from "@/types/database";
 
 const INVITE_TTL_DAYS = 7;
+
+/**
+ * Roles allowed to manage the team (invite, change roles, remove). Mirrors the
+ * clinic-admin tier: `owner`, legacy `admin`, and the granular `clinic_admin`.
+ */
+function isAdminRole(role: ClinicRole): boolean {
+  return role === "owner" || role === "admin" || role === "clinic_admin";
+}
 
 export type TeamMemberView = {
   id: string;
@@ -76,7 +85,7 @@ export async function getTeamDataAction(): Promise<
     return { ok: false, message: "We couldn't load your team. Please try again." };
   }
 
-  const isAdmin = access.role === "owner" || access.role === "admin";
+  const isAdmin = isAdminRole(access.role);
   // Invites are admin-only data (RLS also enforces this).
   const invites = (isAdmin ? (invitesResult.data ?? []) : []) as Array<
     Pick<ClinicInvite, "id" | "email" | "role" | "expires_at">
@@ -141,12 +150,15 @@ export async function inviteTeamMemberAction(
   const access = await getCurrentClinic(supabase);
   if (!access) return { ok: false, message: "You must have a clinic to invite teammates." };
 
-  // Invites never grant `owner` (DB CHECK also enforces this). Admins may
-  // invite staff; only the owner may invite another admin.
-  if (access.role === "staff") {
+  // Invites never grant `owner` (DB CHECK also enforces this). Only admin-tier
+  // roles may invite; only the owner may invite another admin.
+  if (!isAdminRole(access.role)) {
     return { ok: false, message: "Your role can't invite teammates." };
   }
-  if (access.role === "admin" && parsed.data.role === "admin") {
+  if (
+    access.role !== "owner" &&
+    (parsed.data.role === "admin" || parsed.data.role === "clinic_admin")
+  ) {
     return { ok: false, message: "Only the clinic owner can invite administrators." };
   }
 
@@ -191,6 +203,17 @@ export async function inviteTeamMemberAction(
     console.error("[team] invite insert failed", insertError.message);
     return { ok: false, message: "We couldn't create the invitation. Please try again." };
   }
+
+  await logAuditEvent(
+    {
+      clinicId: access.clinic.id,
+      userId: user.id,
+      action: "STAFF_INVITE_SENT",
+      resourceType: "clinic_invite",
+      details: { email: parsed.data.email, role: parsed.data.role },
+    },
+    { supabase },
+  );
 
   const acceptUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/invite/${token}`;
   const emailResult = await notifyPatient({
@@ -258,7 +281,11 @@ export async function updateMemberRoleAction(
   if (!target) return { ok: false, message: "That member isn't part of your clinic." };
 
   // Permission rules (also enforced by RLS):
+  // - only admin-tier roles may change roles
   // - only an owner may grant owner, change an owner's role, or their own role
+  if (!isAdminRole(access.role)) {
+    return { ok: false, message: "Your role can't change roles." };
+  }
   const isOwner = access.role === "owner";
   if (!isOwner && (target.role === "owner" || parsed.data.role === "owner")) {
     return { ok: false, message: "Only the clinic owner can change owner roles." };
@@ -304,6 +331,10 @@ export async function removeMemberAction(
   const supabase = await createClient();
   const access = await getCurrentClinic(supabase);
   if (!access) return { ok: false, message: "You must have a clinic to manage your team." };
+
+  if (!isAdminRole(access.role)) {
+    return { ok: false, message: "Your role can't remove members." };
+  }
 
   const { data: members } = await supabase
     .from("clinic_members")
@@ -458,6 +489,18 @@ export async function acceptInviteAction(token: string): Promise<AcceptInviteRes
   if (consumeError) {
     console.error("[team] invite consume failed", consumeError.message);
   }
+
+  await logAuditEvent(
+    {
+      clinicId: invite.clinic_id,
+      userId: user.id,
+      action: "STAFF_INVITE_ACCEPTED",
+      resourceType: "clinic_invite",
+      resourceId: invite.id,
+      details: { role: invite.role },
+    },
+    { supabase: serviceRole },
+  );
 
   revalidatePath(APP_ROUTES.app.dashboard);
   return { kind: "accepted", clinicName: "" };

@@ -15,11 +15,20 @@ import type { ActionResult } from "@/types";
 
 const initialState: ActionResult = { ok: true, data: undefined };
 
-export function SignupForm() {
+export function SignupForm({
+  initialEmail,
+  next,
+}: {
+  /** Pre-fill the invited address when the user arrived from an invite link. */
+  initialEmail?: string;
+  /** Return the user to this internal path after signing up (links carry it). */
+  next?: string;
+}) {
   const [state, formAction] = useActionState(signupAction, initialState);
 
   return (
     <form action={formAction} noValidate className="space-y-4">
+      {next ? <input type="hidden" name="next" value={next} /> : null}
       {!state.ok && (
         <Alert variant="destructive">
           <AlertCircle aria-hidden="true" />
@@ -35,6 +44,7 @@ export function SignupForm() {
           type="email"
           autoComplete="email"
           placeholder="you@clinic.com"
+          defaultValue={initialEmail}
           required
         />
       </div>
