@@ -66,3 +66,6 @@ certificates
 
 # ad-hoc debug scripts written at the repo root (scratch, not part of the app)
 tmp-*.ts
+
+# landing page design review screenshots
+/.review/

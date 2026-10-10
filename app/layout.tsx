@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Montserrat, Plus_Jakarta_Sans, Poppins } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
 
@@ -18,6 +18,30 @@ const jakarta = Plus_Jakarta_Sans({
   weight: ["400", "500", "600", "700", "800"],
 });
 
+/**
+ * Montserrat is the marketing site's display face (refined landing v2). Bold
+ * weights (700/800) give hero and section headings a confident, premium
+ * presence, replacing the previous lighter Jakarta look on the public page.
+ */
+const montserrat = Montserrat({
+  variable: "--font-montserrat",
+  subsets: ["latin"],
+  display: "swap",
+  weight: ["600", "700", "800"],
+});
+
+/**
+ * Poppins is the marketing site's body/UI face (refined landing v2). Only the
+ * marketing page under `.landing` uses these two faces — the dashboard keeps
+ * Plus Jakarta Sans.
+ */
+const poppins = Poppins({
+  variable: "--font-poppins",
+  subsets: ["latin"],
+  display: "swap",
+  weight: ["400", "500", "600"],
+});
+
 export const metadata: Metadata = {
   title: {
     default: "MedBook AI",
@@ -33,7 +57,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={jakarta.variable} suppressHydrationWarning>
+    <html
+      lang="en"
+      className={`${jakarta.variable} ${montserrat.variable} ${poppins.variable}`}
+      suppressHydrationWarning
+    >
       <body className="min-h-full" suppressHydrationWarning>
         {children}
         <Toaster position="bottom-right" />

@@ -1,0 +1,525 @@
+MedBook AI — Premium Landing Page UI/UX Refinement
+
+Act as a Senior Product Designer, Typography Specialist, Frontend Design Engineer, and UI/UX Quality Reviewer with experience designing premium healthcare SaaS landing pages.
+
+Objective
+
+Refine the EXISTING MedBook AI landing page into a visually polished, modern, premium healthcare SaaS website.
+
+The current design has a good structure and brand identity, but typography, font weights, visual hierarchy, contrast, image presentation, and spacing need improvement.
+
+IMPORTANT: This is a DESIGN REFINEMENT task, NOT a complete redesign.
+
+Preserve the existing sections, content, product screenshots, pricing, navigation, responsive architecture, and functional integrations.
+
+Use the existing Frontend Design, shadcn/ui, and UI UX Pro Max skills where available.
+
+1. Typography — Highest Priority
+
+The current typography feels too light, especially in headings and important content. Create a consistent, professional typography hierarchy.
+
+Fonts
+
+Headings: Plus Jakarta Sans
+
+Body and UI: Inter
+
+Use existing font loading infrastructure where possible.
+
+Avoid unnecessarily thin font weights.
+
+Avoid excessive letter spacing.
+
+Recommended Typography Scale
+
+Element
+
+Desktop Size
+
+Weight
+
+Line Height
+
+Hero H1
+
+56–64px
+
+700
+
+1.08–1.12
+
+Section H2
+
+36–44px
+
+700
+
+1.15–1.2
+
+Feature H3
+
+18–20px
+
+650–700
+
+1.3
+
+Body Text
+
+16–17px
+
+400–450
+
+1.65
+
+Small Description
+
+14–15px
+
+400–500
+
+1.55
+
+Navigation
+
+14px
+
+500–600
+
+1.4
+
+Buttons
+
+14–15px
+
+600
+
+1.4
+
+Pricing Amount
+
+36–42px
+
+750–800
+
+1.15
+
+Use responsive typography with clamp().
+
+On mobile, reduce the hero heading to approximately 36–42px and section headings to 28–34px.
+
+Typography Rules
+
+Make headings confident and highly readable.
+
+Avoid light-weight headings below 600.
+
+Use bold weight strategically, not everywhere.
+
+Improve paragraph contrast.
+
+Maintain intentional heading line breaks.
+
+Keep headings compact without crowding.
+
+Limit body text width to approximately 60–70 characters where appropriate.
+
+Make pricing and CTAs immediately scannable.
+
+2. Preserve the Brand Identity
+
+Keep the approved Premium Sage + Forest Green palette:
+
+Primary Sage: #527A65
+
+Dark Forest Green: #203D34
+
+CTA Green: #356F59
+
+Soft Background: #F4F7F3
+
+White: #FFFFFF
+
+Main Body Text: #334155
+
+Improve contrast and accessible text combinations.
+
+Do not randomly introduce new brand colors or revert to teal.
+
+Use Forest Green for strong headings, Sage for secondary accents, and CTA Green for interactive buttons.
+
+Avoid placing dark green text on a similarly dark green background.
+
+3. Hero Section — Stronger First Impression
+
+Preserve the current hero headline:
+
+"Everything your clinic needs. One smart platform."
+
+Improvements:
+
+Increase heading weight to 700.
+
+Make the heading visually stronger and more confident.
+
+Refine its line breaks and letter spacing.
+
+Keep the highlighted phrase in Sage Green.
+
+Improve the body description's font size and contrast.
+
+Make the primary CTA visually prominent.
+
+Improve spacing between headline, description, CTA buttons, and supporting points.
+
+Product Visual
+
+Keep the actual MedBook AI dashboard screenshot.
+
+Increase dashboard visibility and readability.
+
+Improve screenshot scaling and positioning.
+
+Use a premium browser frame with subtle shadow.
+
+Remove unnecessary decorative elements.
+
+Do not excessively crop important UI.
+
+Ensure the hero text and product visual feel balanced.
+
+The hero should instantly communicate a professional, trustworthy clinic management platform.
+
+4. Navigation Refinement
+
+Keep the existing navigation structure and routes.
+
+Improve logo presentation and visual alignment.
+
+Use 14px medium-weight navigation text.
+
+Improve spacing between navigation items.
+
+Refine active, hover, and focus states.
+
+Make the primary Get Started button more prominent.
+
+Keep the sticky navbar minimal and compact.
+
+Ensure mobile navigation works properly.
+
+5. Feature Cards
+
+The existing six feature cards are structurally good but need more visual consistency.
+
+Improve:
+
+Card heading size and weight.
+
+Description readability.
+
+Icon sizing and spacing.
+
+Internal padding.
+
+Card heights and alignment.
+
+Hover effects.
+
+Border and shadow consistency.
+
+Recommended:
+
+Heading: 18–19px / 650–700 weight
+
+Description: 14–15px / 400–450 weight
+
+Card padding: 24–28px
+
+Border radius: 14–16px
+
+Very subtle hover elevation
+
+Keep the cards clean and professional, not overly decorative.
+
+6. Real Product Screenshots
+
+The actual SaaS screenshots are a major strength of this landing page.
+
+Improve their visual presentation:
+
+Use larger readable screenshots where space allows.
+
+Maintain consistent screenshot frames and image ratios.
+
+Reduce unnecessary blank areas around screenshots.
+
+Improve screenshot cropping and focal points.
+
+Use subtle shadows and premium browser-style frames.
+
+Align screenshot cards consistently.
+
+Improve screenshot titles and supporting captions.
+
+Avoid shrinking an entire complex dashboard until the interface becomes unreadable.
+
+Prioritize clearly showing actual product functionality over decorative visuals.
+
+Do not fabricate dashboard data or modify screenshots to suggest unsupported functionality.
+
+Keep screenshot asset paths centralized so images can be replaced later.
+
+7. AI Receptionist Section
+
+Keep the existing dark Forest Green section.
+
+Improvements:
+
+Make the heading larger and bold.
+
+Use white or near-white text for strong contrast.
+
+Improve paragraph readability.
+
+Increase spacing between feature benefits.
+
+Ensure icons and bullets are aligned.
+
+Improve screenshot size and placement.
+
+Balance the two-column layout.
+
+Avoid dark-on-dark text.
+
+The section should feel premium, confident, and readable.
+
+8. Website Builder & Smart TV Sections
+
+Improve heading weight and alignment.
+
+Make product screenshots more prominent.
+
+Reduce excessive spacing between text and screenshots.
+
+Align benefit lists consistently.
+
+Use equal visual spacing between related elements.
+
+Maintain clear separation between product features.
+
+Improve readability on mobile.
+
+Keep all existing actual product screenshots.
+
+9. Vertical Spacing & Layout Rhythm
+
+The current landing page contains some excessive vertical whitespace.
+
+Create a consistent spacing system:
+
+Desktop section spacing: approximately 80–96px
+
+Tablet: approximately 64–80px
+
+Mobile: approximately 48–64px
+
+Heading-to-description: 16–20px
+
+Description-to-content: 32–44px
+
+Card gaps: 18–24px
+
+These are starting guidelines, not rigid values.
+
+Apply optical judgment to each section.
+
+Reduce empty space that does not improve clarity, while preserving a spacious premium feel.
+
+Use consistent content max-widths, alignment, and grid gaps.
+
+Avoid making the site visually dense.
+
+10. Pricing Section — Improve Conversion
+
+Keep the existing Starter, Professional, and Enterprise plans and their actual prices.
+
+Do not alter the billing configuration.
+
+Improve:
+
+Plan name typography.
+
+Pricing amount size and weight.
+
+Monthly billing label hierarchy.
+
+Feature list readability.
+
+Card padding and alignment.
+
+CTA button consistency.
+
+Professional plan highlighting.
+
+Make the Professional plan the most visually prominent without overpowering the others.
+
+All pricing cards should have aligned CTAs and consistent height where appropriate.
+
+Show only verified entitlements from the existing subscription configuration.
+
+11. Security, FAQ & Final CTA
+
+Security
+
+Improve heading weight.
+
+Make supporting text readable.
+
+Refine the icon and content layout.
+
+Avoid overstated or unverified security claims.
+
+FAQ
+
+Improve question typography to 15–16px, weight 600.
+
+Increase clickable target sizes.
+
+Improve accordion spacing and separator consistency.
+
+Ensure focus and expanded states are accessible.
+
+Final CTA
+
+The current dark green CTA lacks sufficient text emphasis.
+
+Use strong white heading typography.
+
+Improve supporting text contrast.
+
+Make the CTA button clearly visible.
+
+Improve padding and vertical alignment.
+
+Ensure it looks excellent on mobile.
+
+12. Responsive Design & Accessibility
+
+Test at:
+
+1440px desktop
+
+1024px tablet
+
+768px tablet
+
+390px mobile
+
+320px narrow mobile
+
+Verify:
+
+No horizontal overflow.
+
+Readable typography at every breakpoint.
+
+Proper spacing and alignment.
+
+No clipped screenshots.
+
+Consistent button sizing.
+
+No overlapping elements.
+
+Good contrast.
+
+Visible focus indicators.
+
+Accessible interactive elements.
+
+Respect prefers-reduced-motion.
+
+Aim for WCAG AA contrast requirements.
+
+13. Design Quality Rules
+
+The desired visual style is:
+
+Modern. Minimal. Premium. Trustworthy. Healthcare-focused.
+
+Avoid:
+
+Thin, weak headings
+
+Tiny body text
+
+Excessive whitespace
+
+Low-contrast text
+
+Too many animations
+
+Heavy gradients
+
+Generic templates
+
+Random font weights
+
+Inconsistent rounded corners
+
+Overly small product screenshots
+
+Unnecessary new components
+
+Use visual consistency, hierarchy, and restraint.
+
+14. Implementation & Final Review
+
+Before changes, inspect the existing landing page source and design tokens.
+
+Then:
+
+Refine typography systematically.
+
+Improve spacing and layout proportions.
+
+Polish existing components.
+
+Improve actual product screenshot presentation.
+
+Test responsive behavior.
+
+Test accessibility.
+
+Run the production build and relevant checks.
+
+Capture desktop and mobile screenshots.
+
+Review the result visually and fix obvious design problems.
+
+Do not modify authentication, signup, clinic onboarding, subscriptions, billing, or backend business logic.
+
+Do not rebuild completed features.
+
+Final Quality Target
+
+The landing page should feel like a polished commercial healthcare software product, not a generic AI-generated template.
+
+The visitor should immediately understand:
+
+What MedBook AI does.
+
+Why it helps their clinic.
+
+Which features are available.
+
+How the real software looks.
+
+Which plan fits their clinic.
+
+How to get started.
+
+Focus primarily on typography, visual hierarchy, content density, screenshot presentation, spacing, and overall premium UI quality.
+
+Preserve the approved brand and page structure while making the implementation significantly more polished and professional.

@@ -1,7 +1,14 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 
-import { APP_ROUTES } from "@/lib/constants";
+import { getPlansAction } from "@/lib/actions/billing";
 import { createClient } from "@/lib/supabase/server";
+import { LandingPage } from "@/components/landing/landing-page";
+
+export const metadata: Metadata = {
+  title: "Everything Your Clinic Needs",
+  description:
+    "Appointment management, patient records, AI booking receptionist and a website builder for independent doctors and small clinics — all in one smart platform.",
+};
 
 export default async function Home() {
   const supabase = await createClient();
@@ -9,5 +16,7 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  redirect(user ? APP_ROUTES.app.dashboard : APP_ROUTES.auth.login);
+  const plans = await getPlansAction();
+
+  return <LandingPage signedIn={!!user} plans={plans.ok ? plans.data : []} />;
 }

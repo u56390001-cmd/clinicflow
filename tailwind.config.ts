@@ -30,6 +30,18 @@ const config: Config = {
         /** Teal tint surfaces — the reference's teal-50. */
         "primary-tint": "#F0FDFA",
         "primary-tint-border": "#99F6E4",
+        /**
+         * Marketing/landing palette (approved landing page v2). Scoped to the
+         * public marketing site only — the SaaS dashboard keeps its teal system.
+         */
+        marketing: {
+          sage: "#527A65",
+          forest: "#203D34",
+          cta: "#356F59",
+          wash: "#F4F7F3",
+          border: "#E4EBE5",
+          body: "#475569",
+        },
         text: {
           primary: "#0F172A",
           secondary: "#475569",
@@ -50,6 +62,15 @@ const config: Config = {
         sans: [
           "var(--font-jakarta)",
           "Plus Jakarta Sans",
+          "system-ui",
+          "-apple-system",
+          "Segoe UI",
+          "sans-serif",
+        ],
+        /** Marketing body face — the refined landing page reads in Poppins. */
+        body: [
+          "var(--font-poppins)",
+          "Poppins",
           "system-ui",
           "-apple-system",
           "Segoe UI",

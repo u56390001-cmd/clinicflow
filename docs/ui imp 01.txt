@@ -1,0 +1,33 @@
+Perform a final, targeted UI/UX review of the current MedBook AI landing page.
+
+The overall design, typography, branding, section structure, and pricing layout are approved. Do NOT redesign the page.
+
+Use Frontend Design and UI UX Pro Max skills, followed by browser-based testing.
+
+Focus only on the following:
+
+Improve the hero section balance. Refine headline line breaks and adjust the dashboard screenshot scale for a better left/right composition.
+
+Verify the navbar logo's actual visible size at 100% browser zoom. Increase it slightly if needed, removing unnecessary transparent padding without distorting the logo.
+
+Improve product screenshot visibility and focal-point cropping. Keep the actual SaaS interface accurate. Optionally provide an accessible click-to-enlarge preview.
+
+Refine the website builder showcase using available real screenshots. Keep it ready for improved assets later.
+
+Label the current WhatsApp setup screenshot accurately rather than presenting it as a live AI conversation.
+
+Ensure logged-out users see clear signup CTAs, while logged-in users can access their dashboard.
+
+Confirm all CTA and pricing links use actual existing routes and preserve the selected subscription plan.
+
+Verify pricing features against existing billing configuration.
+
+Test desktop, tablet, and mobile layouts in a real browser. Check image sharpness, contrast, click targets, navigation, and horizontal overflow.
+
+Check that public screenshots contain no patient-identifying information.
+
+Preserve all existing functionality, subscription logic, auth, onboarding, brand tokens, typography, and approved layout.
+
+Run production build and relevant checks. Provide desktop/mobile screenshots and a concise QA report.
+
+Goal: Final launch polish, not another design iteration.
