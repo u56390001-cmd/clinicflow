@@ -745,13 +745,15 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: none;
   font: 800 19px "Montserrat", var(--font-montserrat);
   letter-spacing: -0.03em;
   color: var(--mk-ink);
 }
 .landing .brand img {
   width: auto;
-  height: 47px;
+  height: 52px;
+  flex: none;
   object-fit: contain;
 }
 .landing .nav-links,
@@ -768,6 +770,9 @@
 .landing .nav-links a:hover,
 .landing .nav-links a:focus-visible {
   color: var(--mk-cta);
+}
+.landing .nav-links .nav-login {
+  display: none;
 }
 .landing .nav-actions {
   gap: 14px;
@@ -1342,6 +1347,41 @@
   gap: 21px;
   flex-wrap: wrap;
 }
+@media (max-width: 1230px) {
+  .landing .menu-toggle {
+    display: block;
+  }
+  .landing .nav-links {
+    display: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 76px;
+    background: white;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+    padding: 24px;
+    border-bottom: 1px solid var(--mk-border);
+    box-shadow: 0 15px 25px #203d3410;
+  }
+  .landing .nav-links.open {
+    display: flex;
+  }
+  .landing .nav-links a {
+    font-size: 16px;
+  }
+  .landing .nav-links .nav-login {
+    display: block;
+  }
+  .landing .nav-actions .login {
+    display: none;
+  }
+  .landing .nav-actions .btn {
+    padding: 10px 14px;
+    font-size: 12.5px;
+  }
+}
 @media (max-width: 950px) {
   .landing .hero-grid,
   .landing .split,
@@ -1394,34 +1434,8 @@
   .landing .brand img {
     height: 40px;
   }
-  .landing .menu-toggle {
-    display: block;
-  }
   .landing .nav-links {
-    display: none;
-    position: absolute;
-    left: 0;
-    right: 0;
     top: 65px;
-    background: white;
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 24px;
-    border-bottom: 1px solid var(--mk-border);
-    box-shadow: 0 15px 25px #203d3410;
-  }
-  .landing .nav-links.open {
-    display: flex;
-  }
-  .landing .nav-links a {
-    font-size: 16px;
-  }
-  .landing .nav-actions .login {
-    display: none;
-  }
-  .landing .nav-actions .btn {
-    padding: 10px 14px;
-    font-size: 12.5px;
   }
   .landing .hero {
     padding: 56px 0 40px;

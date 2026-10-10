@@ -13,8 +13,8 @@ export function SiteFooter() {
           <Image
             src="/marketing/medbook-logo.png"
             alt="MedBook AI"
-            width={2172}
-            height={724}
+            width={1456}
+            height={261}
           />
         </a>
         <div className="footer-links">

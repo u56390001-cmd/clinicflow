@@ -28,8 +28,8 @@ export function SiteHeader({ signedIn }: SiteHeaderProps) {
           <Image
             src="/marketing/medbook-logo.png"
             alt="MedBook AI"
-            width={2172}
-            height={724}
+            width={1456}
+            height={261}
             priority
           />
         </a>
@@ -40,6 +40,13 @@ export function SiteHeader({ signedIn }: SiteHeaderProps) {
               {link.label}
             </a>
           ))}
+          <a
+            className="nav-login"
+            href={signedIn ? appUrl : APP_ROUTES.auth.login}
+            onClick={() => setOpen(false)}
+          >
+            {signedIn ? "Dashboard" : "Log in"}
+          </a>
         </div>
 
         <div className="nav-actions">
