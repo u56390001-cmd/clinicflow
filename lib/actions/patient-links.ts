@@ -40,9 +40,8 @@ import {
   sanitiseDocumentFileName,
   sniffPatientDocumentMime,
 } from "@/lib/document-upload";
+import { PRE_VISIT_CREATED_BY } from "@/lib/patient-links-shared";
 import type { ActionResult } from "@/types";
-
-const PRE_VISIT_CREATED_BY = "Patient (pre-visit form)";
 
 const uuidSchema = z.string().uuid();
 

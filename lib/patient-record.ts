@@ -31,6 +31,7 @@ import type {
   PsychAssessment,
   PsychCarePlan,
   PsychIntake,
+  PsychIntakeSuggestion,
   PsychMse,
   PsychSafety,
   PsychSession,
@@ -98,6 +99,8 @@ export type PatientPsychBundle = {
   sessions: PsychSession[];
   assessments: PsychAssessment[];
   carePlan: PsychCarePlan | null;
+  /** Pending AI suggestions awaiting the psychologist's review (0081). */
+  suggestions: PsychIntakeSuggestion[];
 };
 
 /** Dermatology workspace rows. */
@@ -116,6 +119,7 @@ const EMPTY_PSYCH: PatientPsychBundle = {
   sessions: [],
   assessments: [],
   carePlan: null,
+  suggestions: [],
 };
 
 const EMPTY_DERM: PatientDermBundle = {
@@ -288,7 +292,7 @@ export async function fetchPatientRecord(
   let derm = EMPTY_DERM;
 
   if (workspaceKind === "psychology") {
-    const [safety, intake, mse, sessionsRes, assessmentsRes, carePlan] =
+    const [safety, intake, mse, sessionsRes, assessmentsRes, carePlan, suggestionsRes] =
       await Promise.all([
         supabase
           .from("psych_safety")
@@ -328,6 +332,13 @@ export async function fetchPatientRecord(
           .eq("clinic_id", clinicId)
           .eq("patient_id", patientId)
           .maybeSingle(),
+        supabase
+          .from("psych_intake_suggestions")
+          .select("*")
+          .eq("clinic_id", clinicId)
+          .eq("patient_id", patientId)
+          .eq("status", "pending")
+          .order("created_at", { ascending: false }),
       ]);
 
     psych = {
@@ -337,6 +348,7 @@ export async function fetchPatientRecord(
       sessions: (sessionsRes.data as PsychSession[]) ?? [],
       assessments: (assessmentsRes.data as PsychAssessment[]) ?? [],
       carePlan: (carePlan.data as PsychCarePlan | null) ?? null,
+      suggestions: (suggestionsRes.data as PsychIntakeSuggestion[]) ?? [],
     };
   } else if (workspaceKind === "dermatology") {
     const [profile, examsRes, proceduresRes, photosRes, rxRes] =

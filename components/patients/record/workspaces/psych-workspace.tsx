@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 
 import { AutosaveNote, ChipNote, SelectNote, SpecialtyHeading, parseList } from "@/components/patients/record/workspaces/specialty-form";
+import { IntakeHistoryTab } from "@/components/patients/record/workspaces/psych-intake-tab";
 import { PatientLinksPanel } from "@/components/patients/record/workspaces/patient-links-panel";
 import { AiSummaryCard } from "@/components/patients/record/ai-summary-card";
 import { DocumentsTab } from "@/components/patients/record/documents-tab";
@@ -46,7 +47,6 @@ import {
   deletePsychSessionAction,
   savePsychAssessmentAction,
   savePsychCarePlanAction,
-  savePsychIntakeAction,
   savePsychMseAction,
   savePsychSessionAction,
 } from "@/lib/actions/specialty-workspaces";
@@ -126,7 +126,14 @@ export function PsychWorkspace({ patient, psych, documents, activeTab, canManage
               documentsHref={documentsHref}
             />
           )}
-          {activeTab === "psy_intake" && <IntakeTab patientId={patient.id} psych={psych} canManage={canManage} />}
+          {activeTab === "psy_intake" && (
+            <IntakeHistoryTab
+              patientId={patient.id}
+              psych={psych}
+              canManage={canManage}
+              timezone={timezone}
+            />
+          )}
           {activeTab === "psy_mse" && <MseTab patientId={patient.id} psych={psych} canManage={canManage} />}
           {activeTab === "psy_sessions" && (
             <SessionsTab
@@ -342,62 +349,6 @@ const DOC_SOURCE_LABEL: Record<string, string> = {
   reception: "Reception",
   staff: "Clinic",
 };
-
-/**
- * Selection menus for the structured fields (0079). They lead with the answers
- * a clinician reaches for most, and every row keeps an "Other…" escape hatch so
- * an atypical presentation is recorded in the patient's own words instead of
- * being forced into the nearest menu item.
- */
-const THERAPY_HISTORY_OPTIONS = [
-  "None",
-  "CBT",
-  "DBT",
-  "Family therapy",
-  "Group therapy",
-  "Counselling",
-  "Psychodynamic",
-  "Medication",
-] as const;
-
-const DIAGNOSIS_OPTIONS = [
-  "Depression",
-  "Generalised anxiety",
-  "Panic disorder",
-  "Social anxiety",
-  "PTSD",
-  "OCD",
-  "Bipolar disorder",
-  "ADHD",
-  "Substance use",
-  "Eating disorder",
-  "Psychosis",
-  "None",
-] as const;
-
-const FAMILY_HISTORY_OPTIONS = [
-  "None known",
-  "Depression",
-  "Anxiety",
-  "Bipolar",
-  "Schizophrenia / psychosis",
-  "Substance use",
-  "Suicide history",
-] as const;
-
-const STRESSOR_OPTIONS = [
-  "Work",
-  "Academic",
-  "Family",
-  "Relationship",
-  "Financial",
-  "Health",
-  "Grief",
-  "Trauma",
-  "Legal",
-  "Housing",
-  "Isolation",
-] as const;
 
 const INTERVENTION_OPTIONS = [
   "CBT",
@@ -932,96 +883,6 @@ function ClinicalTimelineCard({
         </p>
       )}
     </OverviewCard>
-  );
-}
-
-/* ------------------------------------------------------------------------- */
-/* Intake & Psychological History                                            */
-/* ------------------------------------------------------------------------- */
-
-type IntakeField =
-  | "previous_therapy_history"
-  | "previous_diagnosis"
-  | "family_mental_health_history"
-  | "psychosocial_background"
-  | "stressors"
-  | "substance_use_history";
-
-/** Only the two fields that are genuinely narrative stay as prose (0079). */
-const INTAKE_TEXT_FIELDS: Array<{
-  field: IntakeField;
-  label: string;
-  placeholder: string;
-}> = [
-  {
-    field: "psychosocial_background",
-    label: "Psychosocial background",
-    placeholder: "Family, upbringing, education, occupation, social supports…",
-  },
-  {
-    field: "substance_use_history",
-    label: "Substance use history",
-    placeholder: "Substances, frequency, duration, last use, treatment…",
-  },
-];
-
-function IntakeTab({ patientId, psych, canManage }: { patientId: string; psych: PatientPsychBundle; canManage: boolean }) {
-  const intake = psych.intake;
-  const save =
-    (field: IntakeField) =>
-    (value: string) =>
-      savePsychIntakeAction(patientId, { [field]: value }).then((r) => r.ok);
-  const onSave = (field: IntakeField) =>
-    canManage ? save(field) : async () => true;
-
-  return (
-    <RecordSection title="Intake & Psychological History">
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <ChipNote
-            label="Previous therapy history"
-            value={intake?.previous_therapy_history}
-            options={THERAPY_HISTORY_OPTIONS}
-            onSave={onSave("previous_therapy_history")}
-            disabled={!canManage}
-          />
-          <ChipNote
-            label="Previous diagnosis"
-            value={intake?.previous_diagnosis}
-            options={DIAGNOSIS_OPTIONS}
-            onSave={onSave("previous_diagnosis")}
-            disabled={!canManage}
-          />
-          <ChipNote
-            label="Family mental health history"
-            value={intake?.family_mental_health_history}
-            options={FAMILY_HISTORY_OPTIONS}
-            onSave={onSave("family_mental_health_history")}
-            disabled={!canManage}
-          />
-          <ChipNote
-            label="Stressors"
-            value={intake?.stressors}
-            options={STRESSOR_OPTIONS}
-            onSave={onSave("stressors")}
-            disabled={!canManage}
-          />
-        </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {INTAKE_TEXT_FIELDS.map(({ field, label, placeholder }) => (
-            <AutosaveNote
-              key={field}
-              label={label}
-              name={`psych-intake-${field}`}
-              value={intake?.[field] ?? null}
-              onSave={onSave(field)}
-              rows={4}
-              placeholder={placeholder}
-            />
-          ))}
-        </div>
-      </div>
-    </RecordSection>
   );
 }
 

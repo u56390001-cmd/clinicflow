@@ -1077,6 +1077,45 @@ export type PsychIntake = {
   updated_at: string;
 };
 
+/** The `psych_intake` columns an AI suggestion may target. */
+export type PsychIntakeField =
+  | "previous_therapy_history"
+  | "previous_diagnosis"
+  | "family_mental_health_history"
+  | "psychosocial_background"
+  | "stressors"
+  | "substance_use_history";
+
+/** Where an Intake & History suggestion was extracted from. */
+export type PsychIntakeSuggestionSource =
+  | "pre_visit"
+  | "document"
+  | "session"
+  | "assessment"
+  | "ai";
+
+/**
+ * Psychology — AI-extracted Intake & History suggestion awaiting the
+ * psychologist's approval (migration 0081). Approved values merge into
+ * `psych_intake`.
+ */
+export type PsychIntakeSuggestion = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  field: PsychIntakeField;
+  value: string;
+  source: PsychIntakeSuggestionSource;
+  source_label: string | null;
+  source_date: string | null;
+  status: "pending" | "approved" | "rejected";
+  created_by_name: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 /** Psychology — Mental Status Examination (one per patient, latest wins). */
 export type PsychMse = {
   id: string;
@@ -4739,6 +4778,45 @@ export type Database = {
         Relationships: [
           { foreignKeyName: "psych_intake_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
           { foreignKeyName: "psych_intake_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] }
+        ];
+      };
+      psych_intake_suggestions: {
+        Row: PsychIntakeSuggestion;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          field: PsychIntakeField;
+          value: string;
+          source?: PsychIntakeSuggestionSource;
+          source_label?: string | null;
+          source_date?: string | null;
+          status?: "pending" | "approved" | "rejected";
+          created_by_name?: string | null;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          field?: never;
+          value?: string;
+          source?: never;
+          source_label?: string | null;
+          source_date?: string | null;
+          status?: "pending" | "approved" | "rejected";
+          created_by_name?: string | null;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "psych_intake_suggestions_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
+          { foreignKeyName: "psych_intake_suggestions_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] }
         ];
       };
       psych_mse: {
