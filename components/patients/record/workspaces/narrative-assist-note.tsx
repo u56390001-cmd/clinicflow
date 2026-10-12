@@ -7,16 +7,15 @@ import { toast } from "sonner";
 import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import { Button } from "@/components/ui/button";
 import { VoiceInputButton } from "@/components/patients/record/workspaces/voice-input-button";
-import {
-  assistPsychIntakeAction,
-  type IntakeAssistKind,
-} from "@/lib/actions/specialty-workspaces";
+import { assistPsychIntakeAction } from "@/lib/actions/specialty-workspaces";
 import { cn } from "@/lib/utils";
+import type { ActionResult } from "@/types";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
+type AssistKind = "draft" | "improve" | "summarize";
 
 const ASSIST_ACTIONS: Array<{
-  kind: IntakeAssistKind;
+  kind: AssistKind;
   label: string;
   icon: typeof Sparkles;
 }> = [
@@ -24,6 +23,16 @@ const ASSIST_ACTIONS: Array<{
   { kind: "improve", label: "Improve", icon: Wand2 },
   { kind: "summarize", label: "Summarise", icon: AlignLeft },
 ];
+
+/**
+ * The writer the note's AI toolbar calls. Defaults to the intake assistant;
+ * other tabs (the MSE observation notes) pass their own prompt via `assist`.
+ */
+export type NoteAssistFn = (input: {
+  kind: AssistKind;
+  fieldLabel: string;
+  text: string;
+}) => Promise<ActionResult<string>>;
 
 /**
  * A narrative intake field that saves on blur and carries a clinical writing
@@ -41,6 +50,7 @@ export function NarrativeAssistNote({
   helper,
   rows = 4,
   disabled = false,
+  assist,
 }: {
   label: string;
   name: string;
@@ -51,11 +61,14 @@ export function NarrativeAssistNote({
   helper?: string;
   rows?: number;
   disabled?: boolean;
+  /** Overrides the AI toolbar's prompt (per-tab writers). */
+  assist?: NoteAssistFn;
 }) {
   const [text, setText] = useState(value ?? "");
   const [state, setState] = useState<SaveState>("idle");
-  const [assistBusy, setAssistBusy] = useState<IntakeAssistKind | null>(null);
+  const [assistBusy, setAssistBusy] = useState<AssistKind | null>(null);
   const persisted = useRef(value ?? "");
+  const runAssist = assist ?? assistPsychIntakeAction;
 
   useEffect(() => {
     setText(value ?? "");
@@ -88,10 +101,10 @@ export function NarrativeAssistNote({
     void persist(next);
   }
 
-  async function runAssist(kind: IntakeAssistKind) {
+  async function handleAssist(kind: AssistKind) {
     if (disabled) return;
     setAssistBusy(kind);
-    const result = await assistPsychIntakeAction({ kind, fieldLabel, text });
+    const result = await runAssist({ kind, fieldLabel, text });
     setAssistBusy(null);
     if (!result.ok) {
       toast.error(result.message);
@@ -159,7 +172,7 @@ export function NarrativeAssistNote({
             variant="ghost"
             size="sm"
             disabled={disabled || assistBusy !== null}
-            onClick={() => void runAssist(kind)}
+            onClick={() => void handleAssist(kind)}
             className="h-7 gap-1.5 px-2 text-[11.5px] text-text-secondary hover:text-primary"
           >
             {assistBusy === kind ? (

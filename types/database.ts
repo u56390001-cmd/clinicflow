@@ -1136,6 +1136,11 @@ export type PsychMse = {
   cognition_memory: string | null;
   cognition_insight: string | null;
   cognition_judgment: string | null;
+  /** Structured exam keyed by section id (0082) — see lib/psych-mse.ts. */
+  findings: Record<string, unknown> | null;
+  /** Assistant-drafted summary, saved only after approval (0082). */
+  ai_summary: string | null;
+  assessed_at: string | null;
   updated_by: string | null;
   created_at: string;
   updated_at: string;
@@ -4840,6 +4845,9 @@ export type Database = {
           cognition_memory?: string | null;
           cognition_insight?: string | null;
           cognition_judgment?: string | null;
+          findings?: Record<string, unknown> | null;
+          ai_summary?: string | null;
+          assessed_at?: string | null;
           updated_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -4863,6 +4871,9 @@ export type Database = {
           cognition_memory?: string | null;
           cognition_insight?: string | null;
           cognition_judgment?: string | null;
+          findings?: Record<string, unknown> | null;
+          ai_summary?: string | null;
+          assessed_at?: string | null;
           updated_by?: string | null;
           created_at?: never;
           updated_at?: string;

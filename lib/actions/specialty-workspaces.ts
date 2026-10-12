@@ -8,6 +8,11 @@ import { canManageClinical, getCurrentClinic } from "@/lib/clinic-access";
 import { findDoctorForUser } from "@/lib/consultation-queries";
 import { createClient } from "@/lib/supabase/server";
 import { APP_ROUTES } from "@/lib/constants";
+import {
+  mseFindingsDigest,
+  readMseFindings,
+  riskThoughtsFromFindings,
+} from "@/lib/psych-mse";
 import type { ActionResult } from "@/types";
 
 /** Free-text clinical note field: trimmed, bounded, coalesces to null. */
@@ -60,24 +65,6 @@ const savePsychIntakeSchema = z.object({
   psychosocial_background: note,
   stressors: note,
   substance_use_history: note,
-});
-
-const savePsychMseSchema = z.object({
-  appearance_grooming: note,
-  appearance_eye_contact: note,
-  appearance_behaviour: note,
-  speech_rate: note,
-  speech_tone: note,
-  speech_volume: note,
-  mood_patient_reported: note,
-  affect_observed: note,
-  thought_process: note,
-  thought_content: note,
-  risk_thoughts: note,
-  cognition_orientation: note,
-  cognition_memory: note,
-  cognition_insight: note,
-  cognition_judgment: note,
 });
 
 const savePsychSessionSchema = z.object({
@@ -805,44 +792,142 @@ export async function updatePsychIntakeSuggestionAction(
   return ok();
 }
 
-export async function savePsychMseAction(
+const saveMseFindingsSchema = z.object({ findings: z.unknown() });
+const saveMseSummarySchema = z.object({ summary: note });
+
+/**
+ * Persists the whole structured MSE — the psychologist's selected findings and
+ * observation notes (0082). The legacy `risk_thoughts` column is derived from
+ * the risk section so the read-only Overview & Safety tab keeps working, and
+ * `assessed_at` records when this examination was taken.
+ */
+export async function savePsychMseFindingsAction(
   patientId: string,
   raw: unknown,
 ): Promise<ActionResult<string>> {
-  const parsed = savePsychMseSchema.safeParse(raw);
+  const idCheck = idSchema.safeParse({ id: patientId });
+  if (!idCheck.success) return err(firstIssue(idCheck));
+  const parsed = saveMseFindingsSchema.safeParse(raw);
+  if (!parsed.success) return err(firstIssue(parsed));
+  const g = await guard();
+  if (!g.ok) return g.result;
+
+  const findings = readMseFindings(parsed.data.findings);
+  const me = await authorName(g.supabase);
+  const { error } = await g.supabase.from("psych_mse").upsert(
+    {
+      clinic_id: g.clinicId,
+      patient_id: patientId,
+      findings,
+      risk_thoughts: riskThoughtsFromFindings(findings),
+      assessed_at: new Date().toISOString(),
+      updated_by: me,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "patient_id" },
+  );
+  if (error) return { ok: false, message: error.message };
+  return ok();
+}
+
+/** Saves the assistant's MSE summary only once the psychologist approves it. */
+export async function savePsychMseSummaryAction(
+  patientId: string,
+  raw: unknown,
+): Promise<ActionResult<string>> {
+  const idCheck = idSchema.safeParse({ id: patientId });
+  if (!idCheck.success) return err(firstIssue(idCheck));
+  const parsed = saveMseSummarySchema.safeParse(raw);
   if (!parsed.success) return err(firstIssue(parsed));
   const g = await guard();
   if (!g.ok) return g.result;
 
   const me = await authorName(g.supabase);
-  const { error } = await g.supabase
-    .from("psych_mse")
-    .upsert(
-      {
-        clinic_id: g.clinicId,
-        patient_id: patientId,
-        appearance_grooming: parsed.data.appearance_grooming ?? null,
-        appearance_eye_contact: parsed.data.appearance_eye_contact ?? null,
-        appearance_behaviour: parsed.data.appearance_behaviour ?? null,
-        speech_rate: parsed.data.speech_rate ?? null,
-        speech_tone: parsed.data.speech_tone ?? null,
-        speech_volume: parsed.data.speech_volume ?? null,
-        mood_patient_reported: parsed.data.mood_patient_reported ?? null,
-        affect_observed: parsed.data.affect_observed ?? null,
-        thought_process: parsed.data.thought_process ?? null,
-        thought_content: parsed.data.thought_content ?? null,
-        risk_thoughts: parsed.data.risk_thoughts ?? null,
-        cognition_orientation: parsed.data.cognition_orientation ?? null,
-        cognition_memory: parsed.data.cognition_memory ?? null,
-        cognition_insight: parsed.data.cognition_insight ?? null,
-        cognition_judgment: parsed.data.cognition_judgment ?? null,
-        updated_by: me,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "patient_id" },
-    );
+  const { error } = await g.supabase.from("psych_mse").upsert(
+    {
+      clinic_id: g.clinicId,
+      patient_id: patientId,
+      ai_summary: parsed.data.summary?.trim() || null,
+      updated_by: me,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "patient_id" },
+  );
   if (error) return { ok: false, message: error.message };
   return ok();
+}
+
+export type MseAssistKind = "summary" | "draft" | "improve" | "summarize";
+
+const mseAssistSchema = z.object({
+  kind: z.enum(["summary", "draft", "improve", "summarize"]),
+  findings: z.unknown().optional(),
+  fieldLabel: z.string().trim().max(80).optional().default("Clinical notes"),
+  text: z.string().max(8000).optional().default(""),
+});
+
+const MSE_ASSIST_INSTRUCTION: Record<MseAssistKind, string> = {
+  summary:
+    "You are writing the summary line of a mental status examination for a clinic record. Using ONLY the structured findings provided, write a concise, neutral clinical summary in 2 to 4 sentences. Third person, past tense. State the observed domains (appearance, behaviour, speech, mood, affect, thought, perception, cognition, insight, judgement), the risk level and any safety concern. Never invent findings that are not listed, never state a diagnosis and never suggest treatment. Output the summary only, plain text, no headings, no preamble.",
+  draft:
+    "You are a clinical documentation assistant for a mental status examination. Using the psychologist's rough notes below, write a concise, professional observation note in neutral clinical prose. Third person, past tense, 1 to 3 sentences. Never invent findings, never state a diagnosis and never suggest treatment. Output the note only, plain text, no preamble.",
+  improve:
+    "You are a clinical documentation editor for a mental status examination. Rewrite the observation note below in clear, neutral, professional clinical prose. Preserve every fact and the original meaning exactly; do not add, remove or infer clinical detail. Output the rewritten note only, plain text, no preamble.",
+  summarize:
+    "You summarise a single mental status examination note for a clinician. Compress the note below into 1 to 3 concise sentences of neutral clinical prose, keeping only the key facts. Never invent detail. Output the summary only, plain text, no preamble.",
+};
+
+/**
+ * AI assistance for the MSE tab (summary from findings, or draft / improve /
+ * summarize an observation note). Rides on the same clinic-wide Gemini provider
+ * as every other AI surface — it is not a second agent.
+ */
+export async function assistPsychMseAction(raw: unknown): Promise<ActionResult<string>> {
+  const parsed = mseAssistSchema.safeParse(raw);
+  if (!parsed.success) return err(firstIssue(parsed));
+
+  const { kind, fieldLabel } = parsed.data;
+  const text = parsed.data.text.trim();
+  const findingsDigest =
+    kind === "summary" ? mseFindingsDigest(readMseFindings(parsed.data.findings)) : "";
+
+  if (kind === "summary" && findingsDigest.length === 0) {
+    return { ok: false, message: "Record some findings first, then generate the summary." };
+  }
+  if (kind !== "summary" && text.length === 0) {
+    return {
+      ok: false,
+      message: "Write or dictate something first, then let AI improve or summarise it.",
+    };
+  }
+
+  const g = await guard();
+  if (!g.ok) return g.result;
+
+  if (!process.env.GEMINI_API_KEY) {
+    return { ok: false, message: "The AI assistant is not configured on this server yet." };
+  }
+
+  try {
+    const prompt =
+      kind === "summary"
+        ? `Structured mental status examination findings:\n${findingsDigest}`
+        : `Field: ${fieldLabel}\n\nNote:\n${text}`;
+    const output = await getGeminiProvider().complete({
+      systemInstruction: MSE_ASSIST_INSTRUCTION[kind],
+      prompt,
+      temperature: kind === "summary" ? 0.25 : 0.2,
+      maxOutputTokens: kind === "summary" ? 800 : 700,
+    });
+    const cleaned = output.trim();
+    if (!cleaned) {
+      return { ok: false, message: "The assistant returned nothing. Try again." };
+    }
+    return { ok: true, data: cleaned };
+  } catch (error) {
+    console.error("[assistPsychMseAction] failed:", error);
+    return { ok: false, message: "The assistant could not respond. Try again." };
+  }
 }
 
 export async function savePsychCarePlanAction(

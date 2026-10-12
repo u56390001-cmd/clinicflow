@@ -35,6 +35,7 @@ import {
 
 import { AutosaveNote, ChipNote, SelectNote, SpecialtyHeading, parseList } from "@/components/patients/record/workspaces/specialty-form";
 import { IntakeHistoryTab } from "@/components/patients/record/workspaces/psych-intake-tab";
+import { MseTab } from "@/components/patients/record/workspaces/psych-mse-tab";
 import { PatientLinksPanel } from "@/components/patients/record/workspaces/patient-links-panel";
 import { AiSummaryCard } from "@/components/patients/record/ai-summary-card";
 import { DocumentsTab } from "@/components/patients/record/documents-tab";
@@ -42,12 +43,10 @@ import { RecordEmpty, RecordFact, RecordNote, RecordSection } from "@/components
 import { CopilotDrawer } from "@/components/consultation/copilot-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  deletePsychAssessmentAction,
+import { deletePsychAssessmentAction,
   deletePsychSessionAction,
   savePsychAssessmentAction,
   savePsychCarePlanAction,
-  savePsychMseAction,
   savePsychSessionAction,
 } from "@/lib/actions/specialty-workspaces";
 import type { PsychNoteExtraction, WorkspaceExtraction } from "@/lib/copilot/types";
@@ -134,7 +133,9 @@ export function PsychWorkspace({ patient, psych, documents, activeTab, canManage
               timezone={timezone}
             />
           )}
-          {activeTab === "psy_mse" && <MseTab patientId={patient.id} psych={psych} canManage={canManage} />}
+          {activeTab === "psy_mse" && (
+            <MseTab patientId={patient.id} psych={psych} canManage={canManage} timezone={timezone} />
+          )}
           {activeTab === "psy_sessions" && (
             <SessionsTab
               patient={patient}
@@ -883,149 +884,6 @@ function ClinicalTimelineCard({
         </p>
       )}
     </OverviewCard>
-  );
-}
-
-/* ------------------------------------------------------------------------- */
-/* Mental Status Examination                                                 */
-/* ------------------------------------------------------------------------- */
-
-/**
- * Standard descriptors per MSE domain. One tap records the observation; the
- * ChipNote "Other…" escape hatch still allows a bespoke phrase when none fit.
- */
-const MSE_OPTIONS: Record<string, readonly string[]> = {
-  appearance_grooming: ["Neat", "Adequate", "Dishevelled", "Unkempt"],
-  appearance_eye_contact: ["Good", "Fair", "Poor", "Avoidant"],
-  appearance_behaviour: [
-    "Cooperative",
-    "Calm",
-    "Restless",
-    "Agitated",
-    "Withdrawn",
-    "Guarded",
-    "Hostile",
-  ],
-  speech_rate: ["Normal", "Slow", "Rapid", "Pressured"],
-  speech_tone: ["Normal", "Monotone", "Loud", "Soft", "Tremulous"],
-  speech_volume: ["Normal", "Loud", "Soft"],
-  mood_patient_reported: [
-    "Euthymic",
-    "Depressed",
-    "Anxious",
-    "Irritable",
-    "Elevated",
-    "Anhedonic",
-    "Mixed",
-  ],
-  affect_observed: [
-    "Congruent",
-    "Restricted",
-    "Blunted",
-    "Flat",
-    "Labile",
-    "Incongruent",
-  ],
-  thought_process: [
-    "Linear",
-    "Circumstantial",
-    "Tangential",
-    "Flight of ideas",
-    "Loosening",
-    "Perseverative",
-  ],
-  thought_content: [
-    "No abnormality",
-    "Worries",
-    "Obsessions",
-    "Delusions",
-    "Suicidal ideation",
-    "Hopelessness",
-    "Guilt",
-  ],
-  risk_thoughts: [
-    "None",
-    "Passive ideation",
-    "Active ideation",
-    "Self-harm",
-    "Harm to others",
-  ],
-  cognition_orientation: ["Oriented x3", "Oriented x2", "Disoriented"],
-  cognition_memory: ["Intact", "Mild impairment", "Impaired"],
-  cognition_insight: ["Good", "Partial", "Poor", "Absent"],
-  cognition_judgment: ["Good", "Fair", "Impaired", "Absent"],
-};
-
-const MSE_GROUPS: Array<{ title: string; fields: Array<{ field: keyof NonNullable<PatientPsychBundle["mse"]>; label: string }> }> = [
-  {
-    title: "Appearance",
-    fields: [
-      { field: "appearance_grooming", label: "Grooming" },
-      { field: "appearance_eye_contact", label: "Eye contact" },
-      { field: "appearance_behaviour", label: "Behaviour" },
-    ],
-  },
-  {
-    title: "Speech",
-    fields: [
-      { field: "speech_rate", label: "Rate" },
-      { field: "speech_tone", label: "Tone" },
-      { field: "speech_volume", label: "Volume" },
-    ],
-  },
-  {
-    title: "Mood & Affect",
-    fields: [
-      { field: "mood_patient_reported", label: "Patient reported mood" },
-      { field: "affect_observed", label: "Observed affect" },
-    ],
-  },
-  {
-    title: "Thought",
-    fields: [
-      { field: "thought_process", label: "Thought process" },
-      { field: "thought_content", label: "Thought content" },
-      { field: "risk_thoughts", label: "Risk thoughts" },
-    ],
-  },
-  {
-    title: "Cognition",
-    fields: [
-      { field: "cognition_orientation", label: "Orientation" },
-      { field: "cognition_memory", label: "Memory" },
-      { field: "cognition_insight", label: "Insight" },
-      { field: "cognition_judgment", label: "Judgment" },
-    ],
-  },
-];
-
-function MseTab({ patientId, psych, canManage }: { patientId: string; psych: PatientPsychBundle; canManage: boolean }) {
-  const mse = psych.mse;
-  const save =
-    (field: (typeof MSE_GROUPS)[number]["fields"][number]["field"]) =>
-    (value: string) =>
-      savePsychMseAction(patientId, { [field]: value }).then((r) => r.ok);
-
-  return (
-    <div className="space-y-4">
-      {MSE_GROUPS.map((group) => (
-        <RecordSection key={group.title} title={group.title}>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {group.fields.map(({ field, label }) => (
-              <ChipNote
-                key={field}
-                label={label}
-                value={mse?.[field] ?? null}
-                options={MSE_OPTIONS[field] ?? []}
-                onSave={canManage ? save(field) : async () => true}
-                single
-                disabled={!canManage}
-              />
-            ))}
-          </div>
-        </RecordSection>
-      ))}
-    </div>
   );
 }
 
