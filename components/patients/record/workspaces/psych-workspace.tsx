@@ -1,24 +1,23 @@
-/**
- * Psychology workspace — the Clinical Psychologist's patient record tabs
+﻿/**
+ * Psychology workspace â€” the Clinical Psychologist's patient record tabs
  * (migration 0077). Replaces the general record's tab group for doctors whose
  * specialty resolves to `psychology`.
  *
  * Layout mirrors the reference: read-only snapshot tiles by default, autosave
  * notes on Edit (same pattern as Past History), and committed rows for session
- * notes and psychometrics — each inserts a distinct record, so they get save
+ * notes and psychometrics â€” each inserts a distinct record, so they get save
  * buttons and a history list rather than per-field blur saves.
  */
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Activity,
   Brain,
-  CalendarDays,
   ChevronRight,
   ClipboardList,
   FileText,
@@ -33,26 +32,28 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { AutosaveNote, ChipNote, SelectNote, SpecialtyHeading, parseList } from "@/components/patients/record/workspaces/specialty-form";
+import { AutosaveNote, ChipNote, SelectNote, parseList } from "@/components/patients/record/workspaces/specialty-form";
 import { IntakeHistoryTab } from "@/components/patients/record/workspaces/psych-intake-tab";
 import { MseTab } from "@/components/patients/record/workspaces/psych-mse-tab";
+import { SessionsTab, type PsychDraft } from "@/components/patients/record/workspaces/psych-sessions-tab";
 import { PatientLinksPanel } from "@/components/patients/record/workspaces/patient-links-panel";
 import { AiSummaryCard } from "@/components/patients/record/ai-summary-card";
 import { DocumentsTab } from "@/components/patients/record/documents-tab";
-import { RecordEmpty, RecordFact, RecordNote, RecordSection } from "@/components/patients/record/record-primitives";
+import { RecordEmpty, RecordFact, RecordSection } from "@/components/patients/record/record-primitives";
 import { CopilotDrawer } from "@/components/consultation/copilot-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { deletePsychAssessmentAction,
-  deletePsychSessionAction,
+import {
+  deletePsychAssessmentAction,
   savePsychAssessmentAction,
   savePsychCarePlanAction,
-  savePsychSessionAction,
 } from "@/lib/actions/specialty-workspaces";
+import { useSessionRecorder } from "@/lib/copilot/hooks/useSessionRecorder";
 import type { PsychNoteExtraction, WorkspaceExtraction } from "@/lib/copilot/types";
 import { utcIsoToClinicLocalInput } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { formatShortDate } from "@/lib/utils/datetime";
+import { SESSION_TYPE_META } from "@/lib/psych-session";
 import type { PatientPsychBundle } from "@/lib/patient-record";
 import type { PatientDocumentView } from "@/lib/patient-documents-queries";
 import { PSYCHOMETRIC_INSTRUMENTS, isPsychometricKey } from "@/lib/psychometrics";
@@ -62,7 +63,6 @@ import type {
   PatientDirectoryRow,
   PsychAssessment,
   PsychCarePlan,
-  PsychSession,
 } from "@/types/database";
 
 type Props = {
@@ -73,24 +73,25 @@ type Props = {
   canManage: boolean;
   timezone: string;
   aiSummaryEnabled: boolean;
-  /** `?tab=psy_psychometrics` — the Overview's "View history" target. */
+  /** `?tab=psy_psychometrics` â€” the Overview's "View history" target. */
   assessmentsHref: string;
-  /** `?tab=psy_documents` — the Overview's "View" documents target. */
+  /** `?tab=psy_documents` â€” the Overview's "View" documents target. */
   documentsHref: string;
-};
-
-/** A session note a copilot extraction produced, waiting for the Sessions tab. */
-type PsychDraft = {
-  format: "BIRP" | "DAP";
-  fields: Record<string, string>;
 };
 
 export function PsychWorkspace({ patient, psych, documents, activeTab, canManage, timezone, aiSummaryEnabled, assessmentsHref, documentsHref }: Props) {
   const [seed, setSeed] = useState<PsychDraft | null>(null);
 
   /**
+   * The session recorder lives here, at the workspace level, so recording
+   * survives tab switches â€” the psychologist can open the MSE or Psychometrics
+   * mid-session while the microphone keeps capturing.
+   */
+  const recorder = useSessionRecorder();
+
+  /**
    * One AI surface for the whole workspace: the existing psychology
-   * CopilotDrawer, mounted once and visible on every tab — no second copilot,
+   * CopilotDrawer, mounted once and visible on every tab â€” no second copilot,
    * no new route. Its extraction is a session note, so it seeds the Session
    * Notes form. The draft is held here and handed to that tab when it mounts,
    * so a note captured on the MSE tab still lands when the psychologist
@@ -131,6 +132,7 @@ export function PsychWorkspace({ patient, psych, documents, activeTab, canManage
               psych={psych}
               canManage={canManage}
               timezone={timezone}
+              whatsappNumber={patient.whatsapp_number}
             />
           )}
           {activeTab === "psy_mse" && (
@@ -143,6 +145,7 @@ export function PsychWorkspace({ patient, psych, documents, activeTab, canManage
               canManage={canManage}
               seed={seed}
               onSeedApplied={() => setSeed(null)}
+              recorder={recorder}
             />
           )}
           {activeTab === "psy_psychometrics" && (
@@ -219,8 +222,8 @@ const RISK_TONE: Record<
 
 /**
  * The Overview is a read-only clinical dashboard. Every value it shows was
- * captured by the workflow that owns it — pre-visit intake, psychometric links,
- * uploaded documents, session notes or the care plan — so nothing here is typed
+ * captured by the workflow that owns it â€” pre-visit intake, psychometric links,
+ * uploaded documents, session notes or the care plan â€” so nothing here is typed
  * by hand and the card is always a faithful window onto another tab.
  */
 function OverviewCard({
@@ -255,7 +258,7 @@ function OverviewCard({
   );
 }
 
-/** A read-only token (concern, risk factor) — the display counterpart of ChipNote. */
+/** A read-only token (concern, risk factor) â€” the display counterpart of ChipNote. */
 function ReadPill({ children }: { children: React.ReactNode }) {
   return (
     <span className="rounded-pill border border-hairline bg-app px-2.5 py-1 text-[11.5px] font-medium leading-none text-text-secondary">
@@ -329,7 +332,7 @@ const COMPLETED_BY_LABEL: Record<PsychAssessment["completed_by"], string> = {
   psychologist: "Psychologist",
 };
 
-/** A quiet tag for how a result arrived — a patient link stands out. */
+/** A quiet tag for how a result arrived â€” a patient link stands out. */
 function CompletedByBadge({ value }: { value: PsychAssessment["completed_by"] }) {
   return (
     <Badge
@@ -344,7 +347,7 @@ function CompletedByBadge({ value }: { value: PsychAssessment["completed_by"] })
   );
 }
 
-/** How a document arrived — a patient link, the desk, or a clinician. */
+/** How a document arrived â€” a patient link, the desk, or a clinician. */
 const DOC_SOURCE_LABEL: Record<string, string> = {
   patient_online: "Patient online",
   reception: "Reception",
@@ -383,17 +386,6 @@ const FOLLOW_UP_OPTIONS = [
   "PRN",
   "Discharged",
 ] as const;
-
-const SESSION_TYPE_META: Record<
-  "initial" | "individual" | "follow_up" | "crisis" | "group",
-  string
-> = {
-  initial: "Initial assessment",
-  individual: "Individual therapy",
-  follow_up: "Follow-up",
-  crisis: "Crisis",
-  group: "Group",
-};
 
 function OverviewSafetyTab({
   patient,
@@ -467,7 +459,7 @@ function OverviewSafetyTab({
 /**
  * The safety snapshot is derived, never typed here. A recorded `psych_safety`
  * row (written by the pre-visit link or a session workflow) wins; otherwise the
- * level is inferred from the structured signals the record already holds — the
+ * level is inferred from the structured signals the record already holds â€” the
  * MSE risk-thoughts field and the self-harm items on PHQ-9 / BDI-II.
  */
 type RiskSnapshot = {
@@ -487,7 +479,7 @@ function riskItemLabel(assessments: PsychAssessment[]): string | null {
     if (assessment.assessment_type === "PHQ-9" && assessment.answers) {
       const value = assessment.answers["phq9_9"];
       if (typeof value === "number" && value > 0) {
-        return `Self-harm thoughts · PHQ-9 item 9 (${value})`;
+        return `Self-harm thoughts Â· PHQ-9 item 9 (${value})`;
       }
     }
   }
@@ -495,7 +487,7 @@ function riskItemLabel(assessments: PsychAssessment[]): string | null {
     if (assessment.assessment_type === "BDI-II" && assessment.answers) {
       const value = assessment.answers["bdi2_9"];
       if (typeof value === "number" && value > 0) {
-        return `Suicidal thoughts · BDI-II item 9 (${value})`;
+        return `Suicidal thoughts Â· BDI-II item 9 (${value})`;
       }
     }
   }
@@ -516,7 +508,7 @@ function buildSafetySnapshot(
 
   const factors = mergeTags(
     safety?.risk_factors,
-    hasThoughts ? `MSE · ${riskThoughts}` : null,
+    hasThoughts ? `MSE Â· ${riskThoughts}` : null,
     itemLabel,
   );
 
@@ -664,8 +656,8 @@ function LatestAssessmentsCard({
                   {assessment.assessment_type}
                 </span>
                 <span className="text-[12px] text-text-secondary">
-                  {assessment.score !== null ? `Score ${assessment.score}` : "—"}
-                  {assessment.severity ? ` · ${assessment.severity}` : ""}
+                  {assessment.score !== null ? `Score ${assessment.score}` : "â€”"}
+                  {assessment.severity ? ` Â· ${assessment.severity}` : ""}
                 </span>
               </div>
               <div className="mt-1 flex items-center gap-2">
@@ -719,7 +711,7 @@ function DocumentsSummaryCard({
           </p>
           <p className="text-[11px] text-ink-faint">
             {DOC_SOURCE_LABEL[latest.source] ?? "Clinic"}
-            {latest.document_date ? ` · ${formatShortDate(latest.document_date)}` : ""}
+            {latest.document_date ? ` Â· ${formatShortDate(latest.document_date)}` : ""}
           </p>
         </div>
       ) : (
@@ -790,7 +782,7 @@ function buildTimeline(
       label: `${assessment.assessment_type} recorded`,
       detail:
         assessment.score !== null
-          ? `Score ${assessment.score}${assessment.severity ? ` · ${assessment.severity}` : ""}`
+          ? `Score ${assessment.score}${assessment.severity ? ` Â· ${assessment.severity}` : ""}`
           : assessment.severity ?? undefined,
     });
   }
@@ -888,211 +880,6 @@ function ClinicalTimelineCard({
 }
 
 /* ------------------------------------------------------------------------- */
-/* Session Notes (BIRP / DAP)                                                */
-/* ------------------------------------------------------------------------- */
-
-function SessionsTab({
-  patient,
-  psych,
-  canManage,
-  seed,
-  onSeedApplied,
-}: {
-  patient: PatientDirectoryRow;
-  psych: PatientPsychBundle;
-  canManage: boolean;
-  seed: PsychDraft | null;
-  onSeedApplied: () => void;
-}) {
-  const router = useRouter();
-  const [format, setFormat] = useState<"BIRP" | "DAP">("BIRP");
-  const [pending, setPending] = useState(false);
-  const [draft, setDraft] = useState<Record<string, string>>({});
-  const [sessionDate, setSessionDate] = useState("");
-  const [sessionType, setSessionType] = useState<keyof typeof SESSION_TYPE_META>("individual");
-
-  // The copilot lives at the workspace level (available on every tab). A note
-  // captured elsewhere arrives here as a seed and is merged once the form is
-  // on screen; the parent then clears it so it is applied exactly once.
-  useEffect(() => {
-    if (!seed) return;
-    setFormat(seed.format);
-    setDraft((current) => ({ ...current, ...seed.fields }));
-    onSeedApplied();
-  }, [seed, onSeedApplied]);
-
-  const fields: Array<{ key: string; label: string }> =
-    format === "BIRP"
-      ? [
-          { key: "behavior", label: "Behavior" },
-          { key: "intervention", label: "Intervention" },
-          { key: "response", label: "Response" },
-          { key: "plan", label: "Plan" },
-        ]
-      : [
-          { key: "observation_data", label: "Data" },
-          { key: "assessment", label: "Assessment" },
-          { key: "plan", label: "Plan" },
-        ];
-
-  async function saveSession() {
-    if (!canManage) return;
-    setPending(true);
-    const payload: Record<string, string> = {
-      format,
-      session_type: sessionType,
-      ...draft,
-    };
-    if (sessionDate) payload.session_date = sessionDate;
-    const result = await savePsychSessionAction(patient.id, payload);
-    setPending(false);
-    if (result.ok) {
-      toast.success("Session note saved");
-      setDraft({});
-      setSessionDate("");
-      router.refresh();
-    } else {
-      toast.error(result.message);
-    }
-  }
-
-  async function removeSession(id: string) {
-    const result = await deletePsychSessionAction(id);
-    if (result.ok) router.refresh();
-    else toast.error(result.message);
-  }
-
-  return (
-    <div className="space-y-4">
-      {canManage && (
-        <RecordSection title="Write session note">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <div className="flex items-center rounded-control border border-hairline bg-app p-0.5">
-              {(["BIRP", "DAP"] as const).map((kind) => (
-                <button
-                  key={kind}
-                  type="button"
-                  onClick={() => setFormat(kind)}
-                  aria-pressed={format === kind}
-                  className={cn(
-                    "rounded-control px-3 py-1 text-[12px] font-semibold transition-colors",
-                    format === kind ? "bg-white text-primary shadow-sm" : "text-text-secondary hover:text-primary",
-                  )}
-                >
-                  {kind}
-                </button>
-              ))}
-            </div>
-            <label className="flex items-center gap-1.5 text-[12px] font-medium text-text-secondary">
-              Session type
-              <select
-                value={sessionType}
-                onChange={(e) =>
-                  setSessionType(e.target.value as keyof typeof SESSION_TYPE_META)
-                }
-                className="rounded-control border border-text-muted/25 bg-surface px-2 py-1 text-[12px] text-text-primary outline-none"
-              >
-                {(Object.keys(SESSION_TYPE_META) as Array<keyof typeof SESSION_TYPE_META>).map((key) => (
-                  <option key={key} value={key}>
-                    {SESSION_TYPE_META[key]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-1.5 text-[12px] font-medium text-text-secondary">
-              <CalendarDays aria-hidden="true" className="size-3.5" />
-              <input
-                type="date"
-                value={sessionDate}
-                max={new Date().toISOString().slice(0, 10)}
-                onChange={(e) => setSessionDate(e.target.value)}
-                className="rounded-control border border-text-muted/25 bg-surface px-2 py-1 text-[12px] text-text-primary outline-none"
-              />
-            </label>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {fields.map(({ key, label }) => (
-              <div key={key}>
-                <p className="text-ink mb-1.5 text-[12.5px] font-bold">{label}</p>
-                <textarea
-                  rows={4}
-                  value={draft[key] ?? ""}
-                  onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))}
-                  placeholder={format === "BIRP" ? "What the client did and said in session…" : "Facts observed and reported in this session…"}
-                  className="w-full resize-y rounded-control border border-text-muted/25 bg-surface p-2.5 text-[12.5px] leading-relaxed text-text-primary outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
-                />
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-4 flex justify-end">
-            <Button type="button" size="sm" onClick={saveSession} disabled={pending} className="gap-1.5">
-              {pending ? <Loader2 aria-hidden="true" className="size-3.5 animate-spin" /> : <ClipboardList aria-hidden="true" className="size-3.5" />}
-              {pending ? "Saving…" : "Save session note"}
-            </Button>
-          </div>
-        </RecordSection>
-      )}
-
-      {psych.sessions.length > 0 ? (
-        <div className="space-y-3">
-          <SpecialtyHeading title="Session history" description="Newest first" />
-          {psych.sessions.map((session) => (
-            <SessionRow key={session.id} session={session} canManage={canManage} onDelete={removeSession} />
-          ))}
-        </div>
-      ) : (
-        <RecordEmpty
-          icon={Brain}
-          title="No session notes yet"
-          description="Session notes use the BIRP or DAP format — no medical prescription format."
-        />
-      )}
-    </div>
-  );
-}
-
-function SessionRow({ session, canManage, onDelete }: { session: PsychSession; canManage: boolean; onDelete: (id: string) => void }) {
-  const rows = (
-    session.format === "BIRP"
-      ? [
-          ["Behavior", session.behavior],
-          ["Intervention", session.intervention],
-          ["Response", session.response],
-          ["Plan", session.plan],
-        ]
-      : [
-          ["Data", session.observation_data],
-          ["Assessment", session.assessment],
-          ["Plan", session.plan],
-        ]
-  ) as Array<[string, string | null]>;
-
-  const entries = rows.filter(([, value]) => value?.trim());
-
-  return (
-    <RecordSection
-      title={`${session.session_date} · ${SESSION_TYPE_META[session.session_type]} · ${session.format}`}
-      meta={
-        canManage && (
-          <Button type="button" variant="ghost" size="sm" className="text-status-destructive" onClick={() => onDelete(session.id)}>
-            <Trash2 aria-hidden="true" className="size-3.5" />
-          </Button>
-        )
-      }
-    >
-      <div className="flex flex-col gap-3">
-        {entries.map(([label, value]) => (
-          <RecordNote key={label} label={label} value={value} />
-        ))}
-        {entries.length === 0 && <p className="text-ink-faint text-[12px] italic">No fields recorded.</p>}
-      </div>
-    </RecordSection>
-  );
-}
-
-/* ------------------------------------------------------------------------- */
 /* Psychometrics                                                            */
 /* ------------------------------------------------------------------------- */
 
@@ -1106,7 +893,7 @@ const ASSESSMENT_LIBRARY: Record<
   { label: string; max: number; bands: Array<{ upTo: number; label: string }> }
 > = {
   "PHQ-9": {
-    label: "PHQ-9 · Depression",
+    label: "PHQ-9 Â· Depression",
     max: 27,
     bands: [
       { upTo: 4, label: "Minimal" },
@@ -1117,7 +904,7 @@ const ASSESSMENT_LIBRARY: Record<
     ],
   },
   "GAD-7": {
-    label: "GAD-7 · Anxiety",
+    label: "GAD-7 Â· Anxiety",
     max: 21,
     bands: [
       { upTo: 4, label: "Minimal" },
@@ -1127,7 +914,7 @@ const ASSESSMENT_LIBRARY: Record<
     ],
   },
   BAI: {
-    label: "BAI · Anxiety",
+    label: "BAI Â· Anxiety",
     max: 63,
     bands: [
       { upTo: 7, label: "Minimal" },
@@ -1137,7 +924,7 @@ const ASSESSMENT_LIBRARY: Record<
     ],
   },
   "BDI-II": {
-    label: "BDI-II · Depression",
+    label: "BDI-II Â· Depression",
     max: 63,
     bands: [
       { upTo: 13, label: "Minimal" },
@@ -1147,7 +934,7 @@ const ASSESSMENT_LIBRARY: Record<
     ],
   },
   "PCL-5": {
-    label: "PCL-5 · PTSD",
+    label: "PCL-5 Â· PTSD",
     max: 80,
     bands: [
       { upTo: 30, label: "Below threshold" },
@@ -1156,7 +943,7 @@ const ASSESSMENT_LIBRARY: Record<
     ],
   },
   "OCI-R": {
-    label: "OCI-R · OCD",
+    label: "OCI-R Â· OCD",
     max: 72,
     bands: [
       { upTo: 20, label: "Subclinical" },
@@ -1165,7 +952,7 @@ const ASSESSMENT_LIBRARY: Record<
     ],
   },
   AUDIT: {
-    label: "AUDIT · Alcohol",
+    label: "AUDIT Â· Alcohol",
     max: 40,
     bands: [
       { upTo: 7, label: "Low risk" },
@@ -1175,7 +962,7 @@ const ASSESSMENT_LIBRARY: Record<
     ],
   },
   ASRS: {
-    label: "ASRS · ADHD",
+    label: "ASRS Â· ADHD",
     max: 24,
     bands: [
       { upTo: 16, label: "Unlikely" },
@@ -1271,7 +1058,7 @@ function PsychometricsTab({
           <RecordEmpty
             icon={TrendingUp}
             title="No assessments on file"
-            description="Log a standard instrument (PHQ-9, GAD-7, BDI-II, PCL-5…) to track score history and trends."
+            description="Log a standard instrument (PHQ-9, GAD-7, BDI-II, PCL-5â€¦) to track score history and trends."
           />
         )}
       </RecordSection>
@@ -1303,7 +1090,7 @@ function PsychometricsTab({
                 max={instrument.max}
                 value={score}
                 onChange={(e) => changeScore(e.target.value)}
-                placeholder={`0–${instrument.max}`}
+                placeholder={`0â€“${instrument.max}`}
                 className="w-full rounded-control border border-text-muted/25 bg-surface px-2 py-1.5 text-[12.5px] text-text-primary outline-none"
               />
             </div>
@@ -1340,7 +1127,7 @@ function PsychometricsTab({
           <div className="mt-4 flex justify-end">
             <Button type="button" size="sm" onClick={addAssessment} disabled={pending} className="gap-1.5">
               {pending ? <Loader2 aria-hidden="true" className="size-3.5 animate-spin" /> : <TrendingUp aria-hidden="true" className="size-3.5" />}
-              {pending ? "Saving…" : "Record assessment"}
+              {pending ? "Savingâ€¦" : "Record assessment"}
             </Button>
           </div>
         </RecordSection>
@@ -1419,7 +1206,7 @@ function AssessmentTrendRow({ assessment, canManage, onDelete }: { assessment: P
                 {index + 1}. {response.text}
               </span>
               <span className="shrink-0 text-[11.5px] font-semibold text-text-primary">
-                {response.value ?? "—"}
+                {response.value ?? "â€”"}
               </span>
             </li>
           ))}
@@ -1473,7 +1260,7 @@ function CarePlanTab({ patientId, psych, canManage }: { patientId: string; psych
           value={carePlan?.therapy_goals}
           onSave={canManage ? save("therapy_goals") : async () => true}
           rows={3}
-          placeholder="Agreed goals, one per line…"
+          placeholder="Agreed goals, one per lineâ€¦"
         />
         <SelectNote
           label="Follow-up frequency"

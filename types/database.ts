@@ -1061,17 +1061,57 @@ export type PsychSafety = {
   updated_at: string;
 };
 
+/** The `psych_intake` columns a clinician can record against (0083). */
+export type IntakeFieldKey =
+  | "presenting_concern"
+  | "presenting_concern_duration"
+  | "presenting_concern_severity"
+  | "presenting_concern_words"
+  | "previous_therapy_history"
+  | "previous_diagnosis"
+  | "family_mental_health_history"
+  | "psychosocial_background"
+  | "stressors"
+  | "substance_use_history"
+  | "additional_clinical_notes";
+
+/** Where a recorded intake field's value originated (per-field provenance). */
+export type IntakeProvenanceSource = "patient" | "ai" | "clinician";
+
+/**
+ * Lifecycle of a recorded field: "approved" means the value stands as-is;
+ * "updated" means a clinician revised something that came from the patient or
+ * the AI review queue. "Pending" values never live here — they sit in the
+ * suggestions queue until approved.
+ */
+export type IntakeProvenanceStatus = "approved" | "updated";
+
+export type IntakeProvenanceEntry = {
+  source: IntakeProvenanceSource;
+  status: IntakeProvenanceStatus;
+  label: string | null;
+};
+
+/** Display-only per-field provenance map on `psych_intake` (0083). */
+export type IntakeProvenance = Partial<Record<IntakeFieldKey, IntakeProvenanceEntry>>;
+
 /** Psychology — Intake & Psychological History (one per patient). */
 export type PsychIntake = {
   id: string;
   clinic_id: string;
   patient_id: string;
+  presenting_concern: string | null;
+  presenting_concern_duration: string | null;
+  presenting_concern_severity: string | null;
+  presenting_concern_words: string | null;
   previous_therapy_history: string | null;
   previous_diagnosis: string | null;
   family_mental_health_history: string | null;
   psychosocial_background: string | null;
   stressors: string | null;
   substance_use_history: string | null;
+  additional_clinical_notes: string | null;
+  field_provenance: IntakeProvenance | null;
   updated_by: string | null;
   created_at: string;
   updated_at: string;
@@ -1153,14 +1193,25 @@ export type PsychSession = {
   patient_id: string;
   doctor_id: string | null;
   session_date: string;
-  format: "BIRP" | "DAP";
+  format: "BIRP" | "SOAP" | "DAP";
   session_type: "initial" | "individual" | "follow_up" | "crisis" | "group";
   behavior: string | null;
   intervention: string | null;
   response: string | null;
+  subjective: string | null;
+  objective: string | null;
   observation_data: string | null;
   assessment: string | null;
   plan: string | null;
+  /** Raw recorded session transcription that the note sections were distilled from. */
+  transcript: string | null;
+  session_summary: string | null;
+  duration_seconds: number | null;
+  /** "draft" while editing, "approved" once in the permanent record. */
+  status: "draft" | "approved";
+  doctor_name: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -4756,12 +4807,18 @@ export type Database = {
           id?: string;
           clinic_id: string;
           patient_id: string;
+          presenting_concern?: string | null;
+          presenting_concern_duration?: string | null;
+          presenting_concern_severity?: string | null;
+          presenting_concern_words?: string | null;
           previous_therapy_history?: string | null;
           previous_diagnosis?: string | null;
           family_mental_health_history?: string | null;
           psychosocial_background?: string | null;
           stressors?: string | null;
           substance_use_history?: string | null;
+          additional_clinical_notes?: string | null;
+          field_provenance?: IntakeProvenance | null;
           updated_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -4770,12 +4827,18 @@ export type Database = {
           id?: never;
           clinic_id?: never;
           patient_id?: never;
+          presenting_concern?: string | null;
+          presenting_concern_duration?: string | null;
+          presenting_concern_severity?: string | null;
+          presenting_concern_words?: string | null;
           previous_therapy_history?: string | null;
           previous_diagnosis?: string | null;
           family_mental_health_history?: string | null;
           psychosocial_background?: string | null;
           stressors?: string | null;
           substance_use_history?: string | null;
+          additional_clinical_notes?: string | null;
+          field_provenance?: IntakeProvenance | null;
           updated_by?: string | null;
           created_at?: never;
           updated_at?: string;
@@ -4891,14 +4954,23 @@ export type Database = {
           patient_id: string;
           doctor_id?: string | null;
           session_date?: string;
-          format?: "BIRP" | "DAP";
+          format?: "BIRP" | "SOAP" | "DAP";
           session_type?: "initial" | "individual" | "follow_up" | "crisis" | "group";
+          status?: "draft" | "approved";
           behavior?: string | null;
           intervention?: string | null;
           response?: string | null;
+          subjective?: string | null;
+          objective?: string | null;
           observation_data?: string | null;
           assessment?: string | null;
           plan?: string | null;
+          transcript?: string | null;
+          session_summary?: string | null;
+          duration_seconds?: number | null;
+          doctor_name?: string | null;
+          approved_by?: string | null;
+          approved_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -4908,14 +4980,23 @@ export type Database = {
           patient_id?: never;
           doctor_id?: string | null;
           session_date?: string;
-          format?: "BIRP" | "DAP";
+          format?: "BIRP" | "SOAP" | "DAP";
           session_type?: "initial" | "individual" | "follow_up" | "crisis" | "group";
+          status?: "draft" | "approved";
           behavior?: string | null;
           intervention?: string | null;
           response?: string | null;
+          subjective?: string | null;
+          objective?: string | null;
           observation_data?: string | null;
           assessment?: string | null;
           plan?: string | null;
+          transcript?: string | null;
+          session_summary?: string | null;
+          duration_seconds?: number | null;
+          doctor_name?: string | null;
+          approved_by?: string | null;
+          approved_at?: string | null;
           created_at?: never;
           updated_at?: string;
         };

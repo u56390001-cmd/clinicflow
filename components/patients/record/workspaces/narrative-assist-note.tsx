@@ -51,6 +51,7 @@ export function NarrativeAssistNote({
   rows = 4,
   disabled = false,
   assist,
+  badge,
 }: {
   label: string;
   name: string;
@@ -63,6 +64,8 @@ export function NarrativeAssistNote({
   disabled?: boolean;
   /** Overrides the AI toolbar's prompt (per-tab writers). */
   assist?: NoteAssistFn;
+  /** Rendered next to the field label (e.g. a provenance pill). */
+  badge?: React.ReactNode;
 }) {
   const [text, setText] = useState(value ?? "");
   const [state, setState] = useState<SaveState>("idle");
@@ -120,6 +123,7 @@ export function NarrativeAssistNote({
         <label htmlFor={name} className="text-ink text-[12.5px] font-bold">
           {label}
         </label>
+        {badge}
         <div className="flex items-center gap-2">
           {state === "saving" && (
             <span className="flex items-center gap-1 text-[11px] font-medium text-text-muted">

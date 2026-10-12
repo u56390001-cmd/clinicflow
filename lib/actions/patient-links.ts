@@ -7,6 +7,12 @@ import { getBaseUrl } from "@/lib/booking-url";
 import { canManageClinical, getCurrentClinic } from "@/lib/clinic-access";
 import { APP_ROUTES } from "@/lib/constants";
 import {
+  patientFillEntry,
+  readIntakeProvenance,
+  withIntakeProvenance,
+} from "@/lib/psych-intake";
+import type { IntakeFieldKey } from "@/types/database";
+import {
   PATIENT_LINK_TTL_DAYS,
   buildPatientLinkPath,
   randomHexToken,
@@ -306,22 +312,50 @@ export async function submitPreVisitLinkAction(
   const { data: existing } = await widget
     .from("psych_intake")
     .select(
-      "previous_therapy_history, previous_diagnosis, family_mental_health_history, psychosocial_background, stressors, substance_use_history",
+      "field_provenance, previous_therapy_history, previous_diagnosis, family_mental_health_history, psychosocial_background, stressors, substance_use_history",
     )
     .eq("clinic_id", preview.clinicId)
     .eq("patient_id", preview.patientId)
     .maybeSingle();
 
+  const intakeColumns: Record<IntakeFieldKey, string | null> = {
+    presenting_concern: null,
+    presenting_concern_duration: null,
+    presenting_concern_severity: null,
+    presenting_concern_words: null,
+    previous_therapy_history: fillIfEmpty(existing?.previous_therapy_history, data.previous_therapy_history),
+    previous_diagnosis: fillIfEmpty(existing?.previous_diagnosis, data.previous_diagnosis),
+    family_mental_health_history: fillIfEmpty(existing?.family_mental_health_history, data.family_mental_health_history),
+    psychosocial_background: fillIfEmpty(existing?.psychosocial_background, data.psychosocial_background),
+    stressors: fillIfEmpty(existing?.stressors, data.stressors),
+    substance_use_history: fillIfEmpty(existing?.substance_use_history, data.substance_use_history),
+    additional_clinical_notes: null,
+  };
+
+  let provenance = readIntakeProvenance(existing?.field_provenance);
+  for (const field of Object.keys(intakeColumns) as IntakeFieldKey[]) {
+    const value = intakeColumns[field];
+    if (value ? value.trim().length > 0 : false) {
+      provenance = withIntakeProvenance(provenance, field, patientFillEntry());
+    }
+  }
+
   const { error: intakeError } = await widget.from("psych_intake").upsert(
     {
       clinic_id: preview.clinicId,
       patient_id: preview.patientId,
-      previous_therapy_history: fillIfEmpty(existing?.previous_therapy_history, data.previous_therapy_history),
-      previous_diagnosis: fillIfEmpty(existing?.previous_diagnosis, data.previous_diagnosis),
-      family_mental_health_history: fillIfEmpty(existing?.family_mental_health_history, data.family_mental_health_history),
-      psychosocial_background: fillIfEmpty(existing?.psychosocial_background, data.psychosocial_background),
-      stressors: fillIfEmpty(existing?.stressors, data.stressors),
-      substance_use_history: fillIfEmpty(existing?.substance_use_history, data.substance_use_history),
+      presenting_concern: intakeColumns.presenting_concern,
+      presenting_concern_duration: intakeColumns.presenting_concern_duration,
+      presenting_concern_severity: intakeColumns.presenting_concern_severity,
+      presenting_concern_words: intakeColumns.presenting_concern_words,
+      previous_therapy_history: intakeColumns.previous_therapy_history,
+      previous_diagnosis: intakeColumns.previous_diagnosis,
+      family_mental_health_history: intakeColumns.family_mental_health_history,
+      psychosocial_background: intakeColumns.psychosocial_background,
+      stressors: intakeColumns.stressors,
+      substance_use_history: intakeColumns.substance_use_history,
+      additional_clinical_notes: intakeColumns.additional_clinical_notes,
+      field_provenance: provenance,
       updated_by: PRE_VISIT_CREATED_BY,
       updated_at: now,
     },

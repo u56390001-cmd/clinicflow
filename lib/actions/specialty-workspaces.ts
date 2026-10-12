@@ -13,6 +13,21 @@ import {
   readMseFindings,
   riskThoughtsFromFindings,
 } from "@/lib/psych-mse";
+import {
+  aiApprovalEntry,
+  aiBulkEntry,
+  clinicianSaveEntry,
+  readIntakeProvenance,
+  withIntakeProvenance,
+} from "@/lib/psych-intake";
+import {
+  NOTE_FORMAT_META,
+  SESSION_SECTIONS,
+  SESSION_SECTION_KEYS,
+  type SessionNoteFormat,
+  type SessionSectionKey,
+} from "@/lib/psych-session";
+import type { IntakeFieldKey } from "@/types/database";
 import type { ActionResult } from "@/types";
 
 /** Free-text clinical note field: trimmed, bounded, coalesces to null. */
@@ -23,10 +38,21 @@ const note = z
   .optional()
   .or(z.literal(""));
 
+/** Longer free-text field (recorded session transcripts). */
+const longNote = z
+  .string()
+  .trim()
+  .max(20000, "Transcript is too long.")
+  .optional()
+  .or(z.literal(""));
+
+/** Recording length in seconds. */
+const duration = z.coerce.number().int().min(0).max(86400).optional().nullable();
+
 const optionalUuid = z.string().uuid().optional().nullable().or(z.literal(""));
 
 const RISK_LEVELS = ["low", "moderate", "high", "crisis"] as const;
-const SESSION_FORMATS = ["BIRP", "DAP"] as const;
+const SESSION_FORMATS = ["BIRP", "SOAP", "DAP"] as const;
 const ASSESSMENT_TYPES = [
   "PHQ-9",
   "GAD-7",
@@ -59,15 +85,25 @@ const savePsychSafetySchema = z.object({
 });
 
 const savePsychIntakeSchema = z.object({
+  presenting_concern: note,
+  presenting_concern_duration: note,
+  presenting_concern_severity: z
+    .enum(["Mild", "Moderate", "Severe", "Very severe"])
+    .optional()
+    .nullable(),
+  presenting_concern_words: note,
   previous_therapy_history: note,
   previous_diagnosis: note,
   family_mental_health_history: note,
   psychosocial_background: note,
   stressors: note,
   substance_use_history: note,
+  additional_clinical_notes: note,
 });
 
 const savePsychSessionSchema = z.object({
+  /** Re-save an existing note (set by the editor once a draft row exists). */
+  id: z.string().uuid().optional().nullable().or(z.literal("")),
   session_date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date.")
@@ -75,12 +111,39 @@ const savePsychSessionSchema = z.object({
     .or(z.literal("")),
   format: z.enum(SESSION_FORMATS),
   session_type: z.enum(SESSION_TYPES).default("individual"),
+  status: z.enum(["draft", "approved"]).default("draft"),
   behavior: note,
   intervention: note,
   response: note,
+  subjective: note,
+  objective: note,
   observation_data: note,
   assessment: note,
   plan: note,
+  session_summary: note,
+  transcript: longNote,
+  duration_seconds: duration,
+});
+
+const approveSessionSchema = z.object({ id: z.string().uuid() });
+
+const assistSessionSchema = z.object({
+  kind: z.enum(["draft", "improve", "summarize"]),
+  format: z.enum(SESSION_FORMATS),
+  section: z.enum(SESSION_SECTION_KEYS),
+  fieldLabel: z.string().trim().min(1).max(80),
+  text: z.string().trim().max(6000).default(""),
+  transcript: z.string().trim().max(20000).default(""),
+});
+
+const generateSessionNoteSchema = z.object({
+  format: z.enum(SESSION_FORMATS),
+  /** Recorded or pasted session transcript the AI distills into the note. */
+  transcript: z
+    .string()
+    .trim()
+    .min(1, "Record or paste a session transcript first.")
+    .max(20000, "Transcript is too long."),
 });
 
 const savePsychAssessmentSchema = z.object({
@@ -252,6 +315,12 @@ export async function savePsychSafetyAction(
   return ok();
 }
 
+/**
+ * Persists a single Intake & History field (0083). The snapshot always keeps
+ * its provenance: each saved field is flagged as clinician-entered or, when a
+ * clinician revises text that came from the patient form or the AI review
+ * queue, "updated" on its original source.
+ */
 export async function savePsychIntakeAction(
   patientId: string,
   raw: unknown,
@@ -261,24 +330,48 @@ export async function savePsychIntakeAction(
   const g = await guard();
   if (!g.ok) return g.result;
 
+  const fields = Object.keys(parsed.data) as IntakeFieldKey[];
+  const touched = fields.filter(
+    (field) => (parsed.data as Record<string, unknown>)[field] !== undefined,
+  );
+  if (touched.length === 0) return ok();
+
+  const { data: existing, error: loadError } = await g.supabase
+    .from("psych_intake")
+    .select(
+      "field_provenance, presenting_concern, presenting_concern_duration, presenting_concern_severity, presenting_concern_words, previous_therapy_history, previous_diagnosis, family_mental_health_history, psychosocial_background, stressors, substance_use_history, additional_clinical_notes",
+    )
+    .eq("clinic_id", g.clinicId)
+    .eq("patient_id", patientId)
+    .maybeSingle();
+  if (loadError) return { ok: false, message: loadError.message };
+
+  const priorValues = (existing ?? {}) as Partial<Record<IntakeFieldKey, string | null>>;
+  const provenance = readIntakeProvenance(existing?.field_provenance);
+
   const me = await authorName(g.supabase);
+  const payload: Record<string, unknown> = {
+    clinic_id: g.clinicId,
+    patient_id: patientId,
+    updated_by: me,
+    updated_at: new Date().toISOString(),
+  };
+  let nextProvenance = provenance;
+  for (const field of touched) {
+    const value = (parsed.data as Record<string, unknown>)[field];
+    payload[field] = value ?? null;
+    const hadPriorValue = Boolean((priorValues[field] ?? "").trim());
+    nextProvenance = withIntakeProvenance(
+      nextProvenance,
+      field,
+      clinicianSaveEntry(provenance[field], hadPriorValue),
+    );
+  }
+  payload.field_provenance = nextProvenance;
+
   const { error } = await g.supabase
     .from("psych_intake")
-    .upsert(
-      {
-        clinic_id: g.clinicId,
-        patient_id: patientId,
-        previous_therapy_history: parsed.data.previous_therapy_history ?? null,
-        previous_diagnosis: parsed.data.previous_diagnosis ?? null,
-        family_mental_health_history: parsed.data.family_mental_health_history ?? null,
-        psychosocial_background: parsed.data.psychosocial_background ?? null,
-        stressors: parsed.data.stressors ?? null,
-        substance_use_history: parsed.data.substance_use_history ?? null,
-        updated_by: me,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "patient_id" },
-    );
+    .upsert(payload as never, { onConflict: "patient_id" });
   if (error) return { ok: false, message: error.message };
   return ok();
 }
@@ -366,7 +459,6 @@ const PSYCH_INTAKE_FIELDS = [
 const PSYCH_INTAKE_LIST_FIELDS: ReadonlyArray<string> = [
   "previous_therapy_history",
   "previous_diagnosis",
-  "family_mental_health_history",
   "stressors",
 ];
 
@@ -721,6 +813,8 @@ export async function approvePsychIntakeSuggestionAction(
   const valueFor = (column: string) =>
     column === field ? mergedValue : (base[column] ?? null);
 
+  const provenance = readIntakeProvenance(currentIntake?.field_provenance);
+  const hadContent = Boolean((base[field] ?? "").trim());
   const { error: saveError } = await g.supabase.from("psych_intake").upsert(
     {
       clinic_id: g.clinicId,
@@ -731,6 +825,11 @@ export async function approvePsychIntakeSuggestionAction(
       psychosocial_background: valueFor("psychosocial_background"),
       stressors: valueFor("stressors"),
       substance_use_history: valueFor("substance_use_history"),
+      field_provenance: withIntakeProvenance(
+        provenance,
+        field as IntakeFieldKey,
+        aiApprovalEntry(provenance[field as IntakeFieldKey], hadContent, suggestion.source_label),
+      ),
       updated_by: me,
       updated_at: new Date().toISOString(),
     },
@@ -743,6 +842,93 @@ export async function approvePsychIntakeSuggestionAction(
     .update({ status: "approved", reviewed_by: me, reviewed_at: new Date().toISOString() })
     .eq("clinic_id", g.clinicId)
     .eq("id", suggestion.id);
+  if (reviewError) return { ok: false, message: reviewError.message };
+
+  revalidatePath(APP_ROUTES.app.patients);
+  return ok();
+}
+
+/**
+ * Accepts every pending suggestion for a patient in one review pass: pending
+ * items are grouped per field, folded into the snapshot in created order (so
+ * list fields de-duplicate), the whole `psych_intake` row is saved once, and
+ * every pending suggestion is marked approved in a single update.
+ */
+export async function approveAllPsychIntakeSuggestionsAction(
+  patientId: string,
+): Promise<ActionResult<string>> {
+  const idCheck = idSchema.safeParse({ id: patientId });
+  if (!idCheck.success) return err(firstIssue(idCheck));
+  const g = await guard();
+  if (!g.ok) return g.result;
+
+  const { data: pending, error: loadError } = await g.supabase
+    .from("psych_intake_suggestions")
+    .select("*")
+    .eq("clinic_id", g.clinicId)
+    .eq("patient_id", patientId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: true });
+  if (loadError) return { ok: false, message: loadError.message };
+  if (pending.length === 0) return ok();
+
+  const { data: currentIntake, error: intakeError } = await g.supabase
+    .from("psych_intake")
+    .select("*")
+    .eq("clinic_id", g.clinicId)
+    .eq("patient_id", patientId)
+    .maybeSingle();
+  if (intakeError) return { ok: false, message: intakeError.message };
+
+  const base = (currentIntake as Record<string, string | null> | null) ?? {};
+  const provenance = readIntakeProvenance(currentIntake?.field_provenance);
+
+  const merged: Record<string, string> = {};
+  const firstLabels: Record<string, string | null> = {};
+  for (const suggestion of pending) {
+    merged[suggestion.field] = mergeIntakeValue(
+      suggestion.field,
+      merged[suggestion.field] ?? base[suggestion.field] ?? null,
+      suggestion.value,
+    );
+    firstLabels[suggestion.field] = firstLabels[suggestion.field] ?? suggestion.source_label ?? null;
+  }
+
+  let nextProvenance = provenance;
+  for (const field of Object.keys(merged) as IntakeFieldKey[]) {
+    const hadContent = Boolean(((base as Record<string, string | null>)[field] ?? "").trim());
+    nextProvenance = withIntakeProvenance(
+      nextProvenance,
+      field,
+      aiBulkEntry(provenance[field], hadContent, firstLabels[field] ?? null),
+    );
+  }
+
+  const me = await authorName(g.supabase);
+  const { error: saveError } = await g.supabase.from("psych_intake").upsert(
+    {
+      clinic_id: g.clinicId,
+      patient_id: patientId,
+      previous_therapy_history: merged.previous_therapy_history ?? base.previous_therapy_history ?? null,
+      previous_diagnosis: merged.previous_diagnosis ?? base.previous_diagnosis ?? null,
+      family_mental_health_history: merged.family_mental_health_history ?? base.family_mental_health_history ?? null,
+      psychosocial_background: merged.psychosocial_background ?? base.psychosocial_background ?? null,
+      stressors: merged.stressors ?? base.stressors ?? null,
+      substance_use_history: merged.substance_use_history ?? base.substance_use_history ?? null,
+      field_provenance: nextProvenance,
+      updated_by: me,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "patient_id" },
+  );
+  if (saveError) return { ok: false, message: saveError.message };
+
+  const { error: reviewError } = await g.supabase
+    .from("psych_intake_suggestions")
+    .update({ status: "approved", reviewed_by: me, reviewed_at: new Date().toISOString() })
+    .eq("clinic_id", g.clinicId)
+    .eq("patient_id", patientId)
+    .eq("status", "pending");
   if (reviewError) return { ok: false, message: reviewError.message };
 
   revalidatePath(APP_ROUTES.app.patients);
@@ -970,20 +1156,310 @@ export async function savePsychSessionAction(
   const g = await guard();
   if (!g.ok) return g.result;
 
-  const { data, error } = await g.supabase
+  const data = parsed.data;
+  const me = await authorName(g.supabase);
+  const doctor = await doctorId(g.supabase, g.clinicId);
+  const sessionDate = data.session_date || new Date().toISOString().slice(0, 10);
+
+  const values = {
+    session_date: sessionDate,
+    format: data.format,
+    session_type: data.session_type,
+    status: data.status,
+    behavior: data.behavior || null,
+    intervention: data.intervention || null,
+    response: data.response || null,
+    subjective: data.subjective || null,
+    objective: data.objective || null,
+    observation_data: data.observation_data || null,
+    assessment: data.assessment || null,
+    plan: data.plan || null,
+    session_summary: data.session_summary || null,
+    transcript: data.transcript || null,
+    duration_seconds: data.duration_seconds ?? null,
+    doctor_id: doctor,
+    doctor_name: me,
+  };
+
+  // Re-saving an existing note updates the same row (sections, transcript and
+  // metadata write over what the previous draft held).
+  if (data.id) {
+    const { error } = await g.supabase
+      .from("psych_sessions")
+      .update({ ...values, updated_at: new Date().toISOString() })
+      .eq("id", data.id)
+      .eq("clinic_id", g.clinicId);
+    if (error) return { ok: false, message: error.message };
+    revalidatePath(APP_ROUTES.app.patients);
+    return { ok: true, data: data.id };
+  }
+
+  const { data: inserted, error } = await g.supabase
     .from("psych_sessions")
-    .insert({
-      clinic_id: g.clinicId,
-      patient_id: patientId,
-      doctor_id: await doctorId(g.supabase, g.clinicId),
-      ...parsed.data,
-      session_date: parsed.data.session_date || new Date().toISOString().slice(0, 10),
-    })
+    .insert({ clinic_id: g.clinicId, patient_id: patientId, ...values })
     .select("id")
     .single();
   if (error) return { ok: false, message: error.message };
   revalidatePath(APP_ROUTES.app.patients);
-  return { ok: true, data: data.id };
+  return { ok: true, data: inserted.id };
+}
+
+export async function approvePsychSessionAction(id: string): Promise<ActionResult<string>> {
+  const parsed = approveSessionSchema.safeParse({ id });
+  if (!parsed.success) return err(firstIssue(parsed));
+  const g = await guard();
+  if (!g.ok) return g.result;
+
+  const me = await authorName(g.supabase);
+  const { error } = await g.supabase
+    .from("psych_sessions")
+    .update({
+      status: "approved",
+      approved_by: me,
+      approved_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("clinic_id", g.clinicId);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath(APP_ROUTES.app.patients);
+  return { ok: true, data: id };
+}
+
+/* ------------------------------------------------------------------------- */
+/* Psychology — Session-note AI writing (assist + full-note generation)       */
+/* ------------------------------------------------------------------------- */
+
+const SESSION_SECTION_GUIDANCE: Record<SessionSectionKey, string> = {
+  behavior:
+    "Behavior: what the client did, said and presented with in the session — affect, speech, engagement, anything notable.",
+  intervention:
+    "Intervention: the techniques, questions and responses the psychologist used in the session.",
+  response:
+    "Response: the client's reaction to the intervention — what changed or stayed the same.",
+  subjective:
+    "Subjective: what the client themselves reported — symptoms, mood, complaints, their own words where they matter.",
+  objective:
+    "Objective: observable, measurable facts — the client's presentation, engagement, progress on goals, screening results.",
+  observation_data:
+    "Data: concrete observations and reported facts gathered this session — the SOAP/DAP counterpart of objective.",
+  assessment:
+    "Assessment: clinical interpretation — formulation, hypotheses, progress against goals, risk considerations.",
+  plan: "Plan: next steps, homework, referrals, follow-up schedule and what the client agreed to.",
+};
+
+const ASSIST_KIND_RULE: Record<"draft" | "improve" | "summarize", string> = {
+  draft:
+    "Write this section fresh from the session transcript. Include every clinically relevant detail and drop conversational noise.",
+  improve:
+    "Rewrite the clinician's current text into a tighter, cleaner clinical paragraph. Preserve every clinical fact; do not invent or remove detail.",
+  summarize:
+    "Condense the clinician's current text into the sharpest clinical summary for this section. Keep every fact that affects care.",
+};
+
+function assistSessionSystemPrompt(
+  format: SessionNoteFormat,
+  section: SessionSectionKey,
+  fieldLabel: string,
+  kind: "draft" | "improve" | "summarize",
+): string {
+  return `You write clinical psychology progress notes. Write in the first person, from the psychologist's perspective, as a practitioner's session note — specific, respectful, plain clinical language, no jargon, no markdown, no headers, no bullets.
+
+Note format: ${format} — ${NOTE_FORMAT_META[format]}.
+You are writing the "${fieldLabel}" section of a ${format} note.
+
+Section guidance: ${SESSION_SECTION_GUIDANCE[section]}
+
+Working mode: ${ASSIST_KIND_RULE[kind]}
+
+Rules:
+- Two to six sentences unless the source is too thin, then be concise but complete.
+- Never invent facts, quotes, homework or interventions that are not in the source.
+- Return only the finished section text.`;
+}
+
+export async function assistPsychSessionAction(raw: unknown): Promise<ActionResult<string>> {
+  const parsed = assistSessionSchema.safeParse(raw);
+  if (!parsed.success) return err(firstIssue(parsed));
+
+  const { kind, format, section, fieldLabel, text, transcript } = parsed.data;
+  if (SESSION_SECTIONS[format].every((def) => def.key !== section)) {
+    return { ok: false, message: `"${format}" notes do not have a "${fieldLabel}" section.` };
+  }
+
+  const g = await guard();
+  if (!g.ok) return g.result;
+  if (!process.env.GEMINI_API_KEY) {
+    return { ok: false, message: "The AI assistant is not configured on this server yet." };
+  }
+
+  const source =
+    kind === "draft"
+      ? `SESSION TRANSCRIPT:\n${transcript || "(empty — nothing recorded yet)"}`
+      : `CURRENT TEXT:\n${text || "(empty — write something first, then improve or summarise it)"}`;
+
+  try {
+    const output = await getGeminiProvider().complete({
+      systemInstruction: assistSessionSystemPrompt(format, section, fieldLabel, kind),
+      prompt: source,
+      temperature: kind === "draft" ? 0.3 : 0.2,
+      maxOutputTokens: 800,
+    });
+    const cleaned = output.trim();
+    if (!cleaned) return { ok: false, message: "The assistant returned nothing. Try again." };
+    if (cleaned.length > 6000) {
+      return { ok: false, message: "The assistant's draft was too long. Try again." };
+    }
+    return { ok: true, data: cleaned };
+  } catch (error) {
+    console.error("[assistPsychSessionAction] failed:", error);
+    return { ok: false, message: "The assistant could not respond. Try again." };
+  }
+}
+
+/** JSON schema the whole-note generator must answer with, limited to the format's sections. */
+function sessionNoteJsonSchema(format: SessionNoteFormat) {
+  const sectionProps = Object.fromEntries(
+    SESSION_SECTIONS[format].map(({ key, label }) => [
+      key,
+      { type: "string", description: `The "${label}" section of the ${format} note.` },
+    ]),
+  );
+  return {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    type: "object",
+    properties: {
+      sections: {
+        type: "object",
+        description: `One entry per ${format} section.`,
+        properties: sectionProps,
+        additionalProperties: false,
+        required: SESSION_SECTIONS[format].map(({ key }) => key),
+      },
+    },
+    required: ["sections"],
+  } as const;
+}
+
+/** Zod validator for the generator's output, keyed to the requested format. */
+function sessionNoteOutputSchema(format: SessionNoteFormat) {
+  const sectionShape = {} as Record<SessionSectionKey, z.ZodType>;
+  for (const { key } of SESSION_SECTIONS[format]) {
+    sectionShape[key] = z.string().trim().max(6000).default("");
+  }
+  return z.object({ sections: z.object(sectionShape) });
+}
+
+const SESSION_NOTE_GENERATION_PROMPT = `You convert a raw session recording transcript into a professional clinical psychology progress note.
+
+The transcript is messy spoken language: false starts, repetitions, interjections. Keep every clinically relevant fact and drop the rest. Write in the first person from the psychologist's perspective, present tense, plain clinical language, no markdown, no headers, no bullets.
+
+Fill exactly the sections of the requested note format and nothing else. Never invent facts, homework, interventions or quotes that are not in the transcript.`;
+
+/**
+ * Generates a full session note from a transcript. The transcript is distilled
+ * client-side against the selected format so the format selector has real
+ * meaning; the clinician stays in control and approves the result.
+ */
+export async function generatePsychSessionNoteAction(
+  patientId: string,
+  raw: unknown,
+): Promise<ActionResult<{ format: SessionNoteFormat; sections: Record<string, string> }>> {
+  const parsed = generateSessionNoteSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, message: firstIssue(parsed)?.message ?? "Invalid note request." };
+  }
+  const { format, transcript } = parsed.data;
+
+  const g = await guard();
+  if (!g.ok) {
+    if (!g.result.ok) {
+      return { ok: false, message: g.result.message, fieldErrors: g.result.fieldErrors };
+    }
+    return { ok: false, message: "You must have a clinic to perform this action." };
+  }
+  if (!process.env.GEMINI_API_KEY) {
+    return { ok: false, message: "The AI assistant is not configured on this server yet." };
+  }
+
+  // Continuity context: the latest intake concern and the most recent session
+  // help the writer, but must never be repeated into the new note.
+  const [lastIntakeRes, lastSessionRes] = await Promise.all([
+    g.supabase
+      .from("psych_intake")
+      .select("presenting_concern")
+      .eq("clinic_id", g.clinicId)
+      .eq("patient_id", patientId)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    g.supabase
+      .from("psych_sessions")
+      .select("session_date, session_type, format, plan")
+      .eq("clinic_id", g.clinicId)
+      .eq("patient_id", patientId)
+      .eq("status", "approved")
+      .order("session_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const concern = lastIntakeRes.data?.presenting_concern?.trim();
+  const lastSession = lastSessionRes.data;
+  const context = [
+    concern ? `- Presenting concern on file: ${concern}` : null,
+    lastSession
+      ? `- Previous ${lastSession.session_type} session (${lastSession.session_date}, ${lastSession.format}): plan — ${(lastSession.plan ?? "").trim() || "not recorded"}`
+      : null,
+    "(Previous context is background only — do not copy it into the new note.)",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const prompt = [
+    "PATIENT CONTEXT (background only, do not repeat into the note):",
+    context,
+    "",
+    `REQUESTED FORMAT: ${format} — ${NOTE_FORMAT_META[format]}`,
+    "",
+    "SESSION TRANSCRIPT:",
+    transcript,
+  ].join("\n");
+
+  const sections: Record<string, string> = {};
+  try {
+    const rawJson = await getGeminiProvider().completeJson({
+      systemInstruction: SESSION_NOTE_GENERATION_PROMPT,
+      prompt,
+      schema: sessionNoteJsonSchema(format),
+      temperature: 0.2,
+      maxOutputTokens: 2200,
+    });
+    const validated = sessionNoteOutputSchema(format).safeParse(rawJson);
+    if (!validated.success) {
+      return { ok: false, message: "The assistant's note was unreadable. Try again." };
+    }
+    const rawSections = validated.data.sections as Record<string, string>;
+    for (const { key } of SESSION_SECTIONS[format]) {
+      sections[key] = (rawSections[key] ?? "").trim();
+    }
+  } catch (error) {
+    console.error("[generatePsychSessionNoteAction] failed:", error);
+    return { ok: false, message: "The assistant could not respond. Try again." };
+  }
+  if (Object.values(sections).every((value) => !value)) {
+    return { ok: false, message: "The assistant found nothing in that transcript. Try a longer recording." };
+  }
+  return { ok: true, data: { format, sections } };
+}
+
+/** Read-only display name of the signed-in clinician, for the note header. */
+export async function getCurrentClinicianNameAction(): Promise<ActionResult<string>> {
+  const g = await guard();
+  if (!g.ok) return g.result;
+  const name = await authorName(g.supabase);
+  return { ok: true, data: name ?? "" };
 }
 
 export async function deletePsychSessionAction(id: string): Promise<ActionResult<string>> {

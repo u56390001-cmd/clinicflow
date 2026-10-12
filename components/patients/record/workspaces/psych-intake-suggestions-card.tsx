@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  approveAllPsychIntakeSuggestionsAction,
   approvePsychIntakeSuggestionAction,
   generatePsychIntakeSuggestionsAction,
   rejectPsychIntakeSuggestionAction,
@@ -27,8 +28,8 @@ const FIELD_LABELS: Record<PsychIntakeSuggestion["field"], string> = {
 };
 
 const SOURCE_LABELS: Record<PsychIntakeSuggestion["source"], string> = {
-  pre_visit: "Pre-visit form",
-  document: "Document",
+  pre_visit: "Patient intake form",
+  document: "Uploaded document",
   session: "Session notes",
   assessment: "Assessment",
   ai: "AI summary",
@@ -38,10 +39,11 @@ type RowAction = "approve" | "reject" | "save";
 
 /**
  * The AI review queue at the top of the Intake & History tab. The assistant
- * reads the patient's recent session and assessment notes and stages proposed
- * history additions here; nothing reaches the permanent record until the
- * psychologist approves it. Approve merges the value into `psych_intake`,
- * Edit lets the clinician correct it first, Reject discards it.
+ * reads the patient's recent session notes, assessments, intake form and
+ * uploaded documents and stages proposed history additions here; nothing
+ * reaches the permanent record until the psychologist approves it. Review lets
+ * the clinician approve or reject one row, Edit corrects it first, and Accept
+ * All folds every pending suggestion into the history in one pass.
  */
 export function PsychIntakeSuggestionsCard({
   patientId,
@@ -54,6 +56,7 @@ export function PsychIntakeSuggestionsCard({
 }) {
   const router = useRouter();
   const [generating, setGenerating] = useState(false);
+  const [accepting, setAccepting] = useState(false);
   const [busy, setBusy] = useState<{ id: string; kind: RowAction } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -70,6 +73,19 @@ export function PsychIntakeSuggestionsCard({
       return;
     }
     toast.success(result.data);
+    router.refresh();
+  }
+
+  async function acceptAll() {
+    if (accepting || suggestions.length === 0) return;
+    setAccepting(true);
+    const result = await approveAllPsychIntakeSuggestionsAction(patientId);
+    setAccepting(false);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    toast.success("All suggestions accepted into the intake history.");
     router.refresh();
   }
 
@@ -119,7 +135,7 @@ export function PsychIntakeSuggestionsCard({
       <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h4 className="flex items-center gap-1.5 text-[12.5px] font-bold text-ink">
           <Sparkles aria-hidden="true" className="size-3.5 text-primary" />
-          AI history suggestions
+          AI Extracted History
           {pendingCount > 0 && (
             <Badge variant="info" className="ml-1">
               {pendingCount} to review
@@ -127,32 +143,56 @@ export function PsychIntakeSuggestionsCard({
           )}
         </h4>
         {canManage && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={generate}
-            disabled={generating}
-          >
-            {generating ? (
-              <>
-                <Spinner size="sm" /> Reviewing notes…
-              </>
-            ) : (
-              <>
-                <Wand2 aria-hidden="true" className="size-3.5" />
-                {pendingCount > 0 ? "Find more" : "Scan recent notes"}
-              </>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {pendingCount > 0 && (
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                className="h-8 gap-1.5 px-2.5 text-[12px]"
+                onClick={acceptAll}
+                disabled={accepting}
+              >
+                {accepting ? (
+                  <>
+                    <Spinner size="sm" /> Accepting…
+                  </>
+                ) : (
+                  <>
+                    <Check aria-hidden="true" className="size-3.5" />
+                    Accept all
+                  </>
+                )}
+              </Button>
             )}
-          </Button>
+            <Button
+              type="button"
+              variant={pendingCount > 0 ? "ghost" : "outline"}
+              size="sm"
+              className="h-8 gap-1.5 px-2.5 text-[12px] text-text-secondary hover:text-primary"
+              onClick={generate}
+              disabled={generating || accepting}
+            >
+              {generating ? (
+                <>
+                  <Spinner size="sm" /> Reviewing notes…
+                </>
+              ) : (
+                <>
+                  <Wand2 aria-hidden="true" className="size-3.5" />
+                  {pendingCount > 0 ? "Find more" : "Scan recent notes"}
+                </>
+              )}
+            </Button>
+          </div>
         )}
       </header>
 
       {pendingCount === 0 ? (
         <p className="text-[12px] leading-relaxed text-text-secondary">
-          The assistant can read the patient&apos;s recent session and assessment
-          notes and propose history details for you to approve. Nothing is added
-          to the record until you accept it.
+          The assistant reads the patient&apos;s intake form, uploaded documents
+          and previous records and proposes history details for you to review.
+          Nothing is added to the record until you accept it.
         </p>
       ) : (
         <ul className="flex flex-col gap-2">
@@ -280,8 +320,8 @@ export function PsychIntakeSuggestionsCard({
 
       {pendingCount > 0 && (
         <p className="mt-2 text-[11px] leading-relaxed text-text-muted">
-          AI proposed these from the session and assessment notes. Approve to add
-          them to the history above, edit to correct first, or reject to discard.
+          AI proposed these from the intake form, documents and previous
+          records. Review each one, edit to correct first, or accept all.
         </p>
       )}
     </section>
