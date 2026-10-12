@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { CopilotExtraction } from '@/lib/copilot/types';
+import type { CopilotMode, WorkspaceExtraction } from '@/lib/copilot/types';
 import {
   CopilotTimeoutError,
   fetchWithTimeout,
@@ -12,6 +12,10 @@ interface UseAmbientRecorderProps {
     allergies?: string;
     current_meds?: string;
   };
+  /** Which workspace the panel is mounted in — drives the extraction shape. */
+  workspaceKind?: CopilotMode;
+  /** Per-workspace AI guidance passed to the structure route's system prompt. */
+  workspaceContext?: string;
 }
 
 /**
@@ -43,11 +47,11 @@ async function readApiError(res: Response, fallback: string): Promise<string> {
   return fallback;
 }
 
-export function useAmbientRecorder({ patientProfile }: UseAmbientRecorderProps) {
+export function useAmbientRecorder({ patientProfile, workspaceKind, workspaceContext }: UseAmbientRecorderProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState('00:00');
   const [transcript, setTranscript] = useState('');
-  const [extractedData, setExtractedData] = useState<CopilotExtraction | null>(null);
+  const [extractedData, setExtractedData] = useState<WorkspaceExtraction | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -108,7 +112,7 @@ export function useAmbientRecorder({ patientProfile }: UseAmbientRecorderProps) 
         );
       }
 
-      // Step 2: Structure transcript into SOAP JSON
+      // Step 2: Structure transcript into the workspace's note shape
       const structureRes = await fetchWithTimeout(
         '/api/scribe/structure',
         {
@@ -116,7 +120,9 @@ export function useAmbientRecorder({ patientProfile }: UseAmbientRecorderProps) 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             transcript: transcriptText,
-            patientProfile: patientProfile || {}
+            patientProfile: patientProfile || {},
+            workspaceKind: workspaceKind ?? 'general',
+            workspaceContext
           })
         },
         STRUCTURE_TIMEOUT_MS,
@@ -133,14 +139,14 @@ export function useAmbientRecorder({ patientProfile }: UseAmbientRecorderProps) 
       }
 
       const structureData = await structureRes.json();
-      setExtractedData(structureData.data);
+      setExtractedData(structureData.data as WorkspaceExtraction | null);
     } catch (caught) {
       console.error('Processing error:', caught);
       setError(describe(caught, 'We could not process this recording. Please try again.'));
     } finally {
       setIsProcessing(false);
     }
-  }, [patientProfile]);
+  }, [patientProfile, workspaceKind, workspaceContext]);
 
   const startRecording = useCallback(async () => {
     setError(null);

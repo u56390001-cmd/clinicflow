@@ -4,6 +4,10 @@ import { useMemo } from "react";
 import { CalendarClock, CalendarDays, Pill, ScanLine } from "lucide-react";
 
 import { MedicationReviewActions } from "@/components/patients/record/medication-review-actions";
+import {
+  LastUpdatedNote,
+  PrescriptionActions,
+} from "@/components/patients/record/prescription-actions";
 import { PrescriptionWorkspace } from "@/components/patients/record/prescription-workspace";
 import {
   RecordEmpty,
@@ -369,24 +373,35 @@ export function PrescriptionsTab({
                   "Undated"
                 }
                 meta={
-                  <span className="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
-                    {prescription.tokenNumber !== null && (
-                      <span className="font-mono text-text-muted">
-                        #{prescription.tokenNumber}
-                      </span>
-                    )}
-                    {prescription.doctorName && (
-                      <span>Dr. {prescription.doctorName}</span>
-                    )}
-                    {prescription.medicines.length > 0 && (
-                      <Badge variant="outline">
-                        {prescription.medicines.length}{" "}
-                        {prescription.medicines.length === 1
-                          ? "medicine"
-                          : "medicines"}
-                      </Badge>
-                    )}
-                  </span>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <span className="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
+                      {prescription.tokenNumber !== null && (
+                        <span className="font-mono text-text-muted">
+                          #{prescription.tokenNumber}
+                        </span>
+                      )}
+                      {prescription.doctorName && (
+                        <span>Dr. {prescription.doctorName}</span>
+                      )}
+                      {prescription.medicines.length > 0 && (
+                        <Badge variant="outline">
+                          {prescription.medicines.length}{" "}
+                          {prescription.medicines.length === 1
+                            ? "medicine"
+                            : "medicines"}
+                        </Badge>
+                      )}
+                    </span>
+                    <PrescriptionActions
+                      prescription={prescription}
+                      patient={patient}
+                      clinic={clinic}
+                      timezone={timezone}
+                      canManage={canManage ?? false}
+                      pastMedicines={pastMedicines}
+                      pastLabHistory={pastLabHistory}
+                    />
+                  </div>
                 }
               >
                 <div className="flex flex-col gap-3">
@@ -490,6 +505,11 @@ export function PrescriptionsTab({
                         : ""}
                     </p>
                   )}
+
+                  <LastUpdatedNote
+                    prescription={prescription}
+                    timezone={timezone}
+                  />
                 </div>
               </RecordSection>
             );

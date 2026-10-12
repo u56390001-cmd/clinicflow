@@ -16,6 +16,10 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { useHoverTip } from "@/components/ui/hover-tip";
+import {
+  PatientDoctorSelector,
+  type ClinicDoctorOption,
+} from "@/components/patients/patient-doctor-selector";
 import { VISIT_STATUS_META, visitStatusTone } from "@/lib/constants";
 import {
   PATIENT_PAGE_SIZE,
@@ -65,6 +69,8 @@ export function PatientListPane({
   timezone,
   todayQueue,
   collapsed,
+  doctors,
+  selectedDoctorId,
   onToggleCollapsed,
   onAddPatient,
 }: {
@@ -78,6 +84,8 @@ export function PatientListPane({
   /** Today's token + status per patient id — absent means "not in today's queue". */
   todayQueue: PatientTodayQueue;
   collapsed: boolean;
+  doctors?: ClinicDoctorOption[];
+  selectedDoctorId?: string | null;
   onToggleCollapsed: () => void;
   onAddPatient: () => void;
 }) {
@@ -171,6 +179,13 @@ export function PatientListPane({
             </button>
           )}
         </div>
+
+        {doctors && doctors.length > 0 && (
+          <PatientDoctorSelector
+            doctors={doctors}
+            selectedDoctorId={selectedDoctorId}
+          />
+        )}
       </div>
 
       <div className="border-b border-text-muted/30 bg-surface px-3 py-2.5">

@@ -585,6 +585,9 @@ export type PreConsultationAnswer = {
 export type VisitStatus =
   "scheduled" | "checked_in" | "waiting" | "in_consultation" | "completed";
 
+/** Draft while the doctor is still writing; final once the consultation completes (migration 0076). */
+export type PrescriptionStatus = "draft" | "final";
+
 /** Independent payment-state dimension on a visit — not hard-wired to visit status. */
 export type PaymentStatus =
   "pending" | "collected_pre" | "collected_post" | "not_required";
@@ -608,6 +611,10 @@ export type Visit = {
   checked_in_at: string;
   consultation_started_at: string | null;
   completed_at: string | null;
+  /** Set when a doctor returns an in-consultation patient to the queue with a saved draft (migration 0076). */
+  paused_at: string | null;
+  /** Clinician who paused the visit, snapshotted at pause time (migration 0076). */
+  paused_by_name: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -849,6 +856,11 @@ export type Prescription = {
   visit_id: string;
   patient_id: string;
   doctor_id: string | null;
+  /**
+   * Draft while the doctor is still writing; final once the visit completes.
+   * Defaults to 'final' for rows written before migration 0076.
+   */
+  status: PrescriptionStatus;
   chief_complaint: string;
   findings: string;
   diagnosis: string;
@@ -858,6 +870,10 @@ export type Prescription = {
   follow_up_date: string | null;
   follow_up_notes: string;
   doctor_notes: string;
+  /** auth.users id of the clinician who last edited this row (migration 0075). */
+  updated_by: string | null;
+  /** Display name of the last editor, snapshotted at save time (migration 0075). */
+  updated_by_name: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -1021,6 +1037,233 @@ export type PatientDocument = {
   document_date: string | null;
   uploaded_by_user_id: string | null;
   uploaded_at: string;
+  /** Provenance: patient-uploaded via a share link, front desk, or clinical staff. */
+  source: "patient_online" | "reception" | "staff";
+};
+
+/**
+ * Specialty workspace rows (migration 0077). Keyed on `clinic_id + patient_id`;
+ * the "latest snapshot" tables are UNIQUE on `patient_id` and upserted.
+ */
+
+/** Psychology — Overview & Safety snapshot (one per patient). */
+export type PsychSafety = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  risk_level: "low" | "moderate" | "high" | "crisis";
+  mental_health_summary: string | null;
+  current_concerns: string | null;
+  risk_factors: string | null;
+  emergency_contact: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Psychology — Intake & Psychological History (one per patient). */
+export type PsychIntake = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  previous_therapy_history: string | null;
+  previous_diagnosis: string | null;
+  family_mental_health_history: string | null;
+  psychosocial_background: string | null;
+  stressors: string | null;
+  substance_use_history: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Psychology — Mental Status Examination (one per patient, latest wins). */
+export type PsychMse = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  appearance_grooming: string | null;
+  appearance_eye_contact: string | null;
+  appearance_behaviour: string | null;
+  speech_rate: string | null;
+  speech_tone: string | null;
+  speech_volume: string | null;
+  mood_patient_reported: string | null;
+  affect_observed: string | null;
+  thought_process: string | null;
+  thought_content: string | null;
+  risk_thoughts: string | null;
+  cognition_orientation: string | null;
+  cognition_memory: string | null;
+  cognition_insight: string | null;
+  cognition_judgment: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Psychology — one session note in BIRP or DAP format. */
+export type PsychSession = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  doctor_id: string | null;
+  session_date: string;
+  format: "BIRP" | "DAP";
+  session_type: "initial" | "individual" | "follow_up" | "crisis" | "group";
+  behavior: string | null;
+  intervention: string | null;
+  response: string | null;
+  observation_data: string | null;
+  assessment: string | null;
+  plan: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Where an assessment was administered: the patient's own phone, the front desk, or the clinician. */
+export type PsychAssessmentCompletedBy = "patient_online" | "reception" | "psychologist";
+
+/** Psychology — one psychometric administration (PHQ-9, GAD-7, …). */
+export type PsychAssessment = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  doctor_id: string | null;
+  assessment_type: "PHQ-9" | "GAD-7" | "BAI" | "BDI-II" | "PCL-5" | "OCI-R" | "AUDIT" | "ASRS" | "Other";
+  score: number | null;
+  severity: string | null;
+  notes: string | null;
+  conducted_at: string;
+  completed_by: PsychAssessmentCompletedBy;
+  /** Item-level responses keyed by item id (e.g. `{ "phq9_1": 2 }`). */
+  answers: Record<string, number> | null;
+  /** The share link this administration came from, when patient-completed online. */
+  source_link_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Where a share link sends the patient. */
+export type PatientShareLinkKind = "pre_visit" | "assessment" | "document_upload";
+export type PatientShareLinkStatus = "pending" | "used" | "revoked" | "expired";
+
+/**
+ * Psychology OPD — a shareable patient link (migration 0080). Generalises
+ * `patient_intake_tokens` to three purposes. Only the SHA-256 hash of the raw
+ * token is stored; RLS is enabled with no Data-API policies (service-role only).
+ */
+export type PatientShareLink = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  appointment_id: string | null;
+  kind: PatientShareLinkKind;
+  assessment_type: string | null;
+  token_hash: string;
+  status: PatientShareLinkStatus;
+  created_by: string;
+  expires_at: string;
+  submitted_at: string | null;
+  submission: Record<string, unknown> | null;
+  created_at: string;
+};
+
+/** Psychology — Care Plan (one per patient). */
+export type PsychCarePlan = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  therapy_goals: string | null;
+  intervention_plan: string | null;
+  homework_assignments: string | null;
+  follow_up_frequency: string | null;
+  psychiatrist_referral: boolean;
+  referral_notes: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Dermatology — Skin profile snapshot (one per patient). */
+export type DermProfile = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  skin_type: string | null;
+  active_conditions: string | null;
+  allergies: string | null;
+  previous_skin_conditions: string | null;
+  biopsy_alert: boolean;
+  biopsy_notes: string | null;
+  previous_treatment_history: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Dermatology — one skin examination. */
+export type DermExam = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  doctor_id: string | null;
+  exam_date: string;
+  chief_complaints: string[];
+  morphology: string[];
+  distribution: "localized" | "generalized" | "dermatomal" | null;
+  diagnosis: string | null;
+  icd_code: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Dermatology — one procedure (biopsy, cryotherapy, laser, …). */
+export type DermProcedure = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  doctor_id: string | null;
+  procedure_name: string;
+  procedure_date: string;
+  notes: string | null;
+  consent_status: "obtained" | "declined" | "documented";
+  created_at: string;
+  updated_at: string;
+};
+
+/** Dermatology — a skin photo mapped to a body region; the file lives in the
+ *  patient's DocumentUploader (patient_documents), this row tags it. */
+export type DermPhoto = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  doctor_id: string | null;
+  document_id: string | null;
+  body_region: string;
+  photo_type: "baseline" | "follow_up" | "post_treatment";
+  lesion_notes: string | null;
+  paired_with: string | null;
+  taken_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Dermatology — topical prescription support for one consultation. */
+export type DermPrescription = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  doctor_id: string | null;
+  visit_id: string | null;
+  topical_form: "cream" | "ointment" | "gel" | "lotion" | null;
+  application_instructions: string | null;
+  skincare_routine_am: string | null;
+  skincare_routine_pm: string | null;
+  patient_education: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 /** MIME types accepted by DB CHECK `patient_documents_mime_type_check`. */
@@ -3353,6 +3596,8 @@ export type Database = {
           checked_in_at?: string;
           consultation_started_at?: string | null;
           completed_at?: string | null;
+          paused_at?: string | null;
+          paused_by_name?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -3369,6 +3614,8 @@ export type Database = {
           checked_in_at?: string;
           consultation_started_at?: string | null;
           completed_at?: string | null;
+          paused_at?: string | null;
+          paused_by_name?: string | null;
           created_at?: never;
           updated_at?: string;
         };
@@ -3679,6 +3926,7 @@ export type Database = {
           visit_id: string;
           patient_id: string;
           doctor_id?: string | null;
+          status?: PrescriptionStatus;
           chief_complaint?: string;
           findings?: string;
           diagnosis?: string;
@@ -3688,6 +3936,8 @@ export type Database = {
           follow_up_date?: string | null;
           follow_up_notes?: string;
           doctor_notes?: string;
+          updated_by?: string | null;
+          updated_by_name?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -3697,6 +3947,7 @@ export type Database = {
           visit_id?: never;
           patient_id?: never;
           doctor_id?: string | null;
+          status?: PrescriptionStatus;
           chief_complaint?: string;
           findings?: string;
           diagnosis?: string;
@@ -3706,6 +3957,8 @@ export type Database = {
           follow_up_date?: string | null;
           follow_up_notes?: string;
           doctor_notes?: string;
+          updated_by?: string | null;
+          updated_by_name?: string | null;
           created_at?: never;
           updated_at?: string;
         };
@@ -3934,6 +4187,7 @@ export type Database = {
           document_date?: string | null;
           uploaded_by_user_id?: string | null;
           uploaded_at?: string;
+          source?: "patient_online" | "reception" | "staff";
         };
         Update: {
           id?: never;
@@ -3946,6 +4200,7 @@ export type Database = {
           document_date?: string | null;
           uploaded_by_user_id?: never;
           uploaded_at?: never;
+          source?: "patient_online" | "reception" | "staff";
         };
         Relationships: [
           {
@@ -4005,6 +4260,69 @@ export type Database = {
           },
           {
             foreignKeyName: "patient_intake_tokens_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      patient_share_links: {
+        Row: PatientShareLink;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          appointment_id?: string | null;
+          kind: PatientShareLinkKind;
+          assessment_type?: string | null;
+          token_hash: string;
+          status?: PatientShareLinkStatus;
+          created_by: string;
+          expires_at: string;
+          submitted_at?: string | null;
+          submission?: Record<string, unknown> | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          appointment_id?: string | null;
+          kind?: PatientShareLinkKind;
+          assessment_type?: string | null;
+          token_hash?: never;
+          status?: PatientShareLinkStatus;
+          created_by?: never;
+          expires_at?: string;
+          submitted_at?: string | null;
+          submission?: Record<string, unknown> | null;
+          created_at?: never;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "patient_share_links_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "patient_share_links_patient_id_fkey";
+            columns: ["patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "patient_share_links_appointment_id_fkey";
+            columns: ["appointment_id"];
+            isOneToOne: false;
+            referencedRelation: "appointments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "patient_share_links_created_by_fkey";
             columns: ["created_by"];
             isOneToOne: false;
             referencedRelation: "users";
@@ -4355,6 +4673,427 @@ export type Database = {
           },
         ];
       };
+      psych_safety: {
+        Row: PsychSafety;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          risk_level?: "low" | "moderate" | "high" | "crisis";
+          mental_health_summary?: string | null;
+          current_concerns?: string | null;
+          risk_factors?: string | null;
+          emergency_contact?: string | null;
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          risk_level?: "low" | "moderate" | "high" | "crisis";
+          mental_health_summary?: string | null;
+          current_concerns?: string | null;
+          risk_factors?: string | null;
+          emergency_contact?: string | null;
+          updated_by?: string | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "psych_safety_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
+          { foreignKeyName: "psych_safety_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] }
+        ];
+      };
+      psych_intake: {
+        Row: PsychIntake;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          previous_therapy_history?: string | null;
+          previous_diagnosis?: string | null;
+          family_mental_health_history?: string | null;
+          psychosocial_background?: string | null;
+          stressors?: string | null;
+          substance_use_history?: string | null;
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          previous_therapy_history?: string | null;
+          previous_diagnosis?: string | null;
+          family_mental_health_history?: string | null;
+          psychosocial_background?: string | null;
+          stressors?: string | null;
+          substance_use_history?: string | null;
+          updated_by?: string | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "psych_intake_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
+          { foreignKeyName: "psych_intake_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] }
+        ];
+      };
+      psych_mse: {
+        Row: PsychMse;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          appearance_grooming?: string | null;
+          appearance_eye_contact?: string | null;
+          appearance_behaviour?: string | null;
+          speech_rate?: string | null;
+          speech_tone?: string | null;
+          speech_volume?: string | null;
+          mood_patient_reported?: string | null;
+          affect_observed?: string | null;
+          thought_process?: string | null;
+          thought_content?: string | null;
+          risk_thoughts?: string | null;
+          cognition_orientation?: string | null;
+          cognition_memory?: string | null;
+          cognition_insight?: string | null;
+          cognition_judgment?: string | null;
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          appearance_grooming?: string | null;
+          appearance_eye_contact?: string | null;
+          appearance_behaviour?: string | null;
+          speech_rate?: string | null;
+          speech_tone?: string | null;
+          speech_volume?: string | null;
+          mood_patient_reported?: string | null;
+          affect_observed?: string | null;
+          thought_process?: string | null;
+          thought_content?: string | null;
+          risk_thoughts?: string | null;
+          cognition_orientation?: string | null;
+          cognition_memory?: string | null;
+          cognition_insight?: string | null;
+          cognition_judgment?: string | null;
+          updated_by?: string | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "psych_mse_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
+          { foreignKeyName: "psych_mse_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] }
+        ];
+      };
+      psych_sessions: {
+        Row: PsychSession;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          doctor_id?: string | null;
+          session_date?: string;
+          format?: "BIRP" | "DAP";
+          session_type?: "initial" | "individual" | "follow_up" | "crisis" | "group";
+          behavior?: string | null;
+          intervention?: string | null;
+          response?: string | null;
+          observation_data?: string | null;
+          assessment?: string | null;
+          plan?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          doctor_id?: string | null;
+          session_date?: string;
+          format?: "BIRP" | "DAP";
+          session_type?: "initial" | "individual" | "follow_up" | "crisis" | "group";
+          behavior?: string | null;
+          intervention?: string | null;
+          response?: string | null;
+          observation_data?: string | null;
+          assessment?: string | null;
+          plan?: string | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "psych_sessions_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
+          { foreignKeyName: "psych_sessions_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] },
+          { foreignKeyName: "psych_sessions_doctor_id_fkey"; columns: ["doctor_id"]; isOneToOne: false; referencedRelation: "doctors"; referencedColumns: ["id"] }
+        ];
+      };
+      psych_assessments: {
+        Row: PsychAssessment;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          doctor_id?: string | null;
+          assessment_type: "PHQ-9" | "GAD-7" | "BAI" | "BDI-II" | "PCL-5" | "OCI-R" | "AUDIT" | "ASRS" | "Other";
+          score?: number | null;
+          severity?: string | null;
+          notes?: string | null;
+          conducted_at?: string;
+          completed_by?: "patient_online" | "reception" | "psychologist";
+          answers?: Record<string, number> | null;
+          source_link_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          doctor_id?: string | null;
+          assessment_type?: "PHQ-9" | "GAD-7" | "BAI" | "BDI-II" | "PCL-5" | "OCI-R" | "AUDIT" | "ASRS" | "Other";
+          score?: number | null;
+          severity?: string | null;
+          notes?: string | null;
+          conducted_at?: string;
+          completed_by?: "patient_online" | "reception" | "psychologist";
+          answers?: Record<string, number> | null;
+          source_link_id?: string | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "psych_assessments_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
+          { foreignKeyName: "psych_assessments_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] },
+          { foreignKeyName: "psych_assessments_doctor_id_fkey"; columns: ["doctor_id"]; isOneToOne: false; referencedRelation: "doctors"; referencedColumns: ["id"] },
+          { foreignKeyName: "psych_assessments_source_link_id_fkey"; columns: ["source_link_id"]; isOneToOne: false; referencedRelation: "patient_share_links"; referencedColumns: ["id"] }
+        ];
+      };
+      psych_care_plans: {
+        Row: PsychCarePlan;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          therapy_goals?: string | null;
+          intervention_plan?: string | null;
+          homework_assignments?: string | null;
+          follow_up_frequency?: string | null;
+          psychiatrist_referral?: boolean;
+          referral_notes?: string | null;
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          therapy_goals?: string | null;
+          intervention_plan?: string | null;
+          homework_assignments?: string | null;
+          follow_up_frequency?: string | null;
+          psychiatrist_referral?: boolean;
+          referral_notes?: string | null;
+          updated_by?: string | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "psych_care_plans_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
+          { foreignKeyName: "psych_care_plans_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] }
+        ];
+      };
+      derm_profiles: {
+        Row: DermProfile;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          skin_type?: string | null;
+          active_conditions?: string | null;
+          allergies?: string | null;
+          previous_skin_conditions?: string | null;
+          biopsy_alert?: boolean;
+          biopsy_notes?: string | null;
+          previous_treatment_history?: string | null;
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          skin_type?: string | null;
+          active_conditions?: string | null;
+          allergies?: string | null;
+          previous_skin_conditions?: string | null;
+          biopsy_alert?: boolean;
+          biopsy_notes?: string | null;
+          previous_treatment_history?: string | null;
+          updated_by?: string | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "derm_profiles_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
+          { foreignKeyName: "derm_profiles_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] }
+        ];
+      };
+      derm_exams: {
+        Row: DermExam;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          doctor_id?: string | null;
+          exam_date?: string;
+          chief_complaints?: string[];
+          morphology?: string[];
+          distribution?: "localized" | "generalized" | "dermatomal" | null;
+          diagnosis?: string | null;
+          icd_code?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          doctor_id?: string | null;
+          exam_date?: string;
+          chief_complaints?: string[];
+          morphology?: string[];
+          distribution?: "localized" | "generalized" | "dermatomal" | null;
+          diagnosis?: string | null;
+          icd_code?: string | null;
+          notes?: string | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "derm_exams_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
+          { foreignKeyName: "derm_exams_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] },
+          { foreignKeyName: "derm_exams_doctor_id_fkey"; columns: ["doctor_id"]; isOneToOne: false; referencedRelation: "doctors"; referencedColumns: ["id"] }
+        ];
+      };
+      derm_procedures: {
+        Row: DermProcedure;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          doctor_id?: string | null;
+          procedure_name: string;
+          procedure_date?: string;
+          notes?: string | null;
+          consent_status?: "obtained" | "declined" | "documented";
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          doctor_id?: string | null;
+          procedure_name?: string;
+          procedure_date?: string;
+          notes?: string | null;
+          consent_status?: "obtained" | "declined" | "documented";
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "derm_procedures_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
+          { foreignKeyName: "derm_procedures_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] },
+          { foreignKeyName: "derm_procedures_doctor_id_fkey"; columns: ["doctor_id"]; isOneToOne: false; referencedRelation: "doctors"; referencedColumns: ["id"] }
+        ];
+      };
+      derm_photos: {
+        Row: DermPhoto;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          doctor_id?: string | null;
+          document_id?: string | null;
+          body_region: string;
+          photo_type?: "baseline" | "follow_up" | "post_treatment";
+          lesion_notes?: string | null;
+          paired_with?: string | null;
+          taken_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          doctor_id?: string | null;
+          document_id?: string | null;
+          body_region?: string;
+          photo_type?: "baseline" | "follow_up" | "post_treatment";
+          lesion_notes?: string | null;
+          paired_with?: string | null;
+          taken_at?: string;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "derm_photos_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
+          { foreignKeyName: "derm_photos_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] },
+          { foreignKeyName: "derm_photos_doctor_id_fkey"; columns: ["doctor_id"]; isOneToOne: false; referencedRelation: "doctors"; referencedColumns: ["id"] },
+          { foreignKeyName: "derm_photos_document_id_fkey"; columns: ["document_id"]; isOneToOne: false; referencedRelation: "patient_documents"; referencedColumns: ["id"] },
+          { foreignKeyName: "derm_photos_paired_with_fkey"; columns: ["paired_with"]; isOneToOne: false; referencedRelation: "derm_photos"; referencedColumns: ["id"] }
+        ];
+      };
+      derm_prescriptions: {
+        Row: DermPrescription;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          doctor_id?: string | null;
+          visit_id?: string | null;
+          topical_form?: "cream" | "ointment" | "gel" | "lotion" | null;
+          application_instructions?: string | null;
+          skincare_routine_am?: string | null;
+          skincare_routine_pm?: string | null;
+          patient_education?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          doctor_id?: string | null;
+          visit_id?: string | null;
+          topical_form?: "cream" | "ointment" | "gel" | "lotion" | null;
+          application_instructions?: string | null;
+          skincare_routine_am?: string | null;
+          skincare_routine_pm?: string | null;
+          patient_education?: string | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          { foreignKeyName: "derm_prescriptions_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
+          { foreignKeyName: "derm_prescriptions_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] },
+          { foreignKeyName: "derm_prescriptions_doctor_id_fkey"; columns: ["doctor_id"]; isOneToOne: false; referencedRelation: "doctors"; referencedColumns: ["id"] },
+          { foreignKeyName: "derm_prescriptions_visit_id_fkey"; columns: ["visit_id"]; isOneToOne: false; referencedRelation: "visits"; referencedColumns: ["id"] }
+        ];
+      };
     };
     Views: {
       patient_directory: {
@@ -4534,6 +5273,13 @@ export type Database = {
         };
         Returns: Visit;
       };
+      pause_consultation: {
+        Args: {
+          p_clinic_id: string;
+          p_visit_id: string;
+        };
+        Returns: Visit;
+      };
       /** 0041 — re-parents all of the duplicate's rows onto the primary, then
        *  soft-archives the duplicate. Returns the primary id on success. */
       merge_patient_profiles: {
@@ -4582,6 +5328,7 @@ export type Database = {
       service_status: ServiceStatus;
       appointment_status: AppointmentStatus;
       visit_status: VisitStatus;
+      prescription_status: PrescriptionStatus;
       payment_status: PaymentStatus;
       patient_bill_status: PatientBillStatus;
       patient_payment_method: PatientPaymentMethod;

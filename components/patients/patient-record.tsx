@@ -17,6 +17,8 @@ import {
 import { PatientTabNavigation } from "@/components/patients/record/patient-tab-navigation";
 import { OverviewTab } from "@/components/patients/record/overview-tab";
 import { VitalsTab } from "@/components/patients/record/vitals-tab";
+import { DermWorkspace } from "@/components/patients/record/workspaces/derm-workspace";
+import { PsychWorkspace } from "@/components/patients/record/workspaces/psych-workspace";
 import { Button } from "@/components/ui/button";
 import {
   patientDirectoryHref,
@@ -25,6 +27,16 @@ import {
 import type { AppointmentView } from "@/lib/appointments-view";
 import type { PatientDocumentView } from "@/lib/patient-documents-queries";
 import type { PatientRecordData } from "@/lib/patient-record";
+import {
+  GENERAL_TAB_IDS,
+  isSpecialtyTabId,
+  type DermTabId,
+  type GeneralTabId,
+  type PatientTabId,
+  type PsychTabId,
+  type SpecialtyTabId,
+  type WorkspaceConfig,
+} from "@/lib/specialty-workspaces";
 import type { ConsultationPreAnswer } from "@/lib/consultation-queries";
 import type { PatientDirectoryRow } from "@/types/database";
 
@@ -44,6 +56,15 @@ import type { PatientDirectoryRow } from "@/types/database";
  * scrolls and it pins under the app header instead. Same block, two anchors —
  * `--app-header-h` is what makes the second one safe.
  */
+
+/** First token of a persisted comma list, trimmed and length-capped for a capsule. */
+function firstListToken(value?: string | null): string | null {
+  if (!value) return null;
+  const first = value.split(",")[0]?.trim();
+  if (!first) return null;
+  return first.length > 28 ? `${first.slice(0, 27)}…` : first;
+}
+
 export function PatientRecord({
   clinicId,
   clinic,
@@ -59,6 +80,7 @@ export function PatientRecord({
   aiSummaryEnabled,
   activeVisitInfo,
   backHref,
+  workspace,
   onEdit,
   onMergeDuplicate,
   preAnswers,
@@ -85,6 +107,13 @@ export function PatientRecord({
   };
   /** Href that clears the selection — the mobile "back to list" target. */
   backHref: string;
+  /**
+   * The workspace derived from the signed-in doctor's specialty (general /
+   * psychology / dermatology). It owns the tab set, the default tab, the
+   * write CTA, and the route the record opens when a `?tab=` is absent or
+   * belongs to another workspace.
+   */
+  workspace: WorkspaceConfig;
   onEdit: () => void;
   /** Opens the merge-duplicate modal, primary = this record. */
   onMergeDuplicate: () => void;
@@ -92,6 +121,28 @@ export function PatientRecord({
   preAnswers: ConsultationPreAnswer[];
 }) {
   const router = useRouter();
+
+  /**
+   * Which tab the record actually shows. The URL can carry any `PatientTabId`
+   * (shared links, hand-edited URLs, cross-workspace bookmarks), so the active
+   * workspace decides: a general id in a psychology record falls back to that
+   * workspace's default rather than rendering a blank pane.
+   */
+  const isGeneral = workspace.kind === "general";
+  const generalTab: GeneralTabId = (
+    GENERAL_TAB_IDS as readonly string[]
+  ).includes(params.tab)
+    ? (params.tab as GeneralTabId)
+    : "overview";
+  const specialtyActive: SpecialtyTabId | null =
+    workspace.tabs &&
+    isSpecialtyTabId(params.tab) &&
+    (workspace.tabs as readonly string[]).includes(params.tab)
+      ? (params.tab as SpecialtyTabId)
+      : null;
+  const activeTab: PatientTabId = isGeneral
+    ? generalTab
+    : (specialtyActive ?? workspace.defaultTab);
 
   /**
    * Write Prescription is a tab, not a modal.
@@ -102,10 +153,13 @@ export function PatientRecord({
    * it. The Prescriptions tab is the same workspace, embedded: no second fetch,
    * no second Escape handler, and the patient's history stays visible underneath
    * the form while it is being written.
+   *
+   * Each workspace owns its writing surface: General → Prescriptions, Psychology
+   * → Session Notes, Dermatology → Dermatology Rx.
    */
   const openPrescriptionWorkspace = useCallback(
-    () => router.push(patientDirectoryHref({ ...params, tab: "medications" })),
-    [router, params],
+    () => router.push(patientDirectoryHref({ ...params, tab: workspace.writeTab })),
+    [router, params, workspace.writeTab],
   );
 
   // The workspace works on today's live visit, so it needs that visit's own
@@ -143,14 +197,25 @@ export function PatientRecord({
             onEdit={onEdit}
             onMergeDuplicate={onMergeDuplicate}
             onWritePrescription={openPrescriptionWorkspace}
+            writePrescriptionLabel={workspace.writeTabLabel}
             onCompleteAndNext={(nextPatientId) =>
               router.push(
                 patientDirectoryHref({ ...params, selectedId: nextPatientId }),
               )
             }
+            psychContext={
+              workspace.kind === "psychology"
+                ? {
+                    riskLevel: record.psych.safety?.risk_level ?? null,
+                    concern: firstListToken(record.psych.safety?.current_concerns),
+                    diagnosis: firstListToken(record.psych.intake?.previous_diagnosis),
+                    lastSession: record.psych.sessions[0]?.session_date ?? null,
+                  }
+                : null
+            }
           />
 
-          <PatientTabNavigation params={params} />
+          <PatientTabNavigation workspace={workspace} params={params} activeTab={activeTab} />
         </div>
 
         {/* There is no left rail here, and that is deliberate. A 272px sidebar
@@ -166,84 +231,116 @@ export function PatientRecord({
             Documents tab only. */}
         <div className="min-w-0 bg-canvas px-5 py-4">
           <div>
-            {params.tab === "overview" && (
-              <OverviewTab
-                patient={patient}
-                record={record}
-                timezone={timezone}
-                canManage={canManage}
-                aiSummaryEnabled={aiSummaryEnabled}
-                vitalsTabHref={patientDirectoryHref({
-                  ...params,
-                  tab: "vitals",
-                })}
-                medicationsTabHref={patientDirectoryHref({
-                  ...params,
-                  tab: "medications",
-                })}
-              />
-            )}
+            {isGeneral ? (
+              <>
+                {generalTab === "overview" && (
+                  <OverviewTab
+                    patient={patient}
+                    record={record}
+                    timezone={timezone}
+                    canManage={canManage}
+                    aiSummaryEnabled={aiSummaryEnabled}
+                    vitalsTabHref={patientDirectoryHref({
+                      ...params,
+                      tab: "vitals",
+                    })}
+                    medicationsTabHref={patientDirectoryHref({
+                      ...params,
+                      tab: "medications",
+                    })}
+                  />
+                )}
 
-            {params.tab === "health_info" && (
-              <HealthInfoTab
-                patient={patient}
-                medicalHistory={record.medicalHistory}
-                canManage={canManage}
-              />
-            )}
+                {generalTab === "health_info" && (
+                  <HealthInfoTab
+                    patient={patient}
+                    medicalHistory={record.medicalHistory}
+                    canManage={canManage}
+                  />
+                )}
 
-            {params.tab === "vitals" && (
-              <VitalsTab
-                vitals={record.vitals}
-                timezone={timezone}
-                canManage={canManage}
-                latestVisitId={record.visits[0]?.id ?? null}
-              />
-            )}
+                {generalTab === "vitals" && (
+                  <VitalsTab
+                    vitals={record.vitals}
+                    timezone={timezone}
+                    canManage={canManage}
+                    latestVisitId={record.visits[0]?.id ?? null}
+                  />
+                )}
 
-            {params.tab === "medications" && (
-              <PrescriptionsTab
-                clinicId={clinicId}
-                clinic={clinic}
+                {generalTab === "medications" && (
+                  <PrescriptionsTab
+                    clinicId={clinicId}
+                    clinic={clinic}
+                    patient={patient}
+                    prescriptions={record.prescriptions}
+                    medications={record.medications}
+                    documents={documents}
+                    labResults={record.labResults}
+                    timezone={timezone}
+                    canManage={canManage}
+                    params={params}
+                    activeVisit={activeVisitInfo.activeVisit}
+                    visitVitals={activeVisitRow?.vitals ?? null}
+                    visitPrescription={activeVisitRow?.prescription ?? null}
+                    visitDoctor={
+                      activeVisitRow
+                        ? {
+                            id: activeVisitRow.doctor_id,
+                            name: activeVisitRow.doctorName,
+                            specialty: activeVisitRow.doctorSpecialty,
+                          }
+                        : null
+                    }
+                    preAnswers={preAnswers}
+                  />
+                )}
+
+                {generalTab === "appointments" && (
+                  <AppointmentsTab
+                    upcoming={upcoming}
+                    past={past}
+                    timezone={timezone}
+                    canManage={canManage}
+                  />
+                )}
+
+                {generalTab === "documents" && (
+                  <DocumentsTab
+                    patientId={patient.id}
+                    documents={documents}
+                    timezone={timezone}
+                    canManage={canManage}
+                  />
+                )}
+              </>
+            ) : workspace.kind === "psychology" ? (
+              <PsychWorkspace
                 patient={patient}
-                prescriptions={record.prescriptions}
-                medications={record.medications}
+                psych={record.psych}
                 documents={documents}
-                labResults={record.labResults}
+                activeTab={activeTab as PsychTabId}
+                canManage={canManage}
                 timezone={timezone}
+                aiSummaryEnabled={aiSummaryEnabled}
+                assessmentsHref={patientDirectoryHref({
+                  ...params,
+                  tab: "psy_psychometrics",
+                })}
+                documentsHref={patientDirectoryHref({
+                  ...params,
+                  tab: "psy_documents",
+                })}
+              />
+            ) : (
+              <DermWorkspace
+                patient={patient}
+                derm={record.derm}
+                documents={documents}
+                activeTab={activeTab as DermTabId}
                 canManage={canManage}
                 params={params}
-                activeVisit={activeVisitInfo.activeVisit}
-                visitVitals={activeVisitRow?.vitals ?? null}
-                visitPrescription={activeVisitRow?.prescription ?? null}
-                visitDoctor={
-                  activeVisitRow
-                    ? {
-                        id: activeVisitRow.doctor_id,
-                        name: activeVisitRow.doctorName,
-                        specialty: activeVisitRow.doctorSpecialty,
-                      }
-                    : null
-                }
-                preAnswers={preAnswers}
-              />
-            )}
-
-            {params.tab === "appointments" && (
-              <AppointmentsTab
-                upcoming={upcoming}
-                past={past}
                 timezone={timezone}
-                canManage={canManage}
-              />
-            )}
-
-            {params.tab === "documents" && (
-              <DocumentsTab
-                patientId={patient.id}
-                documents={documents}
-                timezone={timezone}
-                canManage={canManage}
               />
             )}
           </div>

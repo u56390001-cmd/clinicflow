@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { BrandLogo } from "@/components/brand-logo";
 
 /**
  * Landing footer. Only links that resolve to real destinations are rendered —
@@ -10,12 +10,7 @@ export function SiteFooter() {
     <footer className="landing-footer">
       <div className="container footer-inner">
         <a className="brand" href="#top" aria-label="MedBook AI — back to top">
-          <Image
-            src="/marketing/medbook-logo.png"
-            alt="MedBook AI"
-            width={1456}
-            height={261}
-          />
+          <BrandLogo variant="footer-light" />
         </a>
         <div className="footer-links">
           <a href="#features">Features</a>

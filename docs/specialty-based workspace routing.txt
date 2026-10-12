@@ -1,0 +1,537 @@
+# MedBook AI — Specialty Based Doctor Workspace Engine
+
+## Role
+
+Act as a Principal SaaS Healthcare Architect and Senior Frontend Engineer.
+
+Use:
+
+- Next.js App Router
+- TypeScript
+- Existing MedBook AI Design System
+- Existing Patient Workspace Architecture
+- Existing RBAC and Appointment Engine
+
+---
+
+# Objective
+
+Implement specialty-based automatic doctor workspace routing.
+
+The system should automatically open the correct clinical workspace based on the logged-in doctor's specialty.
+
+DO NOT add extra setup steps for admins.
+
+DO NOT ask admin to manually select workspace.
+
+Doctor Specialty should automatically determine workspace.
+
+---
+
+# Current System Context
+
+Already implemented:
+
+- Clinic management
+- RBAC roles
+- Doctor profiles
+- Doctor specialty selection
+- Services
+- Appointment booking
+- Doctor availability
+- Patient workspace
+- Consultation workflow
+- AI Copilot
+- General Physician workspace
+
+Do not replace existing workflow.
+
+---
+
+# Core Logic
+
+Doctor profile:
+
+Example:
+
+Doctor:
+Dr Umar Farooq
+
+Role:
+Doctor
+
+Specialty:
+General Physician
+
+
+System automatically maps:
+
+General Physician
+        ↓
+General Medical Workspace
+
+
+Clinical Psychologist
+        ↓
+Psychology Workspace
+
+
+Dermatology
+        ↓
+Dermatology Workspace
+
+
+---
+
+# Architecture Rule
+
+Do not store workspace manually.
+
+Workspace should be derived from specialty.
+
+Example:
+
+doctor.specialty
+
+↓
+
+workspace configuration
+
+↓
+
+load clinical tabs
+
+
+---
+
+# Workspace Routing
+
+When doctor clicks:
+
+Start Consultation
+
+System checks:
+
+1. Logged-in doctor
+2. Doctor specialty
+3. Appointment assigned doctor
+
+
+Then loads correct workspace.
+
+---
+
+# Workspace 1 — General Medical
+
+Keep existing workspace unchanged.
+
+Current tabs remain:
+
+- Overview
+- History
+- Vitals
+- Prescription
+- Labs
+- Documents
+- Appointments
+
+No redesign.
+
+---
+
+# Workspace 2 — Clinical Psychologist
+
+Create specialized workspace.
+
+Keep same MedBook AI layout:
+
+LEFT PANEL:
+
+Patient Context
+
+Show:
+
+- Patient demographics
+- Previous sessions
+- Risk alerts
+- Important history
+- Previous assessments
+
+
+CENTER:
+
+Clinical Psychology Consultation Workspace
+
+
+Tabs:
+
+## Overview & Safety
+
+Show:
+
+- Mental health summary
+- Risk level badge:
+  Low / Moderate / High / Crisis
+- Emergency contact
+- Current concerns
+- AI mental health summary
+
+
+---
+
+## Intake & Psychological History
+
+Fields:
+
+- Previous therapy history
+- Previous diagnosis
+- Family mental health history
+- Psychosocial background
+- Stressors
+- Substance use history
+
+
+---
+
+## Mental Status Examination (MSE)
+
+Structured fields:
+
+Appearance:
+- Grooming
+- Eye contact
+- Behaviour
+
+
+Speech:
+- Rate
+- Tone
+- Volume
+
+
+Mood & Affect:
+
+- Patient reported mood
+- Observed affect
+
+
+Thought:
+
+- Thought process
+- Thought content
+- Risk thoughts
+
+
+Cognition:
+
+- Orientation
+- Memory
+- Insight
+- Judgment
+
+
+---
+
+## Session Notes
+
+Do not use medical prescription format.
+
+Use psychology session format.
+
+Support:
+
+BIRP:
+
+Behavior
+
+Intervention
+
+Response
+
+Plan
+
+
+Also support:
+
+DAP:
+
+Data
+
+Assessment
+
+Plan
+
+
+---
+
+## Psychometrics
+
+Add:
+
+Assessment records:
+
+- PHQ-9
+- GAD-7
+- Other psychological assessments
+
+
+Show:
+
+- Score history
+- Trend visualization
+
+
+---
+
+## Care Plan
+
+Include:
+
+- Therapy goals
+- Intervention plan
+- Homework assignments
+- Follow-up frequency
+- Psychiatrist referral option
+
+
+---
+
+# Workspace 3 — Dermatology
+
+Use same MedBook AI workspace structure.
+
+LEFT PANEL:
+
+Patient Skin Profile
+
+Show:
+
+- Allergies
+- Previous skin conditions
+- Biopsy alerts
+- Previous treatment history
+
+
+CENTER:
+
+Dermatology Consultation
+
+
+Tabs:
+
+## Skin Overview
+
+Include:
+
+- Skin type
+- Active conditions
+- Risk badges
+
+
+---
+
+## Skin Examination
+
+Structured fields:
+
+Chief complaint:
+
+- Rash
+- Itching
+- Pain
+- Lesion
+
+
+Morphology:
+
+- Macule
+- Papule
+- Plaque
+- Nodule
+- Vesicle
+
+
+Distribution:
+
+- Localized
+- Generalized
+- Dermatomal
+
+
+Diagnosis:
+
+ICD assisted diagnosis
+
+
+---
+
+## Photo & Body Mapping
+
+Add:
+
+- Skin image upload
+- Before/after comparison
+- Lesion notes
+- Body location tagging
+
+
+---
+
+## Procedures
+
+Support:
+
+- Biopsy
+- Cryotherapy
+- Chemical peel
+- Laser procedures
+- Minor procedures
+
+
+Fields:
+
+- Procedure name
+- Date
+- Notes
+- Consent status
+
+
+---
+
+## Dermatology Prescription
+
+Special support:
+
+Topical medicines:
+
+- Cream
+- Ointment
+- Gel
+- Lotion
+
+
+Application instructions:
+
+Example:
+
+Apply thin layer twice daily
+
+
+Include:
+
+- Skincare routine
+- AM/PM instructions
+- Patient education
+
+
+---
+
+# AI Copilot Integration
+
+Keep existing AI Copilot drawer.
+
+Change context based on specialty.
+
+General Physician:
+
+Clinical summary
+
+Prescription assistance
+
+
+Psychologist:
+
+- Session summary
+- BIRP/DAP draft
+- Risk alerts
+
+
+Dermatologist:
+
+- Clinical note assistance
+- Photo observation summary
+- Patient instructions
+
+
+---
+
+# UI Requirements
+
+Follow existing MedBook AI Dashboard Design System.
+
+Maintain:
+
+- Sage + Forest Green theme
+- Same cards
+- Same typography
+- Same spacing
+- Same animations
+- Same patient header
+
+
+Do not create separate applications.
+
+All specialties should feel part of the same SaaS product.
+
+---
+
+# Permissions
+
+Role remains:
+
+Doctor
+
+Specialty controls:
+
+Workspace only.
+
+Example:
+
+Doctor role:
+Clinical Psychologist
+
+gets:
+
+Psychology workspace
+
+
+---
+
+# Future Scalability
+
+Architecture should allow adding:
+
+- Dentist
+- Physiotherapist
+- Gynecologist
+- ENT
+- Nutritionist
+
+by adding specialty mapping only.
+
+---
+
+# Testing
+
+Verify:
+
+1. General Physician opens existing workspace.
+2. Clinical Psychologist opens psychology workspace.
+3. Dermatologist opens dermatology workspace.
+4. Receptionist booking assigns correct doctor.
+5. Doctor sees only assigned patients.
+6. Existing prescription workflow is not broken.
+
+---
+
+# Final Goal
+
+Convert MedBook AI into a specialty-based modular healthcare SaaS platform.
+
+Same clinic.
+
+Same patients.
+
+Same appointment engine.
+
+Different intelligent clinical workspaces based on doctor specialty.

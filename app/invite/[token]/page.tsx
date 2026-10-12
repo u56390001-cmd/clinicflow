@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { CheckCircle2, HeartPulse, ShieldAlert } from "lucide-react";
+import { CheckCircle2, ShieldAlert } from "lucide-react";
 
 import { AcceptInviteButton } from "@/components/auth/accept-invite";
+import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 import { INVITE_TOKEN_PATTERN } from "@/lib/auth/invite-token";
 import { ROLE_LABELS } from "@/lib/auth/rbac-config";
@@ -78,12 +79,7 @@ export default async function InvitePage({
       <div className="w-full max-w-3xl overflow-hidden rounded-card border border-hairline bg-surface shadow-card sm:grid sm:grid-cols-[280px_minmax(0,1fr)]">
         {/* Signature teal panel */}
         <aside className="flex flex-col justify-between gap-10 bg-primary p-7 text-white">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-control bg-white text-primary">
-              <HeartPulse className="h-4 w-4" aria-hidden="true" />
-            </span>
-            <span className="text-lg font-semibold tracking-tight">MedBook AI</span>
-          </div>
+          <BrandLogo variant="footer-dark" height={26} />
 
           <div>
             <span className="inline-flex items-center rounded-pill bg-white/15 px-2.5 py-0.5 text-xs font-medium text-white">

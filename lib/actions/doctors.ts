@@ -318,6 +318,8 @@ export async function createDoctorAction(
     return { ok: false, message: "We couldn't add this doctor. Please try again." };
   }
 
+  revalidatePath(APP_ROUTES.app.doctors);
+
   const vitalsSaved = await saveDoctorVitalsConfig(
     supabase,
     access.clinic.id,
@@ -370,14 +372,15 @@ export async function updateDoctorAction(
   const credentials = await resolveCredentials(parsed.data.credentialsText || undefined);
   if (!credentials.ok) return credentials.error;
 
-  const { error } = await supabase
+  const { data: updatedRows, error } = await supabase
     .from("doctors")
     .update({
       ...doctorRowPayload(parsed.data),
       credentials: credentials.value,
     })
     .eq("id", idParsed.data.doctorId)
-    .eq("clinic_id", access.clinic.id);
+    .eq("clinic_id", access.clinic.id)
+    .select("id");
 
   if (error) {
     console.error("[updateDoctorAction] doctors update failed", {
@@ -390,6 +393,18 @@ export async function updateDoctorAction(
     });
     return { ok: false, message: "We couldn't save this doctor. Please try again." };
   }
+
+  // A zero-row update means the id did not match this clinic (or the row was
+  // removed). Report it instead of returning a false success — otherwise the
+  // form closes looking saved while nothing was written.
+  if (!updatedRows || updatedRows.length === 0) {
+    return {
+      ok: false,
+      message: "We couldn't find this doctor in your clinic. Refresh the page and try again.",
+    };
+  }
+
+  revalidatePath(APP_ROUTES.app.doctors);
 
   const vitalsSaved = await saveDoctorVitalsConfig(
     supabase,
@@ -456,6 +471,7 @@ export async function setDoctorVisibilityAction(
     return { ok: false, message: "We couldn't update this doctor. Please try again." };
   }
 
+  revalidatePath(APP_ROUTES.app.doctors);
   return { ok: true, data: undefined };
 }
 
@@ -497,6 +513,7 @@ export async function deleteDoctorAction(
     return { ok: false, message: "We couldn't remove this doctor. Please try again." };
   }
 
+  revalidatePath(APP_ROUTES.app.doctors);
   return { ok: true, data: undefined };
 }
 

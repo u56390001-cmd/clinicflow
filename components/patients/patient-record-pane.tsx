@@ -8,6 +8,7 @@ import type { AppointmentView } from "@/lib/appointments-view";
 import type { PatientDirectoryParams } from "@/lib/patient-directory";
 import type { PatientDocumentView } from "@/lib/patient-documents-queries";
 import type { PatientRecordData } from "@/lib/patient-record";
+import type { WorkspaceConfig } from "@/lib/specialty-workspaces";
 import type { ConsultationPreAnswer } from "@/lib/consultation-queries";
 import type { PatientDirectoryRow } from "@/types/database";
 
@@ -46,6 +47,7 @@ export function PatientRecordPane({
   aiSummaryEnabled,
   activeVisitInfo,
   backHref,
+  workspace,
   preAnswers,
 }: {
   /** The signed-in clinic — the prescription workspace's templates and print header. */
@@ -65,6 +67,8 @@ export function PatientRecordPane({
     canStart: boolean;
   };
   backHref: string;
+  /** The workspace derived from the doctor's specialty — drives tabs and write CTA. */
+  workspace: WorkspaceConfig;
   /** Pre-consultation answers for the active visit's booking, if any. */
   preAnswers: ConsultationPreAnswer[];
 }) {
@@ -89,6 +93,7 @@ export function PatientRecordPane({
       canMerge={actions.canMerge}
       onMergeDuplicate={actions.onMergeDuplicate}
       onEdit={actions.onEdit}
+      workspace={workspace}
       preAnswers={preAnswers}
     />
   );

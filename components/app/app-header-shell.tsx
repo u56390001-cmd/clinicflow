@@ -24,6 +24,7 @@ export function AppHeaderShell({
   userEmail,
   userName,
   role = null,
+  canCreateAppointment = false,
   notifications = [],
   conversations = [],
   clinicId = null,
@@ -32,6 +33,12 @@ export function AppHeaderShell({
   userEmail: string | null;
   userName: string | null;
   role?: ClinicRole | null;
+  /**
+   * Whether the member may create appointments. Resolved on the server from
+   * the same `canManageClinical` rule the dashboard used, so the header action
+   * is the single "New appointment" entry point and stays permission-correct.
+   */
+  canCreateAppointment?: boolean;
   notifications?: HeaderNotification[];
   conversations?: HeaderConversation[];
   clinicId?: string | null;
@@ -113,7 +120,7 @@ export function AppHeaderShell({
             aria-label="MedBook AI home"
             className="shrink-0 rounded-control focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           >
-            <Wordmark className="text-lg" />
+            <Wordmark height={28} />
           </Link>
         </div>
 
@@ -169,12 +176,18 @@ export function AppHeaderShell({
           </span>
         </nav>
 
-        <Button asChild>
-          <Link href={`${APP_ROUTES.app.appointments}?new=consultation`}>
-            <Plus aria-hidden="true" className="mr-1.5" />
-            New Appointment
+        {canCreateAppointment ? (
+          <Link
+            href={`${APP_ROUTES.app.appointments}?new=consultation`}
+            className="medbook-btn-lift group inline-flex min-h-[38px] shrink-0 items-center justify-center gap-2 rounded-[9px] bg-brand-cta px-[15px] py-[9px] text-[12px] font-extrabold text-white shadow-[0_3px_8px_rgba(36,74,54,0.13)] transition-colors hover:bg-brand-forest active:scale-[0.98]"
+          >
+            <Plus
+              aria-hidden="true"
+              className="h-4 w-4 transition-transform duration-200 group-hover:rotate-90"
+            />
+            New appointment
           </Link>
-        </Button>
+        ) : null}
       </div>
     </header>
   );

@@ -114,7 +114,15 @@ export function ProfileDropdown({ user }: ProfileDropdownProps) {
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
+        {/*
+          A deterministic `id` is required here: Radix derives the trigger's id
+          from `React.useId()`, and because the app header renders inside a
+          streamed `<Suspense>` boundary the server and client generate
+          different ids, producing a hydration mismatch. Supplying our own id
+          (and mirroring it on the content's `aria-labelledby`) keeps the
+          aria-controls relationship intact without the mismatch.
+        */}
+        <DropdownMenuTrigger asChild id="account-menu-trigger">
           <Button
             type="button"
             variant="ghost"
@@ -123,7 +131,7 @@ export function ProfileDropdown({ user }: ProfileDropdownProps) {
           >
             <span
               aria-hidden="true"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-pill bg-primary text-sm font-semibold text-white"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-pill bg-brand-forest text-sm font-semibold text-white"
             >
               {initialsOf(user.name, user.email)}
             </span>
@@ -136,6 +144,7 @@ export function ProfileDropdown({ user }: ProfileDropdownProps) {
         <DropdownMenuContent
           align="end"
           sideOffset={8}
+          aria-labelledby="account-menu-trigger"
           className="w-64 rounded-card shadow-dropdown"
         >
           {/* ── User details header ── */}

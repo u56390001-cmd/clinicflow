@@ -3,14 +3,28 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Mic, Square, Sparkles, ChevronRight, ChevronLeft, AlertTriangle, Send, X, Undo2, Zap, Check } from 'lucide-react';
 import { useAmbientRecorder } from '@/lib/copilot/hooks/useAmbientRecorder';
-import { CopilotExtraction, EMPTY_EXTRACTION } from '@/lib/copilot/types';
+import {
+  COPILOT_MODE_LABELS,
+  CopilotExtraction,
+  emptyExtractionFor,
+  type CopilotMode,
+  type DermNoteExtraction,
+  type PsychNoteExtraction,
+  type WorkspaceExtraction,
+} from '@/lib/copilot/types';
 import { fetchWithTimeout, COMMAND_TIMEOUT_MS } from '@/lib/copilot/fetch-with-timeout';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 
 interface CopilotDrawerProps {
+  /** Which workspace this panel is mounted in — drives the AI context and preview. */
+  mode?: CopilotMode;
+  /** Header title; defaults to the mode's stock label. */
+  contextLabel?: string;
+  /** Per-workspace AI guidance sent to both the structure and command routes. */
+  workspaceContext?: string;
   patientProfile?: { allergies?: string; current_meds?: string };
-  onPopulateForm: (data: CopilotExtraction) => void;
+  onPopulateForm: (data: WorkspaceExtraction) => void;
   /** Restores the pre-copilot draft. Omitted where there is no undo to offer. */
   onUndo?: () => boolean;
   /** True while an AI-written draft is still unreviewed — drives the Undo button. */
@@ -39,6 +53,9 @@ interface CopilotDrawerProps {
  * place.
  */
 export function CopilotDrawer({
+  mode = "general",
+  contextLabel,
+  workspaceContext,
   patientProfile,
   onPopulateForm,
   onUndo,
@@ -48,6 +65,14 @@ export function CopilotDrawer({
   const [commandInput, setCommandInput] = useState<string>('');
   const [isProcessingCommand, setIsProcessingCommand] = useState<boolean>(false);
   const [autoApply, setAutoApply] = useState<boolean>(true);
+
+  const headerLabel = contextLabel ?? (mode === "general" ? "Ambient Copilot" : COPILOT_MODE_LABELS[mode]);
+  const formNoun =
+    mode === "psychology"
+      ? "the session note form"
+      : mode === "dermatology"
+        ? "the examination form"
+        : "the prescription form";
 
   const {
     isRecording,
@@ -60,7 +85,7 @@ export function CopilotDrawer({
     startRecording,
     stopRecording,
     setExtractedData
-  } = useAmbientRecorder({ patientProfile });
+  } = useAmbientRecorder({ patientProfile, workspaceKind: mode, workspaceContext });
 
   // Command failures are shown in the drawer too, not alerted: the recording
   // path and the command path fail for the same reasons (no API key, no
@@ -70,11 +95,11 @@ export function CopilotDrawer({
   // Which extraction is already in the form. Without this, auto-apply would
   // fire again on every re-render, and — worse — a re-extraction of the *same*
   // transcript would write the form again after the doctor had corrected it.
-  const appliedRef = useRef<CopilotExtraction | null>(null);
+  const appliedRef = useRef<WorkspaceExtraction | null>(null);
 
   /** Write an extraction to the form, once. Returns true when it wrote. */
   const applyOnce = useCallback(
-    (data: CopilotExtraction) => {
+    (data: WorkspaceExtraction) => {
       if (appliedRef.current === data) return false;
       appliedRef.current = data;
       onPopulateForm(data);
@@ -124,8 +149,10 @@ export function CopilotDrawer({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            currentFormState: extractedData ?? EMPTY_EXTRACTION,
-            command
+            currentFormState: extractedData ?? emptyExtractionFor(mode),
+            command,
+            workspaceKind: mode,
+            workspaceContext
           })
         },
         COMMAND_TIMEOUT_MS,
@@ -135,7 +162,7 @@ export function CopilotDrawer({
       // Parsed defensively: a failed request can still come back as a gateway's
       // HTML page rather than the route's JSON, and letting `res.json()` throw
       // on its own would replace a useful explanation with a parser complaint.
-      let result: { data?: CopilotExtraction; error?: string } | null = null;
+      let result: { data?: WorkspaceExtraction; error?: string } | null = null;
       try {
         result = await res.json();
       } catch {
@@ -148,13 +175,19 @@ export function CopilotDrawer({
       if (result?.data) {
         setExtractedData(result.data);
         setCommandInput('');
-        // A typed command is just as complete a prescription as a recording, so
-        // it goes to the form by the same rule. Left on the manual button this
-        // would have meant the doctor typed a full order and then pressed one
-        // more key to send it — the one interaction auto-apply exists to remove.
+        // A typed command is just as complete a note as a recording, so it goes
+        // to the form by the same rule. Left on the manual button this would
+        // have meant the doctor typed a full order and then pressed one more
+        // key to send it — the one interaction auto-apply exists to remove.
         if (autoApply) applyOnce(result.data);
       } else {
-        throw new Error('The copilot did not return a prescription. Try rephrasing the command.');
+        throw new Error(
+          mode === "general"
+            ? 'The copilot did not return a prescription. Try rephrasing the command.'
+            : mode === "psychology"
+              ? 'The copilot did not return a session note. Try rephrasing the command.'
+              : 'The copilot did not return a note. Try rephrasing the command.'
+        );
       }
     } catch (err) {
       console.error('Command failed:', err);
@@ -167,6 +200,135 @@ export function CopilotDrawer({
       setIsProcessingCommand(false);
     }
   };
+
+  const populateLabel =
+    mode === "psychology"
+      ? "Populate Session Note"
+      : mode === "dermatology"
+        ? "Populate Examination Form"
+        : "Populate Prescription Form";
+
+  /**
+   * The extracted-note preview. One panel, three dialects — the drawer is the
+   * same component in every workspace, so it shows whichever facts belong to
+   * that specialty's note shape. The billing block (applied confirmation /
+   * populate button) is shared so auto-apply reads the same in all three.
+   */
+  function renderPreview() {
+    if (!extractedData) return null;
+    const applied = appliedRef.current === extractedData;
+
+    const populate = applied ? (
+      /* Already in the form. The button becomes the confirmation it
+         really is, instead of disappearing — the doctor needs to see
+         that the note landed here and not somewhere else. */
+      <div className="flex items-center justify-center gap-1.5 rounded-lg border border-teal-300 bg-white/70 px-3 py-2 text-[11px] font-medium text-teal-800">
+        <Check className="size-3.5" aria-hidden="true" />
+        Written to {formNoun}
+      </div>
+    ) : (
+      <Button
+        onClick={() => onPopulateForm(extractedData)}
+        className="w-full justify-center bg-teal-600 text-xs font-semibold text-white shadow-md hover:bg-teal-700"
+        size="sm"
+      >
+        {populateLabel}
+      </Button>
+    );
+
+    if (mode === "psychology") {
+      const note = extractedData as PsychNoteExtraction;
+      const riskTone =
+        note.risk_level === "crisis"
+          ? "bg-red-100 text-red-700"
+          : note.risk_level === "high"
+            ? "bg-orange-100 text-orange-700"
+            : note.risk_level === "moderate"
+              ? "bg-amber-100 text-amber-700"
+              : "bg-slate-200 text-slate-700";
+      return (
+        <div className="flex flex-col gap-3 rounded-xl border border-teal-200 bg-gradient-to-br from-teal-50 to-cyan-50 p-3.5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-teal-900">Session Note Draft</span>
+            <span className="rounded-full bg-teal-100 px-2 py-0.5 font-mono text-[10px] font-medium text-teal-700">
+              {note.format}
+            </span>
+          </div>
+          <div className="space-y-1 text-xs text-slate-700">
+            <p>
+              <strong className="font-semibold text-slate-900">Summary:</strong>{' '}
+              {note.session_summary || 'N/A'}
+            </p>
+            <p>
+              <strong className="font-semibold text-slate-900">Mood / Affect:</strong>{' '}
+              {note.mood_affect || 'N/A'}
+            </p>
+            <div className="flex flex-wrap items-center gap-2 pt-0.5">
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${riskTone}`}>
+                {note.risk_level} risk
+              </span>
+              {note.risk_notes && <span className="text-slate-500">— {note.risk_notes}</span>}
+            </div>
+          </div>
+          {populate}
+        </div>
+      );
+    }
+
+    if (mode === "dermatology") {
+      const note = extractedData as DermNoteExtraction;
+      return (
+        <div className="flex flex-col gap-3 rounded-xl border border-teal-200 bg-gradient-to-br from-teal-50 to-cyan-50 p-3.5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-teal-900">Examination Draft</span>
+            <span className="rounded-full bg-teal-100 px-2 py-0.5 font-mono text-[10px] font-medium text-teal-700">
+              {note.chief_complaints.length} complaints
+            </span>
+          </div>
+          <div className="space-y-1 text-xs text-slate-700">
+            <p>
+              <strong className="font-semibold text-slate-900">Diagnosis:</strong>{' '}
+              {note.diagnosis || 'N/A'}
+            </p>
+            <p>
+              <strong className="font-semibold text-slate-900">Distribution:</strong>{' '}
+              {note.distribution ? note.distribution.charAt(0).toUpperCase() + note.distribution.slice(1) : 'N/A'}
+            </p>
+            <p>
+              <strong className="font-semibold text-slate-900">Treatment:</strong>{' '}
+              {note.treatment_summary || 'N/A'}
+            </p>
+          </div>
+          {populate}
+        </div>
+      );
+    }
+
+    const extraction = extractedData as CopilotExtraction;
+    return (
+      <div className="flex flex-col gap-3 rounded-xl border border-teal-200 bg-gradient-to-br from-teal-50 to-cyan-50 p-3.5 shadow-sm">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-teal-900">Extracted Draft</span>
+          <span className="rounded-full bg-teal-100 px-2 py-0.5 font-mono text-[10px] font-medium text-teal-700">
+            {extraction.medicines?.length || 0} meds
+          </span>
+        </div>
+
+        <div className="space-y-1 text-xs text-slate-700">
+          <p>
+            <strong className="font-semibold text-slate-900">Chief Complaint:</strong>{' '}
+            {extraction.chief_complaint || 'N/A'}
+          </p>
+          <p>
+            <strong className="font-semibold text-slate-900">Diagnosis:</strong>{' '}
+            {extraction.diagnosis || 'N/A'}
+          </p>
+        </div>
+
+        {populate}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -224,7 +386,7 @@ export function CopilotDrawer({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Sparkles className="size-[18px] text-teal-500" />
-                <h3 className="text-sm font-semibold text-slate-900">Ambient Copilot</h3>
+                <h3 className="text-sm font-semibold text-slate-900">{headerLabel}</h3>
               </div>
               <span className="rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[10px] font-medium tracking-wide text-teal-700">
                 {isRecording ? 'LISTENING' : 'READY'}
@@ -243,8 +405,8 @@ export function CopilotDrawer({
                 aria-pressed={autoApply}
                 title={
                   autoApply
-                    ? 'Extracted notes are written into the prescription form as soon as they are ready.'
-                    : 'Extracted notes wait for you to press Populate Prescription Form.'
+                    ? `Extracted notes are written into ${formNoun} as soon as they are ready.`
+                    : 'Extracted notes wait for you to press the populate button.'
                 }
                 className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 transition hover:text-teal-700"
               >
@@ -326,8 +488,12 @@ export function CopilotDrawer({
             )}
           </div>
 
-          {/* Safety Warning Interlock */}
-          {extractedData?.safety_warnings && extractedData.safety_warnings.length > 0 && (
+          {/* Safety Warning Interlock — prescription only; psych/derm surface
+              their own risk in the preview block below. */}
+          {mode === "general" &&
+            extractedData &&
+            "safety_warnings" in extractedData &&
+            extractedData.safety_warnings.length > 0 && (
             <div className="flex flex-col gap-1.5 rounded-xl border border-amber-300 bg-amber-50 p-3">
               <div className="flex items-center gap-1.5">
                 <AlertTriangle className="size-3.5 text-amber-700" />
@@ -349,46 +515,8 @@ export function CopilotDrawer({
             </p>
           </div>
 
-          {/* Extracted Orders Preview */}
-          {extractedData && (
-            <div className="flex flex-col gap-3 rounded-xl border border-teal-200 bg-gradient-to-br from-teal-50 to-cyan-50 p-3.5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-teal-900">Extracted Draft</span>
-                <span className="rounded-full bg-teal-100 px-2 py-0.5 font-mono text-[10px] font-medium text-teal-700">
-                  {extractedData.medicines?.length || 0} meds
-                </span>
-              </div>
-
-              <div className="space-y-1 text-xs text-slate-700">
-                <p>
-                  <strong className="font-semibold text-slate-900">Chief Complaint:</strong>{' '}
-                  {extractedData.chief_complaint || 'N/A'}
-                </p>
-                <p>
-                  <strong className="font-semibold text-slate-900">Diagnosis:</strong>{' '}
-                  {extractedData.diagnosis || 'N/A'}
-                </p>
-              </div>
-
-              {appliedRef.current === extractedData ? (
-                /* Already in the form. The button becomes the confirmation it
-                   really is, instead of disappearing — the doctor needs to see
-                   that the note landed here and not somewhere else. */
-                <div className="flex items-center justify-center gap-1.5 rounded-lg border border-teal-300 bg-white/70 px-3 py-2 text-[11px] font-medium text-teal-800">
-                  <Check className="size-3.5" aria-hidden="true" />
-                  Written to the prescription form
-                </div>
-              ) : (
-                <Button
-                  onClick={() => onPopulateForm(extractedData)}
-                  className="w-full justify-center bg-teal-600 text-xs font-semibold text-white shadow-md hover:bg-teal-700"
-                  size="sm"
-                >
-                  Populate Prescription Form
-                </Button>
-              )}
-            </div>
-          )}
+          {/* Extracted Note Preview */}
+          {renderPreview()}
 
           {/* Natural Language Command Bar */}
           <form onSubmit={handleCommandSubmit} className="relative">
@@ -397,9 +525,17 @@ export function CopilotDrawer({
               value={commandInput}
               onChange={(e) => setCommandInput(e.target.value)}
               placeholder={
-                extractedData
-                  ? "Command Copilot (e.g., 'Change dosage to 7 days')..."
-                  : "Describe the prescription (e.g., 'Fever 3 days, paracetamol 500 TDS 5 days')..."
+                mode === "psychology"
+                  ? extractedData
+                    ? "Command Copilot (e.g., 'Expand the plan with exposure homework')..."
+                    : "Describe the session (e.g., 'Anxious about exams, CBT + exposure homework')..."
+                  : mode === "dermatology"
+                    ? extractedData
+                      ? "Command Copilot (e.g., 'Add hydrocortisone cream BID 7 days')..."
+                      : 'Describe the finding (e.g., "Erythematous papules on cheeks, clobetasol cream OD 14 days")...'
+                    : extractedData
+                      ? "Command Copilot (e.g., 'Change dosage to 7 days')..."
+                      : "Describe the prescription (e.g., 'Fever 3 days, paracetamol 500 TDS 5 days')..."
               }
               className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-9 text-xs text-slate-800 placeholder-slate-400 shadow-sm focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-100 disabled:opacity-60"
               disabled={isProcessingCommand}

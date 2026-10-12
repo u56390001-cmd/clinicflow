@@ -1,0 +1,153 @@
+"use client";
+
+import { useState } from "react";
+import { toast } from "sonner";
+import { ClipboardList, FileUp, Loader2 } from "lucide-react";
+
+import { RecordSection } from "@/components/patients/record/record-primitives";
+import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/select";
+import {
+  sendPsychAssessmentLinkAction,
+  sendPsychDocumentUploadLinkAction,
+  sendPsychPreVisitLinkAction,
+} from "@/lib/actions/patient-links";
+import { PSYCHOMETRIC_INSTRUMENTS, PSYCHOMETRIC_KEYS } from "@/lib/psychometrics";
+
+type Kind = "pre_visit" | "assessment" | "document_upload";
+
+/**
+ * Sends the patient-facing share links (pre-visit form, psychometric
+ * assessment, document upload) through the clinic's existing WhatsApp channel.
+ * The link is also copied to the clipboard as a fallback. The panel appears on
+ * the psychology Safety tab only.
+ */
+export function PatientLinksPanel({
+  patientId,
+  whatsappNumber,
+  canManage,
+}: {
+  patientId: string;
+  whatsappNumber: string | null;
+  canManage: boolean;
+}) {
+  const [pending, setPending] = useState<Kind | null>(null);
+  const [assessmentType, setAssessmentType] = useState<string>(PSYCHOMETRIC_KEYS[0]);
+  const hasWhatsapp = (whatsappNumber ?? "").replace(/[^\d]/g, "").length > 0;
+  const disabled = !canManage || pending !== null || !hasWhatsapp;
+
+  async function send(kind: Kind) {
+    if (disabled) return;
+    setPending(kind);
+    const result =
+      kind === "assessment"
+        ? await sendPsychAssessmentLinkAction(patientId, assessmentType)
+        : kind === "pre_visit"
+          ? await sendPsychPreVisitLinkAction(patientId)
+          : await sendPsychDocumentUploadLinkAction(patientId);
+    setPending(null);
+
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    const url = `${window.location.origin}${result.data.path}`;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      /* clipboard may be unavailable — the WhatsApp message still carries the link */
+    }
+    if (result.data.whatsappSent) {
+      toast.success("Link sent on WhatsApp · copied to clipboard");
+    } else {
+      toast("Link created · copied to clipboard", {
+        description: "WhatsApp isn't connected for this clinic, so send it manually.",
+      });
+    }
+  }
+
+  return (
+    <RecordSection title="Send patient links">
+      <div className="space-y-3">
+        <p className="text-[12px] leading-relaxed text-text-secondary">
+          Send a secure form over WhatsApp. Answers appear in this record
+          automatically.
+        </p>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={disabled}
+            onClick={() => send("pre_visit")}
+          >
+            {pending === "pre_visit" ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <ClipboardList className="size-4" />
+            )}
+            Pre-visit form
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={disabled}
+            onClick={() => send("document_upload")}
+          >
+            {pending === "document_upload" ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <FileUp className="size-4" />
+            )}
+            Upload documents
+          </Button>
+        </div>
+
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="min-w-[180px]">
+            <label
+              htmlFor="psych-link-assessment"
+              className="text-[12.5px] font-bold text-ink"
+            >
+              Assessment
+            </label>
+            <NativeSelect
+              id="psych-link-assessment"
+              value={assessmentType}
+              disabled={disabled}
+              onChange={(event) => setAssessmentType(event.target.value)}
+            >
+              {PSYCHOMETRIC_KEYS.map((key) => (
+                <option key={key} value={key}>
+                  {PSYCHOMETRIC_INSTRUMENTS[key].shortName}
+                </option>
+              ))}
+            </NativeSelect>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={disabled}
+            onClick={() => send("assessment")}
+          >
+            {pending === "assessment" ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <ClipboardList className="size-4" />
+            )}
+            Send assessment
+          </Button>
+        </div>
+
+        {!hasWhatsapp && (
+          <p className="text-[11px] text-status-warning">
+            This patient has no WhatsApp number. Add one to send links.
+          </p>
+        )}
+      </div>
+    </RecordSection>
+  );
+}

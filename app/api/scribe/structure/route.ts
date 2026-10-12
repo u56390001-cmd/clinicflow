@@ -1,17 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getGeminiProvider } from '@/lib/ai/gemini-provider';
 import { describeCopilotError } from '@/lib/copilot/errors';
-import { CLINICAL_SYSTEM_PROMPT } from '@/lib/copilot/prompts/clinical-soap-prompt';
-import { COPILOT_RESPONSE_SCHEMA } from '@/lib/copilot/response-schema';
-import { CopilotExtractionSchema } from '@/lib/copilot/types';
+import { buildCopilotSystemPrompt } from '@/lib/copilot/prompts/specialty-copilot-prompts';
+import { responseSchemaFor } from '@/lib/copilot/response-schema';
+import {
+  copilotModeFrom,
+  extractionSchemaFor,
+  type CopilotMode,
+} from '@/lib/copilot/types';
 
 export async function POST(req: NextRequest) {
   try {
-    const { transcript, patientProfile } = await req.json();
+    const {
+      transcript,
+      patientProfile,
+      workspaceKind,
+      workspaceContext,
+    }: {
+      transcript?: unknown;
+      patientProfile?: { allergies?: string; current_meds?: string };
+      workspaceKind?: unknown;
+      workspaceContext?: unknown;
+    } = await req.json();
 
-    if (!transcript) {
+    if (!transcript || typeof transcript !== 'string') {
       return NextResponse.json({ error: 'Transcript is required' }, { status: 400 });
     }
+
+    const mode: CopilotMode = copilotModeFrom(workspaceKind);
+    const context = typeof workspaceContext === 'string' ? workspaceContext : undefined;
 
     // The copilot rides on the same Gemini key as the chat widget and the AI
     // agent summary — see `lib/ai/gemini-provider.ts`. Previously this route
@@ -25,9 +42,9 @@ export async function POST(req: NextRequest) {
     }
 
     const raw = await getGeminiProvider().completeJson({
-      systemInstruction: CLINICAL_SYSTEM_PROMPT,
+      systemInstruction: buildCopilotSystemPrompt(mode, context),
       prompt: `PATIENT CONTEXT:\nAllergies: ${patientProfile?.allergies || 'None'}\nCurrent Meds: ${patientProfile?.current_meds || 'None'}\n\nTRANSCRIPT:\n${transcript}`,
-      schema: COPILOT_RESPONSE_SCHEMA,
+      schema: responseSchemaFor(mode),
       temperature: 0.1,
       maxOutputTokens: 8192,
     });
@@ -37,9 +54,9 @@ export async function POST(req: NextRequest) {
     // genuinely disagree. Throwing it would surface a multi-line Zod issue list
     // in the drawer's error banner. Log the detail server-side, tell the doctor
     // only that the capture did not come through.
-    const validated = CopilotExtractionSchema.safeParse(raw);
+    const validated = extractionSchemaFor(mode).safeParse(raw);
     if (!validated.success) {
-      console.error('[scribe/structure] extraction did not match schema', validated.error.issues);
+      console.error(`[scribe/structure/${mode}] extraction did not match schema`, validated.error.issues);
       return NextResponse.json(
         { error: 'The copilot returned an unexpected result. Try recording again.' },
         { status: 502 },

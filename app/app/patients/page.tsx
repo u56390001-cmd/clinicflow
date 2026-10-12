@@ -23,8 +23,12 @@ import {
   type PatientTodayQueue,
 } from "@/lib/patient-directory";
 import { fetchPatientRecord } from "@/lib/patient-record";
-import { fetchPreConsultationAnswers } from "@/lib/consultation-queries";
+import { fetchPreConsultationAnswers, findDoctorForUser } from "@/lib/consultation-queries";
 import { fetchPatientDocuments } from "@/lib/patient-documents-queries";
+import {
+  resolveDoctorWorkspace,
+  workspaceForKind,
+} from "@/lib/specialty-workspaces";
 import { createClient } from "@/lib/supabase/server";
 import { clinicDayRangeUtc, clinicMonthStart, clinicToday } from "@/lib/time";
 import type { ActiveVisitInfo } from "@/components/patients/record/record-banner";
@@ -89,38 +93,91 @@ export default async function PatientsPage({
   //
   // Today's bookings and today's visit statuses are independent reads over
   // different tables, so they run together — sequential cost was 2×250ms.
-  const [todayRes, todayVisitRes, totalResult, newThisMonthResult] =
-    await Promise.all([
+  const [
+    todayRes,
+    todayVisitRes,
+    totalResult,
+    newThisMonthResult,
+    allDoctorsRes,
+    linkedDoctor,
+  ] = await Promise.all([
+    supabase
+      .from("appointments")
+      .select("patient_id, doctor_id")
+      .eq("clinic_id", clinicId)
+      .neq("status", "cancelled")
+      .gte("start_time", today.startIso)
+      .lt("start_time", today.endIso),
+    // Today's live queue state: which of today's patients are still being seen
+    // (waiting / checked in / in consultation) and which ones are done. Drives
+    // the Waiting / Completed KPI cards, the Today tab's segment filter, and the
+    // token + status the list pane shows against each row.
+    supabase
+      .from("visits")
+      .select("patient_id, doctor_id, status, token_number")
+      .eq("clinic_id", clinicId)
+      .gte("checked_in_at", today.startIso)
+      .lt("checked_in_at", today.endIso)
+      .order("checked_in_at", { ascending: true, nullsFirst: false }),
+    supabase
+      .from("patients")
+      .select("id", { count: "exact", head: true })
+      .eq("clinic_id", clinicId),
+    supabase
+      .from("patients")
+      .select("id", { count: "exact", head: true })
+      .eq("clinic_id", clinicId)
+      .gte("created_at", monthStart.startIso),
+    supabase
+      .from("doctors")
+      .select("id, name, specialty")
+      .eq("clinic_id", clinicId)
+      .order("name"),
+    findDoctorForUser(supabase, clinicId),
+  ]);
+
+  const allDoctors = (allDoctorsRes.data ?? []).map((d) => ({
+    id: d.id,
+    name: d.name,
+    specialty: d.specialty,
+  }));
+
+  const activeDoctorId =
+    params.doc && allDoctors.some((d) => d.id === params.doc)
+      ? params.doc
+      : null;
+
+  // When a doctor is selected, find all patient IDs belonging to that doctor
+  let doctorPatientIds: string[] | null = null;
+  if (activeDoctorId) {
+    const [docApptsRes, docVisitsRes] = await Promise.all([
       supabase
         .from("appointments")
         .select("patient_id")
         .eq("clinic_id", clinicId)
-        .neq("status", "cancelled")
-        .gte("start_time", today.startIso)
-        .lt("start_time", today.endIso),
-      // Today's live queue state: which of today's patients are still being seen
-      // (waiting / checked in / in consultation) and which ones are done. Drives
-      // the Waiting / Completed KPI cards, the Today tab's segment filter, and the
-      // token + status the list pane shows against each row.
+        .eq("doctor_id", activeDoctorId),
       supabase
         .from("visits")
-        .select("patient_id, status, token_number")
+        .select("patient_id")
         .eq("clinic_id", clinicId)
-        .gte("checked_in_at", today.startIso)
-        .lt("checked_in_at", today.endIso)
-        .order("checked_in_at", { ascending: true, nullsFirst: false }),
-      supabase
-        .from("patients")
-        .select("id", { count: "exact", head: true })
-        .eq("clinic_id", clinicId),
-      supabase
-        .from("patients")
-        .select("id", { count: "exact", head: true })
-        .eq("clinic_id", clinicId)
-        .gte("created_at", monthStart.startIso),
+        .eq("doctor_id", activeDoctorId),
     ]);
-  const todayRows = todayRes.data;
-  const todayVisitRows = todayVisitRes.data;
+    const idSet = new Set<string>();
+    for (const row of docApptsRes.data ?? []) {
+      if (row.patient_id) idSet.add(row.patient_id);
+    }
+    for (const row of docVisitsRes.data ?? []) {
+      if (row.patient_id) idSet.add(row.patient_id);
+    }
+    doctorPatientIds = Array.from(idSet);
+  }
+
+  const todayRows = activeDoctorId
+    ? (todayRes.data ?? []).filter((row) => row.doctor_id === activeDoctorId)
+    : (todayRes.data ?? []);
+  const todayVisitRows = activeDoctorId
+    ? (todayVisitRes.data ?? []).filter((row) => row.doctor_id === activeDoctorId)
+    : (todayVisitRes.data ?? []);
 
   const todayPatientIds = [
     ...new Set(
@@ -163,7 +220,7 @@ export default async function PatientsPage({
   }
 
   const stats = {
-    total: totalResult.count ?? 0,
+    total: doctorPatientIds !== null ? doctorPatientIds.length : (totalResult.count ?? 0),
     newThisMonth: newThisMonthResult.count ?? 0,
     today: todayPatientIds.length,
     waiting: waitingPatientIds.length,
@@ -184,11 +241,14 @@ export default async function PatientsPage({
       : todayPatientIds;
   const emptyToday =
     params.scope === "today" && todaySegmentIds.length === 0;
+  const emptyDoctor =
+    doctorPatientIds !== null && doctorPatientIds.length === 0;
+  const emptyList = emptyToday || (params.scope === "all" && emptyDoctor);
 
   const [listResult, selectedPatient] = await Promise.all([
-    emptyToday
+    emptyList
       ? Promise.resolve({ data: [] as PatientDirectoryRow[], count: 0, error: null })
-      : runDirectoryQuery(supabase, clinicId, params, todaySegmentIds),
+      : runDirectoryQuery(supabase, clinicId, params, todaySegmentIds, doctorPatientIds),
     fetchSelectedPatient(supabase, clinicId, params.selectedId),
   ]);
 
@@ -218,6 +278,8 @@ export default async function PatientsPage({
         canManage={canManageClinical(access.role)}
         aiSummaryEnabled={isPatientSummaryEnabled()}
         backHref={patientDirectoryHref({ ...params, selectedId: "" })}
+        activeDoctorId={activeDoctorId}
+        allDoctors={allDoctors}
       />
     </Suspense>
   ) : null;
@@ -235,6 +297,8 @@ export default async function PatientsPage({
         canManage={canManageClinical(access.role)}
         canMerge={canMergePatients(access.role)}
         timezone={timezone}
+        doctors={allDoctors}
+        selectedDoctorId={activeDoctorId}
       />
     </div>
   );
@@ -250,6 +314,8 @@ async function PatientRecordStream({
   canManage,
   aiSummaryEnabled,
   backHref,
+  activeDoctorId,
+  allDoctors,
 }: {
   clinicId: string;
   clinic: { name: string; address: string | null; phone: string | null };
@@ -260,13 +326,28 @@ async function PatientRecordStream({
   canManage: boolean;
   aiSummaryEnabled: boolean;
   backHref: string;
+  activeDoctorId: string | null;
+  allDoctors: { id: string; name: string; specialty: string | null }[];
 }) {
   const supabase = await createClient();
+
+  // The record's workspace is DERIVED from the doctor's specialty —
+  // active doctor selected via dropdown/URL, or signed-in doctor, or first doctor.
+  const doctor =
+    (activeDoctorId ? allDoctors.find((d) => d.id === activeDoctorId) : null) ??
+    (await findDoctorForUser(supabase, clinicId)) ??
+    allDoctors[0] ??
+    null;
+
+  const workspace = workspaceForKind(
+    resolveDoctorWorkspace(doctor?.specialty),
+  );
+
   const [record, appointments, documents, activeVisitInfo] = await Promise.all([
-    fetchPatientRecord(supabase, clinicId, patient.id),
+    fetchPatientRecord(supabase, clinicId, patient.id, workspace.kind),
     fetchPatientAppointments(supabase, clinicId, patient),
     fetchPatientDocuments(supabase, clinicId, patient.id),
-    fetchActiveVisitInfo(supabase, clinicId, patient.id, today),
+    fetchActiveVisitInfo(supabase, clinicId, patient.id, today, activeDoctorId),
   ]);
 
   // The prescription workspace shows the pre-consultation answers collected for
@@ -297,6 +378,7 @@ async function PatientRecordStream({
       aiSummaryEnabled={aiSummaryEnabled}
       activeVisitInfo={activeVisitInfo}
       backHref={backHref}
+      workspace={workspace}
       preAnswers={preAnswers}
     />
   );
@@ -324,11 +406,16 @@ function runDirectoryQuery(
   clinicId: string,
   params: PatientDirectoryParams,
   todaySegmentIds: string[],
+  doctorPatientIds?: string[] | null,
 ) {
   let query = supabase
     .from("patient_directory")
     .select("*", { count: "exact" })
     .eq("clinic_id", clinicId);
+
+  if (doctorPatientIds !== null && doctorPatientIds !== undefined) {
+    query = query.in("id", doctorPatientIds);
+  }
 
   if (params.q) {
     const term = escapeLikeSearchTerm(params.q);
@@ -480,11 +567,12 @@ async function fetchActiveVisitInfo(
   clinicId: string,
   patientId: string,
   today: { startIso: string; endIso: string },
+  activeDoctorId?: string | null,
 ): Promise<ActiveVisitBundle> {
   const { data: activeVisits, error } = await supabase
     .from("visits")
     .select(
-      "id, patient_id, doctor_id, status, token_number, queue_position, checked_in_at, consultation_started_at",
+      "id, patient_id, doctor_id, status, token_number, queue_position, checked_in_at, consultation_started_at, paused_at",
     )
     .eq("clinic_id", clinicId)
     .in("status", ["waiting", "checked_in", "in_consultation"])
@@ -510,15 +598,19 @@ async function fetchActiveVisitInfo(
     queue_position: number | null;
     checked_in_at: string | null;
     consultation_started_at: string | null;
+    paused_at: string | null;
   };
   const visits = (activeVisits ?? []) as QueueVisitRow[];
   const mine = visits.find((row) => row.patient_id === patientId);
   if (!mine) return EMPTY_ACTIVE_VISIT;
 
-  // Queue eligibility is per doctor (mirrors `complete_and_advance`, which
-  // only promotes within the same doctor — `null is not distinct from null`
-  // groups doctor-less visits together too).
-  const sameDoctor = (row: QueueVisitRow) => row.doctor_id === mine.doctor_id;
+  // Queue eligibility is per doctor: if activeDoctorId is chosen, group by it;
+  // otherwise fallback to mine.doctor_id.
+  const targetDocId = activeDoctorId ?? mine.doctor_id;
+  const sameDoctor = (row: QueueVisitRow) =>
+    targetDocId
+      ? row.doctor_id === targetDocId
+      : row.doctor_id === mine.doctor_id;
 
   const someoneInConsultation = visits.some(
     (row) => sameDoctor(row) && row.status === "in_consultation",
@@ -581,6 +673,7 @@ async function fetchActiveVisitInfo(
     status: mine.status,
     tokenNumber: mine.token_number ?? 0,
     startedAt: mine.consultation_started_at,
+    pausedAt: mine.paused_at,
     billing,
   };
 

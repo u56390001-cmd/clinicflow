@@ -1,7 +1,6 @@
 import { AppSidebarShell } from "@/components/app/app-sidebar-shell";
 import { getCurrentClinic } from "@/lib/clinic-access";
 import { DEFAULT_ROLE_PERMISSIONS, type Permission } from "@/lib/auth/rbac-config";
-import { getSessionIdentity } from "@/lib/auth-session";
 import { APP_NAV_SECTIONS, APP_ROUTES } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/server";
 import type { ClinicRole } from "@/types/database";
@@ -68,11 +67,6 @@ function filterSectionsForRole(role: ClinicRole | null): readonly NavSection[] {
 }
 
 export async function AppSidebar() {
-  // Session identity comes from the cached local JWT claims (see
-  // lib/auth-session.ts) — `auth.getUser()` here added a network round trip
-  // to every navigation for nothing more than the account email.
-  const session = await getSessionIdentity();
-
   // Role drives nav visibility. `getCurrentClinic` is React-`cache`d, so the
   // header/page have already paid for this query in the same request.
   let role: ClinicRole | null = null;
@@ -83,10 +77,5 @@ export async function AppSidebar() {
     role = null;
   }
 
-  return (
-    <AppSidebarShell
-      userEmail={session?.email ?? null}
-      sections={filterSectionsForRole(role)}
-    />
-  );
+  return <AppSidebarShell sections={filterSectionsForRole(role)} />;
 }

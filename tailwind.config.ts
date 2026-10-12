@@ -42,6 +42,25 @@ const config: Config = {
           border: "#E4EBE5",
           body: "#475569",
         },
+        /**
+         * MedBook AI product brand palette ("Premium Sage + Forest Green").
+         * Reads the `--brand-*` custom properties declared once on `:root` in
+         * globals.css, so the sidebar, the app header action and the dashboard
+         * overview all draw from one source. Solid fills/text/borders only —
+         * the values are CSS variables, so Tailwind's `/opacity` modifier does
+         * not apply to them.
+         */
+        brand: {
+          forest: "var(--brand-forest)",
+          deep: "var(--brand-deep)",
+          sage: "var(--brand-sage)",
+          cta: "var(--brand-accent)",
+          wash: "var(--brand-soft)",
+          pale: "var(--brand-pale)",
+          line: "var(--brand-line)",
+          muted: "var(--brand-muted)",
+          ink: "var(--brand-ink)",
+        },
         text: {
           primary: "#0F172A",
           secondary: "#475569",

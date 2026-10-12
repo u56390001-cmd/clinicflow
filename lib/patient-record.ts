@@ -15,13 +15,25 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { fetchMedicalHistory } from "@/lib/medical-history-queries";
+import type { WorkspaceKind } from "@/lib/specialty-workspaces";
 import type { HistoryItem } from "@/types/history";
 import type {
   Database,
+  DermExam,
+  DermPhoto,
+  DermPrescription,
+  DermProcedure,
+  DermProfile,
   PatientAlert,
   PatientLabResult,
   PatientMedication,
   Prescription,
+  PsychAssessment,
+  PsychCarePlan,
+  PsychIntake,
+  PsychMse,
+  PsychSafety,
+  PsychSession,
   Visit,
   Vitals,
 } from "@/types/database";
@@ -68,6 +80,50 @@ export type PatientRecordData = {
    * would take the whole record down over a list at the bottom of the rail.
    */
   labResults: PatientLabResult[];
+  /**
+   * Psychology workspace bundle (migration 0077). Loaded only when the active
+   * workspace is `psychology`; otherwise left empty so a general record pays no
+   * cost for tables it will not render.
+   */
+  psych: PatientPsychBundle;
+  /** Dermatology workspace bundle. Loaded only for the `dermatology` workspace. */
+  derm: PatientDermBundle;
+};
+
+/** Psychology workspace rows (newest first for the event tables). */
+export type PatientPsychBundle = {
+  safety: PsychSafety | null;
+  intake: PsychIntake | null;
+  mse: PsychMse | null;
+  sessions: PsychSession[];
+  assessments: PsychAssessment[];
+  carePlan: PsychCarePlan | null;
+};
+
+/** Dermatology workspace rows. */
+export type PatientDermBundle = {
+  profile: DermProfile | null;
+  exams: DermExam[];
+  procedures: DermProcedure[];
+  photos: DermPhoto[];
+  prescriptions: DermPrescription[];
+};
+
+const EMPTY_PSYCH: PatientPsychBundle = {
+  safety: null,
+  intake: null,
+  mse: null,
+  sessions: [],
+  assessments: [],
+  carePlan: null,
+};
+
+const EMPTY_DERM: PatientDermBundle = {
+  profile: null,
+  exams: [],
+  procedures: [],
+  photos: [],
+  prescriptions: [],
 };
 
 const EMPTY: PatientRecordData = {
@@ -78,6 +134,8 @@ const EMPTY: PatientRecordData = {
   medications: [],
   alerts: [],
   labResults: [],
+  psych: EMPTY_PSYCH,
+  derm: EMPTY_DERM,
 };
 
 /**
@@ -132,6 +190,7 @@ export async function fetchPatientRecord(
   supabase: SupabaseClient<Database>,
   clinicId: string,
   patientId: string,
+  workspaceKind: WorkspaceKind = "general",
 ): Promise<PatientRecordData> {
   const [
     { data: visits, error: visitsError },
@@ -222,6 +281,110 @@ export async function fetchPatientRecord(
   );
   const visitById = new Map(visitRows.map((visit) => [visit.id, visit]));
 
+  // Specialty bundle (0077). Fetched only for the record's active workspace so
+  // a general consultation pays nothing for tables it never renders. The event
+  // tables come back newest first; the snapshots are the patient's latest row.
+  let psych = EMPTY_PSYCH;
+  let derm = EMPTY_DERM;
+
+  if (workspaceKind === "psychology") {
+    const [safety, intake, mse, sessionsRes, assessmentsRes, carePlan] =
+      await Promise.all([
+        supabase
+          .from("psych_safety")
+          .select("*")
+          .eq("clinic_id", clinicId)
+          .eq("patient_id", patientId)
+          .maybeSingle(),
+        supabase
+          .from("psych_intake")
+          .select("*")
+          .eq("clinic_id", clinicId)
+          .eq("patient_id", patientId)
+          .maybeSingle(),
+        supabase
+          .from("psych_mse")
+          .select("*")
+          .eq("clinic_id", clinicId)
+          .eq("patient_id", patientId)
+          .maybeSingle(),
+        supabase
+          .from("psych_sessions")
+          .select("*")
+          .eq("clinic_id", clinicId)
+          .eq("patient_id", patientId)
+          .order("session_date", { ascending: false })
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("psych_assessments")
+          .select("*")
+          .eq("clinic_id", clinicId)
+          .eq("patient_id", patientId)
+          .order("conducted_at", { ascending: false })
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("psych_care_plans")
+          .select("*")
+          .eq("clinic_id", clinicId)
+          .eq("patient_id", patientId)
+          .maybeSingle(),
+      ]);
+
+    psych = {
+      safety: (safety.data as PsychSafety | null) ?? null,
+      intake: (intake.data as PsychIntake | null) ?? null,
+      mse: (mse.data as PsychMse | null) ?? null,
+      sessions: (sessionsRes.data as PsychSession[]) ?? [],
+      assessments: (assessmentsRes.data as PsychAssessment[]) ?? [],
+      carePlan: (carePlan.data as PsychCarePlan | null) ?? null,
+    };
+  } else if (workspaceKind === "dermatology") {
+    const [profile, examsRes, proceduresRes, photosRes, rxRes] =
+      await Promise.all([
+        supabase
+          .from("derm_profiles")
+          .select("*")
+          .eq("clinic_id", clinicId)
+          .eq("patient_id", patientId)
+          .maybeSingle(),
+        supabase
+          .from("derm_exams")
+          .select("*")
+          .eq("clinic_id", clinicId)
+          .eq("patient_id", patientId)
+          .order("exam_date", { ascending: false })
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("derm_procedures")
+          .select("*")
+          .eq("clinic_id", clinicId)
+          .eq("patient_id", patientId)
+          .order("procedure_date", { ascending: false })
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("derm_photos")
+          .select("*")
+          .eq("clinic_id", clinicId)
+          .eq("patient_id", patientId)
+          .order("taken_at", { ascending: false })
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("derm_prescriptions")
+          .select("*")
+          .eq("clinic_id", clinicId)
+          .eq("patient_id", patientId)
+          .order("created_at", { ascending: false }),
+      ]);
+
+    derm = {
+      profile: (profile.data as DermProfile | null) ?? null,
+      exams: (examsRes.data as DermExam[]) ?? [],
+      procedures: (proceduresRes.data as DermProcedure[]) ?? [],
+      photos: (photosRes.data as DermPhoto[]) ?? [],
+      prescriptions: (rxRes.data as DermPrescription[]) ?? [],
+    };
+  }
+
   return {
     visits: visitRows.map((visit) => ({
       ...visit,
@@ -255,5 +418,7 @@ export async function fetchPatientRecord(
     alerts: alertRows ?? [],
     labResults: labResults ?? [],
     medicalHistory: history?.entries ?? [],
+    psych,
+    derm,
   };
 }

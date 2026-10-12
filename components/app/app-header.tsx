@@ -1,6 +1,6 @@
 import { AppHeaderShell } from "@/components/app/app-header-shell";
 import { getSessionIdentity } from "@/lib/auth-session";
-import { getCurrentClinic } from "@/lib/clinic-access";
+import { canManageClinical, getCurrentClinic } from "@/lib/clinic-access";
 import { clinicLogoPublicUrl, readClinicLogoPath } from "@/lib/clinic-logo";
 import {
   fetchHeaderConversations,
@@ -35,6 +35,7 @@ export async function AppHeader() {
       userEmail={email}
       userName={displayName}
       role={access?.role ?? null}
+      canCreateAppointment={access?.role ? canManageClinical(access.role) : false}
       clinicId={clinicId}
       clinicLogoUrl={clinicLogoPublicUrl(logoPath)}
       notifications={notifications}

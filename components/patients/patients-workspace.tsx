@@ -9,6 +9,7 @@ import {
   PatientListPane,
   type PatientDirectoryStats,
 } from "@/components/patients/patient-list-pane";
+import type { ClinicDoctorOption } from "@/components/patients/patient-doctor-selector";
 import {
   PatientRecordPaneActionsContext,
   type PatientRecordPaneActions,
@@ -45,6 +46,8 @@ export function PatientsWorkspace({
   canManage,
   canMerge,
   timezone,
+  doctors,
+  selectedDoctorId,
 }: {
   patients: PatientDirectoryRow[];
   total: number;
@@ -60,6 +63,8 @@ export function PatientsWorkspace({
   /** `canMergePatients` — gates the banner's Merge Duplicate control. */
   canMerge: boolean;
   timezone: string;
+  doctors?: ClinicDoctorOption[];
+  selectedDoctorId?: string | null;
 }) {
   // `null` = closed. `{ patient: null }` = blank add form.
   const [form, setForm] = useState<{ patient: Patient | null } | null>(null);
@@ -140,6 +145,8 @@ export function PatientsWorkspace({
             timezone={timezone}
             todayQueue={todayQueue}
             collapsed={queueCollapsed}
+            doctors={doctors}
+            selectedDoctorId={selectedDoctorId}
             onToggleCollapsed={toggleQueue}
             onAddPatient={openAddPatient}
           />

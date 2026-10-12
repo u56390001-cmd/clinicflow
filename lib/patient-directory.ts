@@ -12,6 +12,11 @@
  */
 
 import { APP_ROUTES } from "@/lib/constants";
+import {
+  isSpecialtyTabId,
+  type PatientTabId,
+  type SpecialtyTabId,
+} from "@/lib/specialty-workspaces";
 import type { VisitStatus } from "@/types/database";
 
 export const PATIENT_PAGE_SIZE = 20;
@@ -180,8 +185,15 @@ export type PatientDirectoryParams = {
   page: number;
   /** `?id=` — a UHID (`CLI-2026-00001`) or a patient UUID. Empty = no selection. */
   selectedId: string;
-  /** `?tab=` — which panel of the open record is showing. */
-  tab: PatientTab;
+  /**
+   * `?tab=` — which panel of the open record is showing. The union admits the
+   * specialty workspaces' tab ids (`psy_*`, `derm_*`) as well as the general
+   * set; the active workspace (derived from the doctor's specialty) decides
+   * which set actually renders.
+   */
+  tab: PatientTabId;
+  /** `?doc=` — selected doctor ID for doctor-specific queue / specialty workspace */
+  doc?: string;
 };
 
 /**
@@ -201,6 +213,7 @@ export function parsePatientDirectoryParams(
   const rawFilter = str("filter");
   const rawSort = str("sort");
   const rawTab = str("tab");
+  const rawDoc = str("doc").trim().slice(0, 64);
 
   const scope: PatientScope = (PATIENT_SCOPES as readonly string[]).includes(
     rawScope,
@@ -230,7 +243,10 @@ export function parsePatientDirectoryParams(
     selectedId: str("id").trim().slice(0, 64),
     tab: (PATIENT_TABS as readonly string[]).includes(rawTab)
       ? (rawTab as PatientTab)
-      : (PATIENT_TAB_ALIASES[rawTab] ?? DEFAULT_PATIENT_TAB),
+      : isSpecialtyTabId(rawTab)
+        ? (rawTab as SpecialtyTabId)
+        : (PATIENT_TAB_ALIASES[rawTab] ?? DEFAULT_PATIENT_TAB),
+    doc: rawDoc || undefined,
   };
 }
 
@@ -257,6 +273,7 @@ export function patientDirectoryHref(
   if (params.selectedId && params.tab && params.tab !== DEFAULT_PATIENT_TAB) {
     search.set("tab", params.tab);
   }
+  if (params.doc) search.set("doc", params.doc);
 
   const qs = search.toString();
   return `${APP_ROUTES.app.patients}${qs ? `?${qs}` : ""}`;

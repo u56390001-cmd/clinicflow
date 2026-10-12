@@ -8,6 +8,7 @@ import {
 import { checkRateLimit, envInt } from "@/lib/ai/rate-limit";
 import { canManageClinical, getCurrentClinic } from "@/lib/clinic-access";
 import { fetchPatientRecord } from "@/lib/patient-record";
+import { hasPsychSummaryContent } from "@/lib/psych-summary";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -94,15 +95,10 @@ export async function POST(
   }
 
   // Plan §1.4: with no consultation history there is nothing to summarise, and
-  // the card shows fixed copy. Checked before the feature flag so the honest
-  // answer is "no history yet" rather than "feature unavailable".
-  if (patient.visit_count === 0) {
-    return NextResponse.json({
-      ok: true,
-      summary: null,
-      reason: "no-history",
-    });
-  }
+  // the card shows fixed copy. A psychology patient may have a record without a
+  // visit — online assessment or pre-visit answers through a WhatsApp link
+  // (0080) — so the emptiness check happens against the loaded record below
+  // rather than on `visit_count` alone.
 
   const force = request.nextUrl.searchParams.get("force") === "1";
   const cached = patient.ai_summary?.trim();
@@ -151,12 +147,23 @@ export async function POST(
     );
   }
 
-  const record = await fetchPatientRecord(supabase, clinicId, patientId);
+  // Load the psychology bundle too: it contributes to the digest when present
+  // and is empty (and therefore inert) for a general patient.
+  const record = await fetchPatientRecord(
+    supabase,
+    clinicId,
+    patientId,
+    "psychology",
+  );
 
   // `visit_count` came from the view and the record from the tables. If the
-  // record read back nothing there is no digest worth sending, whatever the
-  // count says.
-  if (record.visits.length === 0 && record.prescriptions.length === 0) {
+  // record read back nothing — no visits, no prescriptions and no psychology
+  // content — there is no digest worth sending, whatever the count says.
+  if (
+    record.visits.length === 0 &&
+    record.prescriptions.length === 0 &&
+    !hasPsychSummaryContent(record.psych)
+  ) {
     return NextResponse.json({
       ok: true,
       summary: null,

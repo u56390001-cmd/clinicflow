@@ -30,7 +30,7 @@ export async function fetchPatientDocuments(
   const { data, error } = await supabase
     .from("patient_documents")
     .select(
-      "id, clinic_id, patient_id, document_name, mime_type, size_bytes, document_date, uploaded_by_user_id, uploaded_at",
+      "id, clinic_id, patient_id, document_name, mime_type, size_bytes, document_date, uploaded_by_user_id, uploaded_at, source",
     )
     .eq("clinic_id", clinicId)
     .eq("patient_id", patientId)
@@ -44,7 +44,7 @@ export async function fetchPatientDocuments(
       const retry = await supabase
         .from("patient_documents")
         .select(
-          "id, clinic_id, patient_id, document_name, mime_type, size_bytes, uploaded_by_user_id, uploaded_at",
+          "id, clinic_id, patient_id, document_name, mime_type, size_bytes, uploaded_by_user_id, uploaded_at, source",
         )
         .eq("clinic_id", clinicId)
         .eq("patient_id", patientId)

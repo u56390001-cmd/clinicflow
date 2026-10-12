@@ -47,6 +47,9 @@ export function AiSummaryCard({
   generatedAt,
   generatedFromVisitCount,
   visitCount,
+  hasClinicalData,
+  emptyCopy,
+  refreshLabel = false,
   timezone,
   canManage,
   enabled,
@@ -56,6 +59,16 @@ export function AiSummaryCard({
   generatedAt: string | null;
   generatedFromVisitCount: number | null;
   visitCount: number;
+  /**
+   * True when the patient has a record without any visit — e.g. a psychology
+   * patient who only submitted an online assessment. Defaults to false so the
+   * general record's behaviour is unchanged.
+   */
+  hasClinicalData?: boolean;
+  /** Overrides {@link AI_SUMMARY_EMPTY_STATE} for the no-history empty state. */
+  emptyCopy?: string;
+  /** Renders a labelled Refresh/Generate button instead of the icon-only one. */
+  refreshLabel?: boolean;
   timezone: string;
   canManage: boolean;
   /** `PATIENT_AI_SUMMARY_ENABLED` — resolved on the server and passed down. */
@@ -74,7 +87,7 @@ export function AiSummaryCard({
   const shownSummary = fresh?.summary ?? summary;
   const shownGeneratedAt = fresh ? fresh.generatedAt : generatedAt;
   const hasSummary = Boolean(shownSummary?.trim());
-  const hasHistory = visitCount > 0;
+  const hasHistory = visitCount > 0 || Boolean(hasClinicalData);
 
   // A summary written after two visits is out of date once the fifth happens.
   // Suppressed while `fresh` is set: what was just generated cannot be stale.
@@ -134,26 +147,43 @@ export function AiSummaryCard({
           <Sparkles aria-hidden="true" className="size-3.5" />
         </span>
         <h3 className="text-sm font-semibold text-ink">AI Patient Summary</h3>
-        {canGenerate && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="ml-auto size-7"
-            onClick={generate}
-            disabled={pending}
-            aria-busy={pending}
-            title={hasSummary ? "Regenerate summary" : "Generate summary"}
-          >
-            {pending ? (
-              <Spinner size="sm" />
-            ) : (
-              <RefreshCw aria-hidden="true" className="size-3.5" />
-            )}
-            <span className="sr-only">
-              {hasSummary ? "Regenerate summary" : "Generate summary"}
-            </span>
-          </Button>
-        )}
+        {canGenerate &&
+          (refreshLabel ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-auto h-7 gap-1.5 px-2.5 text-[12px]"
+              onClick={generate}
+              disabled={pending}
+              aria-busy={pending}
+            >
+              {pending ? (
+                <Spinner size="sm" />
+              ) : (
+                <RefreshCw aria-hidden="true" className="size-3.5" />
+              )}
+              {pending ? "Reading…" : hasSummary ? "Refresh" : "Generate"}
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-auto size-7"
+              onClick={generate}
+              disabled={pending}
+              aria-busy={pending}
+              title={hasSummary ? "Regenerate summary" : "Generate summary"}
+            >
+              {pending ? (
+                <Spinner size="sm" />
+              ) : (
+                <RefreshCw aria-hidden="true" className="size-3.5" />
+              )}
+              <span className="sr-only">
+                {hasSummary ? "Regenerate summary" : "Generate summary"}
+              </span>
+            </Button>
+          ))}
       </div>
 
       {hasSummary ? (
@@ -184,7 +214,7 @@ export function AiSummaryCard({
       ) : (
         <p className="mt-2 text-sm text-slate-500">
           {!hasHistory
-            ? AI_SUMMARY_EMPTY_STATE
+            ? emptyCopy ?? AI_SUMMARY_EMPTY_STATE
             : canGenerate
               ? "No summary yet. Generate one from this patient's recorded history."
               : "No summary has been generated for this patient."}

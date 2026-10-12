@@ -19,6 +19,7 @@ import { getGeminiProvider } from "@/lib/ai/gemini-provider";
 import { resolveProviderForClinic } from "@/lib/ai/provider";
 import type {
   PatientPrescriptionRow,
+  PatientPsychBundle,
   PatientRecordData,
   PatientVisitRow,
 } from "@/lib/patient-record";
@@ -43,6 +44,10 @@ const MAX_VISITS_IN_PROMPT = 12;
 
 /** How many medicines to list per visit before truncating. */
 const MAX_MEDICINES_PER_VISIT = 8;
+
+/** How many psychology assessments / sessions go into the prompt. */
+const MAX_PSYCH_ASSESSMENTS = 8;
+const MAX_PSYCH_SESSIONS = 6;
 
 /**
  * Hard cap on what gets persisted to `patients.ai_summary`. The prompt asks for
@@ -201,6 +206,61 @@ function formatOrphanPrescription(prescription: PatientPrescriptionRow): string 
 }
 
 /**
+ * Render the psychology record as a de-identified block. Answers a patient
+ * submitted through a WhatsApp link (0080) land in `psych_intake` and
+ * `psych_assessments`, so they reach the summary the same way clinician-entered
+ * data does. Item-level answers are deliberately not expanded — the score and
+ * severity band are what a summary reader acts on.
+ */
+function formatPsychBlock(psych: PatientPsychBundle): string | null {
+  const lines: string[] = ["Mental-health record (de-identified)"];
+  const push = (label: string, value: string | null | undefined) => {
+    const trimmed = value?.trim();
+    if (trimmed) lines.push(`  ${label}: ${trimmed}`);
+  };
+
+  const safety = psych.safety;
+  if (safety) {
+    if (safety.risk_level && safety.risk_level !== "low") {
+      lines.push(`  Risk level: ${safety.risk_level}`);
+    }
+    push("Risk factors", safety.risk_factors);
+    push("Current concerns", safety.current_concerns);
+    push("Mental health summary", safety.mental_health_summary);
+  }
+
+  const intake = psych.intake;
+  if (intake) {
+    push("Presenting concerns", intake.stressors);
+    push("Previous therapy", intake.previous_therapy_history);
+    push("Previous diagnosis", intake.previous_diagnosis);
+    push("Family mental-health history", intake.family_mental_health_history);
+    push("Psychosocial background", intake.psychosocial_background);
+    push("Substance use", intake.substance_use_history);
+  }
+
+  if (psych.assessments.length > 0) {
+    const rows = psych.assessments.slice(0, MAX_PSYCH_ASSESSMENTS).map(
+      (assessment) =>
+        `${assessment.assessment_type} ${assessment.score ?? "score not recorded"}` +
+        `${assessment.severity ? ` (${assessment.severity})` : ""}` +
+        ` on ${dateOnly(assessment.conducted_at)}` +
+        `${assessment.completed_by === "patient_online" ? ", patient-completed online" : ""}`,
+    );
+    lines.push(`  Assessments: ${rows.join("; ")}`);
+  }
+
+  if (psych.sessions.length > 0) {
+    const rows = psych.sessions
+      .slice(0, MAX_PSYCH_SESSIONS)
+      .map((session) => `${session.session_type} session on ${dateOnly(session.session_date)}`);
+    lines.push(`  Recorded sessions: ${rows.join("; ")}`);
+  }
+
+  return lines.length > 1 ? lines.join("\n") : null;
+}
+
+/**
  * Build the de-identified clinical digest sent to the model.
  *
  * Exported so it can be inspected and asserted on in isolation — the guarantee
@@ -240,6 +300,12 @@ export function buildPatientSummaryDigest(
     ...visits.map(formatVisitBlock),
     ...orphans.slice(0, MAX_VISITS_IN_PROMPT).map(formatOrphanPrescription),
   ];
+
+  // Psychology data is only present when the record was loaded for the
+  // psychology workspace; a general patient's bundle is empty and contributes
+  // nothing, so the digest for non-psych patients is unchanged.
+  const psychBlock = formatPsychBlock(record.psych);
+  if (psychBlock) blocks.push(psychBlock);
 
   return [header.join("\n"), "", ...blocks].join("\n\n").trim();
 }

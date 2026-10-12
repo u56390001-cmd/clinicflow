@@ -5,11 +5,14 @@ import { useRouter } from "next/navigation";
 import {
   Cake,
   CalendarDays,
+  ClipboardList,
   GitMerge,
   PenLine,
   Phone,
   Play,
+  ShieldAlert,
   SquarePen,
+  Stethoscope,
   Timer,
   User,
   Wallet,
@@ -20,6 +23,15 @@ import {
   startConsultationAction,
 } from "@/lib/actions/consultation";
 import { VISIT_STATUS_META, visitStatusTone } from "@/lib/constants";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { avatarColorFor, initialsOf } from "@/lib/utils/avatar";
 import { ageFromDob } from "@/lib/utils/datetime";
 import { cn } from "@/lib/utils";
@@ -35,11 +47,34 @@ const GENDER_LABELS: Record<"male" | "female" | "other", string> = {
   other: "Other",
 };
 
+/**
+ * A compact psychology context strip for the header, shown only in the
+ * psychology workspace. The record's tabs carry the full detail; this is the
+ * one-line "who is this and how are they doing" a therapist wants before the
+ * record even opens — current risk, the presenting concern, the working
+ * diagnosis and when they were last seen.
+ */
+export type PsychHeaderContext = {
+  riskLevel?: string | null;
+  concern?: string | null;
+  diagnosis?: string | null;
+  lastSession?: string | null;
+};
+
+const PSYCH_RISK_TONE: Record<string, string> = {
+  low: "border-primary/30 bg-primary/10 text-primary",
+  moderate: "border-status-warning/30 bg-status-warning/10 text-status-warning",
+  high: "border-orange-300 bg-orange-100 text-orange-700",
+  crisis: "border-status-destructive/40 bg-status-destructive/10 text-status-destructive",
+};
+
 export type ActiveVisitInfo = {
   id: string;
   status: VisitStatus;
   tokenNumber: number;
   startedAt: string | null;
+  /** Non-null when the doctor returned this visit to the queue with a saved draft (migration 0076). */
+  pausedAt: string | null;
   billing: {
     status: PatientBillStatus;
     pendingAmount: number;
@@ -123,7 +158,9 @@ export function RecordBanner({
   onEdit,
   onMergeDuplicate,
   onWritePrescription,
+  writePrescriptionLabel = "Write Prescription",
   onCompleteAndNext,
+  psychContext,
 }: {
   patient: PatientDirectoryRow;
   canManage: boolean;
@@ -133,15 +170,22 @@ export function RecordBanner({
   onEdit: () => void;
   onMergeDuplicate: () => void;
   /**
-   * Opens the Prescriptions tab, where the consultation and Rx builder live.
-   * This used to mount a full-screen Write Prescription overlay.
+   * Opens the Prescriptions tab (or the workspace's own write tab — Session
+   * Notes for psychology, Dermatology Rx for dermatology), where the
+   * consultation and prescription builder live. This used to mount a
+   * full-screen Write Prescription overlay.
    */
   onWritePrescription: () => void;
+  /** Label for that CTA, scoped to the active workspace. */
+  writePrescriptionLabel?: string;
   onCompleteAndNext?: (nextPatientId: string) => void;
+  /** Psychology-only context strip; omitted in the general and derm workspaces. */
+  psychContext?: PsychHeaderContext | null;
 }) {
   const router = useRouter();
   const [isBusy, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
+  const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false);
 
   const handleStart = (formData: FormData) => {
     setActionError(null);
@@ -173,6 +217,8 @@ export function RecordBanner({
   };
 
   const isConsulting = activeVisit?.status === "in_consultation";
+  const isPaused =
+    activeVisit?.status === "waiting" && Boolean(activeVisit.pausedAt);
   const elapsedMs = useConsultationTimer(
     activeVisit?.startedAt ?? null,
     isConsulting,
@@ -225,13 +271,15 @@ export function RecordBanner({
         <div className="flex shrink-0 items-center gap-1.5">
           {canManage &&
             (isConsulting ? (
-              <form action={handleComplete}>
-                <input type="hidden" name="visitId" value={activeVisit.id} />
-                <button type="submit" disabled={isBusy} className={ACTION_BUTTON}>
-                  <Play aria-hidden="true" className="size-4 fill-current" strokeWidth={2} />
-                  {isBusy ? "Completing…" : "Complete & Next"}
-                </button>
-              </form>
+              <button
+                type="button"
+                onClick={() => setConfirmCompleteOpen(true)}
+                disabled={isBusy}
+                className={ACTION_BUTTON}
+              >
+                <Play aria-hidden="true" className="size-4 fill-current" strokeWidth={2} />
+                {isBusy ? "Completing…" : "Complete & Next"}
+              </button>
             ) : (
               activeVisit &&
               canStart && (
@@ -239,7 +287,7 @@ export function RecordBanner({
                   <input type="hidden" name="visitId" value={activeVisit.id} />
                   <button type="submit" disabled={isBusy} className={ACTION_BUTTON}>
                     <Play aria-hidden="true" className="size-4 fill-current" strokeWidth={2} />
-                    {isBusy ? "Starting…" : "Start Consultation"}
+                    {isBusy ? "Starting…" : isPaused ? "Resume Consultation" : "Start Consultation"}
                   </button>
                 </form>
               )
@@ -252,7 +300,7 @@ export function RecordBanner({
               className={OUTLINE_BUTTON}
             >
               <PenLine aria-hidden="true" className="size-4" strokeWidth={2} />
-              Write Prescription
+              {writePrescriptionLabel}
             </button>
           )}
 
@@ -296,10 +344,10 @@ export function RecordBanner({
               className={cn(
                 "inline-block size-1.5 shrink-0 rounded-full",
                 statusTone.dot,
-                activeVisit.status === "waiting" && "animate-pulse",
+                activeVisit.status === "waiting" && !isPaused && "animate-pulse",
               )}
             />
-            {statusMeta.label}
+            {isPaused ? "Paused · Draft Saved" : statusMeta.label}
           </span>
         )}
 
@@ -349,11 +397,92 @@ export function RecordBanner({
         )}
       </div>
 
+      {/* Psychology context, when this is a therapy record: the four facts a
+          therapist re-orients with before reading the chart. A quiet third row
+          so it never dilutes the identity capsules above, and only ever in the
+          psychology workspace. */}
+      {psychContext &&
+        (psychContext.riskLevel ||
+          psychContext.concern ||
+          psychContext.diagnosis ||
+          psychContext.lastSession) && (
+          <div className="-mt-1 flex flex-wrap items-center gap-1.5 px-[26px] pb-3">
+            {psychContext.riskLevel && (
+              <span
+                className={cn(
+                  CAPSULE,
+                  "font-bold",
+                  PSYCH_RISK_TONE[psychContext.riskLevel] ?? "",
+                )}
+              >
+                <ShieldAlert aria-hidden="true" className="size-3.5 shrink-0" strokeWidth={2} />
+                {psychContext.riskLevel.replace(/_/g, " ")} risk
+              </span>
+            )}
+            {psychContext.concern && (
+              <span className={CAPSULE}>
+                <ClipboardList aria-hidden="true" className={CAPSULE_ICON} strokeWidth={2} />
+                {psychContext.concern}
+              </span>
+            )}
+            {psychContext.diagnosis && (
+              <span className={CAPSULE}>
+                <Stethoscope aria-hidden="true" className={CAPSULE_ICON} strokeWidth={2} />
+                {psychContext.diagnosis}
+              </span>
+            )}
+            {psychContext.lastSession && (
+              <span className={CAPSULE}>
+                <CalendarDays aria-hidden="true" className={CAPSULE_ICON} strokeWidth={2} />
+                Last session {psychContext.lastSession}
+              </span>
+            )}
+          </div>
+        )}
+
       {actionError && (
         <p role="alert" className="px-[26px] pb-3 text-xs text-status-destructive">
           {actionError}
         </p>
       )}
+
+      <Dialog
+        open={confirmCompleteOpen}
+        onOpenChange={setConfirmCompleteOpen}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Complete this consultation?</DialogTitle>
+            <DialogDescription>
+              This finalizes the visit, marks it completed, and moves the next
+              waiting patient into consultation.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConfirmCompleteOpen(false)}
+              disabled={isBusy}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setConfirmCompleteOpen(false);
+                if (!activeVisit) return;
+                const formData = new FormData();
+                formData.set("visitId", activeVisit.id);
+                handleComplete(formData);
+              }}
+              disabled={isBusy}
+            >
+              {isBusy ? "Completing…" : "Yes, Complete & Next"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -2,10 +2,16 @@
 
 import type { Prescription, MedicineEntry, LabOrder, Patient, Doctor, Vitals } from "@/types/database";
 import { PrescriptionQr } from "@/components/consultation/prescription-qr";
+import { cn } from "@/lib/utils";
 
 /**
  * Print-optimized prescription preview. Hidden on screen, shown via
  * window.print() with @media print CSS.
+ *
+ * The print class is parameterised so a second flow (the Prescriptions tab's
+ * per-card "Print") can mount its own copy with a distinct class and force-hide
+ * the consultation preview while it prints. Two mounted previews would
+ * otherwise both reveal themselves under @media print and print over each other.
  */
 export function PrescriptionPreview({
   prescription,
@@ -16,6 +22,9 @@ export function PrescriptionPreview({
   clinicPhone,
   visitDate,
   vitals,
+  printClass = "print-preview",
+  printId = "prescription-print-area",
+  hideClassInPrint,
 }: {
   prescription: Prescription;
   patient: Patient;
@@ -25,15 +34,26 @@ export function PrescriptionPreview({
   clinicPhone: string | null;
   visitDate: string;
   vitals: Vitals | null;
+  /** CSS class the @media print rule reveals. Defaults to the consultation preview. */
+  printClass?: string;
+  /** id on the printable root. */
+  printId?: string;
+  /** A class forced hidden while this preview prints (a competing preview). */
+  hideClassInPrint?: string;
 }) {
   return (
-    <div className="print-preview hidden" id="prescription-print-area">
+    <div className={cn(printClass, "hidden")} id={printId}>
       <style>{`
         @media print {
-          .print-preview { display: block !important; }
+          .${printClass} { display: block !important; }
           body * { visibility: hidden; }
-          .print-preview, .print-preview * { visibility: visible; }
-          .print-preview {
+          .${printClass}, .${printClass} * { visibility: visible; }
+          ${
+            hideClassInPrint
+              ? `.${hideClassInPrint}.${hideClassInPrint} { display: none !important; }`
+              : ""
+          }
+          .${printClass} {
             position: absolute;
             left: 0;
             top: 0;

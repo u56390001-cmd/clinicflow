@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Montserrat, Plus_Jakarta_Sans, Poppins } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
@@ -49,6 +49,16 @@ export const metadata: Metadata = {
   },
   description:
     "Clinic management, AI booking receptionist, and website builder for independent doctors and small clinics.",
+  applicationName: "MedBook AI",
+};
+
+/**
+ * Browser/OS chrome colour. Uses the brand's deep forest green so the mobile
+ * address bar and PWA title bar read as MedBook AI. (The in-app dashboard keeps
+ * its own teal design system; this only tints browser-provided chrome.)
+ */
+export const viewport: Viewport = {
+  themeColor: "#203D34",
 };
 
 export default function RootLayout({

@@ -4,11 +4,17 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import Link from "next/link";
 import {
   patientDirectoryHref,
-  PATIENT_TABS,
   PATIENT_TAB_LABELS,
   type PatientDirectoryParams,
   type PatientTab,
 } from "@/lib/patient-directory";
+import {
+  GENERAL_TAB_IDS,
+  SPECIALTY_TAB_LABELS,
+  type PatientTabId,
+  type SpecialtyTabId,
+  type WorkspaceConfig,
+} from "@/lib/specialty-workspaces";
 import { cn } from "@/lib/utils";
 
 const EASE = "left 0.28s cubic-bezier(0.4, 0, 0.2, 1), width 0.28s cubic-bezier(0.4, 0, 0.2, 1)";
@@ -23,9 +29,19 @@ const EASE = "left 0.28s cubic-bezier(0.4, 0, 0.2, 1), width 0.28s cubic-bezier(
  * at its previous position for one frame on every tab change.
  */
 export function PatientTabNavigation({
+  workspace,
   params,
+  activeTab,
 }: {
+  /**
+   * The workspace owns the tab set. General shows the classic six; a specialty
+   * workspace shows its own tabs (psych/derm are distinct URL ids, admitted by
+   * the shared `PatientTabId` union so the record keeps one URL-driven system).
+   */
+  workspace: WorkspaceConfig;
   params: PatientDirectoryParams;
+  /** The tab the record resolved for this workspace (never a foreign id). */
+  activeTab: PatientTabId;
 }) {
   const tabsRef = useRef<HTMLDivElement>(null);
   const [indicator, setIndicator] = useState({ left: 0, width: 0 });
@@ -38,7 +54,7 @@ export function PatientTabNavigation({
     setIndicator({ left: active.offsetLeft, width: active.offsetWidth });
   }, []);
 
-  useLayoutEffect(measure, [measure, params.tab]);
+  useLayoutEffect(measure, [measure, activeTab]);
 
   useEffect(() => {
     // Label widths depend on the loaded font and the row reflows on resize;
@@ -51,7 +67,16 @@ export function PatientTabNavigation({
     remeasure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  }, [measure, params.tab]);
+  }, [measure, activeTab]);
+
+  const isGeneral = workspace.kind === "general";
+  const tabs = (
+    isGeneral ? (GENERAL_TAB_IDS as readonly PatientTabId[]) : (workspace.tabs ?? [])
+  ) as readonly PatientTabId[];
+  const labelOf = (tab: PatientTabId) =>
+    isGeneral
+      ? PATIENT_TAB_LABELS[tab as PatientTab]
+      : SPECIALTY_TAB_LABELS[tab as SpecialtyTabId];
 
   return (
     <div className="border-b-[0.5px] border-hairline bg-surface px-[26px]">
@@ -71,8 +96,8 @@ export function PatientTabNavigation({
           className="absolute bottom-0 h-0.5 rounded-full bg-primary"
         />
 
-        {PATIENT_TABS.map((tab: PatientTab) => {
-          const active = params.tab === tab;
+        {tabs.map((tab) => {
+          const active = activeTab === tab;
           return (
             <Link
               key={tab}
@@ -88,7 +113,7 @@ export function PatientTabNavigation({
                   : "font-normal text-ink-soft hover:text-ink/70",
               )}
             >
-              {PATIENT_TAB_LABELS[tab]}
+              {labelOf(tab)}
             </Link>
           );
         })}

@@ -240,6 +240,7 @@ export function DoctorForm({
   );
 
   const [isVisible, setIsVisible] = useState(doctor?.is_visible ?? true);
+  const [specialty, setSpecialty] = useState(doctor?.specialty ?? "");
 
   const isEdit = Boolean(doctor);
   const submitted = state !== null;
@@ -487,13 +488,14 @@ export function DoctorForm({
                   <Input
                     id="doctor-specialty"
                     name="specialty"
-                    list="doctor-specialties"
-                    defaultValue={doctor?.specialty ?? ""}
+                    list="doctor-specialties-list"
+                    value={specialty}
+                    onChange={(e) => setSpecialty(e.target.value)}
                     placeholder="Pick or type a specialty"
                   />
-                  <datalist id="doctor-specialties">
-                    {DOCTOR_SPECIALTIES.map((specialty) => (
-                      <option key={specialty} value={specialty} />
+                  <datalist id="doctor-specialties-list">
+                    {DOCTOR_SPECIALTIES.map((sp) => (
+                      <option key={sp} value={sp} />
                     ))}
                   </datalist>
                 </div>

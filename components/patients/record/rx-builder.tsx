@@ -64,9 +64,11 @@ import type {
 export function prescriptionFormData(
   visitId: string,
   draft: PrescriptionDraft,
+  status?: "draft" | "final",
 ): FormData {
   const formData = new FormData();
   formData.set("visitId", visitId);
+  if (status) formData.set("status", status);
   formData.set("chiefComplaint", draft.chiefComplaint);
   formData.set("findings", draft.findings);
   formData.set("diagnosis", draft.diagnosis);

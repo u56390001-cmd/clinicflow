@@ -60,6 +60,7 @@ export function DocumentsTab({
                   <Th>Size</Th>
                   <Th>Doc date</Th>
                   <Th>Uploaded</Th>
+                  <Th>Added by</Th>
                   <th scope="col" className="px-3 py-2">
                     <span className="sr-only">Actions</span>
                   </th>
@@ -99,6 +100,17 @@ export function DocumentsTab({
                     <td className="whitespace-nowrap px-3 py-2 text-text-secondary">
                       {describeUploadedAt(document.uploaded_at, timezone)}
                     </td>
+                    <td className="whitespace-nowrap px-3 py-2">
+                      <span
+                        className={
+                          document.source === "patient_online"
+                            ? "rounded-pill bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary"
+                            : "text-text-secondary"
+                        }
+                      >
+                        {documentSourceLabel(document.source)}
+                      </span>
+                    </td>
                     <td className="px-3 py-2">
                       <DocumentRowActions
                         documentId={document.id}
@@ -130,7 +142,8 @@ export function DocumentsTab({
                       {document.document_date
                         ? ` · dated ${formatShortDate(document.document_date)}`
                         : ""}{" "}
-                      · {describeUploadedAt(document.uploaded_at, timezone)}
+                      · {describeUploadedAt(document.uploaded_at, timezone)} ·{" "}
+                      {documentSourceLabel(document.source)}
                     </p>
                   </div>
                 </div>
@@ -148,6 +161,13 @@ export function DocumentsTab({
       )}
     </div>
   );
+}
+
+/** How a document arrived — a patient link, the desk, or a clinician. */
+function documentSourceLabel(source: string): string {
+  if (source === "patient_online") return "Patient online";
+  if (source === "reception") return "Reception";
+  return "Clinic";
 }
 
 function Th({ children }: { children: React.ReactNode }) {

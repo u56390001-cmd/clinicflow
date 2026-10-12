@@ -49,17 +49,44 @@ export default async function ConsultationPage({
     );
   }
 
+  // Try to find doctor linked to logged-in user (works when doctor login is set up).
+  const linkedDoctor = await findDoctorForUser(supabase, access.clinic.id);
+
+  // TEMPORARY WORKAROUND: When no doctor is linked to the logged-in user
+  // (user_id = null on all doctors), allow admin to manually pick a doctor
+  // via the ?doc= URL param. This entire block should be removed once
+  // doctor role-based login is implemented and user_id is populated.
+  const selectedDocId =
+    typeof params.doc === "string" && params.doc ? params.doc : null;
+
+  // Effective doctor for filtering: linked doctor takes priority over manual selection.
+  const effectiveDoctorId = linkedDoctor?.id ?? selectedDocId ?? null;
+
+  // Fetch clinic doctors for the selector (only needed when no linked doctor).
+  const allDoctors = !linkedDoctor
+    ? await supabase
+        .from("doctors")
+        .select("id, name, specialty")
+        .eq("clinic_id", access.clinic.id)
+        .eq("is_visible", true)
+        .order("name", { ascending: true })
+        .then(({ data }) => data ?? [])
+    : ([] as { id: string; name: string; specialty: string | null }[]);
+  // END TEMPORARY WORKAROUND
+
   // The waiting list and this user's doctor record are independent reads, so
   // they run together — each round trip to Supabase costs ~250ms from here,
   // and the old sequential chain paid for it six times over. The list comes
   // back unscoped and is filtered on the raw `doctor_id` column below, which
   // is exactly what `eq("doctor_id", …)` did server-side.
-  const [doctor, unscopedWaitingList] = await Promise.all([
-    findDoctorForUser(supabase, access.clinic.id),
-    fetchDoctorWaitingList(supabase, access.clinic.id, null),
-  ]);
-  const waitingList = doctor
-    ? unscopedWaitingList.filter((e) => e.doctor_id === doctor.id)
+  const unscopedWaitingList = await fetchDoctorWaitingList(
+    supabase,
+    access.clinic.id,
+    null,
+  );
+
+  const waitingList = effectiveDoctorId
+    ? unscopedWaitingList.filter((e) => e.doctor_id === effectiveDoctorId)
     : unscopedWaitingList;
 
   // When deep-linked with `?visit=`, open the Write Prescription screen for
@@ -75,14 +102,18 @@ export default async function ConsultationPage({
   let templates: Awaited<ReturnType<typeof fetchPrescriptionTemplates>> = [];
   let vitalsConfigs: DoctorVitalsConfigMap | undefined;
 
+  // Use linked doctor for templates, or active visit's doctor as fallback.
+  const templateDoctor =
+    linkedDoctor ?? (activeVisit?.doctor_id ? { id: activeVisit.doctor_id } : null);
+
   if (activeVisit) {
     // Templates key off the doctor id and vitals config off the visit's own
     // `doctor_id` column — both already known from the waiting list — so all
     // three reads go out in one round instead of chaining three.
     [consultationData, templates, vitalsConfigs] = await Promise.all([
       fetchConsultationData(supabase, access.clinic.id, activeVisit.id),
-      doctor
-        ? fetchPrescriptionTemplates(supabase, access.clinic.id, doctor.id)
+      templateDoctor
+        ? fetchPrescriptionTemplates(supabase, access.clinic.id, templateDoctor.id)
         : Promise.resolve([]),
       activeVisit.doctor_id
         ? fetchVitalsConfigs(supabase, access.clinic.id, [activeVisit.doctor_id])
@@ -101,7 +132,7 @@ export default async function ConsultationPage({
         </h1>
         <p className="mt-1 text-sm text-text-secondary">
           {access.clinic.name}
-          {doctor ? ` · Dr. ${doctor.name}` : ""}
+          {linkedDoctor ? ` · Dr. ${linkedDoctor.name}` : ""}
         </p>
       </div>
 
@@ -127,6 +158,9 @@ export default async function ConsultationPage({
         <DoctorWaitingList
           entries={waitingList}
           activeVisitId={null}
+          allDoctors={allDoctors}
+          selectedDoctorId={effectiveDoctorId}
+          showDoctorSelector={!linkedDoctor}
         />
       )}
     </div>

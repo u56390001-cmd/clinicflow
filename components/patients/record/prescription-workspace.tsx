@@ -21,6 +21,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Pencil,
+  Play,
   Printer,
   Sparkles,
   TestTube2,
@@ -54,14 +55,23 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { VitalsForm } from "@/components/queue/vitals-form";
 import {
   completeAndAdvanceAction,
+  pauseConsultationAction,
   savePrescriptionAction,
+  startConsultationAction,
 } from "@/lib/actions/consultation";
 import {
   fetchPrescriptionTemplates,
@@ -78,10 +88,11 @@ import { ageFromDob, formatNaiveDate } from "@/lib/utils/datetime";
 import { computeBmi, deriveBloodPressure } from "@/lib/vitals-fields";
 import { parseOcrMedicineString } from "@/lib/ocr-medicine-parser";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 import type { ConsultationPreAnswer } from "@/lib/consultation-queries";
 import type { PatientDocumentView } from "@/lib/patient-documents-queries";
-import type { CopilotExtraction } from "@/lib/copilot/types";
+import type { CopilotExtraction, WorkspaceExtraction } from "@/lib/copilot/types";
 import type {
   Doctor,
   MedicineEntry,
@@ -514,23 +525,92 @@ export function PrescriptionWorkspace({
 
   const [isAdvancing, startAdvance] = useTransition();
   const [advanceError, setAdvanceError] = useState<string | null>(null);
+  const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false);
 
   /**
-   * Whether this visit has actually entered consultation.
-   *
-   * `completeAndAdvanceAction` will start the visit for us if it is still
-   * waiting (that is the bug this fixes), but the button says "Visit" or not
-   * based on it: a doctor who never pressed "Start Consultation" is not closing
-   * a visit they opened, and pretending otherwise overstates what happened.
+   * Whether this visit has actually entered consultation. A visit still waiting
+   * is not closed from here — it is started first, which also surfaces the real
+   * reason (e.g. another patient already in consultation) at the moment that
+   * matters, instead of deep in a "Save & Complete" that has to invent a start.
    */
   const isConsulting = visit.status === "in_consultation";
+  /** A visit the doctor paused with a saved draft — resume, do not start fresh. */
+  const isPaused = visit.status === "waiting" && Boolean(visit.pausedAt);
 
   const handlePrint = useCallback(() => window.print(), []);
 
+  // "Previous consultation draft restored." — shown once per visit when the
+  // workspace opens over a saved draft (a paused patient being brought back).
+  // Keyed by visit id so switching tabs never re-fires it.
+  const restoreToastShownFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!visitPrescription || visitPrescription.status !== "draft") return;
+    if (restoreToastShownFor.current === visit.id) return;
+    restoreToastShownFor.current = visit.id;
+    toast.info("Previous consultation draft restored.");
+  }, [visitPrescription, visit.id]);
+
+  /** Start (or resume) the consultation and re-render the record. */
+  const handleStart = useCallback(() => {
+    startAdvance(async () => {
+      setAdvanceError(null);
+      const form = new FormData();
+      form.set("visitId", visit.id);
+      const res = await startConsultationAction(null, form);
+      if (!res.ok) {
+        setAdvanceError(res.message);
+        return;
+      }
+      router.refresh();
+    });
+  }, [visit.id, router]);
+
+  /**
+   * Commit the prescription as a draft, then either stay in the open
+   * consultation (`andPause: false`) or hand the patient back to the waiting
+   * queue (`andPause: true`). Saving precedes every transition so a draft can
+   * never be lost by the move that follows it.
+   */
+  const handleSaveDraft = useCallback(
+    (andPause: boolean) => {
+      if (!draft) return;
+      startAdvance(async () => {
+        setAdvanceError(null);
+        const saved = await savePrescriptionAction(
+          null,
+          prescriptionFormData(visit.id, draft, "draft"),
+        );
+        if (!saved.ok) {
+          setAdvanceError(saved.message);
+          return;
+        }
+        draftContext?.clearApplied();
+        restoreToastShownFor.current = visit.id;
+
+        if (!andPause) {
+          toast.success("Draft saved.");
+          router.refresh();
+          return;
+        }
+
+        const form = new FormData();
+        form.set("visitId", visit.id);
+        const paused = await pauseConsultationAction(null, form);
+        if (!paused.ok) {
+          setAdvanceError(paused.message);
+          return;
+        }
+        toast.success("Draft saved. Patient returned to the waiting queue.");
+        router.refresh();
+      });
+    },
+    [draft, visit.id, draftContext, router],
+  );
+
   /**
    * Completing a visit must not be able to lose the prescription on screen, so
-   * the draft is committed first and the visit is only completed once that
-   * succeeded. (Neither action does the other's job: `savePrescriptionAction`
+   * the draft is committed as final first and the visit is only completed once
+   * that succeeded. (Neither action does the other's job: `savePrescriptionAction`
    * upserts the prescription, `completeAndAdvanceAction` closes the visit and
    * returns the next patient in this doctor's queue.)
    */
@@ -540,7 +620,7 @@ export function PrescriptionWorkspace({
       setAdvanceError(null);
       const saved = await savePrescriptionAction(
         null,
-        prescriptionFormData(visit.id, draft),
+        prescriptionFormData(visit.id, draft, "final"),
       );
       if (!saved.ok) {
         setAdvanceError(saved.message);
@@ -1422,25 +1502,120 @@ export function PrescriptionWorkspace({
                         <Printer data-icon="inline-start" aria-hidden="true" />
                         Print Preview
                       </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={handleComplete}
-                        disabled={isAdvancing || !canManage || !draft}
-                        className="h-8 text-[12px] font-semibold"
-                      >
-                        <CheckCircle
-                          data-icon="inline-start"
-                          aria-hidden="true"
-                        />
-                        {isAdvancing
-                          ? "Completing…"
-                          : isConsulting
-                            ? "Save & Complete Visit"
-                            : "Save & Complete"}
-                      </Button>
+                      {isConsulting ? (
+                        <>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={isAdvancing || !canManage || !draft}
+                                className="h-8 text-[12px] font-semibold"
+                              >
+                                <FileText
+                                  data-icon="inline-start"
+                                  aria-hidden="true"
+                                />
+                                Save Draft
+                                <ChevronDown
+                                  data-icon="inline-end"
+                                  aria-hidden="true"
+                                />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                disabled={isAdvancing}
+                                onSelect={() => handleSaveDraft(false)}
+                              >
+                                Save Draft &amp; Continue
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={isAdvancing}
+                                onSelect={() => handleSaveDraft(true)}
+                              >
+                                Save Draft &amp; Return to Queue
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => setConfirmCompleteOpen(true)}
+                            disabled={isAdvancing || !canManage || !draft}
+                            className="h-8 text-[12px] font-semibold"
+                          >
+                            <CheckCircle
+                              data-icon="inline-start"
+                              aria-hidden="true"
+                            />
+                            {isAdvancing ? "Completing…" : "Complete Consultation"}
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleStart}
+                          disabled={isAdvancing || !canManage}
+                          className="h-8 text-[12px] font-semibold"
+                        >
+                          <Play
+                            data-icon="inline-start"
+                            aria-hidden="true"
+                          />
+                          {isAdvancing
+                            ? "Starting…"
+                            : isPaused
+                              ? "Resume Consultation"
+                              : "Start Consultation"}
+                        </Button>
+                      )}
                     </div>
                   </div>
+
+                  {/* Finish a consultation only after the doctor confirms it.
+                      The prescription is saved (as final) by `handleComplete`,
+                      so cancelling here discards nothing. */}
+                  <Dialog
+                    open={confirmCompleteOpen}
+                    onOpenChange={setConfirmCompleteOpen}
+                  >
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>
+                          Finalize prescription and complete consultation?
+                        </DialogTitle>
+                        <DialogDescription>
+                          This saves the prescription as final, marks the visit
+                          completed, and moves the next waiting patient into
+                          consultation.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <DialogFooter>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setConfirmCompleteOpen(false)}
+                          disabled={isAdvancing}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            setConfirmCompleteOpen(false);
+                            handleComplete();
+                          }}
+                          disabled={isAdvancing}
+                        >
+                          {isAdvancing ? "Completing…" : "Yes, Complete Consultation"}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
 
                   {/* AI Copilot Drawer - Right Side */}
                   <CopilotDrawer
@@ -1450,8 +1625,11 @@ export function PrescriptionWorkspace({
                     }}
                     onUndo={draftContext?.undoLast}
                     canUndo={draftContext?.canUndo ?? false}
-                    onPopulateForm={(extracted: CopilotExtraction) => {
+                    onPopulateForm={(data: WorkspaceExtraction) => {
                       if (!draftContext) return;
+                      // This mount is the general workspace, so every extraction
+                      // is the prescription shape.
+                      const extracted = data as CopilotExtraction;
 
                       const updates: Partial<PrescriptionDraft> = {};
                       if (extracted.chief_complaint)

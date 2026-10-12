@@ -13,6 +13,24 @@
      * paint, before hydration.
      */
     --app-header-h: 4rem;
+
+    /**
+     * MedBook AI brand palette ("Premium Sage + Forest Green").
+     * Declared once on :root so the app header's primary action and the
+     * dashboard overview draw from one source. `.medbook-dashboard-overview`
+     * maps its `--forest`/`--sage`/`--accent`/… aliases onto these, and the
+     * header button reads `--brand-accent`/`--brand-forest` directly — so the
+     * scheme can be carried across the app without re-declaring literals.
+     */
+    --brand-forest: #203d34;
+    --brand-deep: #162f27;
+    --brand-sage: #527a65;
+    --brand-accent: #356f59;
+    --brand-soft: #f4f7f3;
+    --brand-pale: #eaf3ed;
+    --brand-line: #e4eae6;
+    --brand-muted: #64776c;
+    --brand-ink: #23342d;
   }
 
   /**
@@ -752,7 +770,7 @@
 }
 .landing .brand img {
   width: auto;
-  height: 52px;
+  --brand-h: 34px;
   flex: none;
   object-fit: contain;
 }
@@ -1331,6 +1349,9 @@
   gap: 20px;
   flex-wrap: wrap;
 }
+.landing .footer-inner .brand img {
+  --brand-h: 28px;
+}
 .landing .footer-inner p,
 .landing .footer-links a {
   font-size: 13px;
@@ -1432,7 +1453,7 @@
     height: 65px;
   }
   .landing .brand img {
-    height: 40px;
+    --brand-h: 24px;
   }
   .landing .nav-links {
     top: 65px;
@@ -1525,5 +1546,135 @@
 @media (prefers-reduced-motion: reduce) {
   :root:has(.landing) {
     scroll-behavior: auto;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Dashboard overview (the /app/dashboard right-side content area).
+ *
+ * The approved MedBook AI "Premium Sage + Forest Green" concept owns its own
+ * palette, so the tokens are declared on this one wrapper and nowhere else:
+ * the sidebar, the topbar and every other app page keep the existing teal
+ * token system. Only the colour/effect variables live here — the layout itself
+ * is composed with Tailwind utilities that read these `var(--…)` values, the
+ * same pattern the marketing `.landing` block above uses.
+ * ------------------------------------------------------------------------- */
+.medbook-dashboard-overview {
+  --forest: var(--brand-forest);
+  --deep: var(--brand-deep);
+  --sage: var(--brand-sage);
+  --accent: var(--brand-accent);
+  --pale: var(--brand-pale);
+  --wash: var(--brand-soft);
+  --muted: var(--brand-muted);
+  --ink: var(--brand-ink);
+  --line: var(--brand-line);
+  --paper: #ffffff;
+  --surface: #f8faf8;
+  --orange: #ba6a22;
+  --orange-wash: #fff2e1;
+  --red: #b64549;
+  --red-wash: #fdeef0;
+  --blue: #466d98;
+  --blue-wash: #eaf2fc;
+  --overview-shadow: 0 3px 14px rgba(19, 47, 34, 0.035);
+  --overview-focus: 0 0 0 3px rgba(82, 122, 101, 0.2);
+  --overview-mint: #9dc4a4;
+  --overview-sand: #e8d2ab;
+  --overview-warm: #f2eae3;
+  --overview-warm-ink: #9d6f50;
+  --overview-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+
+  color: var(--ink);
+}
+
+/* Let the dashboard fill the content area so it stretches smoothly when the
+ * desktop sidebar collapses. The shared `/app` layout caps `<main>` at
+ * `max-w-5xl` (a readable measure for the other pages); this opt-out applies
+ * only on the dashboard route, detected by the overview wrapper it renders. */
+main:has(.medbook-dashboard-overview) {
+  max-width: none;
+}
+
+/* -------------------------------------------------------------------------
+ * Dashboard overview — motion layer
+ * Deliberately scoped to `.medbook-dashboard-overview` so nothing leaks into
+ * the sidebar, header, or other routes. Entrance reveals, count-ups and card
+ * hover lifts are driven by Framer Motion (see components/app/overview/motion.tsx);
+ * what stays here is the cheap, decorative motion — the live pulse, the flow
+ * bars' grow-in and the button lift — plus focus styling. Only transform and
+ * opacity animate, never layout properties, and everything collapses under
+ * `prefers-reduced-motion`.
+ * ------------------------------------------------------------------------- */
+@keyframes medbook-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.7);
+  }
+}
+
+@keyframes medbook-bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.medbook-dashboard-overview .medbook-live-dot {
+  animation: medbook-live-pulse 1.8s ease-in-out infinite;
+}
+
+.medbook-dashboard-overview .medbook-bar-seg {
+  transform-origin: left center;
+  animation: medbook-bar-grow 0.75s var(--overview-ease) both;
+}
+
+.medbook-dashboard-overview :focus-visible {
+  outline: 2px solid var(--sage);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .medbook-btn-lift {
+    transition:
+      transform 0.2s cubic-bezier(0.22, 0.61, 0.36, 1),
+      box-shadow 0.2s ease;
+  }
+
+  .medbook-btn-lift:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px -10px rgba(19, 47, 34, 0.45);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Force Framer-driven reveals to their settled state. The inline styles
+     Framer writes are overridden here so reduced-motion users never see the
+     entrance animation, without branching the initial render (which would
+     desync server and client markup). */
+  .medbook-dashboard-overview .medbook-motion {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .medbook-dashboard-overview .medbook-live-dot,
+  .medbook-dashboard-overview .medbook-bar-seg {
+    animation: none !important;
+  }
+
+  .medbook-btn-lift {
+    transition: none !important;
+  }
+
+  .medbook-btn-lift:hover {
+    transform: none !important;
   }
 }

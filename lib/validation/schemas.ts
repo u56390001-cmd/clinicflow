@@ -1945,6 +1945,11 @@ export const completeAndAdvanceSchema = z.object({
   visitId: uuid("Missing visit id."),
 });
 
+/** Return an in-consultation visit to the waiting queue (draft already saved on the client). */
+export const pauseConsultationSchema = z.object({
+  visitId: uuid("Missing visit id."),
+});
+
 const medicineEntrySchema = z.object({
   name: z.string().trim().min(1, "Medicine name is required.").max(200),
   route: z.string().trim().max(100).optional().or(z.literal("")),
@@ -1968,6 +1973,8 @@ const labOrderEntrySchema = z.object({
 /** Save or update a prescription for a visit. */
 export const savePrescriptionSchema = z.object({
   visitId: uuid("Missing visit id."),
+  /** draft while the consultation is open; final (the default) when it completes. */
+  status: z.enum(["draft", "final"]).optional(),
   chiefComplaint: z
     .string()
     .trim()

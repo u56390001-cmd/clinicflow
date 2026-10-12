@@ -2,17 +2,32 @@
 
 import { revalidatePath } from "next/cache";
 
+import { logAuditEvent } from "@/lib/auth/role-guard";
 import { canManageClinical, getCurrentClinic } from "@/lib/clinic-access";
 import { createClient } from "@/lib/supabase/server";
 import {
   startConsultationSchema,
   completeAndAdvanceSchema,
+  pauseConsultationSchema,
   savePrescriptionSchema,
   saveTemplateSchema,
   deleteTemplateSchema,
 } from "@/lib/validation/schemas";
 import { APP_ROUTES } from "@/lib/constants";
 import type { ActionResult } from "@/types";
+
+/** Human-readable author name from the signed-in user, for the update stamp. */
+function authorName(
+  user: { email?: string; user_metadata?: Record<string, unknown> } | null,
+): string | null {
+  if (!user) return null;
+  const meta = user.user_metadata;
+  const name =
+    (typeof meta?.name === "string" && meta.name) ||
+    (typeof meta?.full_name === "string" && meta.full_name) ||
+    user.email;
+  return name || null;
+}
 
 /**
  * Start consultation on a waiting visit — transitions to in_consultation.
@@ -43,6 +58,18 @@ export async function startConsultationAction(
     return { ok: false, message: "Your role cannot manage consultations." };
   }
 
+  // Resuming a paused visit and starting a fresh one are the same transition,
+  // but the audit trail must tell them apart — so the pause marker is read
+  // before the RPC clears it.
+  let wasPaused = false;
+  const { data: visitRow } = await supabase
+    .from("visits")
+    .select("paused_at")
+    .eq("clinic_id", access.clinic.id)
+    .eq("id", parsed.data.visitId)
+    .maybeSingle();
+  wasPaused = Boolean((visitRow as { paused_at: string | null } | null)?.paused_at);
+
   const { data, error } = await supabase.rpc("start_consultation", {
     p_clinic_id: access.clinic.id,
     p_visit_id: parsed.data.visitId,
@@ -53,6 +80,23 @@ export async function startConsultationAction(
       ok: false,
       message: error.message || "Failed to start consultation.",
     };
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user?.id && wasPaused) {
+    await logAuditEvent(
+      {
+        clinicId: access.clinic.id,
+        userId: user.id,
+        action: "CONSULTATION_RESUMED",
+        resourceType: "visit",
+        resourceId: parsed.data.visitId,
+        details: { visitId: parsed.data.visitId },
+      },
+      { supabase },
+    );
   }
 
   revalidatePath(APP_ROUTES.app.consultation);
@@ -165,12 +209,108 @@ export async function completeAndAdvanceAction(
     };
   }
 
+  // A draft saved earlier must not survive a completed visit: closing the
+  // consultation also finalizes the prescription. Best-effort — completion is
+  // not held hostage to the update.
+  await supabase
+    .from("prescriptions")
+    .update({ status: "final", updated_at: new Date().toISOString() })
+    .eq("clinic_id", access.clinic.id)
+    .eq("visit_id", parsed.data.visitId)
+    .eq("status", "draft");
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user?.id) {
+    await logAuditEvent(
+      {
+        clinicId: access.clinic.id,
+        userId: user.id,
+        action: "CONSULTATION_COMPLETED",
+        resourceType: "visit",
+        resourceId: parsed.data.visitId,
+        details: {
+          visitId: parsed.data.visitId,
+          nextPatientId: data?.patient_id ?? null,
+        },
+      },
+      { supabase },
+    );
+  }
+
   revalidatePath(APP_ROUTES.app.consultation);
   revalidatePath(APP_ROUTES.app.appointments);
   revalidatePath(APP_ROUTES.app.patients);
   // data = id of the patient the queue advanced into consultation ("" when
   // this doctor has no one waiting next)
   return { ok: true, data: data?.patient_id ?? "" };
+}
+
+/**
+ * Return an in-consultation visit to the waiting queue (Save Draft & Return to
+ * Queue). The prescription is saved by the caller first, so this only moves
+ * the visit — the draft never depends on this RPC succeeding.
+ */
+export async function pauseConsultationAction(
+  _prevState: ActionResult<string> | null,
+  formData: FormData,
+): Promise<ActionResult<string>> {
+  const parsed = pauseConsultationSchema.safeParse({
+    visitId: formData.get("visitId"),
+  });
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid input.",
+    };
+  }
+
+  const supabase = await createClient();
+  const access = await getCurrentClinic(supabase);
+  if (!access) {
+    return {
+      ok: false,
+      message: "You must have a clinic to perform this action.",
+    };
+  }
+  if (!canManageClinical(access.role)) {
+    return { ok: false, message: "Your role cannot manage consultations." };
+  }
+
+  const { error } = await supabase.rpc("pause_consultation", {
+    p_clinic_id: access.clinic.id,
+    p_visit_id: parsed.data.visitId,
+  });
+
+  if (error) {
+    return {
+      ok: false,
+      message: error.message || "Failed to pause consultation.",
+    };
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user?.id) {
+    await logAuditEvent(
+      {
+        clinicId: access.clinic.id,
+        userId: user.id,
+        action: "CONSULTATION_PAUSED",
+        resourceType: "visit",
+        resourceId: parsed.data.visitId,
+        details: { visitId: parsed.data.visitId },
+      },
+      { supabase },
+    );
+  }
+
+  revalidatePath(APP_ROUTES.app.consultation);
+  revalidatePath(APP_ROUTES.app.appointments);
+  revalidatePath(APP_ROUTES.app.patients);
+  return { ok: true, data: parsed.data.visitId };
 }
 
 /**
@@ -182,6 +322,7 @@ export async function savePrescriptionAction(
 ): Promise<ActionResult<string>> {
   const parsed = savePrescriptionSchema.safeParse({
     visitId: formData.get("visitId"),
+    status: formData.get("status") || "final",
     chiefComplaint: formData.get("chiefComplaint"),
     findings: formData.get("findings"),
     diagnosis: formData.get("diagnosis"),
@@ -256,11 +397,34 @@ export async function savePrescriptionAction(
     };
   };
 
+  // Who is saving, so the card can show "Updated by" and the audit log can name
+  // the actor. A save is an edit when a prescription already exists for this
+  // visit (upsert is keyed on clinic_id + visit_id).
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const actorId = user?.id ?? null;
+  const actorName = authorName(user);
+
+  const { data: existing } = await supabase
+    .from("prescriptions")
+    .select("id")
+    .eq("clinic_id", access.clinic.id)
+    .eq("visit_id", parsed.data.visitId)
+    .maybeSingle();
+
+  // Whether this save is a draft (still writing) or the final prescription.
+  // Final is the default, so the consultation screen and the banner keep
+  // working without change; only the draft path names the status explicitly.
+  const rxStatus: "draft" | "final" =
+    parsed.data.status === "draft" ? "draft" : "final";
+
   const prescriptionData = {
     clinic_id: access.clinic.id,
     visit_id: parsed.data.visitId,
     patient_id: visit.patient_id,
     doctor_id: visit.doctor_id,
+    status: rxStatus,
     chief_complaint: d.chiefComplaint || "",
     findings: d.findings || "",
     diagnosis: d.diagnosis || "",
@@ -270,14 +434,18 @@ export async function savePrescriptionAction(
     follow_up_date: d.followUpDate || null,
     follow_up_notes: d.followUpNotes || "",
     doctor_notes: d.doctorNotes || "",
+    updated_by: actorId,
+    updated_by_name: actorName,
   };
 
   // upsert (one prescription per visit)
-  const { error } = await supabase
+  const { data: savedRow, error } = await supabase
     .from("prescriptions")
     .upsert(prescriptionData, {
       onConflict: "clinic_id,visit_id",
-    });
+    })
+    .select("id")
+    .single();
 
   if (error) {
     return {
@@ -286,7 +454,37 @@ export async function savePrescriptionAction(
     };
   }
 
+  // Append-only trail of the edit. An audit write must never abort the save it
+  // describes, so `logAuditEvent` swallows its own errors — and it is skipped
+  // entirely for an actor-less (service/import) write, since the log's user_id
+  // is not-null.
+  if (actorId) {
+    await logAuditEvent(
+      {
+        clinicId: access.clinic.id,
+        userId: actorId,
+        action:
+          rxStatus === "draft"
+            ? "PRESCRIPTION_DRAFT_SAVED"
+            : existing
+              ? "PRESCRIPTION_UPDATE"
+              : "PRESCRIPTION_CREATE",
+        resourceType: "prescription",
+        resourceId: savedRow?.id ?? existing?.id,
+        details: {
+          visitId: parsed.data.visitId,
+          patientId: visit.patient_id,
+          medicineCount: prescriptionData.medicines.length,
+          labOrderCount: prescriptionData.lab_orders.length,
+          draft: rxStatus === "draft",
+        },
+      },
+      { supabase },
+    );
+  }
+
   revalidatePath(APP_ROUTES.app.consultation);
+  revalidatePath(APP_ROUTES.app.patients);
   return { ok: true, data: parsed.data.visitId };
 }
 

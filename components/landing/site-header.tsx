@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 
+import { BrandLogo } from "@/components/brand-logo";
 import { LANDING_NAV_LINKS } from "./data";
 import { APP_ROUTES } from "@/lib/constants";
 
@@ -25,13 +25,7 @@ export function SiteHeader({ signedIn }: SiteHeaderProps) {
     <header className="landing-header">
       <nav className="container nav" aria-label="Main navigation">
         <a className="brand" href="#top" aria-label="MedBook AI — home">
-          <Image
-            src="/marketing/medbook-logo.png"
-            alt="MedBook AI"
-            width={1456}
-            height={261}
-            priority
-          />
+          <BrandLogo variant="header" priority />
         </a>
 
         <div className={`nav-links${open ? " open" : ""}`}>

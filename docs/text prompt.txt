@@ -1,0 +1,259 @@
+# MedBook AI Psychology Workspace
+# Overview & Safety Data Population Logic Prompt
+
+
+## Goal
+
+Improve the existing Psychology Overview & Safety tab.
+
+Do not create new data entry fields.
+
+The Overview & Safety tab should work as a clinical dashboard that automatically displays information collected from existing MedBook AI workflows.
+
+It should not be manually filled by receptionist or psychologist.
+
+
+---
+
+# Data Flow Principle
+
+Overview & Safety data should come from:
+
+Patient Registration
++
+Appointment Workflow
++
+Pre-Visit Intake
++
+Uploaded Documents
++
+Psychometric Assessments
++
+Session Notes
++
+AI Processing
+
+
+↓
+
+Overview & Safety Dashboard
+
+
+---
+
+# AI Patient Summary
+
+Populate from:
+
+- Patient intake answers
+- Uploaded documents
+- Previous session notes
+- Assessment results
+- Patient history
+
+
+AI should generate:
+
+- Patient overview
+- Main concern
+- Relevant history
+- Important clinical observations
+
+
+Example:
+
+Patient intake:
+Anxiety + sleep problems
+
+Document:
+Previous therapy report
+
+Assessment:
+GAD-7 score
+
+
+AI Summary:
+
+"Patient presents with anxiety symptoms and sleep disturbance. Previous therapy history available."
+
+
+---
+
+# Safety Snapshot
+
+Populate from:
+
+## Intake data
+
+- Self-harm questions
+- Suicidal thoughts screening
+- Substance use
+- Trauma history
+
+
+## Psychometric assessments
+
+Example:
+
+PHQ-9 risk item
+
+
+## Session notes
+
+AI can detect risk mentions from clinical notes.
+
+
+Display:
+
+- Risk level
+- Active risk factors
+- Last safety review
+
+
+---
+
+# Current Concerns
+
+Populate from:
+
+- Pre-visit questionnaire
+- Intake & History tab
+- Psychologist assessment
+
+
+Examples:
+
+- Anxiety
+- Low mood
+- Sleep issues
+- Stress
+- Trauma
+
+
+---
+
+# Clinical Context
+
+Populate from:
+
+- Patient profile
+- Intake history
+- Uploaded documents
+- Previous sessions
+
+
+Display:
+
+- Previous diagnosis
+- Previous therapy
+- Current medication
+- Last session
+
+
+---
+
+# Latest Assessment Scores
+
+Populate from:
+
+Psychometrics module.
+
+
+Display:
+
+- Assessment name
+- Score
+- Severity
+- Date
+- Completed by
+
+
+Example:
+
+PHQ-9
+Score: 14
+Severity: Moderate
+
+
+---
+
+# Documents Summary
+
+Populate from:
+
+- Receptionist uploaded documents
+- Patient uploaded documents through WhatsApp
+- Previous reports
+
+
+Display:
+
+- Number of documents
+- Latest uploaded document
+- Document source
+
+
+---
+
+# Clinical Timeline
+
+Generate automatically from:
+
+- Appointment created
+- Intake completed
+- Document uploaded
+- Assessment completed
+- Session note created
+- Care plan updated
+
+
+Display chronological patient journey.
+
+
+---
+
+# Care Plan Snapshot
+
+Populate from:
+
+Care Plan tab.
+
+Display:
+
+- Current therapy approach
+- Active goals
+- Follow-up frequency
+
+
+---
+
+# AI Rules
+
+AI should not create unsupported clinical information.
+
+AI summary must only use available patient data.
+
+Show empty states when no data exists.
+
+
+Example:
+
+"No clinical information available yet.
+Complete intake, upload documents, or record assessment to generate insights."
+
+
+---
+
+# Important
+
+Overview & Safety is a read-only clinical summary dashboard.
+
+Data entry should happen in:
+
+- Intake & History
+- Psychometrics
+- Documents
+- Session Notes
+- Care Plan
+
+Overview only displays processed information.
