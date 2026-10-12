@@ -615,9 +615,7 @@ function SafetySnapshotCard({
             </p>
             <p className="text-[11px] text-text-muted">
               {snapshot.assessed
-                ? snapshot.lastReviewed
-                  ? `Last reviewed ${snapshot.lastReviewed}`
-                  : "Reviewed"
+                ? "Recorded in the safety record"
                 : snapshot.derived
                   ? "Inferred from intake, MSE & assessments"
                   : "No risk screening recorded yet"}
@@ -633,7 +631,7 @@ function SafetySnapshotCard({
         </div>
 
         <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-          <RecordFact label="Last safety review">
+          <RecordFact label="Last reviewed">
             {snapshot.lastReviewed ?? undefined}
           </RecordFact>
           <RecordFact label="Medical alerts">{allergies || undefined}</RecordFact>
@@ -664,36 +662,20 @@ function ClinicalContextCard({
 }) {
   const previousDiagnosis = mergeTags(psych.intake?.previous_diagnosis).join(", ");
   const previousTherapy = mergeTags(psych.intake?.previous_therapy_history).join(", ");
-  const lastSession = psych.sessions[0]?.session_date;
 
   return (
     <OverviewCard icon={Stethoscope} title="Clinical context">
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-        <RecordFact label="Previous diagnosis" className="col-span-2">
+      <dl className="grid grid-cols-1 gap-3">
+        <RecordFact label="Previous diagnosis">
           {previousDiagnosis || undefined}
         </RecordFact>
-        <RecordFact label="Previous therapy" className="col-span-2">
+        <RecordFact label="Previous therapy">
           {previousTherapy || undefined}
         </RecordFact>
-        <RecordFact label="Current medication" className="col-span-2">
+        <RecordFact label="Current medication">
           {patient.current_medications || undefined}
         </RecordFact>
-        <RecordFact label="Last session">
-          {lastSession ? formatShortDate(lastSession) : undefined}
-        </RecordFact>
-        <RecordFact label="Sessions on file">{psych.sessions.length}</RecordFact>
       </dl>
-
-      {psych.safety?.mental_health_summary ? (
-        <div className="mt-3 border-t border-hairline pt-3">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-text-muted">
-            Clinical summary
-          </p>
-          <p className="mt-1 whitespace-pre-wrap text-[12.5px] leading-relaxed text-text-secondary">
-            {psych.safety.mental_health_summary}
-          </p>
-        </div>
-      ) : null}
     </OverviewCard>
   );
 }
@@ -818,12 +800,7 @@ function CarePlanSnapshotCard({ carePlan }: { carePlan: PsychCarePlan | null }) 
   );
 }
 
-type TimelineEventKind =
-  | "assessment"
-  | "session"
-  | "document"
-  | "intake"
-  | "careplan";
+type TimelineEventKind = "assessment" | "session" | "document" | "intake";
 type TimelineEvent = {
   id: string;
   at: string;
@@ -838,13 +815,12 @@ const TIMELINE_ICON: Record<TimelineEventKind, LucideIcon> = {
   session: Brain,
   document: FileText,
   intake: ClipboardList,
-  careplan: Target,
 };
 
 /**
- * The patient's journey, newest first, merged from the activity streams the
- * Overview already has: assessments, session notes, documents, intake and the
- * care plan. Appointments live elsewhere and are intentionally left out.
+ * The patient's journey, newest first, merged from these activity streams:
+ * sessions, intake, assessments and uploaded documents. The care plan and
+ * concerns have their own cards, so they are not repeated here.
  */
 function buildTimeline(
   psych: PatientPsychBundle,
@@ -901,18 +877,6 @@ function buildTimeline(
       ),
       kind: "intake",
       label: "Intake & history recorded",
-    });
-  }
-
-  if (psych.carePlan?.updated_at) {
-    events.push({
-      id: `careplan-${psych.carePlan.id}`,
-      at: psych.carePlan.updated_at,
-      dateLabel: formatShortDate(
-        utcIsoToClinicLocalInput(psych.carePlan.updated_at, timezone),
-      ),
-      kind: "careplan",
-      label: "Care plan updated",
     });
   }
 
