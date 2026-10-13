@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  BookOpen,
   ClipboardList,
   Copy,
   Download,
@@ -53,6 +54,7 @@ import type {
 } from "@/types/database";
 
 import { AssessmentCategoryDialog } from "./assessment-category-dialog";
+import { AssessmentGuideDialog } from "./assessment-guide-dialog";
 import { AssessmentImportDialog } from "./assessment-import-dialog";
 import { AssessmentTemplateBuilderDialog } from "./assessment-builder-dialog";
 import { AssessmentTemplateViewDialog } from "./assessment-template-view-dialog";
@@ -195,6 +197,7 @@ export function AssessmentLibraryManager({
   const [builderOpen, setBuilderOpen] = useState(false);
   const [builderInitial, setBuilderInitial] = useState<AssessmentTemplate | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [viewTemplate, setViewTemplate] = useState<AssessmentTemplate | null>(null);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [deleting, setDeleting] = useState<AssessmentTemplate | null>(null);
@@ -280,18 +283,24 @@ export function AssessmentLibraryManager({
             score them, and send them to patients.
           </p>
         </div>
-        {canWrite ? (
-          <div className="flex shrink-0 items-center gap-2">
-            <Button variant="outline" onClick={() => setImportOpen(true)} className="gap-1.5">
-              <Download className="size-4" aria-hidden="true" />
-              Import
-            </Button>
-            <Button onClick={openCreate} className="gap-1.5">
-              <Plus className="size-4" aria-hidden="true" />
-              Create assessment
-            </Button>
-          </div>
-        ) : null}
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => setGuideOpen(true)} className="gap-1.5">
+            <BookOpen className="size-4" aria-hidden="true" />
+            Guide
+          </Button>
+          {canWrite ? (
+            <>
+              <Button variant="outline" onClick={() => setImportOpen(true)} className="gap-1.5">
+                <Download className="size-4" aria-hidden="true" />
+                Import
+              </Button>
+              <Button onClick={openCreate} className="gap-1.5">
+                <Plus className="size-4" aria-hidden="true" />
+                Create assessment
+              </Button>
+            </>
+          ) : null}
+        </div>
       </header>
 
       <div className="flex flex-col gap-2">
@@ -460,6 +469,8 @@ export function AssessmentLibraryManager({
         }
         usageCount={viewTemplate ? (usage[viewTemplate.id] ?? 0) : 0}
       />
+
+      <AssessmentGuideDialog open={guideOpen} onOpenChange={setGuideOpen} />
 
       <Dialog open={deleting !== null} onOpenChange={(next) => { if (!next) setDeleting(null); }}>
         <DialogContent>
