@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { getGeminiProvider } from "@/lib/ai/gemini-provider";
+import { interpretationForScore } from "@/lib/assessment-library";
 import { canManageClinical, getCurrentClinic } from "@/lib/clinic-access";
 import { findDoctorForUser } from "@/lib/consultation-queries";
 import { createClient } from "@/lib/supabase/server";
@@ -27,7 +28,12 @@ import {
   type SessionNoteFormat,
   type SessionSectionKey,
 } from "@/lib/psych-session";
-import type { IntakeFieldKey } from "@/types/database";
+import { PSYCHOMETRIC_INSTRUMENTS, isPsychometricKey } from "@/lib/psychometrics";
+import type {
+  AssessmentInterpretationRule,
+  AssessmentQuestion,
+  IntakeFieldKey,
+} from "@/types/database";
 import type { ActionResult } from "@/types";
 
 /** Free-text clinical note field: trimmed, bounded, coalesces to null. */
@@ -1509,6 +1515,125 @@ export async function deletePsychAssessmentAction(id: string): Promise<ActionRes
     .eq("clinic_id", g.clinicId);
   if (error) return { ok: false, message: error.message };
   return ok();
+}
+
+const ASSESSMENT_INTERPRETATION_PROMPT = `You draft a short AI-guided interpretation of a scored psychometric assessment for the treating clinician.
+
+Write 3-5 plain sentences, no markdown, no headers, no bullets:
+1. Restate the score and its severity band.
+2. If a clinician-authored interpretation rule is supplied for this score, base your reading on it and never contradict it.
+3. Name the one or two items with the highest answers and tie each to a concrete point to discuss in the session.
+4. Stay non-diagnostic, professional and factual, in the first person ("I would…").
+
+Never invent scores, items or answers that are not in the input.`;
+
+/**
+ * AI-guided interpretation for a logged assessment (migration 0085).
+ *
+ * The clinic authors per-score interpretation rules on the template; this action
+ * turns them — plus the item-level answers and severity — into a short clinician
+ * narrative with the same assistant used for session notes. When the assistant
+ * is unavailable but the template has a matching rule, that authored rule is
+ * returned directly so the clinician still gets guidance.
+ */
+export async function generateAssessmentInterpretationAction(
+  assessmentId: string,
+): Promise<ActionResult<{ interpretation: string; source: "ai" | "rule" }>> {
+  const parsed = idSchema.safeParse({ id: assessmentId });
+  if (!parsed.success) {
+    return { ok: false, message: firstIssue(parsed)?.message ?? "Invalid assessment id." };
+  }
+  const g = await guard();
+  if (!g.ok) {
+    if (!g.result.ok) {
+      return { ok: false, message: g.result.message, fieldErrors: g.result.fieldErrors };
+    }
+    return { ok: false, message: "You must have a clinic to perform this action." };
+  }
+
+  const { data: assessment } = await g.supabase
+    .from("psych_assessments")
+    .select("*")
+    .eq("id", assessmentId)
+    .eq("clinic_id", g.clinicId)
+    .maybeSingle();
+  if (!assessment) return { ok: false, message: "That assessment is no longer on file." };
+  if (assessment.score === null) {
+    return { ok: false, message: "This assessment has no score to interpret." };
+  }
+
+  // Gather what the assistant needs: the matching authored rule (templates
+  // only), the instrument label, and each answered item.
+  let ruleText: string | null = null;
+  let instrumentLabel = assessment.assessment_type;
+  const answered: string[] = [];
+
+  if (assessment.template_id) {
+    const { data: template } = await g.supabase
+      .from("assessment_templates")
+      .select("name, questions, interpretation")
+      .eq("id", assessment.template_id)
+      .eq("clinic_id", g.clinicId)
+      .maybeSingle();
+    if (template) {
+      instrumentLabel = template.name || assessment.assessment_type;
+      const rules = template.interpretation as AssessmentInterpretationRule[];
+      ruleText = interpretationForScore(rules, assessment.score);
+      for (const question of template.questions as AssessmentQuestion[]) {
+        if (question.type === "text") continue;
+        answered.push(`- ${question.text}: ${assessment.answers?.[question.id] ?? "not answered"}`);
+      }
+    }
+  } else if (isPsychometricKey(assessment.assessment_type)) {
+    const instrument = PSYCHOMETRIC_INSTRUMENTS[assessment.assessment_type];
+    instrumentLabel = instrument.name;
+    for (const item of instrument.items) {
+      answered.push(`- ${item.text}: ${assessment.answers?.[item.id] ?? "not answered"}`);
+    }
+  }
+
+  const fallbackRule = ruleText?.trim() || null;
+  if (!process.env.GEMINI_API_KEY) {
+    return fallbackRule
+      ? { ok: true, data: { interpretation: fallbackRule, source: "rule" } }
+      : { ok: false, message: "The AI assistant is not configured on this server yet." };
+  }
+
+  const prompt = [
+    `Assessment: ${instrumentLabel}`,
+    `Score: ${assessment.score}`,
+    assessment.severity ? `Severity: ${assessment.severity}` : null,
+    fallbackRule ? `Clinician-authored interpretation rule for this score: ${fallbackRule}` : null,
+    "",
+    "Item-level answers (question: patient value):",
+    answered.length > 0 ? answered.join("\n") : "(no item-level answers recorded)",
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
+
+  try {
+    const interpretation = (
+      await getGeminiProvider().complete({
+        systemInstruction: ASSESSMENT_INTERPRETATION_PROMPT,
+        prompt,
+        temperature: 0.3,
+        maxOutputTokens: 400,
+      })
+    ).trim();
+    if (interpretation) {
+      return { ok: true, data: { interpretation, source: "ai" } };
+    }
+  } catch (error) {
+    console.error("[generateAssessmentInterpretationAction] failed", {
+      assessmentId,
+      message: error instanceof Error ? error.message : "unknown",
+    });
+  }
+
+  if (fallbackRule) {
+    return { ok: true, data: { interpretation: fallbackRule, source: "rule" } };
+  }
+  return { ok: false, message: "The assistant could not phrase an interpretation. Try again." };
 }
 
 /* ------------------------------------------------------------------------- */

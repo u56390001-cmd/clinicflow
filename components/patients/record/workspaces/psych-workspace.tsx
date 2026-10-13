@@ -25,6 +25,7 @@ import {
   Loader2,
   Rocket,
   ShieldAlert,
+  Sparkles,
   Stethoscope,
   Target,
   Trash2,
@@ -46,6 +47,7 @@ import { Button } from "@/components/ui/button";
 import { getActiveAssessmentTemplatesAction } from "@/lib/actions/assessment-library";
 import {
   deletePsychAssessmentAction,
+  generateAssessmentInterpretationAction,
   savePsychAssessmentAction,
   savePsychCarePlanAction,
 } from "@/lib/actions/specialty-workspaces";
@@ -1217,6 +1219,22 @@ function AssessmentTrendRow({ assessment, canManage, onDelete, template }: { ass
   const max = template ? templateMaxScore(template.scoring) : meta.max;
   const pct = assessment.score === null ? 0 : Math.min(100, Math.round((assessment.score / max) * 100));
   const [showResponses, setShowResponses] = useState(false);
+  const [interpreting, setInterpreting] = useState(false);
+  const [aiResult, setAiResult] = useState<{ interpretation: string; source: "ai" | "rule" } | null>(null);
+
+  const canInterpret = assessment.score !== null;
+
+  async function interpret() {
+    if (interpreting) return;
+    setInterpreting(true);
+    const result = await generateAssessmentInterpretationAction(assessment.id);
+    setInterpreting(false);
+    if (result.ok) {
+      setAiResult(result.data);
+    } else {
+      toast.error(result.message);
+    }
+  }
 
   // Item-level answers only exist for online submissions (0080). Map them back
   // to the question text — the library template's stored questions when the
@@ -1254,15 +1272,32 @@ function AssessmentTrendRow({ assessment, canManage, onDelete, template }: { ass
             <CompletedByBadge value={assessment.completed_by} />
           </div>
           {assessment.notes && <p className="truncate text-[11px] text-ink-faint" title={assessment.notes}>{assessment.notes}</p>}
-          {responses.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setShowResponses((v) => !v)}
-              className="mt-0.5 text-[11px] font-medium text-primary hover:underline"
-            >
-              {showResponses ? "Hide responses" : "View responses"}
-            </button>
-          )}
+          <div className="mt-0.5 flex flex-wrap items-center justify-end gap-2">
+            {responses.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowResponses((v) => !v)}
+                className="text-[11px] font-medium text-primary hover:underline"
+              >
+                {showResponses ? "Hide responses" : "View responses"}
+              </button>
+            )}
+            {canInterpret && (
+              <button
+                type="button"
+                onClick={interpret}
+                disabled={interpreting}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline disabled:opacity-60"
+              >
+                {interpreting ? (
+                  <Loader2 aria-hidden="true" className="size-3 animate-spin" />
+                ) : (
+                  <Sparkles aria-hidden="true" className="size-3" />
+                )}
+                {interpreting ? "Interpreting…" : aiResult ? "Re-interpret" : "AI interpretation"}
+              </button>
+            )}
+          </div>
         </div>
         {canManage && (
           <Button type="button" variant="ghost" size="sm" className="text-status-destructive" onClick={() => onDelete(assessment.id)}>
@@ -1284,6 +1319,21 @@ function AssessmentTrendRow({ assessment, canManage, onDelete, template }: { ass
             </li>
           ))}
         </ul>
+      )}
+
+      {aiResult && (
+        <div className="ml-28 rounded-control border border-primary/20 bg-primary/5 p-2.5">
+          <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-primary">
+            <Sparkles aria-hidden="true" className="size-3" />
+            {aiResult.source === "ai" ? "AI interpretation" : "Template interpretation"}
+          </p>
+          <p className="mt-1 whitespace-pre-line text-[11.5px] leading-relaxed text-text-secondary">
+            {aiResult.interpretation}
+          </p>
+          <p className="mt-1.5 text-[10px] text-ink-faint">
+            Generated guidance — review before use. Not a diagnosis.
+          </p>
+        </div>
       )}
     </div>
   );
