@@ -13,6 +13,13 @@ import {
   sendPsychPreVisitLinkAction,
 } from "@/lib/actions/patient-links";
 import { PSYCHOMETRIC_INSTRUMENTS, PSYCHOMETRIC_KEYS } from "@/lib/psychometrics";
+import type { AssessmentTemplate } from "@/types/database";
+
+const TEMPLATE_PREFIX = "tmpl:";
+
+function templateOptionValue(template: AssessmentTemplate): string {
+  return `${TEMPLATE_PREFIX}${template.id}`;
+}
 
 type Kind = "pre_visit" | "assessment" | "document_upload";
 
@@ -21,15 +28,20 @@ type Kind = "pre_visit" | "assessment" | "document_upload";
  * assessment, document upload) through the clinic's existing WhatsApp channel.
  * The link is also copied to the clipboard as a fallback. The panel appears on
  * the psychology Safety tab only.
+ *
+ * The assessment picker combines the four built-in instruments with any clinic
+ * library template (migration 0085) that is scored and patient-completable.
  */
 export function PatientLinksPanel({
   patientId,
   whatsappNumber,
   canManage,
+  templates = [],
 }: {
   patientId: string;
   whatsappNumber: string | null;
   canManage: boolean;
+  templates?: AssessmentTemplate[];
 }) {
   const [pending, setPending] = useState<Kind | null>(null);
   const [assessmentType, setAssessmentType] = useState<string>(PSYCHOMETRIC_KEYS[0]);
@@ -39,12 +51,23 @@ export function PatientLinksPanel({
   async function send(kind: Kind) {
     if (disabled) return;
     setPending(kind);
-    const result =
-      kind === "assessment"
-        ? await sendPsychAssessmentLinkAction(patientId, assessmentType)
-        : kind === "pre_visit"
+    let result;
+    if (kind === "assessment") {
+      if (assessmentType.startsWith(TEMPLATE_PREFIX)) {
+        const id = assessmentType.slice(TEMPLATE_PREFIX.length);
+        const template = templates.find((t) => t.id === id);
+        result = template
+          ? await sendPsychAssessmentLinkAction(patientId, template.name, template.id)
+          : { ok: false as const, message: "That assessment is no longer available." };
+      } else {
+        result = await sendPsychAssessmentLinkAction(patientId, assessmentType);
+      }
+    } else {
+      result =
+        kind === "pre_visit"
           ? await sendPsychPreVisitLinkAction(patientId)
           : await sendPsychDocumentUploadLinkAction(patientId);
+    }
     setPending(null);
 
     if (!result.ok) {
@@ -119,11 +142,22 @@ export function PatientLinksPanel({
               disabled={disabled}
               onChange={(event) => setAssessmentType(event.target.value)}
             >
-              {PSYCHOMETRIC_KEYS.map((key) => (
-                <option key={key} value={key}>
-                  {PSYCHOMETRIC_INSTRUMENTS[key].shortName}
-                </option>
-              ))}
+              <optgroup label="Built-in">
+                {PSYCHOMETRIC_KEYS.map((key) => (
+                  <option key={key} value={key}>
+                    {PSYCHOMETRIC_INSTRUMENTS[key].shortName}
+                  </option>
+                ))}
+              </optgroup>
+              {templates.length > 0 ? (
+                <optgroup label="Assessment Library">
+                  {templates.map((template) => (
+                    <option key={template.id} value={templateOptionValue(template)}>
+                      {template.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
             </NativeSelect>
           </div>
           <Button

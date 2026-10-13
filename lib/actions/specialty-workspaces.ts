@@ -53,17 +53,6 @@ const optionalUuid = z.string().uuid().optional().nullable().or(z.literal(""));
 
 const RISK_LEVELS = ["low", "moderate", "high", "crisis"] as const;
 const SESSION_FORMATS = ["BIRP", "SOAP", "DAP"] as const;
-const ASSESSMENT_TYPES = [
-  "PHQ-9",
-  "GAD-7",
-  "BAI",
-  "BDI-II",
-  "PCL-5",
-  "OCI-R",
-  "AUDIT",
-  "ASRS",
-  "Other",
-] as const;
 const SESSION_TYPES = ["initial", "individual", "follow_up", "crisis", "group"] as const;
 const DERM_FORM = ["cream", "ointment", "gel", "lotion"] as const;
 const CONSENT = ["obtained", "declined", "documented"] as const;
@@ -147,7 +136,13 @@ const generateSessionNoteSchema = z.object({
 });
 
 const savePsychAssessmentSchema = z.object({
-  assessment_type: z.enum(ASSESSMENT_TYPES),
+  assessment_type: z
+    .string()
+    .trim()
+    .min(1, "Pick or name the assessment.")
+    .max(120, "Assessment name is too long."),
+  /** Clinic library template (migration 0085), when the assessment is one. */
+  template_id: z.string().uuid().nullable().optional(),
   score: z.coerce.number().min(0).max(150).optional().nullish(),
   severity: note,
   notes: note,

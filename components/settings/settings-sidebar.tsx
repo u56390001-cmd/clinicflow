@@ -4,10 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Building2,
+  ClipboardList,
+  ClipboardPlus,
   FilePen,
+  FileText,
   RefreshCw,
   Save,
+  ScanText,
   Tv,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 
@@ -21,11 +26,21 @@ import { cn } from "@/lib/utils";
  */
 const ICONS: Record<string, LucideIcon> = {
   building: Building2,
+  users: Users,
   refresh: RefreshCw,
   save: Save,
   "file-pen": FilePen,
   tv: Tv,
+  "clipboard-list": ClipboardList,
+  "clipboard-plus": ClipboardPlus,
+  "scan-text": ScanText,
+  "file-text": FileText,
 };
+
+/** The section label to render above an item, if it starts a new group. */
+function sectionLabel(item: (typeof SETTINGS_NAV_ITEMS)[number]) {
+  return "section" in item ? item.section : undefined;
+}
 
 function isActive(pathname: string, item: (typeof SETTINGS_NAV_ITEMS)[number]) {
   if (pathname === item.href) return true;
@@ -63,10 +78,15 @@ export function SettingsSidebar() {
         "md:w-60 md:shrink-0 md:flex-col md:overflow-visible md:p-3",
       )}
     >
-      {SETTINGS_NAV_ITEMS.map((item) => {
+      {SETTINGS_NAV_ITEMS.map((item, index) => {
         const Icon = ICONS[item.icon] ?? Building2;
         const active = isActive(pathname, item);
         const soon = item.comingSoon;
+
+        const section = sectionLabel(item);
+        const showSection =
+          section !== undefined &&
+          (index === 0 || sectionLabel(SETTINGS_NAV_ITEMS[index - 1]) !== section);
 
         const shell = cn(
           "group flex min-h-10 flex-shrink-0 items-center gap-2.5 rounded-control px-3 py-2.5 text-left",
@@ -97,6 +117,15 @@ export function SettingsSidebar() {
         const label =
           "min-w-0 flex-1 truncate text-[13.5px] font-semibold tracking-[-0.01em] whitespace-nowrap";
 
+        const sectionHeader = showSection ? (
+          <div
+            aria-hidden="true"
+            className="flex h-6 shrink-0 items-center px-3 text-[10px] font-bold uppercase tracking-wider text-ink-faint md:w-full"
+          >
+            {section}
+          </div>
+        ) : null;
+
         const body = (
           <>
             <span className={chip}>
@@ -112,32 +141,32 @@ export function SettingsSidebar() {
 
         if (soon) {
           return (
-            <span
-              key={item.key}
-              className={shell}
-              aria-disabled="true"
-              title={`${item.label} is not set up yet`}
-            >
-              {body}
-              <span
-                aria-hidden="true"
-                className="shrink-0 rounded-pill border border-text-muted/30 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted"
-              >
-                Soon
+            <span key={item.key} className="contents">
+              {sectionHeader}
+              <span className={shell} aria-disabled="true" title={`${item.label} is not set up yet`}>
+                {body}
+                <span
+                  aria-hidden="true"
+                  className="shrink-0 rounded-pill border border-text-muted/30 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted"
+                >
+                  Soon
+                </span>
               </span>
             </span>
           );
         }
 
         return (
-          <Link
-            key={item.key}
-            href={item.href}
-            aria-current={active ? "page" : undefined}
-            className={shell}
-          >
-            {body}
-          </Link>
+          <span key={item.key} className="contents">
+            {sectionHeader}
+            <Link
+              href={item.href}
+              aria-current={active ? "page" : undefined}
+              className={shell}
+            >
+              {body}
+            </Link>
+          </span>
         );
       })}
     </nav>

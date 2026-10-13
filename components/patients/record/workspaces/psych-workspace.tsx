@@ -11,7 +11,7 @@
 
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -43,11 +43,13 @@ import { RecordEmpty, RecordFact, RecordSection } from "@/components/patients/re
 import { CopilotDrawer } from "@/components/consultation/copilot-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { getActiveAssessmentTemplatesAction } from "@/lib/actions/assessment-library";
 import {
   deletePsychAssessmentAction,
   savePsychAssessmentAction,
   savePsychCarePlanAction,
 } from "@/lib/actions/specialty-workspaces";
+import { canSendOnline, severityFromBands, templateMaxScore } from "@/lib/assessment-library";
 import { useSessionRecorder } from "@/lib/copilot/hooks/useSessionRecorder";
 import type { PsychNoteExtraction, WorkspaceExtraction } from "@/lib/copilot/types";
 import { utcIsoToClinicLocalInput } from "@/lib/time";
@@ -60,6 +62,7 @@ import { PSYCHOMETRIC_INSTRUMENTS, isPsychometricKey } from "@/lib/psychometrics
 import { hasPsychSummaryContent } from "@/lib/psych-summary";
 import { PSYCHOLOGY_WORKSPACE, type PsychTabId } from "@/lib/specialty-workspaces";
 import type {
+  AssessmentTemplate,
   PatientDirectoryRow,
   PsychAssessment,
   PsychCarePlan,
@@ -81,6 +84,18 @@ type Props = {
 
 export function PsychWorkspace({ patient, psych, documents, activeTab, canManage, timezone, aiSummaryEnabled, assessmentsHref, documentsHref }: Props) {
   const [seed, setSeed] = useState<PsychDraft | null>(null);
+  const [library, setLibrary] = useState<AssessmentTemplate[]>([]);
+
+  /**
+   * Active assessment-library templates (migration 0085), loaded once for the
+   * workspace: they feed the Psychometrics select, its severity autofill, the
+   * trend bar ceilings, and the send-to-patient assessment picker.
+   */
+  useEffect(() => {
+    void getActiveAssessmentTemplatesAction().then((result) => {
+      if (result.ok) setLibrary(result.data.templates);
+    });
+  }, []);
 
   /**
    * The session recorder lives here, at the workspace level, so recording
@@ -154,6 +169,7 @@ export function PsychWorkspace({ patient, psych, documents, activeTab, canManage
               psych={psych}
               canManage={canManage}
               whatsappNumber={patient.whatsapp_number}
+              templates={library}
             />
           )}
           {activeTab === "psy_documents" && (
@@ -974,8 +990,15 @@ const ASSESSMENT_LIBRARY: Record<
 
 const ASSESSMENT_TYPES = Object.keys(ASSESSMENT_LIBRARY);
 
+/** Select value for a library template (templates and built-ins share one picker). */
+const TEMPLATE_PREFIX = "tmpl:";
+
+function templateValue(template: AssessmentTemplate): string {
+  return `${TEMPLATE_PREFIX}${template.id}`;
+}
+
 /** The published band a raw score falls in, or "" when nothing matches. */
-function severityFor(type: string, score: number | null): string {
+function severityForBuiltIn(type: string, score: number | null): string {
   if (score === null) return "";
   const instrument = ASSESSMENT_LIBRARY[type];
   if (!instrument || instrument.bands.length === 0) return "";
@@ -985,16 +1008,32 @@ function severityFor(type: string, score: number | null): string {
   return instrument.bands[instrument.bands.length - 1]?.label ?? "";
 }
 
+/**
+ * Severity autofill for the whole picker: library templates (migration 0085)
+ * resolve through their stored scoring bands, built-ins through the bank above.
+ */
+function severityForChoice(type: string, templates: AssessmentTemplate[], score: number | null): string {
+  if (score === null) return "";
+  if (type.startsWith(TEMPLATE_PREFIX)) {
+    const template = templates.find((t) => templateValue(t) === type);
+    if (!template) return "";
+    return severityFromBands(template.scoring.bands, score) ?? "";
+  }
+  return severityForBuiltIn(type, score);
+}
+
 function PsychometricsTab({
   patientId,
   psych,
   canManage,
   whatsappNumber,
+  templates = [],
 }: {
   patientId: string;
   psych: PatientPsychBundle;
   canManage: boolean;
   whatsappNumber: string | null;
+  templates?: AssessmentTemplate[];
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -1004,23 +1043,35 @@ function PsychometricsTab({
   const [date, setDate] = useState("");
   const [notes, setNotes] = useState("");
 
+  const selectedTemplate = type.startsWith(TEMPLATE_PREFIX)
+    ? (templates.find((t) => templateValue(t) === type) ?? null)
+    : null;
   const instrument = ASSESSMENT_LIBRARY[type] ?? ASSESSMENT_LIBRARY.Other;
+  const max = selectedTemplate ? templateMaxScore(selectedTemplate.scoring) : instrument.max;
+
+  /** Template lookup for the trend rows below (template_id → template). */
+  const templateById = useCallback(
+    (id: string | null | undefined) =>
+      id ? (templates.find((t) => t.id === id) ?? null) : null,
+    [templates],
+  );
 
   function changeType(next: string) {
     setType(next);
-    setSeverity(severityFor(next, score === "" ? null : Number(score)));
+    setSeverity(severityForChoice(next, templates, score === "" ? null : Number(score)));
   }
 
   function changeScore(next: string) {
     setScore(next);
-    setSeverity(severityFor(type, next === "" ? null : Number(next)));
+    setSeverity(severityForChoice(type, templates, next === "" ? null : Number(next)));
   }
 
   async function addAssessment() {
     if (!canManage) return;
     setPending(true);
     const result = await savePsychAssessmentAction(patientId, {
-      assessment_type: type,
+      assessment_type: selectedTemplate ? selectedTemplate.name : type,
+      template_id: selectedTemplate?.id ?? null,
       score: score === "" ? null : Number(score),
       severity: severity || null,
       conducted_at: date || null,
@@ -1045,20 +1096,40 @@ function PsychometricsTab({
     else toast.error(result.message);
   }
 
+  const selectOptions = [
+    ...ASSESSMENT_TYPES.map((key) => ({
+      value: key,
+      label:
+        key === "Other"
+          ? "Other"
+          : `${ASSESSMENT_LIBRARY[key].label} (/${ASSESSMENT_LIBRARY[key].max})`,
+    })),
+    ...templates.map((t) => ({
+      value: templateValue(t),
+      label: `${t.name} (/${templateMaxScore(t.scoring)})`,
+    })),
+  ];
+
   return (
     <div className="space-y-4">
       <RecordSection title="Score history">
         {psych.assessments.length > 0 ? (
           <div className="space-y-3">
             {psych.assessments.map((a) => (
-              <AssessmentTrendRow key={a.id} assessment={a} canManage={canManage} onDelete={removeAssessment} />
+              <AssessmentTrendRow
+                key={a.id}
+                assessment={a}
+                canManage={canManage}
+                onDelete={removeAssessment}
+                template={templateById(a.template_id)}
+              />
             ))}
           </div>
         ) : (
           <RecordEmpty
             icon={TrendingUp}
             title="No assessments on file"
-            description="Log a standard instrument (PHQ-9, GAD-7, BDI-II, PCL-5â€¦) to track score history and trends."
+            description="Log a standard instrument (PHQ-9, GAD-7, BDI-II, PCL-5) or a clinic library template to track score history and trends."
           />
         )}
       </RecordSection>
@@ -1073,11 +1144,9 @@ function PsychometricsTab({
                 onChange={(e) => changeType(e.target.value)}
                 className="w-full rounded-control border border-text-muted/25 bg-surface px-2 py-1.5 text-[12.5px] text-text-primary outline-none"
               >
-                {ASSESSMENT_TYPES.map((key) => (
-                  <option key={key} value={key}>
-                    {key === "Other"
-                      ? "Other"
-                      : `${ASSESSMENT_LIBRARY[key].label} (/${ASSESSMENT_LIBRARY[key].max})`}
+                {selectOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
               </select>
@@ -1087,10 +1156,10 @@ function PsychometricsTab({
               <input
                 type="number"
                 min={0}
-                max={instrument.max}
+                max={max}
                 value={score}
                 onChange={(e) => changeScore(e.target.value)}
-                placeholder={`0â€“${instrument.max}`}
+                placeholder={`0–${max}`}
                 className="w-full rounded-control border border-text-muted/25 bg-surface px-2 py-1.5 text-[12.5px] text-text-primary outline-none"
               />
             </div>
@@ -1137,28 +1206,32 @@ function PsychometricsTab({
         patientId={patientId}
         whatsappNumber={whatsappNumber}
         canManage={canManage}
+        templates={templates.filter(canSendOnline)}
       />
     </div>
   );
 }
 
-function AssessmentTrendRow({ assessment, canManage, onDelete }: { assessment: PsychAssessment; canManage: boolean; onDelete: (id: string) => void }) {
+function AssessmentTrendRow({ assessment, canManage, onDelete, template }: { assessment: PsychAssessment; canManage: boolean; onDelete: (id: string) => void; template?: AssessmentTemplate | null }) {
   const meta = ASSESSMENT_LIBRARY[assessment.assessment_type] ?? ASSESSMENT_LIBRARY.Other;
-  const pct = assessment.score === null ? 0 : Math.min(100, Math.round((assessment.score / meta.max) * 100));
+  const max = template ? templateMaxScore(template.scoring) : meta.max;
+  const pct = assessment.score === null ? 0 : Math.min(100, Math.round((assessment.score / max) * 100));
   const [showResponses, setShowResponses] = useState(false);
 
   // Item-level answers only exist for online submissions (0080). Map them back
-  // to the instrument's question text when the type is a known instrument.
-  const instrument = isPsychometricKey(assessment.assessment_type)
-    ? PSYCHOMETRIC_INSTRUMENTS[assessment.assessment_type]
-    : null;
+  // to the question text — the library template's stored questions when the
+  // assessment carries a template_id (0085), else the instrument bank.
   const responses =
-    instrument && assessment.answers
-      ? instrument.items.map((item) => ({
-          text: item.text,
-          value: assessment.answers?.[item.id],
-        }))
-      : [];
+    template && assessment.answers
+      ? template.questions
+          .filter((q) => q.type !== "text")
+          .map((q) => ({ text: q.text, value: assessment.answers?.[q.id] }))
+      : isPsychometricKey(assessment.assessment_type)
+        ? PSYCHOMETRIC_INSTRUMENTS[assessment.assessment_type].items.map((item) => ({
+            text: item.text,
+            value: assessment.answers?.[item.id],
+          }))
+        : [];
 
   return (
     <div className="space-y-1.5">

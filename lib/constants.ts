@@ -64,6 +64,7 @@ export const APP_ROUTES = {
     settingsBilling: "/app/settings/billing",
     settingsPrescription: "/app/settings/prescription",
     settingsTvDisplay: "/app/settings/tv-display",
+    assessmentLibrary: "/app/settings/assessment-library",
     bookingPage: "/app/booking-page",
     website: "/app/website",
     growthAgent: "/app/growth-agent",
@@ -200,6 +201,44 @@ export const SETTINGS_NAV_ITEMS = [
     icon: "tv",
     comingSoon: false,
     alsoActiveAt: [],
+  },
+  {
+    key: "assessment-library",
+    label: "Assessment Library",
+    href: APP_ROUTES.app.assessmentLibrary,
+    icon: "clipboard-list",
+    /** Live since 0085 — clinic-owned templates for the Psychometrics workspace. */
+    comingSoon: false,
+    alsoActiveAt: [],
+    /** Grouped under a Clinical Settings heading in the rail. */
+    section: "Clinical Settings",
+  },
+  {
+    key: "intake-forms",
+    label: "Intake Forms",
+    href: "/app/settings/intake-forms",
+    icon: "clipboard-plus",
+    comingSoon: true,
+    alsoActiveAt: [],
+    section: "Clinical Settings",
+  },
+  {
+    key: "mse-templates",
+    label: "MSE Templates",
+    href: "/app/settings/mse-templates",
+    icon: "scan-text",
+    comingSoon: true,
+    alsoActiveAt: [],
+    section: "Clinical Settings",
+  },
+  {
+    key: "note-templates",
+    label: "Note Templates",
+    href: "/app/settings/note-templates",
+    icon: "file-text",
+    comingSoon: true,
+    alsoActiveAt: [],
+    section: "Clinical Settings",
   },
 ] as const;
 

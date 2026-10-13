@@ -37,6 +37,8 @@ export type PatientLinkPreview = {
   clinicName: string;
   kind: PatientShareLinkKind;
   assessmentType: string | null;
+  /** Library template this link points at (0085), null for built-ins. */
+  templateId: string | null;
   status: PatientShareLinkStatus;
 };
 
@@ -61,7 +63,7 @@ export async function resolvePatientLink(
   const { data } = await client
     .from("patient_share_links")
     .select(
-      "id, clinic_id, patient_id, kind, assessment_type, status, expires_at, clinics(name), patients(name)",
+      "id, clinic_id, patient_id, kind, assessment_type, template_id, status, expires_at, clinics(name), patients(name)",
     )
     .eq("token_hash", tokenHash)
     .maybeSingle();
@@ -90,6 +92,7 @@ export async function resolvePatientLink(
     clinicName,
     kind: data.kind as PatientShareLinkKind,
     assessmentType: data.assessment_type,
+    templateId: data.template_id,
     status,
   };
 }

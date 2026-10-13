@@ -1219,13 +1219,82 @@ export type PsychSession = {
 /** Where an assessment was administered: the patient's own phone, the front desk, or the clinician. */
 export type PsychAssessmentCompletedBy = "patient_online" | "reception" | "psychologist";
 
+/* ------------------------------------------------------------------------- */
+/* Assessment Library (0085) — JSONB structural shapes                        */
+/* ------------------------------------------------------------------------- */
+
+export type AssessmentQuestionType = "single" | "multiple" | "text" | "scale";
+
+export type AssessmentQuestionOption = { label: string; value: number };
+
+/** One item in a library assessment template. `id` should be unique within the template. */
+export type AssessmentQuestion = {
+  id: string;
+  text: string;
+  type: AssessmentQuestionType;
+  /**
+   * Options for single/multiple/scale questions. `text` questions carry none.
+   * Multiple-choice answers store the SUM of the selected option values so
+   * sum-scoring stays consistent with `Record<string, number>` answers.
+   */
+  options: AssessmentQuestionOption[];
+  required: boolean;
+};
+
+export type AssessmentSeverityBand = { min: number; max: number; label: string };
+
+export type AssessmentScoring = {
+  method: "sum" | "average" | "manual";
+  min_score: number;
+  max_score: number;
+  /** Ascending, non-overlapping bands the raw score maps to a severity label. */
+  bands: AssessmentSeverityBand[];
+};
+
+/** Score range → clinician-provided interpretation / AI guidance text. */
+export type AssessmentInterpretationRule = { min: number; max: number; text: string };
+
+export type AssessmentTargetSpecialty = "psychology" | "psychiatry" | "general_medicine";
+export type AssessmentTemplateStatus = "draft" | "active";
+
+/** Assessment Library — one clinic-scoped category bucket. */
+export type ClinicAssessmentCategory = {
+  id: string;
+  clinic_id: string;
+  name: string;
+  is_active: boolean;
+  sort_order: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Assessment Library — one clinic-scoped instrument template (migration 0085). */
+export type AssessmentTemplate = {
+  id: string;
+  clinic_id: string;
+  category_id: string | null;
+  name: string;
+  description: string | null;
+  target_specialty: AssessmentTargetSpecialty;
+  status: AssessmentTemplateStatus;
+  questions: AssessmentQuestion[];
+  scoring: AssessmentScoring;
+  interpretation: AssessmentInterpretationRule[];
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 /** Psychology — one psychometric administration (PHQ-9, GAD-7, …). */
 export type PsychAssessment = {
   id: string;
   clinic_id: string;
   patient_id: string;
   doctor_id: string | null;
-  assessment_type: "PHQ-9" | "GAD-7" | "BAI" | "BDI-II" | "PCL-5" | "OCI-R" | "AUDIT" | "ASRS" | "Other";
+  assessment_type: string;
+  /** The library template this administration came from, when logged via Assessment Library. */
+  template_id: string | null;
   score: number | null;
   severity: string | null;
   notes: string | null;
@@ -1255,6 +1324,8 @@ export type PatientShareLink = {
   appointment_id: string | null;
   kind: PatientShareLinkKind;
   assessment_type: string | null;
+  /** The library template this link points at, when kind is "assessment". */
+  template_id: string | null;
   token_hash: string;
   status: PatientShareLinkStatus;
   created_by: string;
@@ -2298,6 +2369,38 @@ export type Database = {
           },
         ];
       };
+      clinic_assessment_categories: {
+        Row: ClinicAssessmentCategory;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          name: string;
+          is_active?: boolean;
+          sort_order?: number;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          name?: string;
+          is_active?: boolean;
+          sort_order?: number;
+          created_by?: never;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "clinic_assessment_categories_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       clinic_members: {
         Row: ClinicMember;
         Insert: {
@@ -2837,6 +2940,62 @@ export type Database = {
             columns: ["clinic_id"];
             isOneToOne: false;
             referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      assessment_templates: {
+        Row: AssessmentTemplate;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          category_id?: string | null;
+          name: string;
+          description?: string | null;
+          target_specialty?: AssessmentTargetSpecialty;
+          status?: AssessmentTemplateStatus;
+          questions?: AssessmentQuestion[];
+          scoring?: AssessmentScoring;
+          interpretation?: AssessmentInterpretationRule[];
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          category_id?: string | null;
+          name?: string;
+          description?: string | null;
+          target_specialty?: AssessmentTargetSpecialty;
+          status?: AssessmentTemplateStatus;
+          questions?: AssessmentQuestion[];
+          scoring?: AssessmentScoring;
+          interpretation?: AssessmentInterpretationRule[];
+          created_by?: never;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "assessment_templates_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "assessment_templates_category_id_fkey";
+            columns: ["category_id"];
+            isOneToOne: false;
+            referencedRelation: "clinic_assessment_categories";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "assessment_templates_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "users";
             referencedColumns: ["id"];
           },
         ];
@@ -4371,6 +4530,7 @@ export type Database = {
           appointment_id?: string | null;
           kind: PatientShareLinkKind;
           assessment_type?: string | null;
+          template_id?: string | null;
           token_hash: string;
           status?: PatientShareLinkStatus;
           created_by: string;
@@ -4386,6 +4546,7 @@ export type Database = {
           appointment_id?: string | null;
           kind?: PatientShareLinkKind;
           assessment_type?: string | null;
+          template_id?: string | null;
           token_hash?: never;
           status?: PatientShareLinkStatus;
           created_by?: never;
@@ -4414,6 +4575,13 @@ export type Database = {
             columns: ["appointment_id"];
             isOneToOne: false;
             referencedRelation: "appointments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "patient_share_links_template_id_fkey";
+            columns: ["template_id"];
+            isOneToOne: false;
+            referencedRelation: "assessment_templates";
             referencedColumns: ["id"];
           },
           {
@@ -5013,7 +5181,8 @@ export type Database = {
           clinic_id: string;
           patient_id: string;
           doctor_id?: string | null;
-          assessment_type: "PHQ-9" | "GAD-7" | "BAI" | "BDI-II" | "PCL-5" | "OCI-R" | "AUDIT" | "ASRS" | "Other";
+          assessment_type: string;
+          template_id?: string | null;
           score?: number | null;
           severity?: string | null;
           notes?: string | null;
@@ -5029,7 +5198,8 @@ export type Database = {
           clinic_id?: never;
           patient_id?: never;
           doctor_id?: string | null;
-          assessment_type?: "PHQ-9" | "GAD-7" | "BAI" | "BDI-II" | "PCL-5" | "OCI-R" | "AUDIT" | "ASRS" | "Other";
+          assessment_type?: string;
+          template_id?: string | null;
           score?: number | null;
           severity?: string | null;
           notes?: string | null;
@@ -5044,7 +5214,8 @@ export type Database = {
           { foreignKeyName: "psych_assessments_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
           { foreignKeyName: "psych_assessments_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] },
           { foreignKeyName: "psych_assessments_doctor_id_fkey"; columns: ["doctor_id"]; isOneToOne: false; referencedRelation: "doctors"; referencedColumns: ["id"] },
-          { foreignKeyName: "psych_assessments_source_link_id_fkey"; columns: ["source_link_id"]; isOneToOne: false; referencedRelation: "patient_share_links"; referencedColumns: ["id"] }
+          { foreignKeyName: "psych_assessments_source_link_id_fkey"; columns: ["source_link_id"]; isOneToOne: false; referencedRelation: "patient_share_links"; referencedColumns: ["id"] },
+          { foreignKeyName: "psych_assessments_template_id_fkey"; columns: ["template_id"]; isOneToOne: false; referencedRelation: "assessment_templates"; referencedColumns: ["id"] }
         ];
       };
       psych_care_plans: {

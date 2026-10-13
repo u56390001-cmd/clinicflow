@@ -25,6 +25,11 @@ import {
   scoreInstrument,
   severityFor,
 } from "@/lib/psychometrics";
+import {
+  canSendOnline,
+  scoreTemplateAnswers,
+  severityFromBands,
+} from "@/lib/assessment-library";
 import { createClient } from "@/lib/supabase/server";
 import { createWidgetClient } from "@/lib/supabase/widget";
 import {
@@ -69,7 +74,7 @@ function linkMessage(
     const label =
       assessmentType && isPsychometricKey(assessmentType)
         ? PSYCHOMETRIC_INSTRUMENTS[assessmentType].shortName
-        : "questionnaire";
+        : assessmentType || "questionnaire";
     return `${who}\n\nPlease complete your ${label} questionnaire for ${clinicName} on your phone. It takes a few minutes:\n${url}\n\nYour answers are shared privately with your clinician.`;
   }
   if (kind === "document_upload") {
@@ -83,21 +88,23 @@ function linkMessage(
  * WhatsApp connection. The raw token appears in the database only as its
  * SHA-256 hash; the usable URL is built from the configured site origin the same
  * way every other patient-facing link is.
+ *
+ * For kind "assessment", `assessmentType` is a built-in instrument key (PHQ-9,
+ * GAD-7, BDI-II, PCL-5) when `templateId` is null, or a library template name
+ * (migration 0085) when it points at one of the clinic's active templates.
  */
 async function mintAndSendLink(
   kind: PatientShareLinkKind,
   patientId: string,
   assessmentType: string | null,
   appointmentId: string | null,
+  templateId: string | null = null,
 ): Promise<SendLinkResult> {
   if (!uuidSchema.safeParse(patientId).success) {
     return { ok: false, message: "Missing patient id." };
   }
   if (appointmentId !== null && !uuidSchema.safeParse(appointmentId).success) {
     return { ok: false, message: "That appointment is not valid." };
-  }
-  if (kind === "assessment" && !isPsychometricKey(assessmentType)) {
-    return { ok: false, message: "That assessment is not supported." };
   }
 
   const supabase = await createClient();
@@ -109,6 +116,43 @@ async function mintAndSendLink(
     return { ok: false, message: "Your role can't send patient links." };
   }
   const clinicId = access.clinic.id;
+
+  // Resolve what the patient form will render: a library template or a built-in.
+  let resolvedType: string | null = null;
+  let resolvedTemplateId: string | null = null;
+  if (kind === "assessment") {
+    if (templateId) {
+      if (!uuidSchema.safeParse(templateId).success) {
+        return { ok: false, message: "That assessment is not supported." };
+      }
+      const { data: template } = await supabase
+        .from("assessment_templates")
+        .select("*")
+        .eq("id", templateId)
+        .eq("clinic_id", clinicId)
+        .maybeSingle();
+      if (
+        !template ||
+        template.status !== "active" ||
+        !canSendOnline({
+          questions: template.questions,
+          scoring: template.scoring,
+        })
+      ) {
+        return {
+          ok: false,
+          message:
+            "That assessment can't be patient-completed yet. Activate it and add scored questions in the Assessment Library.",
+        };
+      }
+      resolvedType = template.name;
+      resolvedTemplateId = template.id;
+    } else if (!isPsychometricKey(assessmentType)) {
+      return { ok: false, message: "That assessment is not supported." };
+    } else {
+      resolvedType = assessmentType;
+    }
+  }
 
   const { data: patient } = await supabase
     .from("patients")
@@ -146,7 +190,8 @@ async function mintAndSendLink(
     patient_id: patientId,
     appointment_id: appointmentId,
     kind,
-    assessment_type: kind === "assessment" ? assessmentType : null,
+    assessment_type: kind === "assessment" ? resolvedType : null,
+    template_id: kind === "assessment" ? resolvedTemplateId : null,
     token_hash: tokenHash,
     created_by: user.id,
     expires_at: expiresAt,
@@ -164,7 +209,7 @@ async function mintAndSendLink(
   const path = buildPatientLinkPath(kind, rawToken);
   const url = `${getBaseUrl()}${path}`;
   const firstName = (patient.name ?? "").split(" ")[0];
-  const body = linkMessage(kind, firstName, access.clinic.name, url, assessmentType);
+  const body = linkMessage(kind, firstName, access.clinic.name, url, resolvedType);
 
   let whatsappSent = false;
   try {
@@ -226,9 +271,16 @@ export async function sendPsychPreVisitLinkAction(
 export async function sendPsychAssessmentLinkAction(
   patientId: string,
   assessmentType: string,
+  templateId?: string | null,
   appointmentId?: string | null,
 ): Promise<SendLinkResult> {
-  return mintAndSendLink("assessment", patientId, assessmentType, appointmentId ?? null);
+  return mintAndSendLink(
+    "assessment",
+    patientId,
+    assessmentType,
+    appointmentId ?? null,
+    templateId ?? null,
+  );
 }
 
 export async function sendPsychDocumentUploadLinkAction(
@@ -417,14 +469,14 @@ export async function submitPreVisitLinkAction(
 }
 
 const assessmentSubmissionSchema = z.object({
-  answers: z.record(z.string(), z.coerce.number().int().min(0).max(4)),
+  answers: z.record(z.string(), z.coerce.number().int().min(0).max(999)),
 });
 
 /**
- * The patient-facing psychometric assessment submission. Scores the answers
- * with the instrument bank, writes a `psych_assessments` row marked
- * `patient_online`, and returns the score + severity so the patient sees the
- * automatic result.
+ * The patient-facing psychometric assessment submission. Score + severity come
+ * from the built-in instrument bank when the link points at a built-in, or from
+ * the clinic's library template (migration 0085) when it has one — the same
+ * `psych_assessments` row, marked `patient_online`.
  */
 export async function submitAssessmentLinkAction(
   _prevState: ActionResult<{ score: number; severity: string | null; instrument: string }> | null,
@@ -452,12 +504,83 @@ export async function submitAssessmentLinkAction(
   if (!preview) {
     return { ok: false, message: "This link is no longer valid. Ask the clinic for a fresh one." };
   }
+
+  const answers = submission.data.answers;
+  const widget = createWidgetClient();
+  const now = new Date().toISOString();
+
+  // Library-template path: answers validate against the template's questions..
+  if (preview.templateId) {
+    const { data: template } = await widget
+      .from("assessment_templates")
+      .select("*")
+      .eq("id", preview.templateId)
+      .maybeSingle();
+    if (
+      !template ||
+      template.clinic_id !== preview.clinicId ||
+      template.status !== "active" ||
+      template.questions.length === 0
+    ) {
+      return {
+        ok: false,
+        message: "This assessment link is invalid. Ask the clinic for a fresh link.",
+      };
+    }
+    for (const question of template.questions) {
+      if (question.type === "text") continue;
+      if (question.required && answers[question.id] === undefined) {
+        return { ok: false, message: "Please answer every question before submitting." };
+      }
+    }
+    const score = scoreTemplateAnswers(template, answers);
+    if (score === null) {
+      return { ok: false, message: "Check your answers and try again." };
+    }
+    const severity = severityFromBands(template.scoring.bands, score);
+
+    const { error: insertError } = await widget.from("psych_assessments").insert({
+      clinic_id: preview.clinicId,
+      patient_id: preview.patientId,
+      doctor_id: null,
+      assessment_type: template.name,
+      template_id: template.id,
+      score,
+      severity,
+      conducted_at: now.slice(0, 10),
+      completed_by: "patient_online",
+      answers,
+      source_link_id: preview.tokenId,
+    });
+    if (insertError) {
+      console.error("[submitAssessmentLinkAction] template insert failed", {
+        patientId: preview.patientId,
+        templateId: preview.templateId,
+        message: insertError.message,
+      });
+      return { ok: false, message: "We couldn't save your answers. Please try again." };
+    }
+
+    const { error: linkError } = await widget
+      .from("patient_share_links")
+      .update({ status: "used", submitted_at: now, submission: { answers } })
+      .eq("id", preview.tokenId);
+    if (linkError) {
+      console.error("[submitAssessmentLinkAction] template link finalize failed", {
+        tokenId: preview.tokenId,
+        message: linkError.message,
+      });
+    }
+
+    revalidatePath(APP_ROUTES.app.patients);
+    return { ok: true, data: { score, severity, instrument: template.name } };
+  }
+
   if (!isPsychometricKey(preview.assessmentType)) {
     return { ok: false, message: "This assessment link is invalid." };
   }
   const instrument = PSYCHOMETRIC_INSTRUMENTS[preview.assessmentType];
 
-  const answers = submission.data.answers;
   const allowed = new Set(instrument.options.map((option) => option.value));
   for (const item of instrument.items) {
     if (!(item.id in answers)) {
@@ -470,9 +593,7 @@ export async function submitAssessmentLinkAction(
 
   const score = scoreInstrument(instrument, answers);
   const severity = severityFor(instrument, score);
-  const now = new Date().toISOString();
 
-  const widget = createWidgetClient();
   const { error: insertError } = await widget.from("psych_assessments").insert({
     clinic_id: preview.clinicId,
     patient_id: preview.patientId,
