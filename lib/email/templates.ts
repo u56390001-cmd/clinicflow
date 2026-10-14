@@ -463,3 +463,63 @@ export function teamInvite(p: TeamInviteParams): { subject: string; html: string
     ),
   };
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Clinical safety alert (Phase 1 §2.1)                                      */
+/* -------------------------------------------------------------------------- */
+
+export type AssessmentSafetyAlertParams = {
+  clinicName: string;
+  patientName: string;
+  instrumentName: string;
+  /** Human label, e.g. "Moderate" or "High". */
+  riskLevel: string;
+  reasons: string[];
+  reviewUrl: string;
+};
+
+/**
+ * Care-team alert fired when a scored assessment trips a clinical safety rule.
+ * Intentionally stark and actionable: recipient, risk level, why, and a link to
+ * the patient record where the triage action must be logged.
+ */
+export function assessmentSafetyAlert(
+  p: AssessmentSafetyAlertParams,
+): { subject: string; html: string } {
+  const reasonList =
+    p.reasons.length > 0
+      ? `<ul style="margin:8px 0 0;padding-left:18px;font-size:14px;color:#111827;">
+          ${p.reasons.map((r) => `<li style="margin:4px 0;">${r}</li>`).join("")}
+        </ul>`
+      : "";
+  return {
+    subject: `⚠ Clinical safety alert — ${p.patientName} (${p.instrumentName})`,
+    html: wrapper(
+      "Clinical Safety Alert",
+      `
+        <h2 style="margin:0 0 8px;font-size:20px;color:#b91c1c;">Clinical Safety Alert</h2>
+        <p style="margin:0 0 16px;font-size:14px;color:#6b7280;">
+          A patient-completed assessment at ${p.clinicName} has raised a safety flag and needs clinician review.
+        </p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#fef2f2;border:1px solid #fecaca;border-radius:6px;">
+          <tr>
+            <td style="padding:16px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                ${fieldRow("Patient", p.patientName)}
+                ${fieldRow("Instrument", p.instrumentName)}
+                ${fieldRow("Risk level", `<span style="color:#b91c1c;font-weight:700;">${p.riskLevel}</span>`)}
+              </table>
+              ${reasonList}
+            </td>
+          </tr>
+        </table>
+        <p style="margin:16px 0 0;font-size:14px;color:#6b7280;">
+          Review the responses and record the appropriate triage action in the patient record.
+        </p>
+        <div style="margin-top:24px;text-align:center;">
+          ${ctaButton(p.reviewUrl, "Review patient record")}
+        </div>
+      `,
+    ),
+  };
+}

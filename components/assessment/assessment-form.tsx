@@ -12,6 +12,7 @@ import {
   severityFor,
   type PsychometricKey,
 } from "@/lib/psychometrics";
+import type { PatientInstrumentModel } from "@/lib/scoring/types";
 import type {
   AssessmentQuestion,
   AssessmentTemplate,
@@ -22,26 +23,32 @@ type Result = { score: number; severity: string | null; instrument: string };
 /**
  * The patient-facing psychometric assessment.
  *
- * Two document sources share one renderer:
- *   * the built-in bank (PHQ-9, GAD-7, BDI-II, PCL-5), driven entirely by
- *     `lib/psychometrics.ts`; and
+ * Three document sources share one renderer:
+ *   * a Phase 1 validated instrument (PHQ-9 / GAD-7 / C-SSRS / PCL-5 /
+ *     WHODAS 2.0), rendered from a serializable engine model and including
+ *     C-SSRS branching;
+ *   * the legacy built-in bank (BDI-II), driven by `lib/psychometrics.ts`; and
  *   * clinic library templates (migration 0085) that are scored and
  *     patient-completable, rendered from their stored questions/options.
  *
  * Mobile-first, with a progress bar. Answers are plain per-item values for
  * single/scale; multiple-choice stores the SUM of the selected option values so
- * the shared sum-scorer (server side) tallies correctly. The score + severity
- * band are generated automatically on submit.
+ * the shared sum-scorer (server side) tallies correctly. For validated
+ * instruments the score, severity and safety flag are computed server-side by
+ * the deterministic engine.
  */
 export function AssessmentForm({
   token,
   instrumentKey,
+  instrument,
   template,
   preview,
 }: {
   token: string;
-  /** Present for the built-in instrument flow, absent for template templates. */
+  /** Present for the legacy built-in instrument flow. */
   instrumentKey?: PsychometricKey | null;
+  /** Present for a Phase 1 validated instrument. */
+  instrument?: PatientInstrumentModel | null;
   /** The clinic library template this link was minted for, when applicable. */
   template?: AssessmentTemplate | null;
   preview: { patientFirstName: string; clinicName: string };
@@ -61,23 +68,58 @@ export function AssessmentForm({
     [template],
   );
 
+  /** Items for the engine/bank renderer (validated instrument or legacy bank). */
+  const bankItems = useMemo(
+    () => instrument?.items ?? bank?.items.map((item) => ({ id: item.id, text: item.text })) ?? [],
+    [instrument, bank],
+  );
+  const bankOptions = instrument?.options ?? bank?.options ?? [];
+  const branching = useMemo(() => instrument?.branching ?? [], [instrument]);
+
+  /** Item ids that apply given the current branching answers. */
+  const applicable = useMemo(() => {
+    const set = new Set(bankItems.map((item) => item.id));
+    for (const rule of branching) {
+      const value = answers[rule.dependsOn];
+      const active = value !== undefined && rule.showWhen.includes(value);
+      for (const id of rule.items) {
+        if (active) set.add(id);
+        else set.delete(id);
+      }
+    }
+    return set;
+  }, [bankItems, branching, answers]);
+
   function isAnswered(question: AssessmentQuestion): boolean {
     if (question.type === "multiple") return (multi[question.id] ?? []).length > 0;
     return answers[question.id] !== undefined;
   }
 
-  function answeredCount(): number {
-    if (bank) return 0; // computed below via bank.items
-    return scorableQuestions.filter(isAnswered).length;
-  }
+  const templateAnswered = scorableQuestions.filter(isAnswered).length;
+  const bankAnswered = bankItems.filter(
+    (item) => applicable.has(item.id) && answers[item.id] !== undefined,
+  ).length;
 
-  const answered = bank ? 0 : answeredCount();
-  const totalScored = bank ? 0 : scorableQuestions.length;
-
-  const answeredItems = bank ? bank.items.filter((i) => answers[i.id] !== undefined).length : answered;
-  const total = bank ? bank.items.length : totalScored;
+  const usingBank = bankItems.length > 0;
+  const answeredItems = usingBank ? bankAnswered : templateAnswered;
+  const total = usingBank ? applicable.size : scorableQuestions.length;
   const progress = total > 0 ? Math.round((answeredItems / total) * 100) : 0;
-  const complete = answeredItems === total && total > 0;
+  const complete = total > 0 && answeredItems === total;
+
+  /** Set a numeric answer and drop any now-inapplicable branch answers. */
+  function setAnswer(id: string, value: number) {
+    setAnswers((prev) => {
+      const next = { ...prev, [id]: value };
+      for (const rule of branching) {
+        const depends = next[rule.dependsOn];
+        const active = depends !== undefined && rule.showWhen.includes(depends);
+        if (!active) {
+          for (const branchId of rule.items) delete next[branchId];
+        }
+      }
+      return next;
+    });
+  }
 
   function toggleMulti(questionId: string, value: number) {
     setMulti((prev) => {
@@ -119,12 +161,12 @@ export function AssessmentForm({
     });
   }
 
-  const instrumentName = bank?.name ?? template?.name ?? "Questionnaire";
-  const instructions = bank?.instructions ?? template?.description ?? "";
+  const instrumentName = instrument?.name ?? bank?.name ?? template?.name ?? "Questionnaire";
+  const instructions = instrument?.instructions ?? bank?.instructions ?? template?.description ?? "";
 
   if (result) {
-    const band = bank
-      ? severityFor(bank, result.score)
+    const band = usingBank
+      ? (instrument ? result.severity : severityFor(bank!, result.score))
       : severityFromBands(template?.scoring.bands ?? [], result.score);
     return (
       <div className="rounded-panel border border-hairline bg-surface px-6 py-12 text-center">
@@ -185,8 +227,9 @@ export function AssessmentForm({
       )}
 
       <div className="mt-5 flex flex-col gap-4">
-        {bank
-          ? bank.items.map((item, index) => {
+        {usingBank
+          ? bankItems.map((item, index) => {
+              if (!applicable.has(item.id)) return null;
               const selected = answers[item.id];
               return (
                 <div
@@ -202,16 +245,14 @@ export function AssessmentForm({
                     </p>
                   </div>
                   <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    {bank.options.map((option) => {
+                    {bankOptions.map((option) => {
                       const isSelected = selected === option.value;
                       return (
                         <button
                           key={option.value}
                           type="button"
                           aria-pressed={isSelected}
-                          onClick={() =>
-                            setAnswers((prev) => ({ ...prev, [item.id]: option.value }))
-                          }
+                          onClick={() => setAnswer(item.id, option.value)}
                           className={
                             "rounded-control border px-3 py-2 text-left text-[12.5px] font-medium transition-colors " +
                             (isSelected

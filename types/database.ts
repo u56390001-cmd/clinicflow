@@ -1219,6 +1219,21 @@ export type PsychSession = {
 /** Where an assessment was administered: the patient's own phone, the front desk, or the clinician. */
 export type PsychAssessmentCompletedBy = "patient_online" | "reception" | "psychologist";
 
+/** Phase 1 §3.1 — how the instrument was administered (distinct from who typed it in). */
+export type PsychAssessmentAdministrationMode = "SELF_REPORT" | "CLINICIAN_ENTERED" | "PROXY";
+
+/** Phase 1 §2.1 — deterministic risk stratum attached to a scored assessment. */
+export type PsychAssessmentRiskLevel = "NONE" | "LOW" | "MODERATE" | "HIGH";
+
+/** Phase 1 §2.2 — clinical safety triage state machine for a flagged assessment. */
+export type PsychAssessmentReviewStatus =
+  | "CLEAR"
+  | "PENDING_REVIEW"
+  | "UNDER_REVIEW"
+  | "ACTIONED_SAFETY_PLAN"
+  | "ESCALATED_EMERGENCY"
+  | "RESOLVED";
+
 /* ------------------------------------------------------------------------- */
 /* Assessment Library (0085) — JSONB structural shapes                        */
 /* ------------------------------------------------------------------------- */
@@ -1281,6 +1296,15 @@ export type AssessmentTemplate = {
   questions: AssessmentQuestion[];
   scoring: AssessmentScoring;
   interpretation: AssessmentInterpretationRule[];
+  /* --- Phase 1 instrument identity (migration 0087) ----------------------- */
+  /** Validated-instrument key (PHQ-9, GAD-7, C-SSRS, PCL-5, WHODAS-2.0-12); null for clinic-authored. */
+  code: string | null;
+  /** Semantic version (MAJOR.MINOR.PATCH) of the scoring rules. */
+  version: string;
+  /** Phase-1 engine metadata: subscales, diagnostic criteria, safety triggers, imputation caps. */
+  instrument_meta: Record<string, unknown>;
+  /** True when this template mirrors a code-side validated instrument. */
+  is_validated: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -1304,8 +1328,52 @@ export type PsychAssessment = {
   answers: Record<string, number> | null;
   /** The share link this administration came from, when patient-completed online. */
   source_link_id: string | null;
+  /* --- Phase 1 deterministic scoring (migration 0087) --------------------- */
+  /** Derived scaled/standardised score (e.g. WHODAS 2.0 metric 0-100). Null when n/a. */
+  scaled_score: number | null;
+  /** Subscale sums keyed by subscale id (e.g. PCL-5 clusters B/C/D/E). */
+  subscale_scores: Record<string, number>;
+  /** Deterministic diagnostic-criteria result (e.g. PCL-5 DSM-5 provisional). */
+  diagnostic_criteria_results: Record<string, unknown>;
+  /** False when missing-data limits were exceeded or a sensitive item was skipped. */
+  is_valid: boolean;
+  /** Why the score is invalid, when `is_valid` is false. */
+  invalidation_reason: string | null;
+  administration_mode: PsychAssessmentAdministrationMode;
+  /** Version of the instrument/template snapshotted onto this response. */
+  template_version: string | null;
+  /** Immutable snapshot of the structure scored, for legal auditability. */
+  template_snapshot: Record<string, unknown> | null;
+  /** Denormalised validated-instrument code (e.g. "PHQ-9"), when applicable. */
+  instrument_code: string | null;
+  /* --- Phase 1 safety triage --------------------------------------------- */
+  safety_flag_raised: boolean;
+  risk_level: PsychAssessmentRiskLevel;
+  review_status: PsychAssessmentReviewStatus;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+/**
+ * Phase 1 §2.2 — one append-only entry in an assessment's safety triage log
+ * (migration 0087). Mirrors the `audit_logs` append-only pattern.
+ */
+export type AssessmentSafetyEvent = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  assessment_id: string;
+  from_status: PsychAssessmentReviewStatus | null;
+  to_status: PsychAssessmentReviewStatus;
+  risk_level: PsychAssessmentRiskLevel | null;
+  actor_type: "system" | "provider";
+  actor_user_id: string | null;
+  actor_name: string | null;
+  rationale: string | null;
+  details: Record<string, unknown>;
+  created_at: string;
 };
 
 /** Where a share link sends the patient. */
@@ -2957,6 +3025,10 @@ export type Database = {
           questions?: AssessmentQuestion[];
           scoring?: AssessmentScoring;
           interpretation?: AssessmentInterpretationRule[];
+          code?: string | null;
+          version?: string;
+          instrument_meta?: Record<string, unknown>;
+          is_validated?: boolean;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -2972,6 +3044,10 @@ export type Database = {
           questions?: AssessmentQuestion[];
           scoring?: AssessmentScoring;
           interpretation?: AssessmentInterpretationRule[];
+          code?: string | null;
+          version?: string;
+          instrument_meta?: Record<string, unknown>;
+          is_validated?: boolean;
           created_by?: never;
           created_at?: never;
           updated_at?: string;
@@ -5190,6 +5266,20 @@ export type Database = {
           completed_by?: "patient_online" | "reception" | "psychologist";
           answers?: Record<string, number> | null;
           source_link_id?: string | null;
+          scaled_score?: number | null;
+          subscale_scores?: Record<string, number>;
+          diagnostic_criteria_results?: Record<string, unknown>;
+          is_valid?: boolean;
+          invalidation_reason?: string | null;
+          administration_mode?: PsychAssessmentAdministrationMode;
+          template_version?: string | null;
+          template_snapshot?: Record<string, unknown> | null;
+          instrument_code?: string | null;
+          safety_flag_raised?: boolean;
+          risk_level?: PsychAssessmentRiskLevel;
+          review_status?: PsychAssessmentReviewStatus;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -5207,6 +5297,20 @@ export type Database = {
           completed_by?: "patient_online" | "reception" | "psychologist";
           answers?: Record<string, number> | null;
           source_link_id?: string | null;
+          scaled_score?: number | null;
+          subscale_scores?: Record<string, number>;
+          diagnostic_criteria_results?: Record<string, unknown>;
+          is_valid?: boolean;
+          invalidation_reason?: string | null;
+          administration_mode?: PsychAssessmentAdministrationMode;
+          template_version?: string | null;
+          template_snapshot?: Record<string, unknown> | null;
+          instrument_code?: string | null;
+          safety_flag_raised?: boolean;
+          risk_level?: PsychAssessmentRiskLevel;
+          review_status?: PsychAssessmentReviewStatus;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
           created_at?: never;
           updated_at?: string;
         };
@@ -5216,6 +5320,44 @@ export type Database = {
           { foreignKeyName: "psych_assessments_doctor_id_fkey"; columns: ["doctor_id"]; isOneToOne: false; referencedRelation: "doctors"; referencedColumns: ["id"] },
           { foreignKeyName: "psych_assessments_source_link_id_fkey"; columns: ["source_link_id"]; isOneToOne: false; referencedRelation: "patient_share_links"; referencedColumns: ["id"] },
           { foreignKeyName: "psych_assessments_template_id_fkey"; columns: ["template_id"]; isOneToOne: false; referencedRelation: "assessment_templates"; referencedColumns: ["id"] }
+        ];
+      };
+      assessment_safety_events: {
+        Row: AssessmentSafetyEvent;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          assessment_id: string;
+          from_status?: PsychAssessmentReviewStatus | null;
+          to_status: PsychAssessmentReviewStatus;
+          risk_level?: PsychAssessmentRiskLevel | null;
+          actor_type?: "system" | "provider";
+          actor_user_id?: string | null;
+          actor_name?: string | null;
+          rationale?: string | null;
+          details?: Record<string, unknown>;
+          created_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          assessment_id?: never;
+          from_status?: never;
+          to_status?: never;
+          risk_level?: never;
+          actor_type?: never;
+          actor_user_id?: never;
+          actor_name?: never;
+          rationale?: never;
+          details?: never;
+          created_at?: never;
+        };
+        Relationships: [
+          { foreignKeyName: "assessment_safety_events_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
+          { foreignKeyName: "assessment_safety_events_patient_id_fkey"; columns: ["patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["id"] },
+          { foreignKeyName: "assessment_safety_events_assessment_id_fkey"; columns: ["assessment_id"]; isOneToOne: false; referencedRelation: "psych_assessments"; referencedColumns: ["id"] }
         ];
       };
       psych_care_plans: {

@@ -181,11 +181,10 @@ const PCL5 = {
     "Having difficulty concentrating",
     "Trouble falling or staying asleep",
   ]),
-  // PCL-5 uses a provisional cut-off of 33; a score of 31–33 is subthreshold.
+  // PCL-5 provisional cut-off per spec: >=31 indicates probable PTSD.
   bands: [
-    { min: 0, max: 30, label: "Minimal" },
-    { min: 31, max: 33, label: "Subthreshold" },
-    { min: 34, max: 80, label: "Probable PTSD" },
+    { min: 0, max: 30, label: "Below clinical threshold" },
+    { min: 31, max: 80, label: "Probable PTSD" },
   ],
 } as const satisfies PsychometricInstrument;
 

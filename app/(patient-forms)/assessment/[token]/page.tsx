@@ -5,20 +5,32 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { canSendOnline } from "@/lib/assessment-library";
 import { resolvePatientLink } from "@/lib/patient-links";
 import { isPsychometricKey, type PsychometricKey } from "@/lib/psychometrics";
+import {
+  getInstrument,
+  isValidatedInstrumentCode,
+  toPatientInstrumentModel,
+} from "@/lib/scoring";
+import type { PatientInstrumentModel } from "@/lib/scoring/types";
 import { createWidgetClient } from "@/lib/supabase/widget";
 import type { AssessmentTemplate } from "@/types/database";
 
 export const metadata: Metadata = { title: "Questionnaire" };
 
 /**
- * Public psychometric assessment link — a built-in instrument (PHQ-9 / GAD-7 /
- * BDI-II / PCL-5) or, since migration 0085, any clinic library template that is
+ * Public psychometric assessment link — a validated instrument (Phase 1:
+ * PHQ-9 / GAD-7 / C-SSRS / PCL-5 / WHODAS 2.0, scored by the deterministic
+ * engine), a legacy built-in (BDI-II), or any clinic library template that is
  * scored and patient-completable. The raw token is the visitor's only
  * credential; a dead, wrong-kind or non-pending link shows one generic card.
  */
-async function resolveAssessment(
-  token: string,
-): Promise<{ template?: AssessmentTemplate | null; instrumentKey?: PsychometricKey } | null> {
+async function resolveAssessment(token: string): Promise<
+  | {
+      template?: AssessmentTemplate | null;
+      instrumentKey?: PsychometricKey;
+      instrument?: PatientInstrumentModel;
+    }
+  | null
+> {
   const preview = await resolvePatientLink(token, "assessment");
   if (!preview || !preview.assessmentType) return null;
 
@@ -41,6 +53,12 @@ async function resolveAssessment(
       return null;
     }
     return { template: data };
+  }
+
+  if (isValidatedInstrumentCode(preview.assessmentType)) {
+    const def = getInstrument(preview.assessmentType);
+    if (!def) return null;
+    return { instrument: toPatientInstrumentModel(def) };
   }
 
   if (!isPsychometricKey(preview.assessmentType)) return null;
@@ -77,6 +95,7 @@ export default async function AssessmentLinkPage({
       key={token}
       token={token}
       instrumentKey={resolved.instrumentKey}
+      instrument={resolved.instrument ?? null}
       template={resolved.template ?? null}
       preview={{
         patientFirstName: preview.patientFirstName,

@@ -13,9 +13,17 @@ import {
   sendPsychPreVisitLinkAction,
 } from "@/lib/actions/patient-links";
 import { PSYCHOMETRIC_INSTRUMENTS, PSYCHOMETRIC_KEYS } from "@/lib/psychometrics";
+import { listInstruments } from "@/lib/scoring";
 import type { AssessmentTemplate } from "@/types/database";
 
 const TEMPLATE_PREFIX = "tmpl:";
+
+/** Validated instruments scored by the deterministic engine (Phase 1). */
+const VALIDATED_INSTRUMENTS = listInstruments();
+/** Legacy built-ins not yet on the validated engine (BDI-II). */
+const LEGACY_KEYS = PSYCHOMETRIC_KEYS.filter(
+  (key) => !VALIDATED_INSTRUMENTS.some((instrument) => instrument.code === key),
+);
 
 function templateOptionValue(template: AssessmentTemplate): string {
   return `${TEMPLATE_PREFIX}${template.id}`;
@@ -29,8 +37,9 @@ type Kind = "pre_visit" | "assessment" | "document_upload";
  * The link is also copied to the clipboard as a fallback. The panel appears on
  * the psychology Safety tab only.
  *
- * The assessment picker combines the four built-in instruments with any clinic
- * library template (migration 0085) that is scored and patient-completable.
+ * The assessment picker combines the validated instruments (deterministic
+ * scoring engine) with any clinic library template (migration 0085) that is
+ * scored and patient-completable.
  */
 export function PatientLinksPanel({
   patientId,
@@ -142,13 +151,22 @@ export function PatientLinksPanel({
               disabled={disabled}
               onChange={(event) => setAssessmentType(event.target.value)}
             >
-              <optgroup label="Built-in">
-                {PSYCHOMETRIC_KEYS.map((key) => (
-                  <option key={key} value={key}>
-                    {PSYCHOMETRIC_INSTRUMENTS[key].shortName}
+              <optgroup label="Validated instruments">
+                {VALIDATED_INSTRUMENTS.map((instrument) => (
+                  <option key={instrument.code} value={instrument.code}>
+                    {instrument.shortName}
                   </option>
                 ))}
               </optgroup>
+              {LEGACY_KEYS.length > 0 ? (
+                <optgroup label="Built-in">
+                  {LEGACY_KEYS.map((key) => (
+                    <option key={key} value={key}>
+                      {PSYCHOMETRIC_INSTRUMENTS[key].shortName}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
               {templates.length > 0 ? (
                 <optgroup label="Assessment Library">
                   {templates.map((template) => (

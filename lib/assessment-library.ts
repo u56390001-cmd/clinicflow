@@ -317,9 +317,8 @@ export const ASSESSMENT_CATALOG: readonly AssessmentCatalogEntry[] = [
       min_score: 0,
       max_score: 80,
       bands: bands([
-        [0, 30, "Below threshold"],
-        [31, 33, "Threshold"],
-        [34, 80, "Probable PTSD"],
+        [0, 30, "Below clinical threshold"],
+        [31, 80, "Probable PTSD"],
       ]),
     },
     interpretation: [],

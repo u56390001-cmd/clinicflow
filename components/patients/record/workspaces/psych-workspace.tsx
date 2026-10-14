@@ -38,6 +38,7 @@ import { IntakeHistoryTab } from "@/components/patients/record/workspaces/psych-
 import { MseTab } from "@/components/patients/record/workspaces/psych-mse-tab";
 import { SessionsTab, type PsychDraft } from "@/components/patients/record/workspaces/psych-sessions-tab";
 import { PatientLinksPanel } from "@/components/patients/record/workspaces/patient-links-panel";
+import { AssessmentSafetyBanner } from "@/components/patients/record/workspaces/assessment-safety-banner";
 import { AiSummaryCard } from "@/components/patients/record/ai-summary-card";
 import { DocumentsTab } from "@/components/patients/record/documents-tab";
 import { RecordEmpty, RecordFact, RecordSection } from "@/components/patients/record/record-primitives";
@@ -131,6 +132,7 @@ export function PsychWorkspace({ patient, psych, documents, activeTab, canManage
     <div className="tab-fade-in">
       <div className={cn("flex flex-col gap-4", canManage && "xl:flex-row xl:items-start")}>
         <div className="min-w-0 flex-1 space-y-4">
+          <AssessmentSafetyBanner assessments={psych.assessments} canManage={canManage} />
           {activeTab === "psy_overview" && (
             <OverviewSafetyTab
               patient={patient}

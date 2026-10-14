@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { getGeminiProvider } from "@/lib/ai/gemini-provider";
 import { interpretationForScore } from "@/lib/assessment-library";
+import { logAuditEvent } from "@/lib/auth/role-guard";
 import { canManageClinical, getCurrentClinic } from "@/lib/clinic-access";
 import { findDoctorForUser } from "@/lib/consultation-queries";
 import { createClient } from "@/lib/supabase/server";
@@ -1515,6 +1516,104 @@ export async function deletePsychAssessmentAction(id: string): Promise<ActionRes
     .eq("clinic_id", g.clinicId);
   if (error) return { ok: false, message: error.message };
   return ok();
+}
+
+/** Provider-selectable triage transitions (Phase 1 §2.2). CLEAR is system-only. */
+const ASSESSMENT_REVIEW_STATUSES = [
+  "UNDER_REVIEW",
+  "ACTIONED_SAFETY_PLAN",
+  "ESCALATED_EMERGENCY",
+  "RESOLVED",
+] as const;
+
+const updateAssessmentReviewStatusSchema = z.object({
+  assessment_id: z.string().uuid(),
+  status: z.enum(ASSESSMENT_REVIEW_STATUSES),
+  rationale: note,
+});
+
+/**
+ * Phase 1 §2.2 — record a credentialed provider's triage action on a flagged
+ * assessment. Writes the new state to `psych_assessments`, appends an
+ * immutable `assessment_safety_events` transition, and an `audit_logs` entry.
+ */
+export async function updateAssessmentReviewStatusAction(
+  raw: unknown,
+): Promise<ActionResult<string>> {
+  const parsed = updateAssessmentReviewStatusSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, message: firstIssue(parsed)?.message ?? "Invalid input." };
+  }
+  const g = await guard();
+  if (!g.ok) return g.result;
+
+  const {
+    data: { user },
+  } = await g.supabase.auth.getUser();
+  const userId = user?.id ?? null;
+
+  const { data: assessment } = await g.supabase
+    .from("psych_assessments")
+    .select("id, patient_id, review_status, risk_level")
+    .eq("id", parsed.data.assessment_id)
+    .eq("clinic_id", g.clinicId)
+    .maybeSingle();
+  if (!assessment) return { ok: false, message: "That assessment is no longer on file." };
+
+  const now = new Date().toISOString();
+  const { error } = await g.supabase
+    .from("psych_assessments")
+    .update({
+      review_status: parsed.data.status,
+      reviewed_by: userId,
+      reviewed_at: now,
+    })
+    .eq("id", parsed.data.assessment_id)
+    .eq("clinic_id", g.clinicId);
+  if (error) return { ok: false, message: error.message };
+
+  const me = await authorName(g.supabase);
+  const { error: eventError } = await g.supabase.from("assessment_safety_events").insert({
+    clinic_id: g.clinicId,
+    patient_id: assessment.patient_id,
+    assessment_id: assessment.id,
+    from_status: assessment.review_status,
+    to_status: parsed.data.status,
+    risk_level: assessment.risk_level,
+    actor_type: "provider",
+    actor_user_id: userId,
+    actor_name: me,
+    rationale: parsed.data.rationale || null,
+    details: {},
+    created_at: now,
+  });
+  if (eventError) {
+    console.error("[updateAssessmentReviewStatusAction] event insert failed", {
+      assessmentId: assessment.id,
+      message: eventError.message,
+    });
+  }
+
+  if (userId) {
+    await logAuditEvent(
+      {
+        clinicId: g.clinicId,
+        userId,
+        action: "ASSESSMENT_REVIEW_STATUS_CHANGED",
+        resourceType: "psych_assessment",
+        resourceId: assessment.id,
+        details: {
+          from: assessment.review_status,
+          to: parsed.data.status,
+          riskLevel: assessment.risk_level,
+        },
+      },
+      { supabase: g.supabase },
+    );
+  }
+
+  revalidatePath(APP_ROUTES.app.patients);
+  return { ok: true, data: `Marked ${parsed.data.status}.` };
 }
 
 const ASSESSMENT_INTERPRETATION_PROMPT = `You draft a short AI-guided interpretation of a scored psychometric assessment for the treating clinician.

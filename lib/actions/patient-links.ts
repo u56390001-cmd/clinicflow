@@ -30,6 +30,14 @@ import {
   scoreTemplateAnswers,
   severityFromBands,
 } from "@/lib/assessment-library";
+import {
+  getInstrument,
+  isValidatedInstrumentCode,
+  scoreValidatedInstrument,
+  toInstrumentMeta,
+  validateInstrumentAnswers,
+} from "@/lib/scoring";
+import { applyAssessmentSafety } from "@/lib/scoring/safety";
 import { createClient } from "@/lib/supabase/server";
 import { createWidgetClient } from "@/lib/supabase/widget";
 import {
@@ -147,7 +155,10 @@ async function mintAndSendLink(
       }
       resolvedType = template.name;
       resolvedTemplateId = template.id;
-    } else if (!isPsychometricKey(assessmentType)) {
+    } else if (
+      !isPsychometricKey(assessmentType) &&
+      !isValidatedInstrumentCode(assessmentType)
+    ) {
       return { ok: false, message: "That assessment is not supported." };
     } else {
       resolvedType = assessmentType;
@@ -574,6 +585,96 @@ export async function submitAssessmentLinkAction(
 
     revalidatePath(APP_ROUTES.app.patients);
     return { ok: true, data: { score, severity, instrument: template.name } };
+  }
+
+  // Validated-instrument path (migration 0087): the deterministic scoring
+  // engine produces the score, severity, subscales, diagnostic criteria and
+  // the clinical safety flag. PHQ-9 / GAD-7 / PCL-5 / C-SSRS / WHODAS-2.0.
+  const validated = getInstrument(preview.assessmentType);
+  if (validated) {
+    const validation = validateInstrumentAnswers(validated.code, answers, true);
+    if (!validation.success) {
+      return { ok: false, message: validation.error };
+    }
+    const result = scoreValidatedInstrument(validated.code, validation.data);
+
+    const { data: inserted, error: insertError } = await widget
+      .from("psych_assessments")
+      .insert({
+        clinic_id: preview.clinicId,
+        patient_id: preview.patientId,
+        doctor_id: null,
+        assessment_type: validated.code,
+        score: result.rawScore,
+        severity: result.severityBand,
+        conducted_at: now.slice(0, 10),
+        completed_by: "patient_online",
+        answers: validation.data,
+        source_link_id: preview.tokenId,
+        scaled_score: result.scaledScore,
+        subscale_scores: result.subscaleScores,
+        diagnostic_criteria_results: result.diagnosticCriteria,
+        is_valid: result.isValid,
+        invalidation_reason: result.invalidationReason,
+        administration_mode: "SELF_REPORT",
+        template_version: result.instrumentVersion,
+        template_snapshot: toInstrumentMeta(validated),
+        instrument_code: result.instrumentCode,
+        safety_flag_raised: result.safetyFlagRaised,
+        risk_level: result.riskLevel,
+        review_status: result.safetyFlagRaised ? "PENDING_REVIEW" : "CLEAR",
+      })
+      .select("id")
+      .maybeSingle();
+    if (insertError || !inserted) {
+      console.error("[submitAssessmentLinkAction] validated insert failed", {
+        patientId: preview.patientId,
+        instrument: validated.code,
+        message: insertError?.message ?? "no row returned",
+      });
+      return { ok: false, message: "We couldn't save your answers. Please try again." };
+    }
+
+    const { data: patientRow } = await widget
+      .from("patients")
+      .select("name")
+      .eq("clinic_id", preview.clinicId)
+      .eq("id", preview.patientId)
+      .maybeSingle();
+
+    await applyAssessmentSafety({
+      widget,
+      clinicId: preview.clinicId,
+      patientId: preview.patientId,
+      assessmentId: inserted.id,
+      patientName: patientRow?.name ?? preview.patientFirstName,
+      clinicName: preview.clinicName,
+      instrumentName: validated.shortName,
+      severity: result.severityBand,
+      result,
+      actorUserId: preview.createdBy,
+    });
+
+    const { error: linkError } = await widget
+      .from("patient_share_links")
+      .update({ status: "used", submitted_at: now, submission: { answers: validation.data } })
+      .eq("id", preview.tokenId);
+    if (linkError) {
+      console.error("[submitAssessmentLinkAction] validated link finalize failed", {
+        tokenId: preview.tokenId,
+        message: linkError.message,
+      });
+    }
+
+    revalidatePath(APP_ROUTES.app.patients);
+    return {
+      ok: true,
+      data: {
+        score: result.rawScore ?? 0,
+        severity: result.severityBand,
+        instrument: validated.shortName,
+      },
+    };
   }
 
   if (!isPsychometricKey(preview.assessmentType)) {

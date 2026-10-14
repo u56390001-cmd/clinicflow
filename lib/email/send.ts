@@ -6,6 +6,7 @@ import {
   type AppointmentConfirmationParams,
   type AppointmentNotificationParams,
   type AppointmentRescheduleParams,
+  type AssessmentSafetyAlertParams,
   type BillingApprovedParams,
   type BillingExpiringParams,
   type BillingRejectedParams,
@@ -14,6 +15,7 @@ import {
   appointmentConfirmation,
   appointmentNotification,
   appointmentReschedule,
+  assessmentSafetyAlert,
   billingApproved,
   billingExpiring,
   billingRejected,
@@ -184,6 +186,35 @@ export async function sendBillingExpiring(
     console.error("[email] sendBillingExpiring failed:", message);
     await logEmailFailure({ event: "billing_expiring_send_failed", error: message });
     return { ok: false, error: message };
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Clinical safety alert (Phase 1 §2.1)                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Send a clinical safety alert to one or more care-team members. Returns the
+ * recipients the email was successfully delivered to. Best-effort: a failed
+ * send is logged (never thrown) so the clinical write that triggered it stands.
+ */
+export async function sendAssessmentSafetyAlert(
+  params: AssessmentSafetyAlertParams,
+  recipients: string[],
+): Promise<{ ok: boolean; delivered: string[]; error?: string }> {
+  const unique = Array.from(new Set(recipients.filter((r) => r.trim().length > 0)));
+  if (unique.length === 0) return { ok: false, delivered: [] };
+
+  const { subject, html } = assessmentSafetyAlert(params);
+  const delivered: string[] = [];
+  try {
+    await getResend().emails.send({ from: FROM_EMAIL, to: unique, subject, html });
+    return { ok: true, delivered: unique };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[email] sendAssessmentSafetyAlert failed:", message);
+    await logEmailFailure({ event: "assessment_safety_alert_send_failed", error: message });
+    return { ok: false, delivered, error: message };
   }
 }
 

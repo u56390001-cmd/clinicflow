@@ -40,6 +40,8 @@ export type PatientLinkPreview = {
   /** Library template this link points at (0085), null for built-ins. */
   templateId: string | null;
   status: PatientShareLinkStatus;
+  /** The clinician who minted the link (attribution for system audit rows). */
+  createdBy: string | null;
 };
 
 const TRUNCATED_NAME_MAX = 30;
@@ -63,7 +65,7 @@ export async function resolvePatientLink(
   const { data } = await client
     .from("patient_share_links")
     .select(
-      "id, clinic_id, patient_id, kind, assessment_type, template_id, status, expires_at, clinics(name), patients(name)",
+      "id, clinic_id, patient_id, kind, assessment_type, template_id, status, expires_at, created_by, clinics(name), patients(name)",
     )
     .eq("token_hash", tokenHash)
     .maybeSingle();
@@ -94,5 +96,6 @@ export async function resolvePatientLink(
     assessmentType: data.assessment_type,
     templateId: data.template_id,
     status,
+    createdBy: data.created_by ?? null,
   };
 }
