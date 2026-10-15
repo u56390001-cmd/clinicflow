@@ -45,11 +45,11 @@ revoke update, delete on public.clinical_notes from authenticated;
 create or replace function public.clinical_notes_block_update()
 returns trigger
 language plpgsql
-as 
-begin
-  raise exception 'clinical_notes is append-only; UPDATE is not permitted';
-end;
-;
+AS $$
+BEGIN
+  RAISE EXCEPTION 'clinical_notes is append-only; UPDATE is not permitted';
+END;
+$$;
 
 drop trigger if exists clinical_notes_no_update on public.clinical_notes;
 create trigger clinical_notes_no_update
@@ -59,11 +59,11 @@ create trigger clinical_notes_no_update
 create or replace function public.clinical_notes_block_delete()
 returns trigger
 language plpgsql
-as 
-begin
-  raise exception 'clinical_notes is append-only; DELETE is not permitted';
-end;
-;
+AS $$
+BEGIN
+  RAISE EXCEPTION 'clinical_notes is append-only; DELETE is not permitted';
+END;
+$$;
 
 drop trigger if exists clinical_notes_no_delete on public.clinical_notes;
 create trigger clinical_notes_no_delete

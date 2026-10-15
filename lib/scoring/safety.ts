@@ -3,8 +3,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { logAuditEvent } from "@/lib/auth/role-guard";
 import { getBaseUrl } from "@/lib/booking-url";
 import { APP_ROUTES } from "@/lib/constants";
-import { sendAssessmentSafetyAlert } from "@/lib/email/send";
 import { riskLevelLabel } from "@/lib/scoring/labels";
+import {
+  notifyCareTeamSafetyAlert,
+  type SafetyCareRecipient,
+  type SafetyChannelDelivery,
+} from "@/lib/scoring/safety-notify";
 import type { ScoringResult } from "@/lib/scoring/types";
 import type {
   ClinicRole,
@@ -22,7 +26,8 @@ import type {
  *   1. Raise (never lower) the patient's `psych_safety.risk_level`.
  *   2. Append a `PENDING_REVIEW` row to `assessment_safety_events`.
  *   3. Append an immutable `audit_logs` entry.
- *   4. Email the care team (owner / clinic admin / doctor).
+ *   4. Notify the care team on every available channel (email + WhatsApp,
+ *      with SMS reserved for a future provider) via `safety-notify.ts`.
  *
  * Every step is best-effort and non-throwing: a failed email or audit write
  * must never lose the clinical assessment that triggered it.
@@ -48,7 +53,10 @@ export type AssessmentSafetyOutcome = {
   flagged: boolean;
   riskLevel: PsychAssessmentRiskLevel;
   reviewStatus: PsychAssessmentReviewStatus;
+  /** Email addresses reached. Retained for backward compatibility. */
   notified: string[];
+  /** Per-channel delivery record (Phase 5). */
+  channels: SafetyChannelDelivery;
 };
 
 function mergeRiskFactors(existing: string | null | undefined, addition: string): string {
@@ -60,23 +68,52 @@ function mergeRiskFactors(existing: string | null | undefined, addition: string)
   return parts.join(", ");
 }
 
-async function careTeamEmails(
+async function careTeamRecipients(
   widget: SupabaseClient<Database>,
   clinicId: string,
-): Promise<string[]> {
+): Promise<SafetyCareRecipient[]> {
   const { data, error } = await widget
     .from("clinic_members")
-    .select("email, role")
+    .select("email, user_id, role")
     .eq("clinic_id", clinicId)
     .in("role", CARE_TEAM_ROLES);
   if (error || !data) return [];
-  return Array.from(
-    new Set(
-      data
-        .map((member) => (member.email ?? "").trim())
-        .filter((email) => email.length > 0),
-    ),
+
+  // Staff phone numbers live on the doctor roster (`doctors.phone`), not on
+  // `clinic_members`. Resolve them by the shared user id so doctor recipients
+  // can also receive WhatsApp/SMS alerts; everyone else stays email-only.
+  const userIds = Array.from(
+    new Set(data.map((member) => member.user_id).filter((id): id is string => !!id)),
   );
+  const phoneByUser = new Map<string, string>();
+  if (userIds.length > 0) {
+    const { data: doctors } = await widget
+      .from("doctors")
+      .select("user_id, phone")
+      .eq("clinic_id", clinicId)
+      .in("user_id", userIds);
+    for (const doctor of doctors ?? []) {
+      if (doctor.user_id && doctor.phone && !phoneByUser.has(doctor.user_id)) {
+        phoneByUser.set(doctor.user_id, doctor.phone);
+      }
+    }
+  }
+
+  const seen = new Set<string>();
+  const recipients: SafetyCareRecipient[] = [];
+  for (const member of data) {
+    const email = (member.email ?? "").trim();
+    if (email.length === 0) continue;
+    const key = email.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    recipients.push({
+      userId: member.user_id ?? null,
+      email,
+      phone: member.user_id ? (phoneByUser.get(member.user_id) ?? null) : null,
+    });
+  }
+  return recipients;
 }
 
 /**
@@ -127,7 +164,13 @@ export async function applyAssessmentSafety(params: {
       details: { instrument: result.instrumentCode, version: result.instrumentVersion },
       created_at: now,
     });
-    return { flagged: false, riskLevel, reviewStatus: "CLEAR", notified: [] };
+    return {
+      flagged: false,
+      riskLevel,
+      reviewStatus: "CLEAR",
+      notified: [],
+      channels: { email: [], whatsapp: [], sms: [] },
+    };
   }
 
   const reviewStatus: PsychAssessmentReviewStatus = "PENDING_REVIEW";
@@ -218,10 +261,15 @@ export async function applyAssessmentSafety(params: {
     console.error("[applyAssessmentSafety] no actor for audit trail", { assessmentId });
   }
 
-  // 4. Notify the care team.
-  const recipients = await careTeamEmails(widget, clinicId);
-  const sent = await sendAssessmentSafetyAlert(
-    {
+  // 4. Notify the care team across every available channel (email + WhatsApp
+  //    via the engagement pipeline, with SMS reserved for a future provider).
+  //    Best-effort and non-throwing.
+  const recipients = await careTeamRecipients(widget, clinicId);
+  const channels = await notifyCareTeamSafetyAlert({
+    supabase: widget,
+    clinicId,
+    patientId,
+    content: {
       clinicName: clinicName ?? "your clinic",
       patientName,
       instrumentName,
@@ -230,12 +278,13 @@ export async function applyAssessmentSafety(params: {
       reviewUrl: `${getBaseUrl()}${APP_ROUTES.app.patients}?id=${patientId}`,
     },
     recipients,
-  );
+  });
 
   return {
     flagged: true,
     riskLevel,
     reviewStatus,
-    notified: sent.delivered,
+    notified: channels.email,
+    channels,
   };
 }

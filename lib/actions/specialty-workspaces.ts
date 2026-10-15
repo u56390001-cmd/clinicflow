@@ -30,9 +30,16 @@ import {
   type SessionSectionKey,
 } from "@/lib/psych-session";
 import { PSYCHOMETRIC_INSTRUMENTS, isPsychometricKey } from "@/lib/psychometrics";
+import {
+  ASSESSMENT_RATERS,
+  DEFAULT_RATER_TYPE,
+  administrationModeForRater,
+  completedByForRater,
+} from "@/lib/assessments/raters";
 import type {
   AssessmentInterpretationRule,
   AssessmentQuestion,
+  AssessmentRaterType,
   IntakeFieldKey,
 } from "@/types/database";
 import type { ActionResult } from "@/types";
@@ -153,6 +160,9 @@ const savePsychAssessmentSchema = z.object({
   score: z.coerce.number().min(0).max(150).optional().nullish(),
   severity: note,
   notes: note,
+  /** Phase 7 — who answered the measure (defaults to a self-report). */
+  rater_type: z.enum(ASSESSMENT_RATERS.map((rater) => rater.value) as [AssessmentRaterType, ...AssessmentRaterType[]]).optional(),
+  rater_name: note,
   conducted_at: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date.")
@@ -1484,6 +1494,7 @@ export async function savePsychAssessmentAction(
   const g = await guard();
   if (!g.ok) return g.result;
 
+  const raterType = parsed.data.rater_type ?? DEFAULT_RATER_TYPE;
   const { data, error } = await g.supabase
     .from("psych_assessments")
     .insert({
@@ -1495,6 +1506,10 @@ export async function savePsychAssessmentAction(
       severity: parsed.data.severity || null,
       notes: parsed.data.notes || null,
       conducted_at: parsed.data.conducted_at || new Date().toISOString().slice(0, 10),
+      rater_type: raterType,
+      rater_name: parsed.data.rater_name || null,
+      administration_mode: administrationModeForRater(raterType),
+      completed_by: completedByForRater(raterType),
     })
     .select("id")
     .single();

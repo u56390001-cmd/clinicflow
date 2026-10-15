@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { sendAssessmentInviteAction } from "@/lib/actions/patient-links";
+import { ASSESSMENT_RATERS } from "@/lib/assessments/raters";
+import type { AssessmentRaterType } from "@/types/database";
 
 /**
  * Phase 3 — issue a patient assessment invite.
  *
- * POST { patientId, assessmentType?, templateId?, appointmentId?, deliveryChannel? }
+ * POST { patientId, assessmentType?, templateId?, appointmentId?, deliveryChannel?, raterType? }
  *
  * Authenticated, clinic-scoped. This route is a thin JSON facade over
  * `sendAssessmentInviteAction` — the same implementation the cockpit's
@@ -16,6 +18,10 @@ import { sendAssessmentInviteAction } from "@/lib/actions/patient-links";
  * `deliveryChannel`: whatsapp (fully wired) | sms (not yet connected) |
  * in_clinic | link. For anything but WhatsApp the caller shares the returned
  * `path` manually; the DB records `delivery_status = 'pending'`.
+ *
+ * `raterType` (Phase 7): who will answer — SELF (default), or a third-party
+ * informant such as PARENT/TEACHER, so the completed assessment is attributed
+ * correctly for multi-rater comparison.
  */
 
 const bodySchema = z.object({
@@ -27,6 +33,14 @@ const bodySchema = z.object({
     .enum(["whatsapp", "sms", "in_clinic", "link"])
     .optional()
     .default("whatsapp"),
+  raterType: z
+    .enum(
+      ASSESSMENT_RATERS.map((rater) => rater.value) as [
+        AssessmentRaterType,
+        ...AssessmentRaterType[],
+      ],
+    )
+    .optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -54,6 +68,7 @@ export async function POST(request: NextRequest) {
     templateId: parsed.data.templateId ?? null,
     appointmentId: parsed.data.appointmentId ?? null,
     deliveryChannel: parsed.data.deliveryChannel,
+    raterType: parsed.data.raterType,
   });
 
   if (!result.ok) {

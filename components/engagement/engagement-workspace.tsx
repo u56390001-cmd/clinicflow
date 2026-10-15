@@ -36,8 +36,10 @@ import { RemindersView } from "@/components/engagement/reminders-view";
 import type { ReminderFormValue } from "@/components/engagement/reminder-modal";
 import { ReviewDialog } from "@/components/engagement/review-dialog";
 import { ReviewRequestCard } from "@/components/engagement/review-request-card";
+import { SafetyAlertCard } from "@/components/engagement/safety-alert-card";
 import { TemplateConfigCard } from "@/components/engagement/template-config-card";
 import { WhatsappPreview } from "@/components/engagement/whatsapp-preview";
+import { DEFAULT_SAFETY_ALERT_TEMPLATE } from "@/lib/engagement-safety";
 import { cn } from "@/lib/utils";
 
 type Toast = { message: string; tone: "success" | "error" };
@@ -495,6 +497,18 @@ export function EngagementWorkspace({ snapshot: initial }: { snapshot: Engagemen
                   disabled={!snapshot.canWrite}
                 />
               </div>
+
+              {/* Clinical safety alert — staff-facing (Phase 5) */}
+              <SafetyAlertCard
+                enabled={Boolean(snapshot.automations.safety_alert?.enabled)}
+                onToggle={(checked) => toggleAutomation("safety_alert", checked)}
+                templateText={
+                  snapshot.templates.safety_alert?.templateText ??
+                  DEFAULT_SAFETY_ALERT_TEMPLATE
+                }
+                onSaveTemplate={(text) => saveTemplate("safety_alert", text)}
+                disabled={!snapshot.canWrite}
+              />
 
               {/* General settings */}
               <GeneralSettingsCard

@@ -14,7 +14,8 @@ import {
 } from "@/lib/actions/patient-links";
 import { PSYCHOMETRIC_INSTRUMENTS, PSYCHOMETRIC_KEYS } from "@/lib/psychometrics";
 import { listInstruments } from "@/lib/scoring";
-import type { AssessmentTemplate } from "@/types/database";
+import { ASSESSMENT_RATERS, DEFAULT_RATER_TYPE } from "@/lib/assessments/raters";
+import type { AssessmentRaterType, AssessmentTemplate } from "@/types/database";
 
 const TEMPLATE_PREFIX = "tmpl:";
 
@@ -54,6 +55,7 @@ export function PatientLinksPanel({
 }) {
   const [pending, setPending] = useState<Kind | null>(null);
   const [assessmentType, setAssessmentType] = useState<string>(PSYCHOMETRIC_KEYS[0]);
+  const [raterType, setRaterType] = useState<AssessmentRaterType>(DEFAULT_RATER_TYPE);
   const hasWhatsapp = (whatsappNumber ?? "").replace(/[^\d]/g, "").length > 0;
   const disabled = !canManage || pending !== null || !hasWhatsapp;
 
@@ -66,10 +68,10 @@ export function PatientLinksPanel({
         const id = assessmentType.slice(TEMPLATE_PREFIX.length);
         const template = templates.find((t) => t.id === id);
         result = template
-          ? await sendPsychAssessmentLinkAction(patientId, template.name, template.id)
+          ? await sendPsychAssessmentLinkAction(patientId, template.name, template.id, null, "whatsapp", raterType)
           : { ok: false as const, message: "That assessment is no longer available." };
       } else {
-        result = await sendPsychAssessmentLinkAction(patientId, assessmentType);
+        result = await sendPsychAssessmentLinkAction(patientId, assessmentType, null, null, "whatsapp", raterType);
       }
     } else {
       result =
@@ -176,6 +178,26 @@ export function PatientLinksPanel({
                   ))}
                 </optgroup>
               ) : null}
+            </NativeSelect>
+          </div>
+          <div className="min-w-[150px]">
+            <label
+              htmlFor="psych-link-respondent"
+              className="text-[12.5px] font-bold text-ink"
+            >
+              Respondent
+            </label>
+            <NativeSelect
+              id="psych-link-respondent"
+              value={raterType}
+              disabled={disabled}
+              onChange={(event) => setRaterType(event.target.value as AssessmentRaterType)}
+            >
+              {ASSESSMENT_RATERS.map((rater) => (
+                <option key={rater.value} value={rater.value}>
+                  {rater.label}
+                </option>
+              ))}
             </NativeSelect>
           </div>
           <Button

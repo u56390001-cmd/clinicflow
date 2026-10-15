@@ -36,6 +36,7 @@ import {
   type CurrentClinicAccess,
 } from "@/lib/clinic-access";
 import { APP_ROUTES } from "@/lib/constants";
+import { DEFAULT_SAFETY_ALERT_TEMPLATE } from "@/lib/engagement-safety";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult } from "@/types";
 import type { Database } from "@/types/database";
@@ -129,6 +130,7 @@ const TEMPLATE_DEFAULTS: Record<
     "Hi {patient_name}, we missed you at {clinic_name} today. 💙 We understand life gets busy — would you like to reschedule your appointment with {doctor_name}? Reply YES to pick a new time.",
   auto_follow_up:
     "Hi {patient_name}! Hope you're recovering well after your visit with {doctor_name}. 💙 Reply with any concerns or to schedule a follow-up.",
+  safety_alert: DEFAULT_SAFETY_ALERT_TEMPLATE,
 };
 
 const AUTOMATION_DEFAULTS: Record<
@@ -143,6 +145,7 @@ const AUTOMATION_DEFAULTS: Record<
   check_in: { enabled: true, config: {} },
   no_show_recovery: { enabled: true, config: { delay_hours: 24 } },
   auto_follow_up: { enabled: true, config: { days_after: 3 } },
+  safety_alert: { enabled: true, config: {} },
   general: { enabled: true, config: { maps_link: "" } },
 };
 

@@ -2446,6 +2446,10 @@ export const ENGAGEMENT_TEMPLATE_TYPES = [
   "check_in",
   "no_show_recovery",
   "auto_follow_up",
+  // Phase 5 — staff-facing: the clinical safety alert sent over WhatsApp when a
+  // scored assessment trips a safety rule. Managed like any other template, but
+  // its recipient is the care team, not the patient.
+  "safety_alert",
 ] as const;
 
 export const ENGAGEMENT_AUTOMATION_TYPES = [

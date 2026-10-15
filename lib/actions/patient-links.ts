@@ -38,6 +38,10 @@ import {
   validateInstrumentAnswers,
 } from "@/lib/scoring";
 import { applyAssessmentSafety } from "@/lib/scoring/safety";
+import {
+  administrationModeForRater,
+  completedByForRater,
+} from "@/lib/assessments/raters";
 import { createClient } from "@/lib/supabase/server";
 import { createWidgetClient } from "@/lib/supabase/widget";
 import {
@@ -55,6 +59,7 @@ import {
   PATIENT_DOCUMENTS_BUCKET,
 } from "@/types/database";
 import type {
+  AssessmentRaterType,
   PatientShareLinkDeliveryChannel,
   PatientShareLinkDeliveryStatus,
   PatientShareLinkKind,
@@ -119,6 +124,7 @@ async function mintAndSendLink(
   appointmentId: string | null,
   templateId: string | null = null,
   deliveryChannel: PatientShareLinkDeliveryChannel = "whatsapp",
+  raterType: AssessmentRaterType = "SELF",
 ): Promise<SendLinkResult> {
   if (!uuidSchema.safeParse(patientId).success) {
     return { ok: false, message: "Missing patient id." };
@@ -222,6 +228,7 @@ async function mintAndSendLink(
       clinician_id: user.id,
       delivery_channel: deliveryChannel,
       delivery_status: "pending",
+      rater_type: kind === "assessment" ? raterType : "SELF",
       expires_at: expiresAt,
     })
     .select("id")
@@ -324,6 +331,7 @@ export async function sendPsychAssessmentLinkAction(
   templateId?: string | null,
   appointmentId?: string | null,
   deliveryChannel: PatientShareLinkDeliveryChannel = "whatsapp",
+  raterType: AssessmentRaterType = "SELF",
 ): Promise<SendInviteResult> {
   const result = await mintAndSendLink(
     "assessment",
@@ -332,6 +340,7 @@ export async function sendPsychAssessmentLinkAction(
     appointmentId ?? null,
     templateId ?? null,
     deliveryChannel,
+    raterType,
   );
   if (!result.ok) return result;
   return {
@@ -358,6 +367,7 @@ export async function sendAssessmentInviteAction(input: {
   templateId?: string | null;
   appointmentId?: string | null;
   deliveryChannel?: PatientShareLinkDeliveryChannel;
+  raterType?: AssessmentRaterType;
 }): Promise<SendInviteResult> {
   const deliveryChannel = input.deliveryChannel ?? "whatsapp";
   if (!input.assessmentType && !input.templateId) {
@@ -370,6 +380,7 @@ export async function sendAssessmentInviteAction(input: {
     input.appointmentId ?? null,
     input.templateId ?? null,
     deliveryChannel,
+    input.raterType ?? "SELF",
   );
   if (!result.ok) return result;
   return {
@@ -648,7 +659,9 @@ export async function submitAssessmentLinkAction(
       score,
       severity,
       conducted_at: now.slice(0, 10),
-      completed_by: "patient_online",
+      completed_by: completedByForRater(preview.raterType),
+      rater_type: preview.raterType,
+      administration_mode: administrationModeForRater(preview.raterType),
       answers,
       source_link_id: preview.tokenId,
     });
@@ -697,7 +710,7 @@ export async function submitAssessmentLinkAction(
         score: result.rawScore,
         severity: result.severityBand,
         conducted_at: now.slice(0, 10),
-        completed_by: "patient_online",
+        completed_by: completedByForRater(preview.raterType),
         answers: validation.data,
         source_link_id: preview.tokenId,
         scaled_score: result.scaledScore,
@@ -705,7 +718,8 @@ export async function submitAssessmentLinkAction(
         diagnostic_criteria_results: result.diagnosticCriteria,
         is_valid: result.isValid,
         invalidation_reason: result.invalidationReason,
-        administration_mode: "SELF_REPORT",
+        administration_mode: administrationModeForRater(preview.raterType),
+        rater_type: preview.raterType,
         template_version: result.instrumentVersion,
         template_snapshot: toInstrumentMeta(validated),
         instrument_code: result.instrumentCode,
@@ -792,7 +806,9 @@ export async function submitAssessmentLinkAction(
     score,
     severity,
     conducted_at: now.slice(0, 10),
-    completed_by: "patient_online",
+    completed_by: completedByForRater(preview.raterType),
+    rater_type: preview.raterType,
+    administration_mode: administrationModeForRater(preview.raterType),
     answers,
     source_link_id: preview.tokenId,
   });

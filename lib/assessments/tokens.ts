@@ -7,6 +7,7 @@ import {
 import { randomHexToken, sha256Hex } from "@/lib/patient-intake";
 import { createWidgetClient } from "@/lib/supabase/widget";
 import type {
+  AssessmentRaterType,
   PatientShareLinkDeliveryChannel,
   PatientShareLinkDeliveryStatus,
 } from "@/types/database";
@@ -73,6 +74,8 @@ export type MintAssessmentInviteInput = {
   /** Clinic library template this link points at, when applicable. */
   templateId?: string | null;
   deliveryChannel: PatientShareLinkDeliveryChannel;
+  /** Phase 7 — respondent the invite is meant for. Defaults to SELF. */
+  raterType?: AssessmentRaterType;
   /** Days until expiry. Defaults to the shared patient-link TTL. */
   ttlDays?: number;
   metadata?: Record<string, unknown>;
@@ -112,6 +115,7 @@ export async function mintAssessmentInvite(
       clinician_id: input.clinicianId ?? input.createdBy,
       delivery_channel: input.deliveryChannel,
       delivery_status: "pending",
+      rater_type: input.raterType ?? "SELF",
       metadata: input.metadata ?? {},
       expires_at: expiresAt,
     })

@@ -11,13 +11,14 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Activity,
   Brain,
+  CalendarClock,
   ChevronRight,
   ClipboardList,
   FileText,
@@ -40,6 +41,7 @@ import { SessionsTab, type PsychDraft } from "@/components/patients/record/works
 import { PatientLinksPanel } from "@/components/patients/record/workspaces/patient-links-panel";
 import { AssessmentSafetyBanner } from "@/components/patients/record/workspaces/assessment-safety-banner";
 import { TrendChart } from "@/components/clinical/TrendChart";
+import { AISummaryCard as LongitudinalSummaryCard } from "@/components/clinical/AISummaryCard";
 import { AiSummaryCard } from "@/components/patients/record/ai-summary-card";
 import { DocumentsTab } from "@/components/patients/record/documents-tab";
 import { RecordEmpty, RecordFact, RecordSection } from "@/components/patients/record/record-primitives";
@@ -54,6 +56,14 @@ import {
   savePsychCarePlanAction,
 } from "@/lib/actions/specialty-workspaces";
 import { canSendOnline, severityFromBands, templateMaxScore } from "@/lib/assessment-library";
+import {
+  createAssessmentScheduleRuleAction,
+  deleteAssessmentScheduleRuleAction,
+  listAssessmentScheduleRulesAction,
+  setAssessmentScheduleRuleActiveAction,
+} from "@/lib/actions/assessment-schedules";
+import { getInstrument } from "@/lib/scoring";
+import { ASSESSMENT_RATERS, raterLabel } from "@/lib/assessments/raters";
 import { useSessionRecorder } from "@/lib/copilot/hooks/useSessionRecorder";
 import type { PsychNoteExtraction, WorkspaceExtraction } from "@/lib/copilot/types";
 import { utcIsoToClinicLocalInput } from "@/lib/time";
@@ -66,6 +76,8 @@ import { PSYCHOMETRIC_INSTRUMENTS, isPsychometricKey } from "@/lib/psychometrics
 import { hasPsychSummaryContent } from "@/lib/psych-summary";
 import { PSYCHOLOGY_WORKSPACE, type PsychTabId } from "@/lib/specialty-workspaces";
 import type {
+  AssessmentRaterType,
+  AssessmentScheduleRule,
   AssessmentTemplate,
   PatientDirectoryRow,
   PsychAssessment,
@@ -1047,6 +1059,8 @@ function PsychometricsTab({
   const [severity, setSeverity] = useState("");
   const [date, setDate] = useState("");
   const [notes, setNotes] = useState("");
+  const [raterType, setRaterType] = useState<AssessmentRaterType>("SELF");
+  const [raterName, setRaterName] = useState("");
 
   const selectedTemplate = type.startsWith(TEMPLATE_PREFIX)
     ? (templates.find((t) => templateValue(t) === type) ?? null)
@@ -1081,6 +1095,8 @@ function PsychometricsTab({
       severity: severity || null,
       conducted_at: date || null,
       notes: notes || null,
+      rater_type: raterType,
+      rater_name: raterName || null,
     });
     setPending(false);
     if (result.ok) {
@@ -1089,6 +1105,8 @@ function PsychometricsTab({
       setSeverity("");
       setDate("");
       setNotes("");
+      setRaterType("SELF");
+      setRaterName("");
       router.refresh();
     } else {
       toast.error(result.message);
@@ -1140,6 +1158,21 @@ function PsychometricsTab({
         )}
       </RecordSection>
 
+      <LongitudinalSummaryCard
+        patientId={patientId}
+        assessmentCount={psych.assessments.filter((a) => a.score !== null).length}
+        canManage={canManage}
+      />
+
+      <AssessmentScheduleCard
+        patientId={patientId}
+        canManage={canManage}
+        templates={templates.filter(canSendOnline)}
+        hasWhatsappNumber={Boolean(whatsappNumber)}
+      />
+
+      <RaterComparisonCard assessments={psych.assessments} templates={templates} />
+
       {canManage && (
         <RecordSection title="Log assessment">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -1189,6 +1222,34 @@ function PsychometricsTab({
                 className="w-full rounded-control border border-text-muted/25 bg-surface px-2 py-1.5 text-[12.5px] text-text-primary outline-none"
               />
             </div>
+            <div>
+              <p className="text-ink mb-1.5 text-[12.5px] font-bold">Respondent</p>
+              <select
+                value={raterType}
+                onChange={(e) => setRaterType(e.target.value as AssessmentRaterType)}
+                className="w-full rounded-control border border-text-muted/25 bg-surface px-2 py-1.5 text-[12.5px] text-text-primary outline-none"
+              >
+                {ASSESSMENT_RATERS.map((rater) => (
+                  <option key={rater.value} value={rater.value}>
+                    {rater.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {raterType !== "SELF" && raterType !== "CLINICIAN" && (
+              <div>
+                <p className="text-ink mb-1.5 text-[12.5px] font-bold">
+                  Respondent name <span className="font-normal text-text-muted">(optional)</span>
+                </p>
+                <input
+                  type="text"
+                  value={raterName}
+                  onChange={(e) => setRaterName(e.target.value)}
+                  placeholder="e.g. mother, class teacher"
+                  className="w-full rounded-control border border-text-muted/25 bg-surface px-2 py-1.5 text-[12.5px] text-text-primary outline-none"
+                />
+              </div>
+            )}
           </div>
           <div className="mt-4">
             <p className="text-ink mb-1.5 text-[12.5px] font-bold">Notes</p>
@@ -1215,6 +1276,350 @@ function PsychometricsTab({
         templates={templates.filter(canSendOnline)}
       />
     </div>
+  );
+}
+
+function measureLabelFor(key: string, templates: AssessmentTemplate[]): string {
+  const template = templates.find((t) => t.name === key);
+  if (template) return template.name;
+  const validated = getInstrument(key);
+  if (validated) return validated.shortName;
+  return ASSESSMENT_LIBRARY[key]?.label ?? key;
+}
+
+/**
+ * Phase 7 — cross-rater comparison. Groups the patient's administrations of one
+ * measure by respondent and shows the latest score each rater gave, so a
+ * discrepancy (e.g. parent vs teacher) is visible at a glance. Renders nothing
+ * until a measure has been answered by more than one respondent.
+ */
+function RaterComparisonCard({
+  assessments,
+  templates,
+}: {
+  assessments: PsychAssessment[];
+  templates: AssessmentTemplate[];
+}) {
+  const groups = useMemo(() => {
+    const byKey = new Map<string, Map<AssessmentRaterType, PsychAssessment>>();
+    for (const a of assessments) {
+      const key = a.instrument_code ?? a.assessment_type;
+      const rater = (a.rater_type ?? "SELF") as AssessmentRaterType;
+      const map = byKey.get(key) ?? new Map<AssessmentRaterType, PsychAssessment>();
+      const existing = map.get(rater);
+      if (!existing || new Date(a.conducted_at) >= new Date(existing.conducted_at)) {
+        map.set(rater, a);
+      }
+      byKey.set(key, map);
+    }
+    return [...byKey.entries()]
+      .filter(([, map]) => map.size > 1)
+      .map(([key, map]) => ({
+        key,
+        label: measureLabelFor(key, templates),
+        rows: ASSESSMENT_RATERS.map((rater) => ({
+          rater: rater.value,
+          label: rater.label,
+          assessment: map.get(rater.value),
+        })).filter(
+          (
+            row,
+          ): row is {
+            rater: AssessmentRaterType;
+            label: string;
+            assessment: PsychAssessment;
+          } => row.assessment !== undefined,
+        ),
+      }));
+  }, [assessments, templates]);
+
+  const [selectedKey, setSelectedKey] = useState<string>("");
+  useEffect(() => {
+    if (groups.length > 0 && !groups.some((group) => group.key === selectedKey)) {
+      setSelectedKey(groups[0].key);
+    }
+  }, [groups, selectedKey]);
+
+  if (groups.length === 0) return null;
+  const group = groups.find((entry) => entry.key === selectedKey) ?? groups[0];
+
+  const scores = group.rows
+    .map((row) => row.assessment.score)
+    .filter((score): score is number => score !== null);
+  const range = scores.length > 1 ? Math.max(...scores) - Math.min(...scores) : null;
+
+  return (
+    <RecordSection title="Multi-rater comparison">
+      <p className="text-text-muted mb-3 text-[12.5px] leading-relaxed">
+        The same measure answered by different respondents. Differences between raters can be
+        clinically meaningful — for example a parent versus a teacher in child cases.
+      </p>
+
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <label htmlFor="rater-compare-measure" className="text-ink text-[12.5px] font-bold">
+          Measure
+        </label>
+        <select
+          id="rater-compare-measure"
+          value={group.key}
+          onChange={(event) => setSelectedKey(event.target.value)}
+          className="rounded-control border border-text-muted/25 bg-surface px-2 py-1.5 text-[12.5px] text-text-primary outline-none"
+        >
+          {groups.map((entry) => (
+            <option key={entry.key} value={entry.key}>
+              {entry.label}
+            </option>
+          ))}
+        </select>
+        {range !== null && (
+          <span className="bg-app text-text-secondary rounded-pill px-2 py-0.5 text-[11px] font-semibold">
+            Range: {range} pts
+          </span>
+        )}
+      </div>
+
+      <div className="overflow-hidden rounded-control border border-text-muted/15">
+        <table className="w-full text-left text-[12.5px]">
+          <thead className="bg-app text-text-muted">
+            <tr>
+              <th className="px-3 py-2 font-semibold">Respondent</th>
+              <th className="px-3 py-2 font-semibold">Score</th>
+              <th className="px-3 py-2 font-semibold">Severity</th>
+              <th className="px-3 py-2 font-semibold">Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {group.rows.map((row) => (
+              <tr key={row.rater} className="border-t border-text-muted/10">
+                <td className="text-ink px-3 py-2 font-medium">
+                  {row.label}
+                  {row.assessment.rater_name ? ` · ${row.assessment.rater_name}` : ""}
+                </td>
+                <td className="text-text-primary px-3 py-2">{row.assessment.score ?? "—"}</td>
+                <td className="text-text-secondary px-3 py-2">{row.assessment.severity ?? "—"}</td>
+                <td className="text-text-muted px-3 py-2">
+                  {formatShortDate(row.assessment.conducted_at)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </RecordSection>
+  );
+}
+
+function AssessmentScheduleCard({
+  patientId,
+  canManage,
+  templates,
+  hasWhatsappNumber,
+}: {
+  patientId: string;
+  canManage: boolean;
+  templates: AssessmentTemplate[];
+  hasWhatsappNumber: boolean;
+}) {
+  const router = useRouter();
+  const [rules, setRules] = useState<AssessmentScheduleRule[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [pending, setPending] = useState(false);
+  const defaultChoice = ASSESSMENT_TYPES.filter((key) => key !== "Other")[0] ?? "";
+  const [choice, setChoice] = useState<string>(defaultChoice);
+  const [cadence, setCadence] = useState("2");
+  const [unit, setUnit] = useState<"days" | "weeks">("weeks");
+
+  const optionList = [
+    ...ASSESSMENT_TYPES.filter((key) => key !== "Other").map((key) => ({
+      value: key,
+      label: ASSESSMENT_LIBRARY[key].label,
+    })),
+    ...templates.map((t) => ({ value: templateValue(t), label: t.name })),
+  ];
+
+  const load = useCallback(async () => {
+    const result = await listAssessmentScheduleRulesAction(patientId);
+    if (result.ok) setRules(result.data);
+    setLoading(false);
+  }, [patientId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  function labelFor(rule: AssessmentScheduleRule): string {
+    if (rule.template_id) {
+      return (
+        templates.find((t) => t.id === rule.template_id)?.name ??
+        rule.assessment_type ??
+        "Assessment"
+      );
+    }
+    return rule.assessment_type
+      ? (ASSESSMENT_LIBRARY[rule.assessment_type]?.label ?? rule.assessment_type)
+      : "Assessment";
+  }
+
+  async function addRule() {
+    const n = Number(cadence);
+    if (!Number.isFinite(n) || n < 1) {
+      toast.error("Enter a cadence of at least 1.");
+      return;
+    }
+    const cadenceDays = Math.round(unit === "weeks" ? n * 7 : n);
+    if (cadenceDays > 365) {
+      toast.error("Cadence can be at most 365 days.");
+      return;
+    }
+    const isTemplate = choice.startsWith(TEMPLATE_PREFIX);
+    setPending(true);
+    const result = await createAssessmentScheduleRuleAction({
+      patientId,
+      assessmentType: isTemplate ? null : choice,
+      templateId: isTemplate ? choice.slice(TEMPLATE_PREFIX.length) : null,
+      cadenceDays,
+    });
+    setPending(false);
+    if (result.ok) {
+      toast.success("Reminder scheduled");
+      setRules((prev) => [result.data, ...prev]);
+      router.refresh();
+    } else {
+      toast.error(result.message);
+    }
+  }
+
+  async function toggleRule(rule: AssessmentScheduleRule) {
+    const result = await setAssessmentScheduleRuleActiveAction(rule.id, !rule.active);
+    if (result.ok) {
+      setRules((prev) => prev.map((r) => (r.id === rule.id ? result.data : r)));
+      router.refresh();
+    } else {
+      toast.error(result.message);
+    }
+  }
+
+  async function removeRule(id: string) {
+    const result = await deleteAssessmentScheduleRuleAction(id);
+    if (result.ok) {
+      setRules((prev) => prev.filter((r) => r.id !== id));
+      router.refresh();
+    } else {
+      toast.error(result.message);
+    }
+  }
+
+  return (
+    <RecordSection title="Recurring assessments">
+      <p className="text-text-muted mb-3 text-[12.5px] leading-relaxed">
+        Automatically send a fresh invite on a schedule so scores can be tracked over time.
+      </p>
+      {!hasWhatsappNumber && (
+        <p className="mb-3 text-[12px] font-semibold text-status-destructive">
+          This patient has no WhatsApp number — reminders are created but won&apos;t be delivered
+          until one is added.
+        </p>
+      )}
+
+      {loading ? (
+        <div className="text-text-muted flex items-center gap-2 text-[12.5px]">
+          <Loader2 aria-hidden="true" className="size-3.5 animate-spin" /> Loading…
+        </div>
+      ) : rules.length > 0 ? (
+        <ul className="space-y-2">
+          {rules.map((rule) => (
+            <li
+              key={rule.id}
+              className="bg-app flex flex-wrap items-center justify-between gap-2 rounded-control border border-text-muted/15 px-3 py-2"
+            >
+              <div className="min-w-0">
+                <p className="text-ink text-[12.5px] font-bold">{labelFor(rule)}</p>
+                <p className="text-text-muted text-[11.5px]">
+                  Every {rule.cadence_days} day{rule.cadence_days === 1 ? "" : "s"}
+                  {rule.active && rule.next_run_at
+                    ? ` · next ${formatShortDate(rule.next_run_at)}`
+                    : " · paused"}
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {canManage && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleRule(rule)}
+                    >
+                      {rule.active ? "Pause" : "Resume"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Remove reminder"
+                      onClick={() => removeRule(rule.id)}
+                    >
+                      <Trash2 aria-hidden="true" className="size-3.5" />
+                    </Button>
+                  </>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-text-muted text-[12.5px]">No recurring assessments yet.</p>
+      )}
+
+      {canManage && optionList.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <div className="min-w-[160px] flex-1">
+            <p className="text-ink mb-1.5 text-[12.5px] font-bold">Assessment</p>
+            <select
+              value={choice}
+              onChange={(e) => setChoice(e.target.value)}
+              className="w-full rounded-control border border-text-muted/25 bg-surface px-2 py-1.5 text-[12.5px] text-text-primary outline-none"
+            >
+              {optionList.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="w-[90px]">
+            <p className="text-ink mb-1.5 text-[12.5px] font-bold">Repeat every</p>
+            <input
+              type="number"
+              min={1}
+              max={365}
+              value={cadence}
+              onChange={(e) => setCadence(e.target.value)}
+              className="w-full rounded-control border border-text-muted/25 bg-surface px-2 py-1.5 text-[12.5px] text-text-primary outline-none"
+            />
+          </div>
+          <div className="w-[110px]">
+            <p className="text-ink mb-1.5 text-[12.5px] font-bold">Unit</p>
+            <select
+              value={unit}
+              onChange={(e) => setUnit(e.target.value as "days" | "weeks")}
+              className="w-full rounded-control border border-text-muted/25 bg-surface px-2 py-1.5 text-[12.5px] text-text-primary outline-none"
+            >
+              <option value="days">Days</option>
+              <option value="weeks">Weeks</option>
+            </select>
+          </div>
+          <Button type="button" size="sm" onClick={addRule} disabled={pending} className="gap-1.5">
+            {pending ? (
+              <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
+            ) : (
+              <CalendarClock aria-hidden="true" className="size-3.5" />
+            )}
+            {pending ? "Saving…" : "Schedule"}
+          </Button>
+        </div>
+      )}
+    </RecordSection>
   );
 }
 
@@ -1274,6 +1679,12 @@ function AssessmentTrendRow({ assessment, canManage, onDelete, template }: { ass
           <div className="flex flex-wrap items-center justify-end gap-1.5">
             {assessment.severity && <span className="text-[11.5px] font-medium text-text-secondary">{assessment.severity}</span>}
             <CompletedByBadge value={assessment.completed_by} />
+            {assessment.rater_type && assessment.rater_type !== "SELF" && (
+              <span className="rounded-pill bg-primary/10 px-2 py-0.5 text-[10.5px] font-semibold text-primary">
+                {raterLabel(assessment.rater_type)}
+                {assessment.rater_name ? ` · ${assessment.rater_name}` : ""}
+              </span>
+            )}
           </div>
           {assessment.notes && <p className="truncate text-[11px] text-ink-faint" title={assessment.notes}>{assessment.notes}</p>}
           <div className="mt-0.5 flex flex-wrap items-center justify-end gap-2">

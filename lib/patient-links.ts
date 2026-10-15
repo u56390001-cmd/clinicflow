@@ -1,6 +1,10 @@
 import { createWidgetClient } from "@/lib/supabase/widget";
 import { randomHexToken, sha256Hex } from "@/lib/patient-intake";
-import type { PatientShareLinkKind, PatientShareLinkStatus } from "@/types/database";
+import type {
+  AssessmentRaterType,
+  PatientShareLinkKind,
+  PatientShareLinkStatus,
+} from "@/types/database";
 
 /**
  * Shareable patient links (pre-visit questionnaire, psychometric assessment,
@@ -39,6 +43,8 @@ export type PatientLinkPreview = {
   assessmentType: string | null;
   /** Library template this link points at (0085), null for built-ins. */
   templateId: string | null;
+  /** Phase 7 — respondent this invite is meant for (multi-rater tools). */
+  raterType: AssessmentRaterType;
   status: PatientShareLinkStatus;
   /** The clinician who minted the link (attribution for system audit rows). */
   createdBy: string | null;
@@ -65,7 +71,7 @@ export async function resolvePatientLink(
   const { data } = await client
     .from("patient_share_links")
     .select(
-      "id, clinic_id, patient_id, kind, assessment_type, template_id, status, expires_at, created_by, clinics(name), patients(name)",
+      "id, clinic_id, patient_id, kind, assessment_type, template_id, rater_type, status, expires_at, created_by, clinics(name), patients(name)",
     )
     .eq("token_hash", tokenHash)
     .maybeSingle();
@@ -95,6 +101,7 @@ export async function resolvePatientLink(
     kind: data.kind as PatientShareLinkKind,
     assessmentType: data.assessment_type,
     templateId: data.template_id,
+    raterType: (data.rater_type as AssessmentRaterType) ?? "SELF",
     status,
     createdBy: data.created_by ?? null,
   };

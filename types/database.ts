@@ -1240,6 +1240,16 @@ export type PsychAssessmentCompletedBy = "patient_online" | "reception" | "psych
 /** Phase 1 §3.1 — how the instrument was administered (distinct from who typed it in). */
 export type PsychAssessmentAdministrationMode = "SELF_REPORT" | "CLINICIAN_ENTERED" | "PROXY";
 
+/** Phase 7 — the respondent who answered a measure (multi-rater tools). */
+export type AssessmentRaterType =
+  | "SELF"
+  | "PARENT"
+  | "TEACHER"
+  | "CLINICIAN"
+  | "PARTNER"
+  | "CAREGIVER"
+  | "OTHER";
+
 /** Phase 1 §2.1 — deterministic risk stratum attached to a scored assessment. */
 export type PsychAssessmentRiskLevel = "NONE" | "LOW" | "MODERATE" | "HIGH";
 
@@ -1358,6 +1368,11 @@ export type PsychAssessment = {
   /** Why the score is invalid, when `is_valid` is false. */
   invalidation_reason: string | null;
   administration_mode: PsychAssessmentAdministrationMode;
+  /* --- Phase 7 multi-rater tools (migration 0093) ------------------------- */
+  /** Respondent who answered the measure. */
+  rater_type: AssessmentRaterType;
+  /** Optional free-text name of the respondent (e.g. the parent/teacher). */
+  rater_name: string | null;
   /** Version of the instrument/template snapshotted onto this response. */
   template_version: string | null;
   /** Immutable snapshot of the structure scored, for legal auditability. */
@@ -1444,11 +1459,36 @@ export type PatientShareLink = {
   clinician_id: string | null;
   delivery_channel: PatientShareLinkDeliveryChannel | null;
   delivery_status: PatientShareLinkDeliveryStatus;
+  /** Phase 7 — respondent the invite is meant for (multi-rater tools). */
+  rater_type: AssessmentRaterType;
   metadata: Record<string, unknown>;
   expires_at: string;
   submitted_at: string | null;
   submission: Record<string, unknown> | null;
   created_at: string;
+};
+
+/**
+ * Psychology OPD — a recurring assessment reminder schedule (Phase 6, migration
+ * 0092). A cron sweeps due rules and mints a fresh `patient_share_links` invite
+ * over the existing WhatsApp channel. Service-role only (RLS, no policies).
+ */
+export type AssessmentScheduleRule = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  /** Instrument key (built-in) or library template name (when template_id set). */
+  assessment_type: string | null;
+  template_id: string | null;
+  cadence_days: number;
+  next_run_at: string;
+  last_run_at: string | null;
+  last_link_id: string | null;
+  active: boolean;
+  created_by: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 };
 
 /** Psychology — Care Plan (one per patient). */
@@ -4647,6 +4687,64 @@ export type Database = {
           },
         ];
       };
+      assessment_schedule_rules: {
+        Row: AssessmentScheduleRule;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          assessment_type?: string | null;
+          template_id?: string | null;
+          cadence_days: number;
+          next_run_at?: string;
+          last_run_at?: string | null;
+          last_link_id?: string | null;
+          active?: boolean;
+          created_by?: string | null;
+          metadata?: Record<string, unknown>;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          assessment_type?: string | null;
+          template_id?: string | null;
+          cadence_days?: number;
+          next_run_at?: string;
+          last_run_at?: string | null;
+          last_link_id?: string | null;
+          active?: boolean;
+          created_by?: string | null;
+          metadata?: Record<string, unknown>;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "assessment_schedule_rules_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "assessment_schedule_rules_patient_id_fkey";
+            columns: ["patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "assessment_schedule_rules_template_id_fkey";
+            columns: ["template_id"];
+            isOneToOne: false;
+            referencedRelation: "assessment_templates";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       patient_share_links: {
         Row: PatientShareLink;
         Insert: {
@@ -4663,6 +4761,7 @@ export type Database = {
           clinician_id?: string | null;
           delivery_channel?: PatientShareLinkDeliveryChannel | null;
           delivery_status?: PatientShareLinkDeliveryStatus;
+          rater_type?: AssessmentRaterType;
           metadata?: Record<string, unknown>;
           expires_at: string;
           submitted_at?: string | null;
@@ -4683,6 +4782,7 @@ export type Database = {
           clinician_id?: string | null;
           delivery_channel?: PatientShareLinkDeliveryChannel | null;
           delivery_status?: PatientShareLinkDeliveryStatus;
+          rater_type?: AssessmentRaterType;
           metadata?: Record<string, unknown>;
           expires_at?: string;
           submitted_at?: string | null;
@@ -5360,6 +5460,8 @@ export type Database = {
           is_valid?: boolean;
           invalidation_reason?: string | null;
           administration_mode?: PsychAssessmentAdministrationMode;
+          rater_type?: AssessmentRaterType;
+          rater_name?: string | null;
           template_version?: string | null;
           template_snapshot?: Record<string, unknown> | null;
           instrument_code?: string | null;
@@ -5391,6 +5493,8 @@ export type Database = {
           is_valid?: boolean;
           invalidation_reason?: string | null;
           administration_mode?: PsychAssessmentAdministrationMode;
+          rater_type?: AssessmentRaterType;
+          rater_name?: string | null;
           template_version?: string | null;
           template_snapshot?: Record<string, unknown> | null;
           instrument_code?: string | null;
