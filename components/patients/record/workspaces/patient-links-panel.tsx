@@ -57,7 +57,7 @@ export function PatientLinksPanel({
   const [assessmentType, setAssessmentType] = useState<string>(PSYCHOMETRIC_KEYS[0]);
   const [raterType, setRaterType] = useState<AssessmentRaterType>(DEFAULT_RATER_TYPE);
   const hasWhatsapp = (whatsappNumber ?? "").replace(/[^\d]/g, "").length > 0;
-  const disabled = !canManage || pending !== null || !hasWhatsapp;
+  const disabled = !canManage || pending !== null;
 
   async function send(kind: Kind) {
     if (disabled) return;
@@ -217,9 +217,14 @@ export function PatientLinksPanel({
         </div>
 
         {!hasWhatsapp && (
-          <p className="text-[11px] text-status-warning">
-            This patient has no WhatsApp number. Add one to send links.
-          </p>
+          <>
+            <p className="text-[11px] text-status-warning">
+              This patient has no WhatsApp number. WhatsApp send is disabled, but you can still copy the link manually.
+            </p>
+            <p className="text-[11px] text-text-muted">
+              The link will be copied to your clipboard — send it via SMS or any other channel.
+            </p>
+          </>
         )}
       </div>
     </RecordSection>
