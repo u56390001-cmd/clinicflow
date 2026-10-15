@@ -512,7 +512,7 @@ function riskItemLabel(assessments: PsychAssessment[]): string | null {
     if (assessment.assessment_type === "PHQ-9" && assessment.answers) {
       const value = assessment.answers["phq9_9"];
       if (typeof value === "number" && value > 0) {
-        return `Self-harm thoughts Ã‚Â· PHQ-9 item 9 (${value})`;
+        return `Self-harm thoughts · PHQ-9 item 9 (${value})`;
       }
     }
   }
@@ -520,7 +520,7 @@ function riskItemLabel(assessments: PsychAssessment[]): string | null {
     if (assessment.assessment_type === "BDI-II" && assessment.answers) {
       const value = assessment.answers["bdi2_9"];
       if (typeof value === "number" && value > 0) {
-        return `Suicidal thoughts Ã‚Â· BDI-II item 9 (${value})`;
+        return `Suicidal thoughts · BDI-II item 9 (${value})`;
       }
     }
   }
@@ -541,7 +541,7 @@ function buildSafetySnapshot(
 
   const factors = mergeTags(
     safety?.risk_factors,
-    hasThoughts ? `MSE Ã‚Â· ${riskThoughts}` : null,
+    hasThoughts ? `MSE · ${riskThoughts}` : null,
     itemLabel,
   );
 
@@ -690,7 +690,7 @@ function LatestAssessmentsCard({
                 </span>
                 <span className="text-[12px] text-text-secondary">
                   {assessment.score !== null ? `Score ${assessment.score}` : "Ã¢â‚¬â€"}
-                  {assessment.severity ? ` Ã‚Â· ${assessment.severity}` : ""}
+                  {assessment.severity ? ` · ${assessment.severity}` : ""}
                 </span>
               </div>
               <div className="mt-1 flex items-center gap-2">
@@ -744,7 +744,7 @@ function DocumentsSummaryCard({
           </p>
           <p className="text-[11px] text-ink-faint">
             {DOC_SOURCE_LABEL[latest.source] ?? "Clinic"}
-            {latest.document_date ? ` Ã‚Â· ${formatShortDate(latest.document_date)}` : ""}
+            {latest.document_date ? ` · ${formatShortDate(latest.document_date)}` : ""}
           </p>
         </div>
       ) : (
@@ -815,7 +815,7 @@ function buildTimeline(
       label: `${assessment.assessment_type} recorded`,
       detail:
         assessment.score !== null
-          ? `Score ${assessment.score}${assessment.severity ? ` Ã‚Â· ${assessment.severity}` : ""}`
+          ? `Score ${assessment.score}${assessment.severity ? ` · ${assessment.severity}` : ""}`
           : assessment.severity ?? undefined,
     });
   }
@@ -926,7 +926,7 @@ const ASSESSMENT_LIBRARY: Record<
   { label: string; max: number; bands: Array<{ upTo: number; label: string }> }
 > = {
   "PHQ-9": {
-    label: "PHQ-9 Ã‚Â· Depression",
+    label: "PHQ-9 · Depression",
     max: 27,
     bands: [
       { upTo: 4, label: "Minimal" },
@@ -937,7 +937,7 @@ const ASSESSMENT_LIBRARY: Record<
     ],
   },
   "GAD-7": {
-    label: "GAD-7 Ã‚Â· Anxiety",
+    label: "GAD-7 · Anxiety",
     max: 21,
     bands: [
       { upTo: 4, label: "Minimal" },
@@ -947,7 +947,7 @@ const ASSESSMENT_LIBRARY: Record<
     ],
   },
   BAI: {
-    label: "BAI Ã‚Â· Anxiety",
+    label: "BAI · Anxiety",
     max: 63,
     bands: [
       { upTo: 7, label: "Minimal" },
@@ -957,7 +957,7 @@ const ASSESSMENT_LIBRARY: Record<
     ],
   },
   "BDI-II": {
-    label: "BDI-II Ã‚Â· Depression",
+    label: "BDI-II · Depression",
     max: 63,
     bands: [
       { upTo: 13, label: "Minimal" },
@@ -967,7 +967,7 @@ const ASSESSMENT_LIBRARY: Record<
     ],
   },
   "PCL-5": {
-    label: "PCL-5 Ã‚Â· PTSD",
+    label: "PCL-5 · PTSD",
     max: 80,
     bands: [
       { upTo: 30, label: "Below threshold" },
@@ -976,7 +976,7 @@ const ASSESSMENT_LIBRARY: Record<
     ],
   },
   "OCI-R": {
-    label: "OCI-R Ã‚Â· OCD",
+    label: "OCI-R · OCD",
     max: 72,
     bands: [
       { upTo: 20, label: "Subclinical" },
@@ -985,7 +985,7 @@ const ASSESSMENT_LIBRARY: Record<
     ],
   },
   AUDIT: {
-    label: "AUDIT Ã‚Â· Alcohol",
+    label: "AUDIT · Alcohol",
     max: 40,
     bands: [
       { upTo: 7, label: "Low risk" },
@@ -995,7 +995,7 @@ const ASSESSMENT_LIBRARY: Record<
     ],
   },
   ASRS: {
-    label: "ASRS Ã‚Â· ADHD",
+    label: "ASRS · ADHD",
     max: 24,
     bands: [
       { upTo: 16, label: "Unlikely" },
