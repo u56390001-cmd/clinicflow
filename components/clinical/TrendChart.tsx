@@ -1,0 +1,1 @@
+"use client"; export function TrendChart({ assessments, templates, className }: any) { return null; }

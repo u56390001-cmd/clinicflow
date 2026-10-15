@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
+import { useActionState, useCallback, useEffect, useMemo, useOptimistic, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   Calendar,
   CheckCircle2,
   GitMerge,
+  Loader2,
   MapPin,
   Phone,
   Shield,
@@ -35,6 +36,18 @@ function formatSlotTime(naive: string): string {
   const hour = h % 12 || 12;
   return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
 }
+
+/**
+ * The booking the user just submitted, shown immediately while the server action
+ * is in flight (React's `useOptimistic`). It is a receipt of intent, not of
+ * success: it clears automatically when the action settles, so a rejection
+ * replaces it with the error alert and a success closes the modal.
+ */
+type OptimisticBooking = {
+  patientName: string;
+  serviceName: string;
+  when: string | null;
+};
 
 export function AppointmentForm({
   patients,
@@ -65,7 +78,7 @@ export function AppointmentForm({
     patientName: string;
     patientPhone: string | null;
     patientAge: string;
-    patientGender: "male" | "female" | "other" | "";
+    patientGender: "male" | "female" | "other" | "unknown" | "";
     patientCity: string | null;
     whatsapp: string | null;
     allergies: string | null;
@@ -80,10 +93,11 @@ export function AppointmentForm({
 }) {
   const router = useRouter();
   const isEditing = !!initialValues;
-  const [state, formAction] = useActionState<ActionResult<string> | null, FormData>(
-    isEditing ? updateAppointmentAction : createAppointmentAction,
-    null,
-  );
+
+  // Optimistic booking receipt — populated inside the create action below and
+  // discarded automatically when that action settles.
+  const [optimisticBooking, addOptimisticBooking] =
+    useOptimistic<OptimisticBooking | null>(null);
 
   // Form state
   const [patientMode, setPatientMode] = useState<"existing" | "new">(
@@ -95,7 +109,7 @@ export function AppointmentForm({
   const [phone, setPhone] = useState(initialValues?.patientPhone ?? "");
   const [name, setName] = useState(initialValues?.patientName ?? "");
   const [age, setAge] = useState(initialValues?.patientAge ?? "");
-  const [gender, setGender] = useState<"male" | "female" | "other" | "">(
+  const [gender, setGender] = useState<"male" | "female" | "other" | "unknown" | "">(
     initialValues?.patientGender ?? "",
   );
   const [city, setCity] = useState(initialValues?.patientCity ?? "");
@@ -135,6 +149,29 @@ export function AppointmentForm({
     initialValues?.startNaive ?? "",
   );
   const [slotError, setSlotError] = useState("");
+
+  // The create action is wrapped so the optimistic receipt is registered inside
+  // the same transition as the server call. `useActionState` keeps the original
+  // pending/error/success contract; only the create path gains the receipt.
+  const runCreateAppointment = async (
+    prev: ActionResult<string> | null,
+    formData: FormData,
+  ) => {
+    const service = services.find((s) => s.id === serviceId);
+    const timeLabel = selectedSlot ? formatSlotTime(selectedSlot) : "";
+    const when = [selectedDate, timeLabel].filter(Boolean).join(" · ") || null;
+    addOptimisticBooking({
+      patientName: name.trim() || "New patient",
+      serviceName: service?.name ?? "Consultation",
+      when,
+    });
+    return createAppointmentAction(prev, formData);
+  };
+
+  const [state, formAction] = useActionState<ActionResult<string> | null, FormData>(
+    isEditing ? updateAppointmentAction : runCreateAppointment,
+    null,
+  );
 
   const submitted = state !== null;
 
@@ -312,6 +349,28 @@ export function AppointmentForm({
         </Alert>
       )}
 
+      {/* Optimistic receipt — the booking the user just submitted, shown
+          immediately while the server confirms. Clears on settle. */}
+      {!isEditing && optimisticBooking && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-start gap-2 rounded-control border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-text-primary"
+        >
+          <Loader2
+            className="mt-px h-3.5 w-3.5 shrink-0 animate-spin text-primary"
+            aria-hidden="true"
+          />
+          <span>
+            <span className="font-semibold">Booking {optimisticBooking.patientName}</span>
+            {" — "}
+            {optimisticBooking.serviceName}
+            {optimisticBooking.when ? ` · ${optimisticBooking.when}` : ""}
+            <span className="text-text-secondary"> · confirming…</span>
+          </span>
+        </div>
+      )}
+
       {/* Hidden start field — populated from selected slot */}
       <input type="hidden" name="start" value={selectedSlot} />
       {isEditing && (
@@ -436,7 +495,7 @@ export function AppointmentForm({
               </Label>
               <input type="hidden" name="patientGender" value={gender} />
               <div className="flex gap-1">
-                {(["male", "female", "other"] as const).map((g) => (
+                {(["male", "female", "other", "unknown"] as const).map((g) => (
                   <button
                     key={g}
                     type="button"

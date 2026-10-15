@@ -713,6 +713,20 @@ const pastHistoryText = (label: string) =>
   );
 
 /**
+ * One field of the structured patient address (0088). Optional free text with a
+ * per-field length cap; the DB stores the assembled object under `patients.address`.
+ */
+const addressText = (label: string, max: number) =>
+  formValue(
+    z
+      .string()
+      .trim()
+      .max(max, `${label} must be ${max} characters or fewer.`)
+      .optional()
+      .or(z.literal("")),
+  );
+
+/**
  * One day's working hours. Times only matter when the day is enabled: disabled
  * days may send anything (the UI leaves their inputs blank), so validation —
  * HH:MM format, required times, and end-after-start — runs only for enabled
@@ -1044,7 +1058,7 @@ export const patientSchema = z.object({
       .or(z.literal("")),
   ),
   gender: formValue(
-    z.enum(["male", "female", "other"]).optional().or(z.literal("")),
+    z.enum(["male", "female", "other", "unknown"]).optional().or(z.literal("")),
   ),
   city: formValue(
     z
@@ -1054,6 +1068,15 @@ export const patientSchema = z.object({
       .optional()
       .or(z.literal("")),
   ),
+  // ── Structured mailing address (0088) ────────────────────────────────────
+  // Flat form fields assembled into the `patients.address` JSONB object by the
+  // action. `city` is reused above rather than duplicated here. All optional so
+  // quick-create callers that collect no address keep validating unchanged.
+  addressLine1: addressText("Address line 1", 200),
+  addressLine2: addressText("Address line 2", 200),
+  addressState: addressText("State", 100),
+  addressPostalCode: addressText("Postal code", 20),
+  addressCountry: addressText("Country", 100),
   bloodGroup: formValue(
     z
       .enum(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"])

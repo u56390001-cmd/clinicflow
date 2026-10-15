@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { AiSummaryCard } from "@/components/patients/record/ai-summary-card";
+import { EncounterTimeline } from "@/components/patients/record/encounter-timeline";
 import {
   ActiveMedicationsCard,
   type ActiveMedication,
@@ -86,11 +87,13 @@ function FactRow({
  * took at the door.
  *
  * What is deliberately absent is as much of the design as what is present. There
- * is no encounter feed, no next-appointment card and no visit timeline here —
- * each of those has a tab that owns it, and a second copy here was the thing
- * this tab was previously cluttered with. Every value shown is real data the
- * server already fetched; a section with nothing on file says so rather than
- * inventing an example.
+ * is no next-appointment card here — bookings belong to the All Appointments
+ * tab, and a second copy was the thing this tab was previously cluttered with.
+ * The visit timeline, by contrast, is intentionally here: below the two columns
+ * the tab continues into the full encounter history, exactly as the directory
+ * contract describes (`lib/patient-directory.ts`). Every value shown is real
+ * data the server already fetched; a section with nothing on file says so
+ * rather than inventing an example.
  */
 export function OverviewTab({
   patient,
@@ -234,7 +237,8 @@ export function OverviewTab({
   ];
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,13fr)] lg:items-start">
+    <>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,13fr)] lg:items-start">
       {/* The patient's standing baseline. Identity — name, UHID, age, gender,
           phone — is not repeated here; the banner above owns it. */}
       <div className="flex flex-col gap-4">
@@ -389,7 +393,10 @@ export function OverviewTab({
           </Button>
         </RecordSection>
       </div>
-    </div>
+      </div>
+
+      <EncounterTimeline visits={record.visits} timezone={timezone} className="mt-4" />
+    </>
   );
 }
 

@@ -117,10 +117,11 @@ const FIELD_LABEL =
 const RAIL_HEAD =
   "flex items-center gap-1.5 border-b border-hairline pb-1.5 text-[10px] font-bold uppercase leading-none tracking-[0.08em] text-text-muted";
 
-const GENDER_LABELS: Record<"male" | "female" | "other", string> = {
+const GENDER_LABELS: Record<"male" | "female" | "other" | "unknown", string> = {
   male: "Male",
   female: "Female",
   other: "Other",
+  unknown: "Unknown",
 };
 
 /**

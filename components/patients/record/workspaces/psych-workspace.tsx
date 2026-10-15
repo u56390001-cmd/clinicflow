@@ -1,11 +1,11 @@
-﻿/**
- * Psychology workspace â€” the Clinical Psychologist's patient record tabs
+/**
+ * Psychology workspace Ã¢â‚¬â€ the Clinical Psychologist's patient record tabs
  * (migration 0077). Replaces the general record's tab group for doctors whose
  * specialty resolves to `psychology`.
  *
  * Layout mirrors the reference: read-only snapshot tiles by default, autosave
  * notes on Edit (same pattern as Past History), and committed rows for session
- * notes and psychometrics â€” each inserts a distinct record, so they get save
+ * notes and psychometrics Ã¢â‚¬â€ each inserts a distinct record, so they get save
  * buttons and a history list rather than per-field blur saves.
  */
 
@@ -39,6 +39,7 @@ import { MseTab } from "@/components/patients/record/workspaces/psych-mse-tab";
 import { SessionsTab, type PsychDraft } from "@/components/patients/record/workspaces/psych-sessions-tab";
 import { PatientLinksPanel } from "@/components/patients/record/workspaces/patient-links-panel";
 import { AssessmentSafetyBanner } from "@/components/patients/record/workspaces/assessment-safety-banner";
+import { TrendChart } from "@/components/clinical/TrendChart";
 import { AiSummaryCard } from "@/components/patients/record/ai-summary-card";
 import { DocumentsTab } from "@/components/patients/record/documents-tab";
 import { RecordEmpty, RecordFact, RecordSection } from "@/components/patients/record/record-primitives";
@@ -79,9 +80,9 @@ type Props = {
   canManage: boolean;
   timezone: string;
   aiSummaryEnabled: boolean;
-  /** `?tab=psy_psychometrics` â€” the Overview's "View history" target. */
+  /** `?tab=psy_psychometrics` Ã¢â‚¬â€ the Overview's "View history" target. */
   assessmentsHref: string;
-  /** `?tab=psy_documents` â€” the Overview's "View" documents target. */
+  /** `?tab=psy_documents` Ã¢â‚¬â€ the Overview's "View" documents target. */
   documentsHref: string;
 };
 
@@ -102,14 +103,14 @@ export function PsychWorkspace({ patient, psych, documents, activeTab, canManage
 
   /**
    * The session recorder lives here, at the workspace level, so recording
-   * survives tab switches â€” the psychologist can open the MSE or Psychometrics
+   * survives tab switches Ã¢â‚¬â€ the psychologist can open the MSE or Psychometrics
    * mid-session while the microphone keeps capturing.
    */
   const recorder = useSessionRecorder();
 
   /**
    * One AI surface for the whole workspace: the existing psychology
-   * CopilotDrawer, mounted once and visible on every tab â€” no second copilot,
+   * CopilotDrawer, mounted once and visible on every tab Ã¢â‚¬â€ no second copilot,
    * no new route. Its extraction is a session note, so it seeds the Session
    * Notes form. The draft is held here and handed to that tab when it mounts,
    * so a note captured on the MSE tab still lands when the psychologist
@@ -242,8 +243,8 @@ const RISK_TONE: Record<
 
 /**
  * The Overview is a read-only clinical dashboard. Every value it shows was
- * captured by the workflow that owns it â€” pre-visit intake, psychometric links,
- * uploaded documents, session notes or the care plan â€” so nothing here is typed
+ * captured by the workflow that owns it Ã¢â‚¬â€ pre-visit intake, psychometric links,
+ * uploaded documents, session notes or the care plan Ã¢â‚¬â€ so nothing here is typed
  * by hand and the card is always a faithful window onto another tab.
  */
 function OverviewCard({
@@ -278,7 +279,7 @@ function OverviewCard({
   );
 }
 
-/** A read-only token (concern, risk factor) â€” the display counterpart of ChipNote. */
+/** A read-only token (concern, risk factor) Ã¢â‚¬â€ the display counterpart of ChipNote. */
 function ReadPill({ children }: { children: React.ReactNode }) {
   return (
     <span className="rounded-pill border border-hairline bg-app px-2.5 py-1 text-[11.5px] font-medium leading-none text-text-secondary">
@@ -352,7 +353,7 @@ const COMPLETED_BY_LABEL: Record<PsychAssessment["completed_by"], string> = {
   psychologist: "Psychologist",
 };
 
-/** A quiet tag for how a result arrived â€” a patient link stands out. */
+/** A quiet tag for how a result arrived Ã¢â‚¬â€ a patient link stands out. */
 function CompletedByBadge({ value }: { value: PsychAssessment["completed_by"] }) {
   return (
     <Badge
@@ -367,7 +368,7 @@ function CompletedByBadge({ value }: { value: PsychAssessment["completed_by"] })
   );
 }
 
-/** How a document arrived â€” a patient link, the desk, or a clinician. */
+/** How a document arrived Ã¢â‚¬â€ a patient link, the desk, or a clinician. */
 const DOC_SOURCE_LABEL: Record<string, string> = {
   patient_online: "Patient online",
   reception: "Reception",
@@ -479,7 +480,7 @@ function OverviewSafetyTab({
 /**
  * The safety snapshot is derived, never typed here. A recorded `psych_safety`
  * row (written by the pre-visit link or a session workflow) wins; otherwise the
- * level is inferred from the structured signals the record already holds â€” the
+ * level is inferred from the structured signals the record already holds Ã¢â‚¬â€ the
  * MSE risk-thoughts field and the self-harm items on PHQ-9 / BDI-II.
  */
 type RiskSnapshot = {
@@ -499,7 +500,7 @@ function riskItemLabel(assessments: PsychAssessment[]): string | null {
     if (assessment.assessment_type === "PHQ-9" && assessment.answers) {
       const value = assessment.answers["phq9_9"];
       if (typeof value === "number" && value > 0) {
-        return `Self-harm thoughts Â· PHQ-9 item 9 (${value})`;
+        return `Self-harm thoughts Ã‚Â· PHQ-9 item 9 (${value})`;
       }
     }
   }
@@ -507,7 +508,7 @@ function riskItemLabel(assessments: PsychAssessment[]): string | null {
     if (assessment.assessment_type === "BDI-II" && assessment.answers) {
       const value = assessment.answers["bdi2_9"];
       if (typeof value === "number" && value > 0) {
-        return `Suicidal thoughts Â· BDI-II item 9 (${value})`;
+        return `Suicidal thoughts Ã‚Â· BDI-II item 9 (${value})`;
       }
     }
   }
@@ -528,7 +529,7 @@ function buildSafetySnapshot(
 
   const factors = mergeTags(
     safety?.risk_factors,
-    hasThoughts ? `MSE Â· ${riskThoughts}` : null,
+    hasThoughts ? `MSE Ã‚Â· ${riskThoughts}` : null,
     itemLabel,
   );
 
@@ -676,8 +677,8 @@ function LatestAssessmentsCard({
                   {assessment.assessment_type}
                 </span>
                 <span className="text-[12px] text-text-secondary">
-                  {assessment.score !== null ? `Score ${assessment.score}` : "â€”"}
-                  {assessment.severity ? ` Â· ${assessment.severity}` : ""}
+                  {assessment.score !== null ? `Score ${assessment.score}` : "Ã¢â‚¬â€"}
+                  {assessment.severity ? ` Ã‚Â· ${assessment.severity}` : ""}
                 </span>
               </div>
               <div className="mt-1 flex items-center gap-2">
@@ -731,7 +732,7 @@ function DocumentsSummaryCard({
           </p>
           <p className="text-[11px] text-ink-faint">
             {DOC_SOURCE_LABEL[latest.source] ?? "Clinic"}
-            {latest.document_date ? ` Â· ${formatShortDate(latest.document_date)}` : ""}
+            {latest.document_date ? ` Ã‚Â· ${formatShortDate(latest.document_date)}` : ""}
           </p>
         </div>
       ) : (
@@ -802,7 +803,7 @@ function buildTimeline(
       label: `${assessment.assessment_type} recorded`,
       detail:
         assessment.score !== null
-          ? `Score ${assessment.score}${assessment.severity ? ` Â· ${assessment.severity}` : ""}`
+          ? `Score ${assessment.score}${assessment.severity ? ` Ã‚Â· ${assessment.severity}` : ""}`
           : assessment.severity ?? undefined,
     });
   }
@@ -913,7 +914,7 @@ const ASSESSMENT_LIBRARY: Record<
   { label: string; max: number; bands: Array<{ upTo: number; label: string }> }
 > = {
   "PHQ-9": {
-    label: "PHQ-9 Â· Depression",
+    label: "PHQ-9 Ã‚Â· Depression",
     max: 27,
     bands: [
       { upTo: 4, label: "Minimal" },
@@ -924,7 +925,7 @@ const ASSESSMENT_LIBRARY: Record<
     ],
   },
   "GAD-7": {
-    label: "GAD-7 Â· Anxiety",
+    label: "GAD-7 Ã‚Â· Anxiety",
     max: 21,
     bands: [
       { upTo: 4, label: "Minimal" },
@@ -934,7 +935,7 @@ const ASSESSMENT_LIBRARY: Record<
     ],
   },
   BAI: {
-    label: "BAI Â· Anxiety",
+    label: "BAI Ã‚Â· Anxiety",
     max: 63,
     bands: [
       { upTo: 7, label: "Minimal" },
@@ -944,7 +945,7 @@ const ASSESSMENT_LIBRARY: Record<
     ],
   },
   "BDI-II": {
-    label: "BDI-II Â· Depression",
+    label: "BDI-II Ã‚Â· Depression",
     max: 63,
     bands: [
       { upTo: 13, label: "Minimal" },
@@ -954,7 +955,7 @@ const ASSESSMENT_LIBRARY: Record<
     ],
   },
   "PCL-5": {
-    label: "PCL-5 Â· PTSD",
+    label: "PCL-5 Ã‚Â· PTSD",
     max: 80,
     bands: [
       { upTo: 30, label: "Below threshold" },
@@ -963,7 +964,7 @@ const ASSESSMENT_LIBRARY: Record<
     ],
   },
   "OCI-R": {
-    label: "OCI-R Â· OCD",
+    label: "OCI-R Ã‚Â· OCD",
     max: 72,
     bands: [
       { upTo: 20, label: "Subclinical" },
@@ -972,7 +973,7 @@ const ASSESSMENT_LIBRARY: Record<
     ],
   },
   AUDIT: {
-    label: "AUDIT Â· Alcohol",
+    label: "AUDIT Ã‚Â· Alcohol",
     max: 40,
     bands: [
       { upTo: 7, label: "Low risk" },
@@ -982,7 +983,7 @@ const ASSESSMENT_LIBRARY: Record<
     ],
   },
   ASRS: {
-    label: "ASRS Â· ADHD",
+    label: "ASRS Ã‚Â· ADHD",
     max: 24,
     bands: [
       { upTo: 16, label: "Unlikely" },
@@ -1053,7 +1054,7 @@ function PsychometricsTab({
   const instrument = ASSESSMENT_LIBRARY[type] ?? ASSESSMENT_LIBRARY.Other;
   const max = selectedTemplate ? templateMaxScore(selectedTemplate.scoring) : instrument.max;
 
-  /** Template lookup for the trend rows below (template_id → template). */
+  /** Template lookup for the trend rows below (template_id â†’ template). */
   const templateById = useCallback(
     (id: string | null | undefined) =>
       id ? (templates.find((t) => t.id === id) ?? null) : null,
@@ -1119,6 +1120,7 @@ function PsychometricsTab({
       <RecordSection title="Score history">
         {psych.assessments.length > 0 ? (
           <div className="space-y-3">
+            <TrendChart assessments={psych.assessments} templates={templates} />
             {psych.assessments.map((a) => (
               <AssessmentTrendRow
                 key={a.id}
@@ -1163,7 +1165,7 @@ function PsychometricsTab({
                 max={max}
                 value={score}
                 onChange={(e) => changeScore(e.target.value)}
-                placeholder={`0–${max}`}
+                placeholder={`0â€“${max}`}
                 className="w-full rounded-control border border-text-muted/25 bg-surface px-2 py-1.5 text-[12.5px] text-text-primary outline-none"
               />
             </div>
@@ -1200,7 +1202,7 @@ function PsychometricsTab({
           <div className="mt-4 flex justify-end">
             <Button type="button" size="sm" onClick={addAssessment} disabled={pending} className="gap-1.5">
               {pending ? <Loader2 aria-hidden="true" className="size-3.5 animate-spin" /> : <TrendingUp aria-hidden="true" className="size-3.5" />}
-              {pending ? "Savingâ€¦" : "Record assessment"}
+              {pending ? "SavingÃ¢â‚¬Â¦" : "Record assessment"}
             </Button>
           </div>
         </RecordSection>
@@ -1239,7 +1241,7 @@ function AssessmentTrendRow({ assessment, canManage, onDelete, template }: { ass
   }
 
   // Item-level answers only exist for online submissions (0080). Map them back
-  // to the question text — the library template's stored questions when the
+  // to the question text â€” the library template's stored questions when the
   // assessment carries a template_id (0085), else the instrument bank.
   const responses =
     template && assessment.answers
@@ -1296,7 +1298,7 @@ function AssessmentTrendRow({ assessment, canManage, onDelete, template }: { ass
                 ) : (
                   <Sparkles aria-hidden="true" className="size-3" />
                 )}
-                {interpreting ? "Interpreting…" : aiResult ? "Re-interpret" : "AI interpretation"}
+                {interpreting ? "Interpretingâ€¦" : aiResult ? "Re-interpret" : "AI interpretation"}
               </button>
             )}
           </div>
@@ -1316,7 +1318,7 @@ function AssessmentTrendRow({ assessment, canManage, onDelete, template }: { ass
                 {index + 1}. {response.text}
               </span>
               <span className="shrink-0 text-[11.5px] font-semibold text-text-primary">
-                {response.value ?? "â€”"}
+                {response.value ?? "Ã¢â‚¬â€"}
               </span>
             </li>
           ))}
@@ -1333,7 +1335,7 @@ function AssessmentTrendRow({ assessment, canManage, onDelete, template }: { ass
             {aiResult.interpretation}
           </p>
           <p className="mt-1.5 text-[10px] text-ink-faint">
-            Generated guidance — review before use. Not a diagnosis.
+            Generated guidance â€” review before use. Not a diagnosis.
           </p>
         </div>
       )}
@@ -1385,7 +1387,7 @@ function CarePlanTab({ patientId, psych, canManage }: { patientId: string; psych
           value={carePlan?.therapy_goals}
           onSave={canManage ? save("therapy_goals") : async () => true}
           rows={3}
-          placeholder="Agreed goals, one per lineâ€¦"
+          placeholder="Agreed goals, one per lineÃ¢â‚¬Â¦"
         />
         <SelectNote
           label="Follow-up frequency"

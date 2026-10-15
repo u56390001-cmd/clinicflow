@@ -8,7 +8,7 @@ import { canManageClinical, canMergePatients, getCurrentClinic } from "@/lib/cli
 import { createClient } from "@/lib/supabase/server";
 import { patientSchema } from "@/lib/validation/schemas";
 import type { ActionResult } from "@/types";
-import type { Patient } from "@/types/database";
+import type { Patient, PatientAddress } from "@/types/database";
 
 const patientIdSchema = z.object({ patientId: z.uuid() });
 
@@ -38,6 +38,30 @@ function pastHistoryFields(data: {
 }
 
 /**
+ * Assemble the `patients.address` JSONB object (0088) from the flat, validated
+ * form fields. Empty keys are dropped so an untouched address stores `{}` rather
+ * than a bag of empty strings. `city` is mirrored here from the top-level field
+ * so the structured address is complete without a second city input.
+ */
+function addressFields(data: {
+  addressLine1?: string;
+  addressLine2?: string;
+  addressState?: string;
+  addressPostalCode?: string;
+  addressCountry?: string;
+  city?: string;
+}): PatientAddress {
+  const address: PatientAddress = {};
+  if (data.addressLine1) address.line1 = data.addressLine1;
+  if (data.addressLine2) address.line2 = data.addressLine2;
+  if (data.city) address.city = data.city;
+  if (data.addressState) address.state = data.addressState;
+  if (data.addressPostalCode) address.postalCode = data.addressPostalCode;
+  if (data.addressCountry) address.country = data.addressCountry;
+  return address;
+}
+
+/**
  * Create a patient in the signed-in user's current clinic. Any member may
  * add patients (clinic-floor work) — the `patients_insert_member` RLS policy
  * enforces the same rule.
@@ -55,6 +79,11 @@ export async function createPatientAction(
     age: formData.get("age") ?? "",
     gender: formData.get("gender") ?? "",
     city: formData.get("city") ?? "",
+    addressLine1: formData.get("addressLine1") ?? "",
+    addressLine2: formData.get("addressLine2") ?? "",
+    addressState: formData.get("addressState") ?? "",
+    addressPostalCode: formData.get("addressPostalCode") ?? "",
+    addressCountry: formData.get("addressCountry") ?? "",
     bloodGroup: formData.get("bloodGroup") ?? "",
     knownAllergies: formData.get("knownAllergies") ?? "",
     medicalConditions: formData.get("medicalConditions") ?? "",
@@ -95,6 +124,7 @@ export async function createPatientAction(
       age: parsed.data.age ? Number(parsed.data.age) : null,
       gender: parsed.data.gender || null,
       city: parsed.data.city || null,
+      address: addressFields(parsed.data),
       blood_group: parsed.data.bloodGroup || null,
       known_allergies: parsed.data.knownAllergies || null,
       medical_conditions: parsed.data.medicalConditions || null,
@@ -135,6 +165,11 @@ export async function createPatientAndGetIdAction(
     age: formData.get("age") ?? "",
     gender: formData.get("gender") ?? "",
     city: formData.get("city") ?? "",
+    addressLine1: formData.get("addressLine1") ?? "",
+    addressLine2: formData.get("addressLine2") ?? "",
+    addressState: formData.get("addressState") ?? "",
+    addressPostalCode: formData.get("addressPostalCode") ?? "",
+    addressCountry: formData.get("addressCountry") ?? "",
     bloodGroup: formData.get("bloodGroup") ?? "",
     knownAllergies: formData.get("knownAllergies") ?? "",
     medicalConditions: formData.get("medicalConditions") ?? "",
@@ -174,6 +209,7 @@ export async function createPatientAndGetIdAction(
       age: parsed.data.age ? Number(parsed.data.age) : null,
       gender: parsed.data.gender || null,
       city: parsed.data.city || null,
+      address: addressFields(parsed.data),
       blood_group: parsed.data.bloodGroup || null,
       known_allergies: parsed.data.knownAllergies || null,
       medical_conditions: parsed.data.medicalConditions || null,
@@ -220,6 +256,11 @@ export async function updatePatientAction(
     age: formData.get("age") ?? "",
     gender: formData.get("gender") ?? "",
     city: formData.get("city") ?? "",
+    addressLine1: formData.get("addressLine1") ?? "",
+    addressLine2: formData.get("addressLine2") ?? "",
+    addressState: formData.get("addressState") ?? "",
+    addressPostalCode: formData.get("addressPostalCode") ?? "",
+    addressCountry: formData.get("addressCountry") ?? "",
     bloodGroup: formData.get("bloodGroup") ?? "",
     knownAllergies: formData.get("knownAllergies") ?? "",
     medicalConditions: formData.get("medicalConditions") ?? "",
@@ -259,6 +300,7 @@ export async function updatePatientAction(
       age: parsed.data.age ? Number(parsed.data.age) : null,
       gender: parsed.data.gender || null,
       city: parsed.data.city || null,
+      address: addressFields(parsed.data),
       blood_group: parsed.data.bloodGroup || null,
       known_allergies: parsed.data.knownAllergies || null,
       medical_conditions: parsed.data.medicalConditions || null,

@@ -37,6 +37,7 @@ const GENDER_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
   { value: "male", label: "Male" },
   { value: "female", label: "Female" },
   { value: "other", label: "Other" },
+  { value: "unknown", label: "Unknown" },
 ];
 
 const BLOOD_GROUP_OPTIONS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"] as const;
@@ -313,6 +314,64 @@ export function PatientForm({
                       placeholder="e.g. Mumbai, Delhi, Kolkata"
                       autoComplete="off"
                       className={cn(inputBase, "px-4 py-3.5 pl-12")}
+                    />
+                  </div>
+                </div>
+
+                {/* Structured address (0088) — assembled into patients.address
+                    JSONB by the action; City above is reused as address.city. */}
+                <div>
+                  <Label className="mb-2 block text-sm font-semibold text-gray-800" htmlFor="patient-address-line1">
+                    Address{" "}
+                    <span className="ml-1 text-xs font-normal text-gray-500">(Optional)</span>
+                  </Label>
+                  <div className="space-y-3">
+                    <input
+                      id="patient-address-line1"
+                      name="addressLine1"
+                      type="text"
+                      defaultValue={patient?.address?.line1 ?? ""}
+                      placeholder="Address line 1"
+                      autoComplete="off"
+                      className={cn(inputBase, "px-4 py-3")}
+                    />
+                    <input
+                      aria-label="Address line 2"
+                      name="addressLine2"
+                      type="text"
+                      defaultValue={patient?.address?.line2 ?? ""}
+                      placeholder="Address line 2"
+                      autoComplete="off"
+                      className={cn(inputBase, "px-4 py-3")}
+                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      <input
+                        aria-label="State"
+                        name="addressState"
+                        type="text"
+                        defaultValue={patient?.address?.state ?? ""}
+                        placeholder="State"
+                        autoComplete="off"
+                        className={cn(inputBase, "px-4 py-3")}
+                      />
+                      <input
+                        aria-label="Postal code"
+                        name="addressPostalCode"
+                        type="text"
+                        defaultValue={patient?.address?.postalCode ?? ""}
+                        placeholder="Postal code"
+                        autoComplete="off"
+                        className={cn(inputBase, "px-4 py-3")}
+                      />
+                    </div>
+                    <input
+                      aria-label="Country"
+                      name="addressCountry"
+                      type="text"
+                      defaultValue={patient?.address?.country ?? ""}
+                      placeholder="Country"
+                      autoComplete="off"
+                      className={cn(inputBase, "px-4 py-3")}
                     />
                   </div>
                 </div>

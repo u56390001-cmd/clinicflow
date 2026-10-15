@@ -41,10 +41,11 @@ import type {
   VisitStatus,
 } from "@/types/database";
 
-const GENDER_LABELS: Record<"male" | "female" | "other", string> = {
+const GENDER_LABELS: Record<"male" | "female" | "other" | "unknown", string> = {
   male: "Male",
   female: "Female",
   other: "Other",
+  unknown: "Unknown",
 };
 
 /**

@@ -98,8 +98,8 @@ export async function createAppointmentAction(
           email: parsed.data.patientEmail || null,
           phone: parsed.data.patientPhone || null,
           age: parsed.data.patientAge ? Number(parsed.data.patientAge) : null,
-          gender: (parsed.data.patientGender != null && parsed.data.patientGender !== "" && ["male", "female", "other"].includes(parsed.data.patientGender)
-            ? parsed.data.patientGender as "male" | "female" | "other"
+          gender: (parsed.data.patientGender != null && parsed.data.patientGender !== "" && ["male", "female", "other", "unknown"].includes(parsed.data.patientGender)
+            ? parsed.data.patientGender as "male" | "female" | "other" | "unknown"
             : null),
           city: parsed.data.patientCity || null,
           known_allergies: parsed.data.knownAllergies || null,
@@ -246,8 +246,8 @@ export async function updateAppointmentAction(
         age: parsed.data.patientAge ? Number(parsed.data.patientAge) : null,
         gender:
           parsed.data.patientGender &&
-          ["male", "female", "other"].includes(parsed.data.patientGender)
-            ? (parsed.data.patientGender as "male" | "female" | "other")
+          ["male", "female", "other", "unknown"].includes(parsed.data.patientGender)
+            ? (parsed.data.patientGender as "male" | "female" | "other" | "unknown")
             : null,
         city: parsed.data.patientCity || null,
         known_allergies: parsed.data.knownAllergies || null,

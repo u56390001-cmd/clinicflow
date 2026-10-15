@@ -54,7 +54,11 @@ import {
   PATIENT_DOCUMENT_MAX_BYTES,
   PATIENT_DOCUMENTS_BUCKET,
 } from "@/types/database";
-import type { PatientShareLinkKind } from "@/types/database";
+import type {
+  PatientShareLinkDeliveryChannel,
+  PatientShareLinkDeliveryStatus,
+  PatientShareLinkKind,
+} from "@/types/database";
 import {
   sanitiseDocumentFileName,
   sniffPatientDocumentMime,
@@ -69,6 +73,13 @@ const uuidSchema = z.string().uuid();
 /* ------------------------------------------------------------------------- */
 
 type SendLinkResult = ActionResult<{ path: string; whatsappSent: boolean }>;
+/** Phase 3 invite result: adds the delivery channel/status (migration 0089). */
+type SendInviteResult = ActionResult<{
+  path: string;
+  whatsappSent: boolean;
+  deliveryChannel: PatientShareLinkDeliveryChannel;
+  deliveryStatus: PatientShareLinkDeliveryStatus;
+}>;
 
 function linkMessage(
   kind: PatientShareLinkKind,
@@ -107,6 +118,7 @@ async function mintAndSendLink(
   assessmentType: string | null,
   appointmentId: string | null,
   templateId: string | null = null,
+  deliveryChannel: PatientShareLinkDeliveryChannel = "whatsapp",
 ): Promise<SendLinkResult> {
   if (!uuidSchema.safeParse(patientId).success) {
     return { ok: false, message: "Missing patient id." };
@@ -175,7 +187,7 @@ async function mintAndSendLink(
     return { ok: false, message: "That patient is not in this clinic." };
   }
   const waNumber = (patient.whatsapp_number ?? "").replace(/[^\d]/g, "");
-  if (!waNumber) {
+  if ((deliveryChannel === "whatsapp" || deliveryChannel === "sms") && !waNumber) {
     return {
       ok: false,
       message: "This patient has no WhatsApp number. Add one and try again.",
@@ -196,23 +208,30 @@ async function mintAndSendLink(
   ).toISOString();
 
   const widget = createWidgetClient();
-  const { error: insertError } = await widget.from("patient_share_links").insert({
-    clinic_id: clinicId,
-    patient_id: patientId,
-    appointment_id: appointmentId,
-    kind,
-    assessment_type: kind === "assessment" ? resolvedType : null,
-    template_id: kind === "assessment" ? resolvedTemplateId : null,
-    token_hash: tokenHash,
-    created_by: user.id,
-    expires_at: expiresAt,
-  });
-  if (insertError) {
+  const { data: inserted, error: insertError } = await widget
+    .from("patient_share_links")
+    .insert({
+      clinic_id: clinicId,
+      patient_id: patientId,
+      appointment_id: appointmentId,
+      kind,
+      assessment_type: kind === "assessment" ? resolvedType : null,
+      template_id: kind === "assessment" ? resolvedTemplateId : null,
+      token_hash: tokenHash,
+      created_by: user.id,
+      clinician_id: user.id,
+      delivery_channel: deliveryChannel,
+      delivery_status: "pending",
+      expires_at: expiresAt,
+    })
+    .select("id")
+    .maybeSingle();
+  if (insertError || !inserted) {
     console.error("[mintAndSendLink] insert failed", {
       clinicId,
       patientId,
       kind,
-      message: insertError.message,
+      message: insertError?.message ?? "no row returned",
     });
     return { ok: false, message: "We couldn't create the link. Please try again." };
   }
@@ -223,49 +242,69 @@ async function mintAndSendLink(
   const body = linkMessage(kind, firstName, access.clinic.name, url, resolvedType);
 
   let whatsappSent = false;
-  try {
-    const credentials = await getClinicWhatsappCredentials(clinicId);
-    const result = await sendWhatsappText(credentials, waNumber, body);
-    if (result.ok) {
-      whatsappSent = true;
-      const conversation = await ensureConversation(widget, {
-        clinicId,
-        patientWhatsappNumber: waNumber,
-      });
-      if (conversation) {
-        await logWhatsappMessage(widget, {
-          conversationId: conversation.id,
+  if (deliveryChannel === "whatsapp") {
+    try {
+      const credentials = await getClinicWhatsappCredentials(clinicId);
+      const result = await sendWhatsappText(credentials, waNumber, body);
+      if (result.ok) {
+        whatsappSent = true;
+        const conversation = await ensureConversation(widget, {
           clinicId,
-          senderType: "staff",
-          senderName: "Clinic",
-          content: body,
-          metaMessageId: result.messageId,
+          patientWhatsappNumber: waNumber,
         });
-        await touchConversation(widget, {
-          conversationId: conversation.id,
-          preview: body,
-          senderType: "staff",
+        if (conversation) {
+          await logWhatsappMessage(widget, {
+            conversationId: conversation.id,
+            clinicId,
+            senderType: "staff",
+            senderName: "Clinic",
+            content: body,
+            metaMessageId: result.messageId,
+          });
+          await touchConversation(widget, {
+            conversationId: conversation.id,
+            preview: body,
+            senderType: "staff",
+          });
+        }
+      } else {
+        console.error("[mintAndSendLink] WhatsApp send failed", {
+          clinicId,
+          patientId,
+          kind,
+          error: result.error,
         });
       }
-    } else {
-      console.error("[mintAndSendLink] WhatsApp send failed", {
-        clinicId,
-        patientId,
-        kind,
-        error: result.error,
-      });
+    } catch (error) {
+      if (error instanceof WhatsappNotConnectedError) {
+        console.error("[mintAndSendLink] WhatsApp not connected", { clinicId });
+      } else {
+        console.error("[mintAndSendLink] WhatsApp error", {
+          clinicId,
+          patientId,
+          kind,
+          message: error instanceof Error ? error.message : "unknown",
+        });
+      }
     }
-  } catch (error) {
-    if (error instanceof WhatsappNotConnectedError) {
-      console.error("[mintAndSendLink] WhatsApp not connected", { clinicId });
-    } else {
-      console.error("[mintAndSendLink] WhatsApp error", {
-        clinicId,
-        patientId,
-        kind,
-        message: error instanceof Error ? error.message : "unknown",
-      });
-    }
+  }
+
+  // Provider acknowledgement for this channel (0089). Channels other than
+  // WhatsApp (SMS is not yet wired, in-clinic/link are manual) stay 'pending'
+  // until a delivery receipt arrives.
+  const deliveryStatus: PatientShareLinkDeliveryStatus =
+    deliveryChannel !== "whatsapp" ? "pending" : whatsappSent ? "sent" : "failed";
+  const { error: deliveryError } = await widget
+    .from("patient_share_links")
+    .update({ delivery_status: deliveryStatus })
+    .eq("id", inserted.id);
+  if (deliveryError) {
+    console.error("[mintAndSendLink] delivery status update failed", {
+      clinicId,
+      patientId,
+      kind,
+      message: deliveryError.message,
+    });
   }
 
   revalidatePath(APP_ROUTES.app.patients);
@@ -284,14 +323,64 @@ export async function sendPsychAssessmentLinkAction(
   assessmentType: string,
   templateId?: string | null,
   appointmentId?: string | null,
-): Promise<SendLinkResult> {
-  return mintAndSendLink(
+  deliveryChannel: PatientShareLinkDeliveryChannel = "whatsapp",
+): Promise<SendInviteResult> {
+  const result = await mintAndSendLink(
     "assessment",
     patientId,
     assessmentType,
     appointmentId ?? null,
     templateId ?? null,
+    deliveryChannel,
   );
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    data: {
+      path: result.data.path,
+      whatsappSent: result.data.whatsappSent,
+      deliveryChannel,
+      deliveryStatus: deliveryChannel === "whatsapp" ? (result.data.whatsappSent ? "sent" : "failed") : "pending",
+    },
+  };
+}
+
+/**
+ * Phase 3 entry point — issue a patient assessment invite over a chosen
+ * delivery channel. Thin, channel-aware wrapper over `mintAndSendLink` so API
+ * routes and the cockpit share one implementation. WhatsApp is fully wired;
+ * SMS is not yet connected (`delivery_status` stays `pending` and the caller
+ * shares the returned link manually); `in_clinic` / `link` never hit a provider.
+ */
+export async function sendAssessmentInviteAction(input: {
+  patientId: string;
+  assessmentType?: string | null;
+  templateId?: string | null;
+  appointmentId?: string | null;
+  deliveryChannel?: PatientShareLinkDeliveryChannel;
+}): Promise<SendInviteResult> {
+  const deliveryChannel = input.deliveryChannel ?? "whatsapp";
+  if (!input.assessmentType && !input.templateId) {
+    return { ok: false, message: "Choose an assessment to send." };
+  }
+  const result = await mintAndSendLink(
+    "assessment",
+    input.patientId,
+    input.assessmentType ?? null,
+    input.appointmentId ?? null,
+    input.templateId ?? null,
+    deliveryChannel,
+  );
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    data: {
+      path: result.data.path,
+      whatsappSent: result.data.whatsappSent,
+      deliveryChannel,
+      deliveryStatus: deliveryChannel === "whatsapp" ? (result.data.whatsappSent ? "sent" : "failed") : "pending",
+    },
+  };
 }
 
 export async function sendPsychDocumentUploadLinkAction(

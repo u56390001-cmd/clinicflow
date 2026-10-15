@@ -437,8 +437,8 @@ export function AppointmentManager({
     ? (() => {
         const patient = patientsById.get(editRow.patient_id) ?? null;
         const gender =
-          patient?.gender && ["male", "female", "other"].includes(patient.gender)
-            ? (patient.gender as "male" | "female" | "other")
+          patient?.gender && ["male", "female", "other", "unknown"].includes(patient.gender)
+            ? (patient.gender as "male" | "female" | "other" | "unknown")
             : ("" as const);
         const ctype =
           editRow.consultation_type === "online" ||

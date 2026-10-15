@@ -94,7 +94,7 @@ export type PatientInput = {
   email?: string | null;
   phone?: string | null;
   age?: number | null;
-  gender?: "male" | "female" | "other" | null;
+  gender?: "male" | "female" | "other" | "unknown" | null;
   city?: string | null;
   known_allergies?: string | null;
   medical_conditions?: string | null;

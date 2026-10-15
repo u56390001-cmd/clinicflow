@@ -439,6 +439,22 @@ export type NotificationPreference = "email" | "whatsapp" | "both";
 export type BloodGroup =
   "A+" | "A-" | "B+" | "B-" | "AB+" | "AB-" | "O+" | "O-";
 
+/**
+ * Structured mailing address stored as JSONB on `patients.address` (0088).
+ * Every key is optional — an unaddressed patient stores `{}`. The legacy
+ * `patients.city` string still carries the city for the booking quick-create
+ * flow and the directory view; `city` here is the copy inside the structured
+ * address.
+ */
+export type PatientAddress = {
+  line1?: string;
+  line2?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+};
+
 export type Patient = {
   id: string;
   clinic_id: string;
@@ -450,7 +466,9 @@ export type Patient = {
   notification_preference: NotificationPreference;
   whatsapp_number: string | null;
   city: string | null;
-  gender: "male" | "female" | "other" | null;
+  /** Structured mailing address (0088). `{}` when not captured. */
+  address: PatientAddress;
+  gender: "male" | "female" | "other" | "unknown" | null;
   age: number | null;
   known_allergies: string | null;
   medical_conditions: string | null;
@@ -1376,9 +1394,34 @@ export type AssessmentSafetyEvent = {
   created_at: string;
 };
 
+/** Phase 4 — provenance of a clinical note (migration 0090). */
+export type ClinicalNoteSource = "ai_longitudinal_summary" | "clinician_manual";
+
+/**
+ * Phase 4 — an append-only clinical note (migration 0090). Approved AI
+ * longitudinal summaries are written here after clinician review; the table is
+ * immutable so the audit trail of what was approved is never rewritten.
+ */
+export type ClinicalNote = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  author_user_id: string | null;
+  author_name: string | null;
+  source: ClinicalNoteSource;
+  content_markdown: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
 /** Where a share link sends the patient. */
 export type PatientShareLinkKind = "pre_visit" | "assessment" | "document_upload";
 export type PatientShareLinkStatus = "pending" | "used" | "revoked" | "expired";
+
+/** How an invite left the clinic (Phase 3, migration 0089). */
+export type PatientShareLinkDeliveryChannel = "whatsapp" | "sms" | "in_clinic" | "link";
+/** Provider delivery acknowledgement — distinct from the single-use `status`. */
+export type PatientShareLinkDeliveryStatus = "pending" | "sent" | "delivered" | "failed";
 
 /**
  * Psychology OPD — a shareable patient link (migration 0080). Generalises
@@ -1397,6 +1440,11 @@ export type PatientShareLink = {
   token_hash: string;
   status: PatientShareLinkStatus;
   created_by: string;
+  /** Clinician the invite is sent on behalf of (migration 0089). */
+  clinician_id: string | null;
+  delivery_channel: PatientShareLinkDeliveryChannel | null;
+  delivery_status: PatientShareLinkDeliveryStatus;
+  metadata: Record<string, unknown>;
   expires_at: string;
   submitted_at: string | null;
   submission: Record<string, unknown> | null;
@@ -2946,7 +2994,8 @@ export type Database = {
           notification_preference?: NotificationPreference;
           whatsapp_number?: string | null;
           city?: string | null;
-          gender?: "male" | "female" | "other" | null;
+          address?: PatientAddress;
+          gender?: "male" | "female" | "other" | "unknown" | null;
           age?: number | null;
           known_allergies?: string | null;
           medical_conditions?: string | null;
@@ -2980,7 +3029,8 @@ export type Database = {
           notification_preference?: NotificationPreference;
           whatsapp_number?: string | null;
           city?: string | null;
-          gender?: "male" | "female" | "other" | null;
+          address?: PatientAddress;
+          gender?: "male" | "female" | "other" | "unknown" | null;
           age?: number | null;
           known_allergies?: string | null;
           medical_conditions?: string | null;
@@ -4610,6 +4660,10 @@ export type Database = {
           token_hash: string;
           status?: PatientShareLinkStatus;
           created_by: string;
+          clinician_id?: string | null;
+          delivery_channel?: PatientShareLinkDeliveryChannel | null;
+          delivery_status?: PatientShareLinkDeliveryStatus;
+          metadata?: Record<string, unknown>;
           expires_at: string;
           submitted_at?: string | null;
           submission?: Record<string, unknown> | null;
@@ -4626,6 +4680,10 @@ export type Database = {
           token_hash?: never;
           status?: PatientShareLinkStatus;
           created_by?: never;
+          clinician_id?: string | null;
+          delivery_channel?: PatientShareLinkDeliveryChannel | null;
+          delivery_status?: PatientShareLinkDeliveryStatus;
+          metadata?: Record<string, unknown>;
           expires_at?: string;
           submitted_at?: string | null;
           submission?: Record<string, unknown> | null;
@@ -5248,6 +5306,36 @@ export type Database = {
           { foreignKeyName: "psych_sessions_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
           { foreignKeyName: "psych_sessions_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] },
           { foreignKeyName: "psych_sessions_doctor_id_fkey"; columns: ["doctor_id"]; isOneToOne: false; referencedRelation: "doctors"; referencedColumns: ["id"] }
+        ];
+      };
+      clinical_notes: {
+        Row: ClinicalNote;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          author_user_id?: string | null;
+          author_name?: string | null;
+          source?: ClinicalNoteSource;
+          content_markdown: string;
+          metadata?: Record<string, unknown>;
+          created_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: string;
+          patient_id?: string;
+          author_user_id?: string | null;
+          author_name?: string | null;
+          source?: ClinicalNoteSource;
+          content_markdown?: string;
+          metadata?: Record<string, unknown>;
+          created_at?: never;
+        };
+        Relationships: [
+          { foreignKeyName: "clinical_notes_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
+          { foreignKeyName: "clinical_notes_patient_fk"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] },
+          { foreignKeyName: "clinical_notes_author_user_id_fkey"; columns: ["author_user_id"]; isOneToOne: false; referencedRelation: "users"; referencedColumns: ["id"] }
         ];
       };
       psych_assessments: {
