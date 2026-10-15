@@ -45,6 +45,29 @@ function toBaseUrl(raw: string): string {
 }
 
 /**
+ * The host Vercel assigns this deployment. `VERCEL_PROJECT_PRODUCTION_URL` is
+ * the stable production domain; `VERCEL_URL` is this specific deployment. Both
+ * are injected automatically at build/runtime, so a deployed build always knows
+ * its own origin without anyone hand-setting an env var.
+ */
+function vercelHost(): string | null {
+  const host =
+    process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL ??
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ??
+    process.env.NEXT_PUBLIC_VERCEL_URL ??
+    process.env.VERCEL_URL;
+  if (!host) return null;
+  return host.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+}
+
+/** True for a URL that still points at a developer's machine. */
+function isLoopback(value: string): boolean {
+  return /(^|\/\/)(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:|\/|$)/i.test(
+    value,
+  );
+}
+
+/**
  * The origin to build links from.
  *
  * Prefers `NEXT_PUBLIC_SITE_URL` and falls back to localhost. Scheme handling
@@ -53,14 +76,22 @@ function toBaseUrl(raw: string): string {
  */
 export function getBaseUrl(): string {
   const configured =
-    process.env.NEXT_PUBLIC_SITE_URL ??
-    process.env.NEXT_PUBLIC_BASE_URL ??
-    "http://localhost:3000";
+    process.env.NEXT_PUBLIC_SITE_URL ?? process.env.NEXT_PUBLIC_BASE_URL;
 
-  const bare = toBaseUrl(configured);
+  // Guard rail: a patient link must never point at localhost. When the app is
+  // running on Vercel and the configured value is missing or still a leftover
+  // `http://localhost:3000`, prefer the deployment's own host instead of
+  // sending a dead link to a patient's phone.
+  const vHost = vercelHost();
+  if (vHost && (!configured || isLoopback(configured))) {
+    return `https://${vHost}`;
+  }
+
+  const effective = configured ?? "http://localhost:3000";
+  const bare = toBaseUrl(effective);
 
   // Preserve the configured scheme when there is one.
-  const schemeMatch = configured.trim().match(/^(https?):\/\//i);
+  const schemeMatch = effective.trim().match(/^(https?):\/\//i);
   if (schemeMatch) {
     return `${schemeMatch[1].toLowerCase()}://${bare}`;
   }
