@@ -32,6 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { TelehealthLauncher } from "@/components/telehealth/telehealth-launcher";
 import { avatarColorFor, initialsOf } from "@/lib/utils/avatar";
 import { ageFromDob } from "@/lib/utils/datetime";
 import { cn } from "@/lib/utils";
@@ -304,6 +305,12 @@ export function RecordBanner({
               {writePrescriptionLabel}
             </button>
           )}
+
+          <TelehealthLauncher
+            patientId={patient.id}
+            whatsappNumber={patient.whatsapp_number}
+            canManage={canManage}
+          />
 
           {canMerge && (
             <button type="button" onClick={onMergeDuplicate} className={GHOST_BUTTON}>

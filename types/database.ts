@@ -1468,6 +1468,29 @@ export type PatientShareLink = {
   created_at: string;
 };
 
+export type TelehealthStatus = "SCHEDULED" | "ACTIVE" | "COMPLETED" | "CANCELLED";
+
+/**
+ * Phase 8 — one telehealth video room (migration 0094). The KitToken is minted
+ * server-side and never persisted; only the room and its lifecycle are stored.
+ */
+export type TelehealthSession = {
+  id: string;
+  clinic_id: string;
+  doctor_id: string | null;
+  patient_id: string;
+  appointment_id: string | null;
+  room_id: string;
+  status: TelehealthStatus;
+  started_at: string | null;
+  ended_at: string | null;
+  patient_join_url: string;
+  created_by: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
 /**
  * Psychology OPD — a recurring assessment reminder schedule (Phase 6, migration
  * 0092). A cron sweeps due rules and mints a fresh `patient_share_links` invite
@@ -4741,6 +4764,71 @@ export type Database = {
             columns: ["template_id"];
             isOneToOne: false;
             referencedRelation: "assessment_templates";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      telehealth_sessions: {
+        Row: TelehealthSession;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          doctor_id?: string | null;
+          patient_id: string;
+          appointment_id?: string | null;
+          room_id: string;
+          status?: TelehealthStatus;
+          started_at?: string | null;
+          ended_at?: string | null;
+          patient_join_url: string;
+          created_by?: string | null;
+          metadata?: Record<string, unknown>;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          doctor_id?: string | null;
+          patient_id?: never;
+          appointment_id?: string | null;
+          room_id?: string;
+          status?: TelehealthStatus;
+          started_at?: string | null;
+          ended_at?: string | null;
+          patient_join_url?: string;
+          created_by?: string | null;
+          metadata?: Record<string, unknown>;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "telehealth_sessions_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "telehealth_sessions_patient_id_fkey";
+            columns: ["patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "telehealth_sessions_doctor_id_fkey";
+            columns: ["doctor_id"];
+            isOneToOne: false;
+            referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "telehealth_sessions_appointment_id_fkey";
+            columns: ["appointment_id"];
+            isOneToOne: false;
+            referencedRelation: "appointments";
             referencedColumns: ["id"];
           },
         ];
