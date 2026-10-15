@@ -11,6 +11,7 @@ import { createWidgetClient } from "@/lib/supabase/widget";
 export const metadata: Metadata = {
   title: "Video Consultation",
   robots: { index: false, follow: false },
+  manifest: null,
 };
 
 /**
