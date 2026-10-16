@@ -148,20 +148,20 @@ export function OcrUploadModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-secondary/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/40 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-label="Scan medical document"
     >
-      <div className="relative my-8 w-full max-w-lg flex-col rounded-2xl border border-hairline bg-white shadow-2xl">
-        <div className="flex shrink-0 items-center justify-between rounded-t-2xl bg-gradient-to-r from-primary to-primary-light px-5 py-4">
+      <div className="relative my-8 flex w-full max-w-lg flex-col overflow-hidden rounded-card border border-brand-line bg-surface shadow-2xl">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-brand-line bg-brand-wash px-5 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-white/20">
-              <FileScan aria-hidden="true" className="size-4 text-white" />
+            <div className="flex size-9 items-center justify-center rounded-control bg-brand-pale">
+              <FileScan aria-hidden="true" className="size-4 text-brand-cta" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white">Scan medical document</h2>
-              <p className="text-xs text-white/80">
+              <h2 className="text-base font-semibold text-brand-ink">Scan medical document</h2>
+              <p className="text-xs text-brand-muted">
                 AI extracts history for you to verify
               </p>
             </div>
@@ -170,7 +170,7 @@ export function OcrUploadModal({
             type="button"
             onClick={onClose}
             disabled={working}
-            className="group flex size-8 items-center justify-center rounded-lg bg-white text-primary shadow-sm transition-colors hover:bg-white/90"
+            className="group flex size-8 items-center justify-center rounded-control text-brand-muted transition-colors hover:bg-brand-pale hover:text-brand-ink"
             aria-label="Close"
           >
             <X
@@ -184,7 +184,7 @@ export function OcrUploadModal({
           {error && (
             <p
               role="alert"
-              className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium leading-relaxed text-red-700"
+              className="rounded-lg border border-brand-danger-soft bg-brand-danger-soft px-3 py-2 text-xs font-medium leading-relaxed text-brand-danger"
             >
               {error}
             </p>
@@ -203,23 +203,23 @@ export function OcrUploadModal({
           />
 
           {file ? (
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-teal-200 bg-teal-50/60 px-4 py-3">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-brand-sage bg-brand-wash px-4 py-3">
               <div className="flex min-w-0 items-center gap-3">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white text-teal-600 shadow-sm">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-pale text-brand-cta shadow-sm">
                   <FileText aria-hidden="true" className="size-4" />
                 </span>
                 <div className="min-w-0">
-                  <p className="truncate text-[13px] font-semibold text-ink">
+                  <p className="truncate text-[13px] font-semibold text-brand-ink">
                     {file.name}
                   </p>
-                  <p className="text-[11px] text-ink-faint">{fileSizeLabel(file.size)}</p>
+                  <p className="text-[11px] text-brand-faint">{fileSizeLabel(file.size)}</p>
                 </div>
               </div>
               <button
                 type="button"
                 disabled={working}
                 onClick={() => setFile(null)}
-                className="rounded-md p-1 text-slate-400 transition-colors hover:text-red-600"
+                className="rounded-md p-1 text-brand-faint transition-colors hover:text-brand-danger"
                 aria-label="Remove file"
               >
                 <X aria-hidden="true" className="size-4" />
@@ -241,17 +241,17 @@ export function OcrUploadModal({
               className={cn(
                 "flex flex-col items-center gap-2 rounded-xl border border-dashed px-6 py-8 text-center transition-colors",
                 dragging
-                  ? "border-teal-400 bg-teal-50/60"
-                  : "border-hairline bg-app/30",
+                  ? "border-brand-cta bg-brand-wash"
+                  : "border-brand-line bg-brand-canvas",
               )}
             >
-              <span className="flex size-10 items-center justify-center rounded-xl bg-teal-50 text-teal-600">
+              <span className="flex size-10 items-center justify-center rounded-xl bg-brand-pale text-brand-cta">
                 <ScanSearch aria-hidden="true" className="size-5" />
               </span>
-              <p className="text-[13px] font-semibold text-ink">
+              <p className="text-[13px] font-semibold text-brand-ink">
                 Drop a prescription or report here
               </p>
-              <p className="text-[11px] text-ink-faint">
+              <p className="text-[11px] text-brand-faint">
                 PDF, PNG, JPEG or WebP · up to 10 MB
               </p>
               <Button
@@ -266,19 +266,19 @@ export function OcrUploadModal({
             </div>
           )}
 
-          <div className="rounded-lg bg-surface/70 px-3 py-2.5">
-            <p className="text-[11px] leading-relaxed text-ink-faint">
+          <div className="rounded-lg bg-brand-canvas px-3 py-2.5">
+            <p className="text-[11px] leading-relaxed text-brand-muted">
               Reads past illnesses, surgeries and immunizations into the History
               tab, pulls out medicines for the medications list and any allergies
               or known conditions for the safety alerts, and refreshes the AI
               summary on the Overview tab — everything lands labelled{" "}
-              <span className="font-semibold text-ink">Needs review</span>,
+              <span className="font-semibold text-brand-ink">Needs review</span>,
               nothing is marked verified without you.
             </p>
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center justify-end gap-2 rounded-b-2xl border-t border-hairline bg-app/50 px-5 py-3.5">
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-brand-line bg-brand-canvas px-5 py-3.5">
           <Button
             type="button"
             variant="ghost"

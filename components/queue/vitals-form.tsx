@@ -165,8 +165,8 @@ export function VitalsForm({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <Activity className="h-4 w-4 text-primary" aria-hidden="true" />
-        <h3 className="text-sm font-semibold text-text-primary">Patient Vitals</h3>
+        <Activity className="h-4 w-4 text-brand-cta" aria-hidden="true" />
+        <h3 className="text-sm font-semibold text-brand-ink">Patient Vitals</h3>
       </div>
 
       {configLoading ? (
@@ -175,12 +175,12 @@ export function VitalsForm({
           <div className="grid grid-cols-2 gap-4">
             {Array.from({ length: 8 }).map((_, index) => (
               <div key={index} className="space-y-1.5">
-                <div className="h-3 w-20 animate-pulse rounded bg-app" />
-                <div className="h-10 animate-pulse rounded-control bg-app" />
+                <div className="h-3 w-20 animate-pulse rounded bg-brand-canvas" />
+                <div className="h-10 animate-pulse rounded-control bg-brand-canvas" />
               </div>
             ))}
           </div>
-          <div className="ml-auto h-8 w-28 animate-pulse rounded-control bg-app" />
+          <div className="ml-auto h-8 w-28 animate-pulse rounded-control bg-brand-canvas" />
         </div>
       ) : (
       <form action={formAction} className="space-y-4">
@@ -201,7 +201,7 @@ export function VitalsForm({
                 <div key={vital.key} className="space-y-1.5">
                   <Label
                     htmlFor={`vital-${vital.key}`}
-                    className="text-xs font-bold uppercase tracking-wider text-text-muted"
+                    className="text-xs font-bold uppercase tracking-wider text-brand-faint"
                   >
                     {vital.label} ({vital.unit})
                   </Label>
@@ -250,29 +250,29 @@ export function VitalsForm({
             {/* BMI — read-only, always derived from Height + Weight */}
             {showBMI && (
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold uppercase tracking-wider text-text-muted">
+                <Label className="text-xs font-bold uppercase tracking-wider text-brand-faint">
                   BMI (kg/m²)
                 </Label>
                 <div
                   aria-live="polite"
                   title="Auto-calculated from height and weight"
-                  className="flex h-10 w-full items-center rounded-control border border-text-muted/40 bg-app px-3 py-2 text-sm font-semibold text-text-primary"
+                  className="flex h-10 w-full items-center rounded-control border border-brand-line bg-brand-canvas px-3 py-2 text-sm font-semibold text-brand-ink"
                 >
                   {computedBmi ?? (
-                    <span className="font-normal text-text-muted">
+                    <span className="font-normal text-brand-faint">
                       Enter height &amp; weight
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-text-muted">Auto-calculated</p>
+                <p className="text-[11px] text-brand-faint">Auto-calculated</p>
               </div>
             )}
           </div>
         )}
 
         {customDefinitions.length > 0 && (
-          <div className="space-y-3 rounded-control border border-neutral-borderLight bg-app/40 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+          <div className="space-y-3 rounded-control border border-brand-line bg-brand-canvas p-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-brand-faint">
               Additional vitals
             </p>
             <div className="grid grid-cols-2 gap-4">
@@ -280,7 +280,7 @@ export function VitalsForm({
                 <div key={vital.key} className="space-y-1.5">
                   <Label
                     htmlFor={`cv-${vital.key}`}
-                    className="text-xs font-bold uppercase tracking-wider text-text-muted"
+                    className="text-xs font-bold uppercase tracking-wider text-brand-faint"
                   >
                     {vital.label}
                     {vital.unit ? ` (${vital.unit})` : ""}
@@ -297,7 +297,7 @@ export function VitalsForm({
                         [vital.key]: event.target.value,
                       }))
                     }
-                    className={cn(existingVitals?.custom_vitals?.some((v) => v.key === vital.key) ? "border-primary/40" : "")}
+                    className={cn(existingVitals?.custom_vitals?.some((v) => v.key === vital.key) ? "border-brand-cta" : "")}
                   />
                 </div>
               ))}
@@ -306,11 +306,11 @@ export function VitalsForm({
         )}
 
         {state && !state.ok && (
-          <p className="text-xs text-status-destructive">{state.message}</p>
+          <p className="text-xs text-brand-danger">{state.message}</p>
         )}
 
         {state?.ok && (
-          <p className="text-xs text-status-success">Vitals recorded successfully.</p>
+                                        <p className="text-xs text-brand-success">Vitals recorded successfully.</p>
         )}
 
         <div className="flex justify-end">

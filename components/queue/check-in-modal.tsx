@@ -169,27 +169,26 @@ export function CheckInModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-secondary/50 px-4 py-8"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-8 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-label={`Check in ${appointment.patientName}`}
     >
-      <div className="relative flex max-h-[95vh] w-full max-w-5xl animate-scale-in flex-col overflow-hidden rounded-2xl bg-white shadow-2xl md:max-h-[90vh]">
-        {/* Header — teal gradient (substitutes reference #4E5DB5/#5B6BC5) */}
-        <div className="relative flex-shrink-0 bg-gradient-to-r from-primary to-primary-light p-6 text-white">
-          <div className="absolute inset-0 bg-black/5" aria-hidden="true" />
-          <div className="relative flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center space-x-4">
-              <div className="flex-shrink-0 rounded-xl bg-white/20 p-3 backdrop-blur-sm">
-                <CircleUser className="h-6 w-6" aria-hidden="true" />
+      <div className="relative flex max-h-[95vh] w-full max-w-5xl animate-scale-in flex-col overflow-hidden rounded-card border border-brand-line bg-surface shadow-2xl md:max-h-[90vh]">
+        {/* Header — calm sage surface; brand accent carried by the icon chip. */}
+        <div className="relative flex-shrink-0 border-b border-brand-line bg-brand-wash p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="flex-shrink-0 rounded-control bg-brand-pale p-3">
+                <CircleUser className="h-6 w-6 text-brand-cta" aria-hidden="true" />
               </div>
               <div className="min-w-0">
-                <h2 className="text-xl font-bold">
+                <h2 className="text-xl font-semibold text-brand-ink">
                   {hasExistingVisit ? "Patient Already Checked In" : "Check In Patient"}
                 </h2>
-                <p className="mt-0.5 text-sm text-white/80">
+                <p className="mt-0.5 text-sm text-brand-muted">
                   {appointment.patientName}
-                  <span className="ml-1 opacity-80">
+                  <span className="ml-1">
                     ·{" "}
                     {hasExistingVisit
                       ? `Token #${appointment.visit!.token_number} assigned`
@@ -199,32 +198,32 @@ export function CheckInModal({
               </div>
             </div>
             <div className="flex flex-shrink-0 items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/20 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm">
+              <span className="inline-flex items-center gap-1.5 rounded-pill border border-brand-sage bg-surface px-3 py-1.5 text-xs font-semibold text-brand-cta">
                 {hasExistingVisit ? "Returning Patient" : "First Visit"}
               </span>
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-xl p-2 transition-all duration-200 hover:bg-white/20 group"
+                className="rounded-control p-2 text-brand-muted transition-colors hover:bg-brand-pale hover:text-brand-ink"
                 aria-label="Close"
               >
-                <X className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90" />
+                <X className="h-5 w-5" />
               </button>
             </div>
           </div>
         </div>
 
         {/* Body */}
-        <div className="min-h-0 flex-1 overflow-y-auto bg-app">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-brand-canvas">
           <div className="space-y-4 p-6 pb-2">
             {hasExistingVisit ? (
               <div className="space-y-4">
-                <div className="flex items-center gap-3 rounded-xl bg-status-success/10 p-3">
+                <div className="flex items-center gap-3 rounded-xl bg-brand-success-soft p-3">
                   <CheckCircle
-                    className="h-5 w-5 shrink-0 text-status-success"
+                    className="h-5 w-5 shrink-0 text-brand-success"
                     aria-hidden="true"
                   />
-                  <p className="text-sm text-text-primary">
+                  <p className="text-sm text-brand-ink">
                     This patient is already checked in. Token #
                     {appointment.visit!.token_number} &mdash; Queue position{" "}
                     {appointment.visit!.queue_position}.
@@ -284,10 +283,10 @@ export function CheckInModal({
                 {/* 3-column grid */}
                 <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-3">
                   {/* ─── Column 1: Patient Confirmation ─── */}
-                  <div className="h-full rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-                    <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
-                      <span className="rounded-lg bg-primary/10 p-1.5">
-                        <CircleUser className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <div className="h-full rounded-card border border-brand-line bg-surface p-5 shadow-sm">
+                    <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-brand-ink">
+                      <span className="rounded-lg bg-brand-pale p-1.5">
+                        <CircleUser className="h-4 w-4 text-brand-cta" aria-hidden="true" />
                       </span>
                       Patient Confirmation
                     </h3>
@@ -295,14 +294,14 @@ export function CheckInModal({
                     <div className="space-y-4">
                       {/* Avatar + name */}
                       <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary-light text-base font-bold text-white">
+                        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-cta to-brand-sage text-base font-bold text-white">
                           {appointment.patientName.charAt(0).toUpperCase()}
                         </div>
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-bold text-gray-900">
+                          <p className="truncate text-sm font-bold text-brand-ink">
                             {appointment.patientName}
                           </p>
-                          <p className="mt-0.5 text-xs text-gray-400">
+                          <p className="mt-0.5 text-xs text-brand-faint">
                             {appointment.patientAge != null
                               ? `Age ${appointment.patientAge}`
                               : ""}
@@ -317,8 +316,8 @@ export function CheckInModal({
                       {/* Phone */}
                       {appointment.patientPhone && (
                         <div className="flex items-center gap-2">
-                          <Phone className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" aria-hidden="true" />
-                          <span className="text-sm font-semibold text-gray-700">
+                          <Phone className="h-3.5 w-3.5 flex-shrink-0 text-brand-faint" aria-hidden="true" />
+                          <span className="text-sm font-semibold text-brand-ink">
                             {appointment.patientPhone}
                           </span>
                         </div>
@@ -326,10 +325,10 @@ export function CheckInModal({
 
                       {/* Patient ID */}
                       <div className="flex items-center gap-2">
-                        <span className="w-14 flex-shrink-0 text-xs font-medium uppercase tracking-wide text-gray-400">
+                        <span className="w-14 flex-shrink-0 text-xs font-medium uppercase tracking-wide text-brand-faint">
                           ID
                         </span>
-                        <span className="text-xs font-semibold text-primary">
+                        <span className="text-xs font-semibold text-brand-cta">
                           {appointment.patientCode ?? "—"}
                         </span>
                       </div>
@@ -337,35 +336,35 @@ export function CheckInModal({
                       {/* Source / Doctor / Service / Time */}
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
-                          <span className="w-14 flex-shrink-0 text-xs font-medium uppercase tracking-wide text-gray-400">
+                          <span className="w-14 flex-shrink-0 text-xs font-medium uppercase tracking-wide text-brand-faint">
                             Source
                           </span>
-                          <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-brand-wash px-2 py-0.5 text-xs font-semibold text-brand-muted">
                             <CircleUser className="h-3 w-3" aria-hidden="true" />
                             {appointment.booking_source ?? "Walk-in"}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="w-14 flex-shrink-0 text-xs font-medium uppercase tracking-wide text-gray-400">
+                          <span className="w-14 flex-shrink-0 text-xs font-medium uppercase tracking-wide text-brand-faint">
                             Doctor
                           </span>
-                          <span className="text-xs font-semibold text-gray-700">
+                          <span className="text-xs font-semibold text-brand-ink">
                             {appointment.doctorName ?? "Clinic Default"}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="w-14 flex-shrink-0 text-xs font-medium uppercase tracking-wide text-gray-400">
+                          <span className="w-14 flex-shrink-0 text-xs font-medium uppercase tracking-wide text-brand-faint">
                             Service
                           </span>
-                          <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                          <span className="inline-flex items-center rounded-full bg-brand-pale px-2.5 py-0.5 text-xs font-semibold text-brand-cta">
                             {appointment.serviceName}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="w-14 flex-shrink-0 text-xs font-medium uppercase tracking-wide text-gray-400">
+                          <span className="w-14 flex-shrink-0 text-xs font-medium uppercase tracking-wide text-brand-faint">
                             Time
                           </span>
-                          <span className="text-xs font-semibold text-gray-700">
+                          <span className="text-xs font-semibold text-brand-ink">
                             {timeRange}
                           </span>
                         </div>
@@ -374,10 +373,10 @@ export function CheckInModal({
                   </div>
 
                   {/* ─── Column 2: Collect Payment ─── */}
-                  <div className="h-full rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-                    <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
-                      <span className="rounded-lg bg-primary/10 p-1.5">
-                        <FileText className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <div className="h-full rounded-card border border-brand-line bg-surface p-5 shadow-sm">
+                    <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-brand-ink">
+                      <span className="rounded-lg bg-brand-pale p-1.5">
+                        <FileText className="h-4 w-4 text-brand-cta" aria-hidden="true" />
                       </span>
                       Collect Payment
                     </h3>
@@ -387,13 +386,13 @@ export function CheckInModal({
                       <div>
                         <Label
                           htmlFor="consultationFee"
-                          className="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-500"
+                          className="mb-2 block text-xs font-semibold uppercase tracking-wide text-brand-muted"
                         >
                           Consultation Fee
                         </Label>
                         {feeEditing ? (
                           <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-brand-faint">
                               Rs.
                             </span>
                             <Input
@@ -404,12 +403,12 @@ export function CheckInModal({
                               placeholder="0.00"
                               value={consultationFee}
                               onChange={(e) => setConsultationFee(e.target.value)}
-                              className="h-12 rounded-xl border-2 border-primary pl-10 text-lg font-bold"
+                              className="h-12 rounded-xl border-2 border-brand-cta pl-10 text-lg font-bold"
                             />
                             <button
                               type="button"
                               onClick={() => setFeeEditing(false)}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-primary"
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-brand-cta"
                             >
                               Done
                             </button>
@@ -419,25 +418,25 @@ export function CheckInModal({
                             type="button"
                             onClick={() => setFeeEditing(true)}
                             title="Click to edit"
-                            className="group flex w-full cursor-pointer items-center justify-between rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-3 transition-all duration-200 hover:border-primary"
+                            className="group flex w-full cursor-pointer items-center justify-between rounded-xl border-2 border-brand-line bg-brand-canvas px-4 py-3 transition-all duration-200 hover:border-brand-sage"
                           >
-                            <span className="text-2xl font-bold text-gray-900">
+                            <span className="text-2xl font-bold text-brand-ink">
                               Rs. {fee > 0 ? fee.toLocaleString() : "0.00"}
                             </span>
-                            <span className="flex items-center gap-1.5 text-gray-400 transition-colors group-hover:text-primary">
+                            <span className="flex items-center gap-1.5 text-brand-faint transition-colors group-hover:text-brand-cta">
                               <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                               <span className="text-xs font-medium">Edit</span>
                             </span>
                           </button>
                         )}
-                        <p className="mt-1.5 text-xs text-gray-400">
+                        <p className="mt-1.5 text-xs text-brand-faint">
                           Default fee for {appointment.doctorName ?? appointment.serviceName}
                         </p>
                       </div>
 
                       {/* Payment Mode — 2×2 tiles (Pakistani rails only) */}
                       <div>
-                        <Label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        <Label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-brand-muted">
                           Payment Mode
                         </Label>
                         <div className="grid grid-cols-2 gap-2">
@@ -450,32 +449,32 @@ export function CheckInModal({
                                 onClick={() => setPaymentMethod(tile.key)}
                                 className={`flex items-center gap-2.5 rounded-xl border-2 px-3 py-2.5 text-left transition-all duration-150 ${
                                   active
-                                    ? "border-primary bg-primary/10"
-                                    : "border-gray-200 bg-white hover:border-gray-300"
+                                    ? "border-brand-cta bg-brand-pale"
+                                    : "border-brand-line bg-surface hover:border-brand-line"
                                 }`}
                               >
                                 <span
                                   className={`mt-0.5 h-2 w-2 flex-shrink-0 rounded-full ${
-                                    active ? "bg-primary" : "bg-gray-300"
+                                    active ? "bg-brand-cta" : "bg-brand-faint"
                                   }`}
                                   aria-hidden="true"
                                 />
                                 <div className="min-w-0">
                                   <p
                                     className={`text-xs font-bold leading-none ${
-                                      active ? "text-primary" : "text-gray-600"
+                                      active ? "text-brand-cta" : "text-brand-muted"
                                     }`}
                                   >
                                     {tile.label}
                                   </p>
-                                  <p className="mt-0.5 text-[10px] leading-none text-gray-400">
+                                  <p className="mt-0.5 text-[10px] leading-none text-brand-faint">
                                     {tile.subtitle}
                                   </p>
                                 </div>
                                 {active && (
                                   <span className="ml-auto flex-shrink-0">
                                     <svg
-                                      className="h-3.5 w-3.5 text-primary"
+                                      className="h-3.5 w-3.5 text-brand-cta"
                                       fill="none"
                                       stroke="currentColor"
                                       viewBox="0 0 24 24"
@@ -499,18 +498,18 @@ export function CheckInModal({
                   </div>
 
                   {/* ─── Column 3: Billing Add-ons ─── */}
-                  <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+                  <div className="rounded-card border border-brand-line bg-surface p-4 shadow-sm">
                     {/* Accordion 1: Additional Charges */}
                     <Collapsible>
-                      <CollapsibleTrigger className="flex w-full cursor-pointer items-center justify-between text-sm font-semibold text-gray-900">
+                      <CollapsibleTrigger className="flex w-full cursor-pointer items-center justify-between text-sm font-semibold text-brand-ink">
                         <span className="flex items-center gap-2">
-                          <span className="rounded-lg bg-primary/10 p-1.5">
-                            <Plus className="h-4 w-4 text-primary" aria-hidden="true" />
+                          <span className="rounded-lg bg-brand-pale p-1.5">
+                            <Plus className="h-4 w-4 text-brand-cta" aria-hidden="true" />
                           </span>
                           Additional Charges
                         </span>
                         <ChevronDown
-                          className="h-4 w-4 text-gray-400 transition-transform duration-200 data-[state=open]:rotate-180"
+                          className="h-4 w-4 text-brand-faint transition-transform duration-200 data-[state=open]:rotate-180"
                           aria-hidden="true"
                         />
                       </CollapsibleTrigger>
@@ -520,9 +519,9 @@ export function CheckInModal({
                           {additionalCharges.map((c, i) => (
                             <div
                               key={i}
-                              className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-1.5 text-xs"
+                              className="flex items-center justify-between rounded-lg bg-brand-canvas px-3 py-1.5 text-xs"
                             >
-                              <span className="truncate text-gray-700">
+                              <span className="truncate text-brand-ink">
                                 {c.description}
                               </span>
                               <div className="flex items-center gap-2">
@@ -536,7 +535,7 @@ export function CheckInModal({
                                       prev.filter((_, j) => j !== i),
                                     )
                                   }
-                                  className="text-gray-400 hover:text-status-destructive"
+                                  className="text-brand-faint hover:text-brand-danger"
                                 >
                                   <X className="h-3 w-3" />
                                 </button>
@@ -574,16 +573,16 @@ export function CheckInModal({
                     </Collapsible>
 
                     {/* Accordion 2: Apply Discount (nested bordered box) */}
-                    <div className="mt-3 border-t border-gray-100 pt-3">
-                      <div className="overflow-hidden rounded-xl border border-gray-100">
+                    <div className="mt-3 border-t border-brand-line pt-3">
+                      <div className="overflow-hidden rounded-xl border border-brand-line">
                         <Collapsible>
-                          <CollapsibleTrigger className="flex w-full cursor-pointer items-center justify-between bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-amber-50">
+                          <CollapsibleTrigger className="flex w-full cursor-pointer items-center justify-between bg-surface px-4 py-3 text-sm font-semibold text-brand-ink transition-colors hover:bg-brand-warning-soft">
                             <span className="flex items-center gap-1.5">
-                              <span className="text-base text-amber-500">%</span>
+                              <span className="text-base text-brand-warning">%</span>
                               Apply Discount
                             </span>
                             <ChevronDown
-                              className="h-4 w-4 text-gray-400 transition-transform duration-200 data-[state=open]:rotate-180"
+                              className="h-4 w-4 text-brand-faint transition-transform duration-200 data-[state=open]:rotate-180"
                               aria-hidden="true"
                             />
                           </CollapsibleTrigger>
@@ -594,8 +593,8 @@ export function CheckInModal({
                                 onClick={() => setDiscountType("amount")}
                                 className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                                   discountType === "amount"
-                                    ? "border-primary bg-primary/10 text-primary"
-                                    : "border-gray-200 text-gray-500"
+                                    ? "border-brand-cta bg-brand-pale text-brand-cta"
+                                    : "border-brand-line text-brand-muted"
                                 }`}
                               >
                                 Rs. Fixed
@@ -605,8 +604,8 @@ export function CheckInModal({
                                 onClick={() => setDiscountType("percent")}
                                 className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                                   discountType === "percent"
-                                    ? "border-primary bg-primary/10 text-primary"
-                                    : "border-gray-200 text-gray-500"
+                                    ? "border-brand-cta bg-brand-pale text-brand-cta"
+                                    : "border-brand-line text-brand-muted"
                                 }`}
                               >
                                 % Percent
@@ -625,7 +624,7 @@ export function CheckInModal({
                               className="h-8 text-xs"
                             />
                             {discountAmount > 0 && (
-                              <p className="text-xs text-status-success">
+                              <p className="text-xs text-brand-success">
                                 Discount: - Rs. {discountAmount.toLocaleString()}
                               </p>
                             )}
@@ -638,7 +637,7 @@ export function CheckInModal({
 
                 {/* Error */}
                 {state && !state.ok && (
-                  <p className="text-xs text-status-destructive">{state.message}</p>
+                  <p className="text-xs text-brand-danger">{state.message}</p>
                 )}
               </form>
             )}
@@ -647,15 +646,15 @@ export function CheckInModal({
 
         {/* Bottom Action Bar — Total (left) + Collect Payment / Check In (right) */}
         {!hasExistingVisit && (
-          <div className="flex-shrink-0 border-t border-gray-200 bg-white px-6 py-4">
+          <div className="flex-shrink-0 border-t border-brand-line bg-surface px-6 py-4">
             <div className="flex items-center justify-between">
               {/* Left: Total Amount */}
               <div className="flex flex-col">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-gray-700">
+                  <span className="text-sm font-semibold text-brand-ink">
                     Total Amount:
                   </span>
-                  <span className="text-xl font-bold text-primary">
+                  <span className="text-xl font-bold text-brand-cta">
                     Rs. {totalAmount.toLocaleString()}
                   </span>
                 </div>
@@ -668,7 +667,7 @@ export function CheckInModal({
                   variant="outline"
                   onClick={handleCollectPayment}
                   disabled={isPending}
-                  className="gap-2 rounded-xl border-2 border-primary bg-white px-5 py-2.5 font-semibold text-primary hover:bg-primary/5"
+                  className="gap-2 rounded-xl border-2 border-brand-cta bg-surface px-5 py-2.5 font-semibold text-brand-cta hover:bg-brand-wash"
                 >
                   <FileText className="h-4 w-4" aria-hidden="true" />
                   {isPending
@@ -681,7 +680,7 @@ export function CheckInModal({
                   type="button"
                   onClick={handleCheckIn}
                   disabled={isPending}
-                  className="gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 px-6 py-2.5 font-semibold text-white shadow-lg hover:from-emerald-600 hover:to-green-600 hover:shadow-xl"
+                  className="gap-2 rounded-control bg-brand-cta px-6 py-2.5 font-semibold text-white shadow-lg hover:bg-brand-cta-hover hover:shadow-xl"
                 >
                   <CircleUser className="h-4 w-4" aria-hidden="true" />
                   {isPending ? "Checking in..." : "Check In"}
