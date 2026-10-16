@@ -411,7 +411,7 @@ export default function WebsiteBuilder({
   };
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-[calc(100vh-var(--app-header-h,4rem))] flex-col">
       {/* Top toolbar */}
       <header className="flex items-center justify-between border-b border-text-muted/20 bg-surface px-4 py-2.5">
         <div className="flex items-center gap-3">
