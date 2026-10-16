@@ -4,7 +4,7 @@ import { AssessmentForm } from "@/components/assessment/assessment-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { loadAssessmentDocument } from "@/lib/assessments/document";
 
-export const metadata: Metadata = { title: "Questionnaire" };
+export const metadata: Metadata = { title: "Questionnaire", manifest: null };
 
 /**
  * Public psychometric assessment link (legacy scrolling form) — a validated

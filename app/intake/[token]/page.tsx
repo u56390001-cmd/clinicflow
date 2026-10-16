@@ -4,7 +4,7 @@ import { PatientIntakeForm } from "@/components/intake/patient-intake-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { resolvePatientIntake } from "@/lib/patient-intake";
 
-export const metadata: Metadata = { title: "Health history form" };
+export const metadata: Metadata = { title: "Health history form", manifest: null };
 
 /**
  * The public pre-intake link (module 1 of the ingestion scope). The raw 64-hex

@@ -4,7 +4,7 @@ import { DocumentUploadForm } from "@/components/upload/document-upload-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { resolvePatientLink } from "@/lib/patient-links";
 
-export const metadata: Metadata = { title: "Upload documents" };
+export const metadata: Metadata = { title: "Upload documents", manifest: null };
 
 /**
  * Public document-upload link. The raw token is the visitor's only credential;

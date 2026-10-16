@@ -8,6 +8,7 @@ import { loadAssessmentDocument } from "@/lib/assessments/document";
 export const metadata: Metadata = {
   title: "Questionnaire",
   robots: "noindex, nofollow",
+  manifest: null,
 };
 
 // Sensitive, token-scoped content: never statically rendered or cached, and no
