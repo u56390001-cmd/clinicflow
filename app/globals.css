@@ -15,22 +15,41 @@
     --app-header-h: 4rem;
 
     /**
-     * MedBook AI brand palette ("Premium Sage + Forest Green").
-     * Declared once on :root so the app header's primary action and the
-     * dashboard overview draw from one source. `.medbook-dashboard-overview`
-     * maps its `--forest`/`--sage`/`--accent`/… aliases onto these, and the
-     * header button reads `--brand-accent`/`--brand-forest` directly — so the
-     * scheme can be carried across the app without re-declaring literals.
+     * MedBook AI brand palette — Design System V2 ("bright clinical workspace
+     * + calm sage/teal accents"). Declared once on :root so the app header's
+     * primary action, the sidebar and the dashboard overview all draw from one
+     * source. `.medbook-dashboard-overview` maps its `--forest`/`--sage`/
+     * `--accent`/… aliases onto these, and the header/sidebar read the Tailwind
+     * `brand-*` utilities that point back here — so the scheme is carried
+     * across the app without re-declaring literals.
+     *
+     * Direction V2 is deliberately brighter than the old "forest" scheme:
+     * primary #4F806C (not a near-black #203D34), so the product reads visibly
+     * green while staying light and approachable. Dark green is reserved for
+     * text hierarchy, never as a dominant surface.
      */
-    --brand-forest: #203d34;
-    --brand-deep: #162f27;
-    --brand-sage: #527a65;
-    --brand-accent: #356f59;
-    --brand-soft: #f4f7f3;
-    --brand-pale: #eaf3ed;
-    --brand-line: #e4eae6;
-    --brand-muted: #64776c;
-    --brand-ink: #23342d;
+    --brand-forest: #29423a;
+    --brand-deep: #1f332b;
+    --brand-sage: #679986;
+    --brand-accent: #4f806c;
+    --brand-accent-hover: #3f6f5d;
+    --brand-soft: #eef5f1;
+    --brand-pale: #dcebe3;
+    --brand-canvas: #f7f9f7;
+    --brand-line: #dce5e1;
+    --brand-muted: #667872;
+    --brand-ink: #29423a;
+    --brand-faint: #8a9793;
+
+    /* Semantic roles (Design System V2 §4). Used only where meaning is real. */
+    --brand-success: #249a67;
+    --brand-success-soft: #eaf7f0;
+    --brand-warning: #d99a32;
+    --brand-warning-soft: #fff6e5;
+    --brand-danger: #d9534f;
+    --brand-danger-soft: #fcedec;
+    --brand-info: #3b82a0;
+    --brand-info-soft: #eaf4f7;
   }
 
   /**
@@ -1564,25 +1583,29 @@
   --deep: var(--brand-deep);
   --sage: var(--brand-sage);
   --accent: var(--brand-accent);
+  --accent-hover: var(--brand-accent-hover);
   --pale: var(--brand-pale);
   --wash: var(--brand-soft);
   --muted: var(--brand-muted);
+  --faint: var(--brand-faint);
   --ink: var(--brand-ink);
   --line: var(--brand-line);
   --paper: #ffffff;
-  --surface: #f8faf8;
-  --orange: #ba6a22;
-  --orange-wash: #fff2e1;
-  --red: #b64549;
-  --red-wash: #fdeef0;
-  --blue: #466d98;
-  --blue-wash: #eaf2fc;
-  --overview-shadow: 0 3px 14px rgba(19, 47, 34, 0.035);
-  --overview-focus: 0 0 0 3px rgba(82, 122, 101, 0.2);
+  --surface: #f7f9f7;
+  /* Semantic aliases the overview cards already reference. Each points at the
+     one Design System V2 semantic role rather than a one-off literal. */
+  --orange: var(--brand-warning);
+  --orange-wash: var(--brand-warning-soft);
+  --red: var(--brand-danger);
+  --red-wash: var(--brand-danger-soft);
+  --blue: var(--brand-info);
+  --blue-wash: var(--brand-info-soft);
+  --overview-shadow: 0 1px 2px rgba(19, 47, 34, 0.04);
+  --overview-focus: 0 0 0 3px rgba(79, 128, 108, 0.25);
   --overview-mint: #9dc4a4;
   --overview-sand: #e8d2ab;
-  --overview-warm: #f2eae3;
-  --overview-warm-ink: #9d6f50;
+  --overview-warm: #eef2f0;
+  --overview-warm-ink: #667872;
   --overview-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
 
   color: var(--ink);
@@ -1591,9 +1614,25 @@
 /* Let the dashboard fill the content area so it stretches smoothly when the
  * desktop sidebar collapses. The shared `/app` layout caps `<main>` at
  * `max-w-5xl` (a readable measure for the other pages); this opt-out applies
- * only on the dashboard route, detected by the overview wrapper it renders. */
+ * only on the dashboard route, detected by the overview wrapper it renders.
+ * Desktop gets the roomier 32px gutters and a generous (not narrow) 1500px
+ * measure from Design System V2 §9–10. */
 main:has(.medbook-dashboard-overview) {
   max-width: none;
+  padding-inline: 1rem;
+}
+
+@media (min-width: 768px) {
+  main:has(.medbook-dashboard-overview) {
+    padding-inline: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  main:has(.medbook-dashboard-overview) {
+    padding-inline: 2rem;
+    padding-block: 2rem 2.5rem;
+  }
 }
 
 /* -------------------------------------------------------------------------

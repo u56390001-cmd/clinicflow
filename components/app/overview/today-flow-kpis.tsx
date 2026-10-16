@@ -24,6 +24,17 @@ type KpiCard = {
   foot: React.ReactNode;
 };
 
+/** A small semantic dot used in a KPI footer (colour is never the only cue —
+ * the caption text carries the meaning too). */
+function Dot({ className }: { className: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn("inline-block h-1.5 w-1.5 rounded-full", className)}
+    />
+  );
+}
+
 /** "Today's clinic flow" — the four numbers that describe the day's work. */
 export function TodayFlowKpis({
   appointmentsToday,
@@ -44,7 +55,7 @@ export function TodayFlowKpis({
       tone: "green",
       foot: (
         <>
-          <span className="font-extrabold text-[var(--accent)]">●</span>{" "}
+          <Dot className="bg-[var(--accent)]" />
           Today&apos;s schedule
         </>
       ),
@@ -56,8 +67,8 @@ export function TodayFlowKpis({
       tone: "orange",
       foot: (
         <>
-          <span className="font-extrabold text-[var(--orange)]">●</span> Needs
-          attention
+          <Dot className="bg-[var(--orange)]" />
+          Needs attention
         </>
       ),
     },
@@ -75,8 +86,8 @@ export function TodayFlowKpis({
       tone: "green",
       foot: (
         <>
-          <span className="font-extrabold text-[var(--accent)]">✓</span> Checked
-          out today
+          <Dot className="bg-[var(--accent)]" />
+          Checked out today
         </>
       ),
     },
@@ -88,19 +99,19 @@ export function TodayFlowKpis({
         Today&apos;s clinic flow
       </h2>
 
-      <div className="mb-[22px] grid grid-cols-1 gap-[14px] sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map((card, index) => {
           const Icon = card.icon;
           return (
             <motion.article
               key={card.label}
-              className="medbook-motion group relative min-h-[145px] overflow-hidden rounded-[13px] border border-[color:var(--line)] bg-[var(--paper)] px-[19px] pb-[17px] pt-[18px] shadow-[var(--overview-shadow)]"
+              className="medbook-motion group relative flex min-h-[156px] flex-col overflow-hidden rounded-[14px] border border-[color:var(--line)] bg-[var(--paper)] p-6 shadow-[var(--overview-shadow)]"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               whileHover={{
                 y: -4,
-                boxShadow: "0 14px 30px -16px rgba(19, 47, 34, 0.32)",
-                borderColor: "#527a65",
+                boxShadow: "0 14px 30px -16px rgba(19, 47, 34, 0.28)",
+                borderColor: "#679986",
                 transition: { duration: 0.22, ease: MEDBOOK_EASE },
               }}
               transition={{
@@ -109,23 +120,25 @@ export function TodayFlowKpis({
                 delay: 0.2 + index * 0.045,
               }}
             >
-              <div className="flex items-start justify-between gap-[9px]">
-                <p className="max-w-[128px] text-[12px] font-bold leading-[1.4] text-[var(--muted)]">
+              <div className="flex items-start justify-between gap-3">
+                <p className="max-w-[150px] text-[14px] font-medium leading-[1.4] text-[var(--muted)]">
                   {card.label}
                 </p>
                 <span
                   className={cn(
-                    "grid h-[35px] w-[35px] shrink-0 place-items-center rounded-[11px] transition-transform duration-200 group-hover:scale-110",
+                    "grid h-10 w-10 shrink-0 place-items-center rounded-[12px] transition-transform duration-200 group-hover:scale-105",
                     TONE_CLASS[card.tone],
                   )}
                 >
                   <Icon aria-hidden="true" className="h-[18px] w-[18px]" />
                 </span>
               </div>
-              <div className="mt-[6px] text-[29px] font-extrabold leading-none tracking-[-0.06em] text-[var(--forest)]">
+
+              <div className="mt-5 text-[30px] font-bold leading-none tracking-[-0.03em] text-[var(--forest)]">
                 <AnimatedNumber value={card.value} />
               </div>
-              <div className="mt-1 text-[11px] text-[var(--muted)]">
+
+              <div className="mt-auto flex items-center gap-1.5 pt-3 text-[13px] text-[var(--muted)]">
                 {card.foot}
               </div>
             </motion.article>

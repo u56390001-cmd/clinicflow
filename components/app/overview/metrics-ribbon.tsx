@@ -15,7 +15,9 @@ type MiniMetric = {
 /**
  * The supporting metrics ribbon. Values come from `getClinicAnalytics`; a
  * `null` rate (no appointments in the window yet) renders as an em dash rather
- * than a misleading 0%.
+ * than a misleading 0%. Deliberately quieter than the KPI cards above — one
+ * card, hairline dividers, a single accent — so it never competes with the
+ * day's flow numbers (Design System V2 §21).
  */
 export function MetricsRibbon({
   newPatientsThisWeek,
@@ -58,7 +60,7 @@ export function MetricsRibbon({
     <Reveal
       delay={0.4}
       aria-label="Supporting clinic performance metrics"
-      className="mb-[30px] grid grid-cols-2 overflow-hidden rounded-[12px] border border-[color:var(--line)] bg-[var(--paper)] py-[15px] shadow-[var(--overview-shadow)] xl:grid-cols-4"
+      className="mb-8 grid grid-cols-2 overflow-hidden rounded-[14px] border border-[color:var(--line)] bg-[var(--paper)] py-2 shadow-[var(--overview-shadow)] xl:grid-cols-4"
     >
       {items.map((item) => {
         const Icon = item.icon;
@@ -66,18 +68,18 @@ export function MetricsRibbon({
           <div
             key={item.label}
             className={cn(
-              "group flex items-center gap-[13px] border-[color:var(--line)] px-[19px] py-[6px]",
+              "group flex items-center gap-3.5 border-[color:var(--line)] px-5 py-2.5",
               "border-b [&:nth-child(odd)]:border-r xl:border-b-0 xl:border-r xl:[&:last-child]:border-r-0",
             )}
           >
-            <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-[var(--pale)] text-[var(--accent)] transition-transform duration-200 group-hover:scale-110">
-              <Icon aria-hidden="true" className="h-[17px] w-[17px]" />
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] bg-[var(--pale)] text-[var(--accent)] transition-transform duration-200 group-hover:scale-105">
+              <Icon aria-hidden="true" className="h-[18px] w-[18px]" />
             </span>
             <div className="min-w-0">
-              <small className="block text-[10.5px] leading-[1.4] text-[var(--muted)]">
+              <small className="block text-[13px] leading-[1.4] text-[var(--muted)]">
                 {item.label}
               </small>
-              <strong className="whitespace-nowrap text-[17px] font-extrabold text-[var(--forest)]">
+              <strong className="whitespace-nowrap text-[20px] font-semibold tracking-[-0.02em] text-[var(--forest)]">
                 <AnimatedNumber value={item.value} suffix={item.suffix} />
               </strong>
             </div>

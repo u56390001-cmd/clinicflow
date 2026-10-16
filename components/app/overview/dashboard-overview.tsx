@@ -11,7 +11,7 @@ import { loadDashboardOverview } from "@/lib/dashboard-overview";
 import { createClient } from "@/lib/supabase/server";
 
 const WORK_GRID =
-  "grid gap-[18px] min-[1050px]:grid-cols-[minmax(0,1.65fr)_minmax(285px,1fr)]";
+  "grid gap-5 min-[1050px]:grid-cols-[minmax(0,1.65fr)_minmax(300px,1fr)]";
 
 /**
  * The dashboard overview (right-side main content area). One server loader
@@ -57,7 +57,7 @@ export async function DashboardOverview({
         <QueueSnapshotPanel queue={data.queue} />
       </Reveal>
 
-      <Reveal delay={0.56} className={WORK_GRID}>
+      <Reveal delay={0.56} className={`${WORK_GRID} mt-5`}>
         <RecentMessages threads={data.messages} />
         <RecentActivity items={data.activity} />
       </Reveal>

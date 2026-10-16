@@ -98,15 +98,15 @@ function NavLink({
         aria-label={collapsed ? item.label : undefined}
         {...tipProps(item.label, collapsed)}
         className={cn(
-          "flex items-center rounded-control text-sm font-medium transition-colors",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-sage",
-          collapsed ? "h-10 justify-center px-0" : "gap-3 px-3 py-2",
+          "relative flex items-center rounded-control text-sm font-medium transition-colors duration-150",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-sage focus-visible:ring-offset-1",
+          collapsed ? "h-10 justify-center px-0" : "gap-3 px-3 py-2.5",
           active
-            ? "bg-brand-forest font-semibold text-white shadow-[0_3px_10px_-4px_rgba(19,47,34,0.5)]"
-            : "text-brand-muted hover:bg-brand-pale hover:text-brand-forest",
+            ? "bg-brand-wash font-semibold text-brand-cta-hover before:absolute before:left-0 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-full before:bg-brand-cta"
+            : "text-brand-muted hover:bg-brand-canvas hover:text-brand-ink",
         )}
       >
-        {Icon ? <Icon className="size-4 shrink-0" aria-hidden="true" /> : null}
+        {Icon ? <Icon className="size-[18px] shrink-0" aria-hidden="true" /> : null}
         {!collapsed && item.label}
       </Link>
     </li>
@@ -172,7 +172,7 @@ function SidebarFooter({
             collapsed,
           )}
           className={cn(
-            "mt-0.5 flex h-9 w-full items-center rounded-control text-brand-muted transition-colors hover:bg-brand-pale hover:text-brand-forest",
+            "mt-0.5 flex h-9 w-full items-center rounded-control text-brand-muted transition-colors hover:bg-brand-canvas hover:text-brand-ink",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-sage",
             collapsed ? "justify-center px-0" : "gap-2 px-3",
           )}

@@ -82,7 +82,7 @@ export function AppHeaderShell({
       className="sticky top-0 z-30 shrink-0 bg-surface/95 backdrop-blur"
     >
       {/* ── Row 1: Logo · Search · Chat · Notifications · User ── */}
-      <div className="border-border-light flex items-center justify-between border-b px-6 py-3">
+      <div className="flex items-center justify-between border-b border-brand-line px-6 py-3">
         <div className="flex items-center gap-3">
           <Button
             type="button"
@@ -152,7 +152,7 @@ export function AppHeaderShell({
       </div>
 
       {/* ── Row 2: Tabs (left) · New Appointment (right) ── */}
-      <div className="border-border-light flex items-center justify-between border-b px-6 py-2">
+      <div className="flex items-center justify-between border-b border-brand-line px-6 py-2">
         <nav aria-label="Dashboard views" className="flex items-center gap-1">
           <Link
             href={APP_ROUTES.app.dashboard}
@@ -161,8 +161,8 @@ export function AppHeaderShell({
               "px-3 py-1.5 text-sm font-medium transition-colors",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
               isDashboardArea
-                ? "border-b-2 border-primary font-semibold text-text-primary"
-                : "border-b-2 border-transparent text-text-secondary hover:text-text-primary",
+                ? "border-b-2 border-brand-cta font-semibold text-brand-ink"
+                : "border-b-2 border-transparent text-brand-muted hover:text-brand-ink",
             )}
           >
             Dashboard
@@ -179,7 +179,7 @@ export function AppHeaderShell({
         {canCreateAppointment ? (
           <Link
             href={`${APP_ROUTES.app.appointments}?new=consultation`}
-            className="medbook-btn-lift group inline-flex min-h-[38px] shrink-0 items-center justify-center gap-2 rounded-[9px] bg-brand-cta px-[15px] py-[9px] text-[12px] font-extrabold text-white shadow-[0_3px_8px_rgba(36,74,54,0.13)] transition-colors hover:bg-brand-forest active:scale-[0.98]"
+            className="medbook-btn-lift group inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-[10px] bg-brand-cta px-4 py-2.5 text-sm font-semibold text-white shadow-[0_3px_10px_rgba(63,111,93,0.18)] transition-colors hover:bg-brand-cta-hover active:scale-[0.98]"
           >
             <Plus
               aria-hidden="true"

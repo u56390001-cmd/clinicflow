@@ -48,32 +48,32 @@ export function RecentActivity({ items }: { items: DashboardActivityItem[] }) {
       />
 
       {items.length === 0 ? (
-        <p className="py-10 text-center text-[11.5px] text-[var(--muted)]">
+        <p className="py-12 text-center text-[13px] text-[var(--muted)]">
           Events will appear here as they happen.
         </p>
       ) : (
-        <div className="grid grid-cols-1 gap-[11px]">
+        <div className="grid grid-cols-1 gap-3.5">
           {items.map((item) => {
             const Icon = KIND_ICON[item.kind];
             const isIntegration = item.kind === "integration";
             return (
               <div
                 key={item.id}
-                className="group flex items-start gap-3 border-b border-[color:var(--line)] pb-[11px] transition-transform duration-200 last:border-b-0 last:pb-0 hover:translate-x-0.5"
+                className="group flex items-start gap-3 border-b border-[color:var(--line)] pb-3.5 last:border-b-0 last:pb-0"
               >
                 <span
                   className={cn(
-                    "grid h-[29px] w-[29px] shrink-0 place-items-center rounded-[9px] transition-transform duration-200 group-hover:scale-110",
+                    "grid h-9 w-9 shrink-0 place-items-center rounded-[10px] transition-transform duration-200 group-hover:scale-105",
                     TONE_CLASS[item.tone],
                   )}
                 >
-                  <Icon aria-hidden="true" className="h-[15px] w-[15px]" />
+                  <Icon aria-hidden="true" className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
-                  <strong className="block text-[11.5px] font-extrabold text-[var(--forest)]">
+                  <strong className="block text-[14px] font-medium text-[var(--forest)]">
                     {item.title}
                   </strong>
-                  <small className="mt-1 block text-[10px] text-[var(--muted)]">
+                  <small className="mt-1 block text-[12px] text-[var(--muted)]">
                     {isIntegration
                       ? `${item.source} · Review in settings`
                       : `${item.source} · ${relativeTimeShort(item.at)}`}

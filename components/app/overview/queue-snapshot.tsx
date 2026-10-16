@@ -15,75 +15,78 @@ import { AnimatedNumber } from "./animated-number";
 export function QueueSnapshotPanel({ queue }: { queue: QueueSnapshot }) {
   const activeCount =
     queue.completedCount + queue.inConsultationCount + queue.waitingCount;
-  const total = Math.max(1, activeCount);
-  const completedPct = Math.round((queue.completedCount / total) * 100);
-  const progressPct = Math.round((queue.inConsultationCount / total) * 100);
-  const waitingPct = Math.max(0, 100 - completedPct - progressPct);
+  const completedPct =
+    activeCount === 0 ? 0 : Math.round((queue.completedCount / activeCount) * 100);
+  const progressPct =
+    activeCount === 0
+      ? 0
+      : Math.round((queue.inConsultationCount / activeCount) * 100);
+  const waitingPct = activeCount === 0 ? 0 : 100 - completedPct - progressPct;
 
   return (
-    <OverviewPanel id="queuePanel">
+    <OverviewPanel>
       <PanelHeader
         icon={Users}
         title="Queue snapshot"
-        subtitle="Reception and consultation flow"
+        subtitle="Live patient flow"
         action={
-          <span className="flex items-center gap-[7px]">
-            <span className="inline-flex items-center gap-[5px] rounded-full border border-[color:var(--line)] bg-[var(--paper)] px-[8px] py-[6px] text-[10px] font-extrabold text-[var(--sage)]">
+          <span className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[color:var(--line)] bg-[var(--paper)] px-3 py-1.5 text-[12px] font-semibold text-[var(--muted)]">
               <span
+                className="medbook-live-dot h-2 w-2 rounded-full bg-[var(--accent)]"
                 aria-hidden="true"
-                className="medbook-live-dot h-[6px] w-[6px] rounded-full bg-[var(--accent)]"
               />
               Live
             </span>
-            <span className="rounded-full bg-[var(--pale)] px-[9px] py-[6px] text-[10px] font-extrabold text-[var(--accent)]">
+            <span className="rounded-full bg-[var(--pale)] px-3 py-1.5 text-[12px] font-semibold text-[var(--accent)]">
               <AnimatedNumber value={queue.waitingCount} /> waiting
             </span>
           </span>
         }
       />
 
-      <div className="mb-[15px] grid grid-cols-2 gap-[10px]">
-        <div className="rounded-[12px] border border-[color:var(--line)] bg-[var(--surface)] px-[14px] py-[17px]">
-          <small className="text-[10.5px] font-bold text-[var(--muted)]">
+      <div className="mb-4 grid grid-cols-2 gap-3">
+        <div className="rounded-[12px] border border-[color:var(--line)] bg-[var(--surface)] px-4 py-4">
+          <p className="text-[13px] font-medium text-[var(--muted)]">
             Now serving
-          </small>
-          <strong className="mt-[7px] block text-[25px] font-extrabold leading-none tracking-[-0.06em] text-[var(--forest)]">
+          </p>
+          <strong className="mt-2 block text-[26px] font-bold leading-none tracking-[-0.03em] text-[var(--forest)]">
             <AnimatedNumber value={queue.nowServingToken} prefix="#" />
           </strong>
-          <div className="mt-[3px] text-[11px] font-bold text-[var(--sage)]">
+          <p className="mt-1.5 text-[12px] font-medium text-[var(--accent)]">
             In consultation
-          </div>
+          </p>
         </div>
-        <div className="rounded-[12px] border border-[color:var(--line)] bg-[var(--surface)] px-[14px] py-[17px]">
-          <small className="text-[10.5px] font-bold text-[var(--muted)]">
+        <div className="rounded-[12px] border border-[color:var(--line)] bg-[var(--surface)] px-4 py-4">
+          <p className="text-[13px] font-medium text-[var(--muted)]">
             Up next
-          </small>
-          <strong className="mt-[7px] block text-[25px] font-extrabold leading-none tracking-[-0.06em] text-[var(--forest)]">
+          </p>
+          <strong className="mt-2 block text-[26px] font-bold leading-none tracking-[-0.03em] text-[var(--forest)]">
             <AnimatedNumber value={queue.upNextToken} prefix="#" />
           </strong>
-          <div className="mt-[3px] text-[11px] font-bold text-[var(--sage)]">
+          <p className="mt-1.5 text-[12px] font-medium text-[var(--accent)]">
             Waiting room
-          </div>
+          </p>
         </div>
       </div>
 
       {activeCount === 0 ? (
-        <div className="mb-[6px] rounded-[12px] border border-dashed border-[color:var(--line)] bg-[var(--surface)] px-[14px] py-[16px] text-center">
-          <p className="text-[11.5px] font-extrabold text-[var(--forest)]">
+        <div className="mb-1.5 rounded-[12px] border border-dashed border-[color:var(--line)] bg-[var(--surface)] px-4 py-6 text-center">
+          <p className="text-[15px] font-semibold text-[var(--forest)]">
             No patients in the queue yet
           </p>
-          <p className="mt-[3px] text-[10.5px] text-[var(--muted)]">
+          <p className="mt-1 text-[13px] text-[var(--muted)]">
             Checked-in patients will appear here in real time.
           </p>
         </div>
       ) : (
         <>
-          <div className="mb-[9px] mt-4 text-[10px] font-extrabold uppercase tracking-[0.09em] text-[var(--muted)]">
+          <p className="mb-2.5 mt-4 text-[12px] font-medium uppercase tracking-[0.06em] text-[var(--muted)]">
             Patient flow · Today
-          </div>
-          <div className="flex h-[7px] overflow-hidden rounded-full bg-[var(--wash)]">
+          </p>
+          <div className="flex h-2 overflow-hidden rounded-full bg-[var(--wash)]">
             <span
-              className="medbook-bar-seg bg-[var(--sage)]"
+              className="medbook-bar-seg bg-[var(--accent)]"
               style={{ width: `${completedPct}%`, animationDelay: "0ms" }}
             />
             <span
@@ -95,37 +98,37 @@ export function QueueSnapshotPanel({ queue }: { queue: QueueSnapshot }) {
               style={{ width: `${waitingPct}%`, animationDelay: "180ms" }}
             />
           </div>
-          <div className="mt-[10px] flex flex-wrap justify-between gap-[7px] text-[10px] text-[var(--muted)]">
+          <div className="mt-3 flex flex-wrap justify-between gap-2 text-[12px] text-[var(--muted)]">
             <span className="inline-flex items-center">
-              <b className="mr-[5px] inline-block h-[7px] w-[7px] rounded-full bg-[var(--sage)]" />
+              <b className="mr-1.5 inline-block h-2 w-2 rounded-full bg-[var(--accent)]" />
               Completed
             </span>
             <span className="inline-flex items-center">
-              <b className="mr-[5px] inline-block h-[7px] w-[7px] rounded-full bg-[var(--overview-mint)]" />
+              <b className="mr-1.5 inline-block h-2 w-2 rounded-full bg-[var(--overview-mint)]" />
               In progress
             </span>
             <span className="inline-flex items-center">
-              <b className="mr-[5px] inline-block h-[7px] w-[7px] rounded-full bg-[var(--overview-sand)]" />
+              <b className="mr-1.5 inline-block h-2 w-2 rounded-full bg-[var(--overview-sand)]" />
               Waiting
             </span>
           </div>
         </>
       )}
 
-      <div className="mt-6 flex flex-wrap gap-[9px]">
+      <div className="mt-6 flex flex-wrap gap-3">
         <Link
           href={APP_ROUTES.app.appointments}
-          className="medbook-btn-lift group inline-flex min-h-[38px] items-center justify-center gap-2 rounded-[9px] bg-[var(--accent)] px-[15px] py-[9px] text-[12px] font-extrabold text-white shadow-[0_3px_8px_rgba(36,74,54,0.13)] transition-colors hover:bg-[var(--forest)] active:scale-[0.98]"
+          className="medbook-btn-lift group inline-flex min-h-10 items-center justify-center gap-2 rounded-[10px] bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_3px_10px_rgba(63,111,93,0.18)] transition-colors hover:bg-[var(--accent-hover)] active:scale-[0.98]"
         >
           <Monitor
             aria-hidden="true"
-            className="h-4 w-4 transition-transform duration-200 group-hover:scale-110"
+            className="h-4 w-4 transition-transform duration-200 group-hover:scale-105"
           />
           View queue
         </Link>
         <Link
           href={APP_ROUTES.app.appointments}
-          className="medbook-btn-lift inline-flex min-h-[38px] items-center justify-center gap-2 rounded-[9px] border border-[color:var(--line)] bg-[var(--paper)] px-[15px] py-[9px] text-[12px] font-extrabold text-[var(--forest)] transition-colors hover:bg-[var(--wash)] active:scale-[0.98]"
+          className="medbook-btn-lift inline-flex min-h-10 items-center justify-center gap-2 rounded-[10px] border border-[color:var(--line)] bg-[var(--paper)] px-4 py-2.5 text-sm font-semibold text-[var(--forest)] transition-colors hover:bg-[var(--wash)] active:scale-[0.98]"
         >
           Check in patient
         </Link>

@@ -131,7 +131,7 @@ export function ProfileDropdown({ user }: ProfileDropdownProps) {
           >
             <span
               aria-hidden="true"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-pill bg-brand-forest text-sm font-semibold text-white"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-pill bg-brand-cta text-sm font-semibold text-white"
             >
               {initialsOf(user.name, user.email)}
             </span>

@@ -48,7 +48,7 @@ export function TodaySchedule({ rows }: { rows: TodayScheduleRow[] }) {
           <div
             role="group"
             aria-label="Schedule filter"
-            className="flex rounded-[9px] border border-[color:var(--line)] bg-[var(--wash)] p-[3px]"
+            className="flex rounded-[10px] border border-[color:var(--line)] bg-[var(--wash)] p-1"
           >
             {FILTERS.map((option) => (
               <button
@@ -57,9 +57,9 @@ export function TodaySchedule({ rows }: { rows: TodayScheduleRow[] }) {
                 onClick={() => setFilter(option.id)}
                 aria-pressed={filter === option.id}
                 className={cn(
-                  "rounded-[6px] px-[10px] py-[6px] text-[10.5px] font-extrabold transition-colors",
+                  "rounded-[7px] px-3 py-1.5 text-[13px] font-semibold transition-colors",
                   filter === option.id
-                    ? "bg-[var(--paper)] text-[var(--forest)] shadow-[0_1px_5px_rgba(23,45,26,0.09)]"
+                    ? "bg-[var(--paper)] text-[var(--forest)] shadow-[0_1px_3px_rgba(23,45,26,0.12)]"
                     : "text-[var(--muted)] hover:text-[var(--forest)]",
                 )}
               >
@@ -73,14 +73,14 @@ export function TodaySchedule({ rows }: { rows: TodayScheduleRow[] }) {
       <div className="overflow-x-auto">
         <table className="w-full table-fixed border-collapse">
           <thead>
-            <tr className="text-left text-[10px] font-extrabold uppercase tracking-[0.055em] text-[var(--muted)]">
-              <th className="w-[72px] pb-[10px] pr-[10px]">Time</th>
-              <th className="w-[31%] pb-[10px] pr-[10px]">Patient</th>
-              <th className="w-[24%] pb-[10px] pr-[10px] max-sm:hidden">
+            <tr className="text-left text-[12px] font-medium uppercase tracking-[0.04em] text-[var(--muted)]">
+              <th className="w-[76px] pb-3 pr-3 font-medium">Time</th>
+              <th className="w-[31%] pb-3 pr-3 font-medium">Patient</th>
+              <th className="w-[24%] pb-3 pr-3 font-medium max-md:hidden">
                 Doctor
               </th>
-              <th className="w-[21%] pb-[10px] pr-[10px]">Status</th>
-              <th className="w-[44px] pb-[10px]">
+              <th className="w-[21%] pb-3 pr-3 font-medium">Status</th>
+              <th className="w-[44px] pb-3">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
@@ -88,17 +88,17 @@ export function TodaySchedule({ rows }: { rows: TodayScheduleRow[] }) {
           <tbody>
             {visible.length === 0 ? (
               <tr>
-                <td colSpan={5} className="py-6">
-                  <div className="flex flex-col items-center gap-1 text-center">
-                    <span className="grid h-9 w-9 place-items-center rounded-full bg-[var(--pale)] text-[var(--sage)]">
-                      <CalendarDays aria-hidden="true" className="h-[18px] w-[18px]" />
+                <td colSpan={5} className="py-10">
+                  <div className="flex flex-col items-center gap-2 text-center">
+                    <span className="grid h-12 w-12 place-items-center rounded-full bg-[var(--pale)] text-[var(--accent)]">
+                      <CalendarDays aria-hidden="true" className="h-6 w-6" />
                     </span>
-                    <p className="mt-1 text-[11.5px] font-extrabold text-[var(--forest)]">
+                    <p className="mt-1 text-[15px] font-semibold text-[var(--forest)]">
                       {rows.length === 0
-                        ? "No appointments scheduled today"
+                        ? "No appointments today"
                         : "No matching appointments"}
                     </p>
-                    <p className="text-[10.5px] text-[var(--muted)]">
+                    <p className="max-w-sm text-[13px] text-[var(--muted)]">
                       {rows.length === 0
                         ? "New bookings will appear here as they come in."
                         : "Try a different filter to see more."}
@@ -110,36 +110,36 @@ export function TodaySchedule({ rows }: { rows: TodayScheduleRow[] }) {
               visible.map((row) => (
                 <tr
                   key={row.id}
-                  className="group border-t border-[color:var(--line)] text-[11.5px] text-[var(--muted)] transition-colors duration-200 hover:bg-[var(--surface)]"
+                  className="group border-t border-[color:var(--line)] text-[14px] text-[var(--muted)] transition-colors duration-200 hover:bg-[var(--surface)]"
                 >
-                  <td className="py-3 pr-[10px] font-extrabold text-[var(--forest)]">
+                  <td className="py-3.5 pr-3 font-semibold text-[var(--forest)]">
                     {row.timeLabel}
                   </td>
-                  <td className="py-3 pr-[10px]">
-                    <div className="truncate text-[11.5px] font-extrabold text-[var(--forest)]">
+                  <td className="py-3.5 pr-3">
+                    <div className="truncate text-[14px] font-semibold text-[var(--forest)]">
                       {row.patientName}
                     </div>
-                    <div className="mt-0.5 truncate text-[10px] text-[var(--muted)]">
+                    <div className="mt-0.5 truncate text-[12px] text-[var(--muted)]">
                       {row.serviceName}
                     </div>
                   </td>
-                  <td className="py-3 pr-[10px] max-sm:hidden">
+                  <td className="py-3.5 pr-3 max-md:hidden">
                     <span className="block truncate">
                       {row.doctorName ?? "—"}
                     </span>
                   </td>
-                  <td className="py-3 pr-[10px]">
+                  <td className="py-3.5 pr-3">
                     <StatusPill status={row.status} />
                   </td>
-                  <td className="py-3">
+                  <td className="py-3.5">
                     <Link
                       href={APP_ROUTES.app.appointments}
                       aria-label={`View appointment for ${row.patientName}`}
-                      className="inline-grid h-8 w-8 place-items-center rounded-[7px] text-[var(--sage)] opacity-60 transition-all duration-200 hover:bg-[var(--pale)] group-hover:opacity-100 focus-visible:opacity-100"
+                      className="inline-grid h-9 w-9 place-items-center rounded-[8px] text-[var(--accent)] opacity-60 transition-all duration-200 hover:bg-[var(--pale)] group-hover:opacity-100 focus-visible:opacity-100"
                     >
                       <ChevronRight
                         aria-hidden="true"
-                        className="h-[17px] w-[17px] transition-transform duration-200 group-hover:translate-x-0.5"
+                        className="h-[18px] w-[18px] transition-transform duration-200 group-hover:translate-x-0.5"
                       />
                     </Link>
                   </td>
@@ -150,7 +150,7 @@ export function TodaySchedule({ rows }: { rows: TodayScheduleRow[] }) {
         </table>
       </div>
 
-      <div className="mt-[14px] flex items-center justify-between gap-3 border-t border-[color:var(--line)] pt-[14px] text-[11px] text-[var(--muted)]">
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-[color:var(--line)] pt-4 text-[13px] text-[var(--muted)]">
         <span>
           Showing {visible.length} of {filtered.length} matching appointments
         </span>
@@ -158,14 +158,14 @@ export function TodaySchedule({ rows }: { rows: TodayScheduleRow[] }) {
           <button
             type="button"
             onClick={() => setShowAll((value) => !value)}
-            className="font-extrabold text-[var(--accent)] hover:underline"
+            className="font-semibold text-[var(--accent)] hover:underline"
           >
             {showAll ? "Show fewer ↑" : "View all appointments →"}
           </button>
         ) : (
           <Link
             href={APP_ROUTES.app.appointments}
-            className="font-extrabold text-[var(--accent)] hover:underline"
+            className="font-semibold text-[var(--accent)] hover:underline"
           >
             View all appointments →
           </Link>

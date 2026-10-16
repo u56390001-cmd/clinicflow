@@ -22,7 +22,7 @@ export function OverviewPanel({
     <section
       id={id}
       className={cn(
-        "min-w-0 overflow-hidden rounded-[14px] border border-[color:var(--line)] bg-[var(--paper)] p-[22px] shadow-[var(--overview-shadow)]",
+        "min-w-0 overflow-hidden rounded-[14px] border border-[color:var(--line)] bg-[var(--paper)] p-6 shadow-[var(--overview-shadow)]",
         className,
       )}
     >
@@ -43,17 +43,17 @@ export function PanelHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="mb-[18px] flex items-center justify-between gap-3">
-      <div className="flex items-center gap-[10px]">
-        <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-[var(--pale)] text-[var(--accent)]">
+    <div className="mb-5 flex items-center justify-between gap-3">
+      <div className="flex items-center gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-[var(--pale)] text-[var(--accent)]">
           <Icon aria-hidden="true" className="h-[18px] w-[18px]" />
         </span>
         <div className="min-w-0">
-          <h3 className="text-[14px] font-extrabold tracking-[-0.025em] text-[var(--forest)]">
+          <h3 className="text-[16px] font-semibold tracking-[-0.01em] text-[var(--forest)]">
             {title}
           </h3>
           {subtitle ? (
-            <p className="mt-[3px] text-[10.5px] text-[var(--muted)]">{subtitle}</p>
+            <p className="mt-0.5 text-[13px] text-[var(--muted)]">{subtitle}</p>
           ) : null}
         </div>
       </div>
@@ -93,7 +93,7 @@ export function StatusPill({ status }: { status: TodayScheduleStatus }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-[5px] text-[10px] font-extrabold",
+        "inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-[12px] font-semibold",
         meta.className,
       )}
     >
