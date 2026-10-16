@@ -90,13 +90,13 @@ function DropZone({
       )}
     >
       {uploading ? (
-        <span className="flex items-center gap-2 text-xs font-medium text-primary">
+        <span className="flex items-center gap-2 text-sm font-medium text-primary">
           <Spinner size="sm" /> Uploading…
         </span>
       ) : (
         <>
           <ImagePlus className="size-5 text-text-muted" aria-hidden="true" />
-          <span className="text-xs font-medium text-text-secondary">{label}</span>
+          <span className="text-sm font-medium text-text-secondary">{label}</span>
           {hint ? <span className="text-[11px] text-text-muted">{hint}</span> : null}
         </>
       )}
@@ -197,7 +197,7 @@ function SingleImage({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-xs font-medium text-text-secondary">{label}</p>
+      <p className="text-sm font-medium text-text-secondary">{label}</p>
 
       {current ? (
         <div
@@ -246,7 +246,7 @@ function SingleImage({
             </Button>
           </div>
           {uploading ? (
-            <div className="absolute inset-0 flex items-center justify-center bg-white/80 text-xs font-medium text-text-secondary">
+            <div className="absolute inset-0 flex items-center justify-center bg-white/80 text-sm font-medium text-text-secondary">
               <Spinner size="sm" /> Uploading…
             </div>
           ) : null}
@@ -433,7 +433,7 @@ function GalleryEditor({
       ) : (
         <>
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-text-secondary">
+            <p className="text-sm text-text-secondary">
               {gallery.length} of {GALLERY_MAX} photo{gallery.length === 1 ? "" : "s"}
             </p>
             <Button
@@ -449,7 +449,7 @@ function GalleryEditor({
           </div>
 
           {uploading ? (
-            <p className="flex items-center gap-2 text-xs font-medium text-primary">
+            <p className="flex items-center gap-2 text-sm font-medium text-primary">
               <Spinner size="sm" /> {progress || "Uploading…"}
             </p>
           ) : null}

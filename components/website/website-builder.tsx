@@ -3,15 +3,22 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
+  ChevronDown,
   ChevronsLeft,
   ChevronsRight,
+  Copy,
   Globe,
+  Laptop,
   Loader2,
   Maximize2,
   Minimize2,
-  Monitor,
+  Pause,
+  Plus,
   Save,
   Smartphone,
+  Tablet,
+  Trash2,
+  Undo2,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -77,7 +84,14 @@ type Props = {
   }>;
 };
 
-type Device = "desktop" | "mobile";
+type Device = "desktop" | "tablet" | "mobile";
+
+/** Build the public URL for this clinic's website. */
+function buildSiteUrl(clinicSlug: string): string {
+  const origin =
+    typeof window !== "undefined" ? window.location.origin : "";
+  return `${origin}/site/${clinicSlug}`;
+}
 
 export default function WebsiteBuilder({
   clinicId,
@@ -124,6 +138,47 @@ export default function WebsiteBuilder({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [previewFullscreen]);
+
+  // Ctrl/Cmd+S saves. Mirrors the button label so keyboard users get the same
+  // affordance without hunting for the Save button.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        if (dirty && !saving) void handleSave();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [dirty, saving]);
+
+  const handleDuplicateSection = (id: WebsiteSectionId) => {
+    const target = config.content.sections.find((s) => s.id === id);
+    if (!target) return;
+    const maxOrder = Math.max(...config.content.sections.map((s) => s.order));
+    updateConfig({
+      ...config,
+      content: {
+        ...config.content,
+        sections: [
+          ...config.content.sections,
+          { ...target, order: maxOrder + 1, visible: target.visible },
+        ],
+      },
+    });
+  };
+
+  const handleDeleteSection = (id: WebsiteSectionId) => {
+    const section = config.content.sections.find((s) => s.id === id);
+    if (!section) return;
+    updateConfig({
+      ...config,
+      content: {
+        ...config.content,
+        sections: config.content.sections.filter((s) => s.id !== id),
+      },
+    });
+  };
 
   const updateConfig = (next: WebsiteConfig) => {
     setConfig(next);
@@ -256,7 +311,11 @@ export default function WebsiteBuilder({
         <div
           className={cn(
             "mx-auto transition-all",
-            device === "mobile" ? "max-w-[390px]" : "max-w-full",
+            device === "mobile"
+              ? "max-w-[390px]"
+              : device === "tablet"
+                ? "max-w-[768px]"
+                : "max-w-full",
           )}
         >
           {/* `overflow-clip`, not `overflow-hidden`, and the distinction is the whole
@@ -291,7 +350,7 @@ export default function WebsiteBuilder({
 
   /** Shared device switch, used in the toolbar and in fullscreen. */
   const deviceToggle = (
-    <div className="flex gap-1 rounded-control bg-app p-1">
+    <div className="flex items-center gap-1 rounded-control bg-app p-1">
       <button
         type="button"
         aria-label="Desktop preview"
@@ -304,7 +363,21 @@ export default function WebsiteBuilder({
             : "text-text-muted",
         )}
       >
-        <Monitor className="size-4" aria-hidden="true" />
+        <Laptop className="size-4" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        aria-label="Tablet preview"
+        aria-pressed={device === "tablet"}
+        onClick={() => setDevice("tablet")}
+        className={cn(
+          "rounded-control p-1.5",
+          device === "tablet"
+            ? "bg-surface text-text-primary shadow-card"
+            : "text-text-muted",
+        )}
+      >
+        <Tablet className="size-4" aria-hidden="true" />
       </button>
       <button
         type="button"
@@ -324,7 +397,7 @@ export default function WebsiteBuilder({
   );
 
   const dirtyBadge = dirty ? (
-    <span className="flex items-center gap-1 text-xs text-text-muted">
+    <span className="flex items-center gap-1 text-sm text-text-muted">
       <span className="size-1.5 rounded-pill bg-status-warning" />
       Unsaved changes
     </span>
@@ -411,9 +484,10 @@ export default function WebsiteBuilder({
   };
 
   return (
-    <div className="flex h-[calc(100vh-var(--app-header-h,4rem))] flex-col">
-      {/* Top toolbar */}
+    <div data-app-wide className="flex h-[calc(100vh-var(--app-header-h,4rem)-1.5rem)] flex-col">
+      {/* Top toolbar — workspace identity, save state, preview, publish */}
       <header className="flex items-center justify-between border-b border-text-muted/20 bg-surface px-4 py-2.5">
+        {/* Left: workspace identity */}
         <div className="flex items-center gap-3">
           <h1 className="text-base font-semibold text-text-primary">
             Website Builder
@@ -424,41 +498,77 @@ export default function WebsiteBuilder({
           {dirtyBadge}
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Center: preview controls */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-sm text-text-secondary">
+            <Undo2 className="size-4" aria-hidden="true" />
+            <span>Undo</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-sm text-text-secondary">
+            <Copy className="size-4" aria-hidden="true" />
+            <span>Redo</span>
+          </div>
           {deviceToggle}
-
           <Button
             type="button"
             variant="outline"
+            size="sm"
+            onClick={() => window.open(buildSiteUrl(clinicSlug), "_blank")}
+            aria-label="Open live website"
+            title="Open live website"
+          >
+            <Globe className="size-4" aria-hidden="true" />
+            View site
+          </Button>
+        </div>
+
+        {/* Right: save and publish actions */}
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
             onClick={() => void handleSave()}
             disabled={saving || !dirty}
+            aria-label="Save changes"
+            title="Save (Ctrl+S)"
           >
             {saving ? (
-              <Loader2 className="size-4 animate-spin" data-icon="inline-start" />
+              <Loader2 className="size-4 animate-spin" />
             ) : (
-              <Save data-icon="inline-start" />
+              <Save className="size-4" />
             )}
-            Save
+            <span className="hidden sm:inline">
+              {saving ? "Saving…" : "Save draft"}
+            </span>
           </Button>
 
           {isPublished ? (
             <Button
               type="button"
               variant="outline"
+              size="sm"
               onClick={() => void handlePublish("unpublished")}
               disabled={publishing}
             >
-              <ArrowLeft data-icon="inline-start" />
-              Unpublish
+              <Pause className="size-4" />
+              <span className="hidden sm:inline">Unpublish</span>
             </Button>
           ) : (
             <Button
               type="button"
+              size="sm"
               onClick={() => void handlePublish("published")}
               disabled={publishing}
             >
-              <Globe data-icon="inline-start" />
-              Publish
+              {publishing ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Globe className="size-4" />
+              )}
+              <span className="hidden sm:inline">
+                {publishing ? "Publishing…" : "Publish"}
+              </span>
             </Button>
           )}
         </div>
@@ -606,7 +716,11 @@ export default function WebsiteBuilder({
                 Website preview
               </h2>
               <Badge variant="outline">
-                {device === "mobile" ? "Mobile" : "Desktop"}
+                {device === "mobile"
+                  ? "Mobile"
+                  : device === "tablet"
+                    ? "Tablet"
+                    : "Desktop"}
               </Badge>
               {dirtyBadge}
             </div>

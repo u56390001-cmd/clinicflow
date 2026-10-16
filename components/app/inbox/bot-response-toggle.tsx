@@ -54,7 +54,7 @@ export function BotResponseToggle({
         onClick={toggle}
         disabled={isPending}
         className="relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200 disabled:opacity-60"
-        style={{ backgroundColor: botOn ? "#1DAA61" : "#E5E7EB" }}
+         style={{ backgroundColor: botOn ? "#4f806c" : "#E5E7EB" }}
       >
         <span
           className="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.2)] transition-[left] duration-200"

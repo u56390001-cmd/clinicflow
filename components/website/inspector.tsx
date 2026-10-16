@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   ChipList,
+  CollapsibleGroup,
   ColorField,
   InspectorGroup,
   LiveDataNote,
@@ -125,47 +126,52 @@ export function Inspector({
         </div>
       ) : (
         <>
-          <div className="flex gap-0.5 overflow-x-auto border-b border-text-muted/20 px-2 py-1.5">
-        {TABS.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={tab === id}
-            onClick={() => setTab(id)}
-            className={cn(
-              "flex flex-1 flex-col items-center gap-1 rounded-control px-1 py-1.5 text-[11px] font-medium transition-colors",
-              tab === id
-                ? "bg-primary/10 text-primary"
-                : "text-text-muted hover:bg-app hover:text-text-secondary",
-            )}
-          >
-            <Icon className="size-4" aria-hidden="true" />
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {tab === "content" ? (
-          <ContentTab selectedSectionId={selectedSectionId} config={config} onUpdate={onUpdateConfig} />
-        ) : null}
-        {tab === "design" ? (
-          <DesignTab config={config} onUpdate={onUpdateConfig} />
-        ) : null}
-        {tab === "images" ? (
-          <div className="flex flex-col gap-4 px-4 py-4">
-            <ImageManager
-              clinicId={clinicId}
-              images={images}
-              onChange={onUpdateImages}
-            />
+          <div className="border-b border-text-muted/20 px-2">
+            <nav
+              role="tablist"
+              className="flex gap-1 overflow-x-auto"
+            >
+              {TABS.map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === id}
+                  onClick={() => setTab(id)}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-control px-3.5 py-2 text-sm font-medium transition-colors whitespace-nowrap",
+                    tab === id
+                      ? "bg-primary/10 text-primary"
+                      : "text-text-secondary hover:bg-app hover:text-text-primary",
+                  )}
+                >
+                  <Icon className="size-4" aria-hidden="true" />
+                  {label}
+                </button>
+              ))}
+            </nav>
           </div>
-        ) : null}
-        {tab === "widget" ? <WidgetTab config={config} onUpdate={onUpdateConfig} /> : null}
-        {tab === "seo" ? <SeoTab config={config} onUpdate={onUpdateConfig} /> : null}
-        {tab === "domain" ? <DomainTab slug={clinicSlug} /> : null}
-      </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {tab === "content" ? (
+              <ContentTab selectedSectionId={selectedSectionId} config={config} onUpdate={onUpdateConfig} />
+            ) : null}
+            {tab === "design" ? (
+              <DesignTab config={config} onUpdate={onUpdateConfig} />
+            ) : null}
+            {tab === "images" ? (
+              <div className="flex flex-col gap-4 px-4 py-4">
+                <ImageManager
+                  clinicId={clinicId}
+                  images={images}
+                  onChange={onUpdateImages}
+                />
+              </div>
+            ) : null}
+            {tab === "widget" ? <WidgetTab config={config} onUpdate={onUpdateConfig} /> : null}
+            {tab === "seo" ? <SeoTab config={config} onUpdate={onUpdateConfig} /> : null}
+            {tab === "domain" ? <DomainTab slug={clinicSlug} /> : null}
+          </div>
         </>
       )}
     </div>
@@ -192,7 +198,7 @@ function ContentTab({
       <div className="flex flex-col items-center gap-2 px-6 py-14 text-center">
         <LayoutList className="size-7 text-text-muted" aria-hidden="true" />
         <p className="text-sm font-medium text-text-secondary">No section selected</p>
-        <p className="text-xs leading-relaxed text-text-muted">
+        <p className="text-sm leading-relaxed text-text-muted">
           Pick a section from the outline on the left, or click one in the preview,
           to edit what it says.
         </p>
@@ -280,9 +286,10 @@ function ContentTab({
       ) : null}
 
       {selectedSectionId === "hero" ? (
-        <InspectorGroup
+        <CollapsibleGroup
           title="Hero photo cards"
           description="The two cards floating over the corners of the hero photograph."
+          defaultOpen={Boolean(content.hero.imageBadgeText || content.hero.imageStatText)}
         >
           <TextField
             label="Badge on the photo (top-left)"
@@ -304,11 +311,11 @@ function ContentTab({
             maxLength={60}
             hint="The glass card over the right corner. Empty either field to hide that card."
           />
-          <p className="text-[11px] leading-relaxed text-text-muted">
+          <p className="text-sm leading-relaxed text-text-muted">
             The photo behind these cards is the <strong>Hero banner</strong> image —
             upload or swap it in the Images section.
           </p>
-        </InspectorGroup>
+        </CollapsibleGroup>
       ) : null}
 
       {selectedSectionId === "doctors" ? (
@@ -483,7 +490,7 @@ function ContentTab({
             maxLength={40}
           />
           <div className="flex flex-col gap-2">
-            <p className="text-xs font-medium text-text-secondary">Statistics</p>
+            <p className="text-sm font-medium text-text-secondary">Statistics</p>
             {content.experience.stats.map((stat, index) => (
               <div key={index} className="flex gap-2 rounded-control border border-text-muted/20 bg-app p-2">
                 <TextField
@@ -637,7 +644,7 @@ function FaqGroup({
           className="flex flex-col gap-2 rounded-control border border-text-muted/20 bg-app p-2.5"
         >
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+            <p className="text-sm font-semibold uppercase tracking-wider text-text-muted">
               Question {index + 1}
             </p>
             <Button
@@ -803,7 +810,12 @@ function DesignTab({
         />
       </InspectorGroup>
 
-      <InspectorGroup title="Logo" description="Shown in the header bar.">
+      <CollapsibleGroup
+        title="Logo"
+        description="Shown in the header bar."
+        defaultOpen={Boolean(theme.logoUrl)}
+        icon={Palette}
+      >
         <TextField
           label="Logo URL"
           value={theme.logoUrl}
@@ -812,7 +824,7 @@ function DesignTab({
           placeholder="Leave empty to use the logo from Settings"
           hint="Paste a direct link to the image. If empty, we use the clinic logo you uploaded in Settings."
         />
-      </InspectorGroup>
+      </CollapsibleGroup>
     </div>
   );
 }
@@ -899,21 +911,24 @@ function WidgetTab({
         ) : null}
       </InspectorGroup>
 
-      <InspectorGroup title="Clinic-wide settings">
-        <p className="text-[11px] leading-relaxed text-text-muted">
+      <CollapsibleGroup
+        title="Clinic-wide settings"
+        description="The assistant name, greeting and avatar live in AI Agent settings."
+      >
+        <p className="text-sm leading-relaxed text-text-secondary">
           The assistant name, greeting, avatar and headline subtitle live under{" "}
-          <span className="font-medium text-text-secondary">AI Agent</span>, and
-          its master switch lives there too. Switching the assistant off there
-          turns it off everywhere, including on this website — this tab cannot
-          turn it back on.
+          <span className="font-medium text-text-primary">AI Agent</span>, and its
+          master switch lives there too. Switching the assistant off there turns
+          it off everywhere, including on this website — this tab cannot turn it
+          back on.
         </p>
         <a
           href="/app/ai-settings"
-          className="text-xs font-medium text-primary underline underline-offset-4"
+          className="text-sm font-medium text-primary underline underline-offset-4"
         >
           Open AI Agent settings
         </a>
-      </InspectorGroup>
+      </CollapsibleGroup>
     </div>
   );
 }
@@ -943,15 +958,15 @@ function SeoTab({
         description="What a patient sees when your site appears in Google."
       >
         <div className="rounded-control border border-text-muted/25 bg-surface p-3">
-          <p className="truncate text-xs text-text-muted">your-clinic.com</p>
+          <p className="truncate text-sm text-text-muted">your-clinic.com</p>
           <p className="mt-0.5 truncate text-base font-medium text-[#1a0dab]">
             {title}
           </p>
-          <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-text-secondary">
+          <p className="mt-0.5 line-clamp-2 text-sm leading-relaxed text-text-secondary">
             {description}
           </p>
         </div>
-        <p className="text-[11px] leading-relaxed text-text-muted">
+        <p className="text-sm leading-relaxed text-text-secondary">
           Google truncates titles near 60 characters and descriptions near 160.
         </p>
       </InspectorGroup>
@@ -1205,7 +1220,7 @@ function DomainTab({ slug }: { slug: string }) {
             </div>
 
             {message ? (
-              <p className="rounded-control border border-text-muted/25 bg-app p-3 text-xs leading-relaxed text-text-secondary">
+              <p className="rounded-control border border-text-muted/25 bg-app p-3 text-sm leading-relaxed text-text-secondary">
                 {message}
               </p>
             ) : null}
@@ -1227,7 +1242,7 @@ function DomainTab({ slug }: { slug: string }) {
             within an hour.
           </li>
         </ol>
-        <p className="text-[11px] leading-relaxed text-text-muted">
+        <p className="text-sm leading-relaxed text-text-secondary">
           We can confirm you control the domain. Serving the site on that hostname and
           issuing its SSL certificate is handled by our hosting layer, so those steps
           can take a little longer than the check.
@@ -1247,11 +1262,11 @@ function DnsTable({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-xs font-medium text-text-secondary">
+      <p className="text-sm font-medium text-text-secondary">
         Add these at your domain host
       </p>
       <div className="overflow-hidden rounded-control border border-text-muted/25">
-        <table className="w-full text-start text-xs">
+        <table className="w-full text-start text-sm">
           <thead className="bg-app text-text-muted">
             <tr>
               <th scope="col" className="px-2 py-1.5 text-start font-medium">

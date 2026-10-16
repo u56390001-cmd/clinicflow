@@ -86,21 +86,26 @@ export function EditorLeftPanel({
 
   const tip = (label: string) => tipProps(label);
 
+  // Split into visible and hidden so the navigation communicates the
+  // page's actual structure at a glance.
+  const visibleSections = ordered.filter((section) => section.visible);
+  const hiddenSections = ordered.filter((section) => !section.visible);
+
   return (
     <div className="flex h-full flex-col bg-surface">
-      {/* Page outline */}
+      {/* Live sections */}
       <div className="border-b border-text-muted/20 px-3 py-3">
         <div className="flex items-baseline justify-between px-1">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-            Page sections
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-text-muted">
+            Live sections
           </h2>
-          <span className="text-xs text-text-muted">
-            {ordered.filter((section) => section.visible).length} of {ordered.length} on
+          <span className="text-sm text-text-muted">
+            {visibleSections.length} of {ordered.length} on page
           </span>
         </div>
 
         <ul className="mt-2 flex flex-col gap-0.5" onMouseLeave={hideTip}>
-          {ordered.map((section, index) => {
+          {visibleSections.map((section, index) => {
             const Icon = SECTION_ICONS[section.id];
             const isSelected = section.id === selectedId;
             const isDropTarget =
@@ -152,7 +157,9 @@ export function EditorLeftPanel({
                     <span
                       className={cn(
                         "flex size-6 shrink-0 items-center justify-center rounded-control",
-                        isSelected ? "bg-primary/10 text-primary" : "bg-app text-text-muted",
+                        isSelected
+                          ? "bg-primary/10 text-primary"
+                          : "bg-app text-text-muted",
                       )}
                     >
                       <Icon className="size-3.5" aria-hidden="true" />
@@ -168,10 +175,8 @@ export function EditorLeftPanel({
                       >
                         {section.label}
                       </span>
-                      {/* The position number is the one numeral here that carries
-                          real information — it is the order, not decoration. */}
-                      <span className="block text-[11px] text-text-muted">
-                        {section.visible ? `Position ${index + 1}` : "Hidden"}
+                      <span className="block text-xs text-text-muted">
+                        Position {index + 1}
                       </span>
                     </span>
                   </button>
@@ -220,10 +225,78 @@ export function EditorLeftPanel({
         </ul>
       </div>
 
+      {/* Hidden sections */}
+      {hiddenSections.length > 0 ? (
+        <div className="px-3 py-3">
+          <div className="flex items-baseline justify-between px-1">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-text-muted">
+              Hidden
+            </h2>
+            <span className="text-sm text-text-muted">
+              {hiddenSections.length} section{hiddenSections.length === 1 ? "" : "s"}
+            </span>
+          </div>
+
+          <ul className="mt-2 flex flex-col gap-0.5" onMouseLeave={hideTip}>
+            {hiddenSections.map((section, index) => {
+              const Icon = SECTION_ICONS[section.id];
+              const isSelected = section.id === selectedId;
+
+              return (
+                <li key={section.id}>
+                  <div
+                    className={cn(
+                      "flex items-center gap-0.5 rounded-control border py-1 pe-1 ps-1.5",
+                      isSelected
+                        ? "border-primary/40 bg-primary/5"
+                        : "border-transparent hover:bg-app",
+                    )}
+                  >
+                    <span className="cursor-grab text-text-muted/50">
+                      <GripVertical className="size-4" />
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => onSelect(section.id)}
+                      aria-current={isSelected ? "true" : undefined}
+                      className="flex min-w-0 flex-1 items-center gap-2 rounded-control px-1 py-1 text-start"
+                    >
+                      <span className="flex size-6 shrink-0 items-center justify-center rounded-control bg-app text-text-muted/50">
+                        <Icon className="size-3.5" aria-hidden="true" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm text-text-muted">
+                          {section.label}
+                        </span>
+                        <span className="block text-[11px] text-text-muted">
+                          Hidden from visitors
+                        </span>
+                      </span>
+                    </button>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Show ${section.label}`}
+                      onClick={() => onToggle(section.id)}
+                      {...tip(`Show ${section.label}`)}
+                      className="size-7"
+                    >
+                      <Eye />
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+
       {/* Block library */}
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
         <div className="flex items-baseline justify-between px-1">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-text-muted">
             All sections
           </h2>
           <Badge variant="outline">
@@ -285,7 +358,7 @@ export function EditorLeftPanel({
                         </Badge>
                       ) : null}
                     </span>
-                    <span className="mt-0.5 block text-xs leading-snug text-text-muted">
+                    <span className="mt-0.5 block text-sm leading-snug text-text-muted">
                       {kind.blurb}
                     </span>
                   </span>
@@ -299,13 +372,13 @@ export function EditorLeftPanel({
             );
           })}
           {matches.length === 0 ? (
-            <li className="px-1 py-4 text-center text-xs text-text-muted">
+            <li className="px-1 py-4 text-center text-sm text-text-muted">
               No section matches “{query}”.
             </li>
           ) : null}
         </ul>
 
-        <p className="flex items-start gap-1.5 px-1 pt-3 text-xs leading-relaxed text-text-muted">
+        <p className="flex items-start gap-1.5 px-1 pt-3 text-sm leading-relaxed text-text-muted">
           <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
           Every section stays on your page until you switch it off, so turning one back
           on never loses the copy you wrote.

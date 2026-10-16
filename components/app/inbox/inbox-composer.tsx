@@ -60,7 +60,7 @@ export function InboxComposer({
           placeholder="Type a reply..."
           disabled={isPending}
           aria-label="Reply message"
-          className="min-w-0 flex-1 rounded-[24px] border-none bg-[#F0F2F5] px-[18px] py-[11px] text-sm text-gray-800 outline-none placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500/50 disabled:opacity-50"
+           className="min-w-0 flex-1 rounded-[24px] border-none bg-brand-canvas px-[18px] py-[11px] text-sm text-text-muted outline-none placeholder:text-text-muted focus:ring-2 focus:ring-brand-sage/50 disabled:opacity-50"
         />
         <button
           type="button"

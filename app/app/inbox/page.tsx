@@ -195,13 +195,12 @@ export default async function InboxPage({
           >
             {current ? (
               <>
-                {/* Mobile chat header (teal zone, md:hidden) — desktop uses the
+                {/* Mobile chat header (green, md:hidden) — desktop uses the
                     unified header row above. */}
                 <div
-                  className="flex-shrink-0 md:hidden"
+                  className="flex-shrink-0 md:hidden bg-brand-wash"
                   style={{
                     borderBottom: "1px solid rgb(229, 231, 235)",
-                    backgroundColor: "rgb(7, 94, 84)",
                   }}
                 >
                   <div className="flex items-center gap-3 px-3 py-2">
@@ -213,8 +212,7 @@ export default async function InboxPage({
                       <ArrowLeft className="h-5 w-5" aria-hidden="true" />
                     </Link>
                     <span
-                      className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
-                      style={{ backgroundColor: "rgb(37, 211, 102)" }}
+                      className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white bg-brand-cta"
                     >
                       {initialsOf(name)}
                     </span>
@@ -222,9 +220,9 @@ export default async function InboxPage({
                       <span className="block truncate text-sm font-semibold text-white">
                         {name}
                       </span>
-                      <span className="block truncate text-xs text-green-200">
-                        {current.patient_whatsapp_number}
-                      </span>
+                       <span className="block truncate text-xs text-text-muted">
+                         {current.patient_whatsapp_number}
+                       </span>
                     </span>
                     <span className="flex flex-shrink-0 items-center gap-1">
                       <BotResponseToggle

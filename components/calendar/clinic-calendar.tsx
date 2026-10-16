@@ -31,24 +31,24 @@ const STATUS_STYLES: Record<
   { container: string; time: string }
 > = {
   pending: {
-    container: "border-amber-400 bg-amber-50 hover:bg-amber-100",
-    time: "text-amber-900",
+    container: "border-status-warning/50 bg-status-warning/5 hover:bg-status-warning/10",
+    time: "text-status-warning",
   },
   confirmed: {
-    container: "border-emerald-500 bg-emerald-50 hover:bg-emerald-100",
-    time: "text-emerald-900",
+    container: "border-status-success/50 bg-status-success/5 hover:bg-status-success/10",
+    time: "text-status-success",
   },
   completed: {
-    container: "border-slate-400 bg-slate-100 hover:bg-slate-200",
-    time: "text-slate-700",
+    container: "border-border bg-app/30 hover:bg-app/40",
+    time: "text-text-muted",
   },
   cancelled: {
-    container: "border-red-400 bg-red-50 opacity-70 hover:bg-red-100",
-    time: "text-red-900",
+    container: "border-status-destructive/50 bg-status-destructive/5 opacity-70 hover:bg-status-destructive/10",
+    time: "text-status-destructive",
   },
   no_show: {
-    container: "border-orange-400 bg-orange-50 hover:bg-orange-100",
-    time: "text-orange-900",
+    container: "border-status-warning/50 bg-status-warning/5 hover:bg-status-warning/10",
+    time: "text-status-warning",
   },
 };
 
@@ -311,11 +311,11 @@ export function ClinicCalendar({
             Click an empty slot to book · click an appointment for details
           </span>
           <span className="ml-auto inline-flex flex-wrap items-center gap-3">
-            <StatusLegend label="Pending" className="bg-amber-400" />
-            <StatusLegend label="Confirmed" className="bg-emerald-500" />
-            <StatusLegend label="Completed" className="bg-slate-400" />
-            <StatusLegend label="Cancelled" className="bg-red-400" />
-            <StatusLegend label="No-show" className="bg-orange-400" />
+            <StatusLegend label="Pending" className="bg-status-warning" />
+            <StatusLegend label="Confirmed" className="bg-status-success" />
+            <StatusLegend label="Completed" className="bg-border" />
+            <StatusLegend label="Cancelled" className="bg-status-destructive" />
+            <StatusLegend label="No-show" className="bg-status-warning" />
           </span>
         </div>
       </Card>

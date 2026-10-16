@@ -1,7 +1,7 @@
 "use client";
 
-import { useId } from "react";
-import { X } from "lucide-react";
+import { useId, useState } from "react";
+import { ChevronDown, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,13 +36,13 @@ export function Field({
   const hintId = hint ? `${id}-hint` : undefined;
 
   return (
-    <div className={cn("flex flex-col gap-1.5", className)}>
-      <label htmlFor={id} className="text-xs font-medium text-text-secondary">
+    <div className={cn("flex flex-col gap-2", className)}>
+      <label htmlFor={id} className="text-sm font-medium text-text-primary">
         {label}
       </label>
       {children({ id, describedBy: hintId })}
       {hint ? (
-        <p id={hintId} className="text-[11px] leading-snug text-text-muted">
+        <p id={hintId} className="text-sm leading-relaxed text-text-secondary">
           {hint}
         </p>
       ) : null}
@@ -155,11 +155,11 @@ export function ToggleRow({
   onChange: (next: boolean) => void;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 py-0.5">
+    <div className="flex items-start justify-between gap-3 py-1">
       <div className="min-w-0">
         <p className="text-sm font-medium text-text-primary">{label}</p>
         {description ? (
-          <p className="mt-0.5 text-[11px] leading-snug text-text-muted">
+          <p className="mt-1 text-sm leading-relaxed text-text-secondary">
             {description}
           </p>
         ) : null}
@@ -168,7 +168,7 @@ export function ToggleRow({
         checked={checked}
         onCheckedChange={onChange}
         aria-label={label}
-        className="mt-0.5"
+        className="mt-0.5 shrink-0"
       />
     </div>
   );
@@ -356,7 +356,7 @@ export function ChipList({
               {values.map((value, index) => (
                 <li
                   key={`${value}-${index}`}
-                  className="flex items-center gap-1 rounded-pill border border-text-muted/25 bg-app py-0.5 pe-1 ps-2.5 text-xs text-text-secondary"
+                  className="flex items-center gap-1 rounded-pill border border-text-muted/25 bg-app py-0.5 pe-1 ps-2.5 text-sm text-text-secondary"
                 >
                   {value}
                   <button
@@ -382,17 +382,26 @@ export function InspectorGroup({
   title,
   description,
   children,
+  className,
 }: {
   title: string;
   description?: string;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <section className="flex flex-col gap-3 border-b border-text-muted/20 px-4 py-4 last:border-b-0">
+    <section
+      className={cn(
+        "flex flex-col gap-3 border-b border-text-muted/20 px-4 py-4 last:border-b-0",
+        className,
+      )}
+    >
       <div>
-        <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-text-muted">
+          {title}
+        </h3>
         {description ? (
-          <p className="mt-0.5 text-[11px] leading-snug text-text-muted">
+          <p className="mt-1 text-sm leading-relaxed text-text-secondary">
             {description}
           </p>
         ) : null}
@@ -403,13 +412,71 @@ export function InspectorGroup({
 }
 
 /**
+ * A collapsible group for advanced/secondary options.
+ *
+ * Like `InspectorGroup` but with an expand/collapse toggle — used for settings
+ * that shouldn't take up space by default but must remain discoverable.
+ */
+export function CollapsibleGroup({
+  title,
+  description,
+  children,
+  defaultOpen = false,
+  icon: Icon,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  icon?: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div className="border-b border-text-muted/20">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-4 py-3 text-left"
+      >
+        {Icon ? <Icon className="size-4 text-text-muted" aria-hidden="true" /> : null}
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-text-muted">
+          {title}
+        </h3>
+        {description ? (
+          <span className="sr-only">{description}</span>
+        ) : null}
+        <ChevronDown
+          className={cn(
+            "ml-auto size-4 shrink-0 text-text-muted transition-transform",
+            open && "rotate-180",
+          )}
+          aria-hidden="true"
+        />
+      </button>
+      {open ? (
+        <div className="pb-3">
+          <div className="px-4 pt-1">
+            <p className="mb-2 text-sm leading-relaxed text-text-secondary">
+              {description}
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 px-4 pb-3">{children}</div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
  * Notice for a section whose content comes from ClinicFlow rather than free
  * text. Naming the page that edits it is the whole point — otherwise a doctor
  * hunts through the builder for a field that was never there.
  */
 export function LiveDataNote({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-control border border-primary/20 bg-primary/5 p-3 text-xs leading-relaxed text-text-secondary">
+    <div className="rounded-control border border-primary/20 bg-primary/5 p-3 text-sm leading-relaxed text-text-secondary">
       <span className="font-medium text-primary">Comes from ClinicFlow. </span>
       {children}
     </div>

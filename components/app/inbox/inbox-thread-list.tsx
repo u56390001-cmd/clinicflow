@@ -86,8 +86,7 @@ export function InboxThreadList({
                 {tab.label}
                 {tab.id === "unread" && unreadCount > 0 ? (
                   <span
-                    className="rounded-full px-1.5 py-0.5 text-xs text-white"
-                    style={{ backgroundColor: "rgb(78, 93, 181)" }}
+                    className="rounded-full px-1.5 py-0.5 text-xs text-white bg-brand-sage"
                   >
                     {unreadCount}
                   </span>
@@ -105,29 +104,26 @@ export function InboxThreadList({
           {FILTERS.map((tab) => {
             const isActive = filter === tab.id;
             return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setFilter(tab.id)}
-                className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm font-medium transition-all"
-                style={{
-                  padding: "5px 14px",
-                  borderRadius: "20px",
-                  backgroundColor: isActive ? "rgb(217, 253, 211)" : "rgb(240, 242, 245)",
-                  color: isActive ? "rgb(26, 122, 74)" : "rgb(85, 85, 85)",
-                  border: isActive ? "1px solid rgb(195, 240, 184)" : "1px solid transparent",
-                }}
-              >
-                {tab.mobileLabel}
-                {tab.id === "unread" && unreadCount > 0 ? (
-                  <span
-                    className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] text-white"
-                    style={{ backgroundColor: "rgb(29, 170, 97)" }}
-                  >
-                    {unreadCount}
-                  </span>
-                ) : null}
-              </button>
+               <button
+                 key={tab.id}
+                 type="button"
+                 onClick={() => setFilter(tab.id)}
+                 className={cn(
+                   "flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm font-medium transition-all",
+                   isActive
+                     ? "bg-brand-wash text-brand-cta border border-brand-sage"
+                     : "bg-brand-canvas text-text-muted border border-transparent",
+                 )}
+               >
+                 {tab.mobileLabel}
+                 {tab.id === "unread" && unreadCount > 0 ? (
+                   <span
+                     className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] text-white bg-brand-cta"
+                   >
+                     {unreadCount}
+                   </span>
+                 ) : null}
+               </button>
             );
           })}
         </div>
@@ -138,14 +134,14 @@ export function InboxThreadList({
             aria-hidden="true"
             className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
           />
-          <input
-            type="text"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search..."
-            aria-label="Search conversations"
-            className="w-full rounded-[20px] border-none bg-[#F0F2F5] py-2 pl-9 pr-4 text-[13px] text-[#333333] outline-none placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500/50"
-          />
+           <input
+             type="text"
+             value={query}
+             onChange={(event) => setQuery(event.target.value)}
+             placeholder="Search..."
+             aria-label="Search conversations"
+             className="w-full rounded-[20px] border-none bg-brand-canvas py-2 pl-9 pr-4 text-[13px] text-text-muted outline-none placeholder:text-text-muted focus:ring-2 focus:ring-brand-sage/50"
+           />
         </div>
       </div>
 
@@ -197,17 +193,14 @@ export function InboxThreadList({
                     >
                       {thread.preview ?? "No messages yet"}
                     </span>
-                    {thread.unread ? (
-                      <span
-                        className="ml-1.5 inline-flex h-[18px] min-w-[18px] flex-shrink-0 items-center justify-center rounded-full px-1 font-semibold text-white"
-                        style={{
-                          backgroundColor: "rgb(29, 170, 97)",
-                          fontSize: "10px",
-                        }}
-                      >
-                        1
-                      </span>
-                    ) : null}
+                     {thread.unread ? (
+                       <span
+                         className="ml-1.5 inline-flex h-[18px] min-w-[18px] flex-shrink-0 items-center justify-center rounded-full px-1 font-semibold text-white bg-brand-cta"
+                         style={{ fontSize: "10px" }}
+                       >
+                         1
+                       </span>
+                     ) : null}
                   </span>
                 </span>
               </>

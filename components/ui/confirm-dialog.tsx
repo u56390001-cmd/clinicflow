@@ -30,21 +30,21 @@ export function ConfirmDialog({
   onCancel,
   loading = false,
 }: ConfirmDialogProps) {
-  const variantStyles = {
-    warning: {
-      icon: AlertCircle,
-      button: "bg-yellow-600 hover:bg-yellow-700",
-      bg: "bg-yellow-50 border-yellow-200",
-    },
+   const variantStyles = {
+     warning: {
+       icon: AlertCircle,
+       button: "bg-status-warning hover:bg-status-warning-hover text-white",
+       bg: "bg-status-warning/5 border-status-warning/20",
+     },
     destructive: {
       icon: AlertCircle,
-      button: "bg-red-600 hover:bg-red-700",
-      bg: "bg-red-50 border-red-200",
+      button: "bg-status-destructive hover:bg-status-destructive-hover text-white",
+      bg: "bg-status-destructive/5 border-status-destructive/20",
     },
     info: {
       icon: CheckCircle2,
-      button: "bg-blue-600 hover:bg-blue-700",
-      bg: "bg-blue-50 border-blue-200",
+      button: "bg-status-info hover:bg-status-info-hover text-white",
+      bg: "bg-status-info/5 border-status-info/20",
     },
   };
 
@@ -56,7 +56,7 @@ export function ConfirmDialog({
       <div className={cn("w-full max-w-sm rounded-lg border shadow-lg bg-surface", style.bg)}>
         <div className="p-6">
           <div className="flex items-start gap-4">
-            <IconComponent className="h-6 w-6 shrink-0 text-yellow-600" />
+             <IconComponent className="h-6 w-6 shrink-0 text-status-warning" />
             <div className="flex-1">
               <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
               <p className="mt-2 text-sm text-text-secondary">{description}</p>

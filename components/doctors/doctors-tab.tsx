@@ -1089,14 +1089,14 @@ function DoctorCard({
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <div className="flex items-center gap-2 rounded-control border border-neutral-borderLight bg-app/50 px-3 py-2">
+          <div className="flex items-center gap-2 rounded-control border border-hairline bg-app/50 px-3 py-2">
             <Star className="h-4 w-4 text-primary" aria-hidden="true" />
             <div>
               <p className="text-sm font-semibold text-text-primary">0.0</p>
               <p className="text-xs text-text-muted">Rating</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 rounded-control border border-neutral-borderLight bg-app/50 px-3 py-2">
+          <div className="flex items-center gap-2 rounded-control border border-hairline bg-app/50 px-3 py-2">
             <Users className="h-4 w-4 text-primary" aria-hidden="true" />
             <div>
               <p className="text-sm font-semibold text-text-primary">
@@ -1112,7 +1112,7 @@ function DoctorCard({
           <WorkingDayPills workingDays={workingDays} />
         </div>
 
-        <div className="flex items-center justify-between gap-2 border-t border-neutral-borderLight pt-3">
+        <div className="flex items-center justify-between gap-2 border-t border-hairline pt-3">
           <Button variant="outline" size="sm" onClick={onView}>
             <Eye aria-hidden="true" />
             View Profile
@@ -1152,7 +1152,7 @@ function DoctorTable({
       <div className="overflow-x-auto">
         <table className="w-full min-w-[900px] text-left text-sm">
           <thead>
-            <tr className="border-b border-neutral-borderLight text-xs font-semibold uppercase tracking-wider text-text-muted">
+            <tr className="border-b border-hairline text-xs font-semibold uppercase tracking-wider text-text-muted">
               <th className="px-4 py-3 font-medium">Doctor</th>
               <th className="px-4 py-3 font-medium">Specialty</th>
               <th className="px-4 py-3 font-medium">Experience</th>
@@ -1167,7 +1167,7 @@ function DoctorTable({
             {doctors.map((doctor) => (
               <tr
                 key={doctor.id}
-                className="border-b border-neutral-borderLight/60 last:border-0 hover:bg-app/50"
+                className="border-b border-hairline/60 last:border-0 hover:bg-app/50"
               >
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
@@ -1303,14 +1303,14 @@ function ServiceCard({
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <div className="flex items-center gap-2 rounded-control border border-neutral-borderLight bg-app/50 px-3 py-2">
+          <div className="flex items-center gap-2 rounded-control border border-hairline bg-app/50 px-3 py-2">
             <Star className="h-4 w-4 text-primary" aria-hidden="true" />
             <div>
               <p className="text-sm font-semibold text-text-primary">0</p>
               <p className="text-xs text-text-muted">Rating</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 rounded-control border border-neutral-borderLight bg-app/50 px-3 py-2">
+          <div className="flex items-center gap-2 rounded-control border border-hairline bg-app/50 px-3 py-2">
             <Users className="h-4 w-4 text-primary" aria-hidden="true" />
             <div>
               <p className="text-sm font-semibold text-text-primary">
@@ -1326,7 +1326,7 @@ function ServiceCard({
           <WorkingDayPills workingDays={workingDays} />
         </div>
 
-        <div className="flex items-center justify-between gap-2 rounded-control border border-neutral-borderLight bg-app/50 px-3 py-2 text-sm">
+        <div className="flex items-center justify-between gap-2 rounded-control border border-hairline bg-app/50 px-3 py-2 text-sm">
           <span className="inline-flex min-w-0 items-center gap-1.5 text-text-secondary">
             <Clock className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
             <span className="truncate">{durationText}</span>
@@ -1336,7 +1336,7 @@ function ServiceCard({
           </span>
         </div>
 
-        <div className="flex items-center justify-between gap-2 border-t border-neutral-borderLight pt-3">
+        <div className="flex items-center justify-between gap-2 border-t border-hairline pt-3">
           <Button variant="outline" size="sm" onClick={onView}>
             <Eye aria-hidden="true" />
             View Detail
@@ -1378,7 +1378,7 @@ function ServiceTable({
       <div className="overflow-x-auto">
         <table className="w-full min-w-[900px] text-left text-sm">
           <thead>
-            <tr className="border-b border-neutral-borderLight text-xs font-semibold uppercase tracking-wider text-text-muted">
+            <tr className="border-b border-hairline text-xs font-semibold uppercase tracking-wider text-text-muted">
               <th className="px-4 py-3 font-medium">Service</th>
               <th className="px-4 py-3 font-medium">Category</th>
               <th className="px-4 py-3 font-medium">Rating</th>
@@ -1393,7 +1393,7 @@ function ServiceTable({
             {services.map((service) => (
               <tr
                 key={service.id}
-                className="border-b border-neutral-borderLight/60 last:border-0 hover:bg-app/50"
+                className="border-b border-hairline/60 last:border-0 hover:bg-app/50"
               >
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
