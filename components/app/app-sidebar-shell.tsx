@@ -24,9 +24,11 @@ import {
   Sparkles,
   Stethoscope,
   Users,
+  X,
   type LucideIcon,
 } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { useHoverTip, type TipHandlers } from "@/components/ui/hover-tip";
 import { useMobileNav } from "@/components/app/mobile-nav-context";
 import { usePersistedBoolean } from "@/hooks/use-persisted-boolean";
@@ -196,7 +198,7 @@ export function AppSidebarShell({
 }: {
   sections: readonly NavSection[];
 }) {
-  const { open } = useMobileNav();
+  const { open, setOpen } = useMobileNav();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = usePersistedBoolean(
     SIDEBAR_COLLAPSED_KEY,
@@ -228,18 +230,32 @@ export function AppSidebarShell({
           type="button"
           tabIndex={-1}
           aria-label="Close navigation"
-          onClick={() => {}}
+          onClick={() => setOpen(false)}
           className={cn(
             "absolute inset-0 h-full w-full bg-secondary/50 transition-opacity duration-200",
             open ? "opacity-100" : "opacity-0",
           )}
         />
         <aside
+          aria-label="Main navigation"
           className={cn(
             "absolute inset-y-0 left-0 flex w-72 max-w-[85%] flex-col border-r border-brand-line bg-surface shadow-card transition-transform duration-200",
             open ? "translate-x-0" : "-translate-x-full",
           )}
         >
+          <div className="flex items-center justify-between border-b border-brand-line px-4 py-3">
+            <span className="text-base font-semibold text-brand-ink">Menu</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Close navigation"
+              onClick={() => setOpen(false)}
+              className="-mr-1 text-brand-muted hover:text-brand-ink"
+            >
+              <X aria-hidden="true" />
+            </Button>
+          </div>
           <nav
             aria-label="Main"
             className="min-h-0 flex-1 overflow-y-auto px-3 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"

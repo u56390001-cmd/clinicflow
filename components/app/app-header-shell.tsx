@@ -82,8 +82,8 @@ export function AppHeaderShell({
       className="sticky top-0 z-30 shrink-0 bg-surface/95 backdrop-blur"
     >
       {/* ── Row 1: Logo · Search · Chat · Notifications · User ── */}
-      <div className="flex items-center justify-between border-b border-brand-line px-6 py-3">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-2 border-b border-brand-line px-3 py-3 sm:px-6">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <Button
             type="button"
             variant="ghost"
@@ -101,12 +101,14 @@ export function AppHeaderShell({
               {/* Decorative: the wordmark link beside it already labels this
                   region as "MedBook AI home", so an alt text here would only
                   add a second, redundant announcement. The clinic's own name
-                  is not in the header, so there is nothing further to convey. */}
+                  is not in the header, so there is nothing further to convey.
+                  Hidden on the narrowest phones where the row would otherwise
+                  crowd the search / notifications / profile controls. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={clinicLogoUrl}
                 alt=""
-                className="border-border-light size-8 shrink-0 rounded-control border object-cover"
+                className="border-border-light hidden size-8 shrink-0 rounded-control border object-cover sm:block"
               />
               <span
                 aria-hidden="true"
@@ -128,7 +130,7 @@ export function AppHeaderShell({
           <HeaderPatientSearch />
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5 sm:gap-1">
           <Button
             asChild
             variant="ghost"
@@ -141,7 +143,12 @@ export function AppHeaderShell({
             </Link>
           </Button>
 
-          <MessagesLink unreadCount={unreadConversationCount} />
+          {/* Inbox also lives in the sidebar, so on the narrowest phones this
+              header shortcut yields its space to search, notifications and the
+              profile rather than squeezing every control. */}
+          <div className="hidden sm:block">
+            <MessagesLink unreadCount={unreadConversationCount} />
+          </div>
 
           <NotificationBell notifications={notifications} clinicId={clinicId} />
 
@@ -152,7 +159,7 @@ export function AppHeaderShell({
       </div>
 
       {/* ── Row 2: Tabs (left) · New Appointment (right) ── */}
-      <div className="flex items-center justify-between border-b border-brand-line px-6 py-2">
+      <div className="flex items-center justify-between gap-2 border-b border-brand-line px-3 py-2 sm:px-6">
         <nav aria-label="Dashboard views" className="flex items-center gap-1">
           <Link
             href={APP_ROUTES.app.dashboard}
@@ -170,7 +177,7 @@ export function AppHeaderShell({
           <span
             aria-disabled="true"
             title="Analytics dashboard coming soon"
-            className="cursor-not-allowed px-3 py-1.5 text-sm font-medium text-text-muted"
+            className="hidden cursor-not-allowed px-3 py-1.5 text-sm font-medium text-text-muted sm:block"
           >
             Analytics
           </span>

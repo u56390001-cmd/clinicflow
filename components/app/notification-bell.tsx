@@ -232,7 +232,7 @@ export function NotificationBell({
         <div
           role="dialog"
           aria-label="Notifications"
-          className="absolute right-0 top-full z-50 mt-2 w-80 max-h-[500px] overflow-hidden rounded-xl border border-text-muted/30 bg-surface shadow-dropdown"
+          className="absolute right-0 top-full z-50 mt-2 max-h-[min(500px,70vh)] w-80 max-w-[calc(100vw-5rem)] overflow-hidden rounded-xl border border-text-muted/30 bg-surface shadow-dropdown"
         >
           <div className="sticky top-0 border-b border-text-muted/20 bg-surface px-4 py-3">
             <p className="text-sm font-semibold text-text-primary">Notifications</p>
@@ -251,7 +251,7 @@ export function NotificationBell({
               </p>
             </div>
           ) : (
-            <ul className="max-h-[420px] overflow-y-auto">
+            <ul className="max-h-[min(420px,55vh)] overflow-y-auto">
               {list.map((item) => (
                 <li
                   key={keyOf(item)}

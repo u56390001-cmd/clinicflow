@@ -25,6 +25,18 @@ export function MobileNavProvider({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   useEffect(() => {
+    // If the viewport grows past the mobile breakpoint while the drawer is
+    // open (e.g. rotating a phone/tablet), close it — otherwise the drawer is
+    // hidden by CSS but the body scroll lock persists with no way to release it.
+    const query = window.matchMedia("(min-width: 768px)");
+    const onChange = (event: MediaQueryListEvent) => {
+      if (event.matches) setOpen(false);
+    };
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+
+  useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
