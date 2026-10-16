@@ -321,8 +321,9 @@ async function mintAndSendLink(
 export async function sendPsychPreVisitLinkAction(
   patientId: string,
   appointmentId?: string | null,
+  deliveryChannel: PatientShareLinkDeliveryChannel = "whatsapp",
 ): Promise<SendLinkResult> {
-  return mintAndSendLink("pre_visit", patientId, null, appointmentId ?? null);
+  return mintAndSendLink("pre_visit", patientId, null, appointmentId ?? null, null, deliveryChannel);
 }
 
 export async function sendPsychAssessmentLinkAction(
@@ -397,8 +398,9 @@ export async function sendAssessmentInviteAction(input: {
 export async function sendPsychDocumentUploadLinkAction(
   patientId: string,
   appointmentId?: string | null,
+  deliveryChannel: PatientShareLinkDeliveryChannel = "whatsapp",
 ): Promise<SendLinkResult> {
-  return mintAndSendLink("document_upload", patientId, null, appointmentId ?? null);
+  return mintAndSendLink("document_upload", patientId, null, appointmentId ?? null, null, deliveryChannel);
 }
 
 /* ------------------------------------------------------------------------- */

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { ClipboardList, FileUp, Loader2 } from "lucide-react";
+import { ClipboardList, Copy, FileUp, Link2, Loader2, Send } from "lucide-react";
 
 import { RecordSection } from "@/components/patients/record/record-primitives";
 import { Button } from "@/components/ui/button";
@@ -12,10 +12,15 @@ import {
   sendPsychDocumentUploadLinkAction,
   sendPsychPreVisitLinkAction,
 } from "@/lib/actions/patient-links";
+import { copyText } from "@/lib/booking-url";
 import { PSYCHOMETRIC_INSTRUMENTS, PSYCHOMETRIC_KEYS } from "@/lib/psychometrics";
 import { listInstruments } from "@/lib/scoring";
 import { ASSESSMENT_RATERS, DEFAULT_RATER_TYPE } from "@/lib/assessments/raters";
-import type { AssessmentRaterType, AssessmentTemplate } from "@/types/database";
+import type {
+  AssessmentRaterType,
+  AssessmentTemplate,
+  PatientShareLinkDeliveryChannel,
+} from "@/types/database";
 
 const TEMPLATE_PREFIX = "tmpl:";
 
@@ -34,9 +39,10 @@ type Kind = "pre_visit" | "assessment" | "document_upload";
 
 /**
  * Sends the patient-facing share links (pre-visit form, psychometric
- * assessment, document upload) through the clinic's existing WhatsApp channel.
- * The link is also copied to the clipboard as a fallback. The panel appears on
- * the psychology Safety tab only.
+ * assessment, document upload) through the clinic's existing WhatsApp channel,
+ * or mints a bare link the clinician can copy and send through any other
+ * channel. Every generated link is shown on screen and copied to the clipboard.
+ * Answers land back in this record automatically, whichever channel was used.
  *
  * The assessment picker combines the validated instruments (deterministic
  * scoring engine) with any clinic library template (migration 0085) that is
@@ -53,31 +59,31 @@ export function PatientLinksPanel({
   canManage: boolean;
   templates?: AssessmentTemplate[];
 }) {
-  const [pending, setPending] = useState<Kind | null>(null);
+  const [pending, setPending] = useState<string | null>(null);
   const [assessmentType, setAssessmentType] = useState<string>(PSYCHOMETRIC_KEYS[0]);
   const [raterType, setRaterType] = useState<AssessmentRaterType>(DEFAULT_RATER_TYPE);
+  const [readyLink, setReadyLink] = useState<string | null>(null);
   const hasWhatsapp = (whatsappNumber ?? "").replace(/[^\d]/g, "").length > 0;
-  const disabled = !canManage || pending !== null;
+  const busy = pending !== null;
 
-  async function send(kind: Kind) {
-    if (disabled) return;
-    setPending(kind);
+  async function generate(kind: Kind, mode: "whatsapp" | "link") {
+    if (!canManage || busy) return;
+    const channel: PatientShareLinkDeliveryChannel = mode === "whatsapp" ? "whatsapp" : "link";
+    setPending(`${mode}:${kind}`);
     let result;
     if (kind === "assessment") {
       if (assessmentType.startsWith(TEMPLATE_PREFIX)) {
-        const id = assessmentType.slice(TEMPLATE_PREFIX.length);
-        const template = templates.find((t) => t.id === id);
+        const template = templates.find((t) => t.id === assessmentType.slice(TEMPLATE_PREFIX.length));
         result = template
-          ? await sendPsychAssessmentLinkAction(patientId, template.name, template.id, null, "whatsapp", raterType)
+          ? await sendPsychAssessmentLinkAction(patientId, template.name, template.id, null, channel, raterType)
           : { ok: false as const, message: "That assessment is no longer available." };
       } else {
-        result = await sendPsychAssessmentLinkAction(patientId, assessmentType, null, null, "whatsapp", raterType);
+        result = await sendPsychAssessmentLinkAction(patientId, assessmentType, null, null, channel, raterType);
       }
+    } else if (kind === "pre_visit") {
+      result = await sendPsychPreVisitLinkAction(patientId, null, channel);
     } else {
-      result =
-        kind === "pre_visit"
-          ? await sendPsychPreVisitLinkAction(patientId)
-          : await sendPsychDocumentUploadLinkAction(patientId);
+      result = await sendPsychDocumentUploadLinkAction(patientId, null, channel);
     }
     setPending(null);
 
@@ -86,145 +92,197 @@ export function PatientLinksPanel({
       return;
     }
     const url = `${window.location.origin}${result.data.path}`;
-    try {
-      await navigator.clipboard.writeText(url);
-    } catch {
-      /* clipboard may be unavailable — the WhatsApp message still carries the link */
-    }
-    if (result.data.whatsappSent) {
-      toast.success("Link sent on WhatsApp · copied to clipboard");
+    const copied = await copyText(url);
+    setReadyLink(url);
+
+    if (mode === "link") {
+      toast.success(copied ? "Link copied — send it however you like" : "Link ready below");
+    } else if (result.data.whatsappSent) {
+      toast.success(copied ? "Sent on WhatsApp · link copied" : "Sent on WhatsApp");
     } else {
-      toast("Link created · copied to clipboard", {
-        description: "WhatsApp isn't connected for this clinic, so send it manually.",
+      toast("Link ready — couldn't send on WhatsApp", {
+        description: "Copy the link below and send it manually.",
       });
     }
+  }
+
+  async function copyReadyLink() {
+    if (!readyLink) return;
+    const ok = await copyText(readyLink);
+    if (ok) toast.success("Link copied");
+    else toast.error("Couldn't copy — select the link and copy it manually");
+  }
+
+  function actionRow(kind: Kind) {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={!canManage || busy || !hasWhatsapp}
+          title={
+            hasWhatsapp
+              ? "Send the form on WhatsApp"
+              : "Add a WhatsApp number to send on WhatsApp"
+          }
+          onClick={() => generate(kind, "whatsapp")}
+        >
+          {pending === `whatsapp:${kind}` ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Send className="size-4" aria-hidden="true" />
+          )}
+          Send on WhatsApp
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          disabled={!canManage || busy}
+          title="Generate the link and copy it to send yourself"
+          onClick={() => generate(kind, "link")}
+        >
+          {pending === `link:${kind}` ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Copy className="size-4" aria-hidden="true" />
+          )}
+          Copy link
+        </Button>
+      </div>
+    );
   }
 
   return (
     <RecordSection title="Send patient links">
       <div className="space-y-3">
         <p className="text-[12px] leading-relaxed text-text-secondary">
-          Send a secure form over WhatsApp. Answers appear in this record
-          automatically.
+          Send a secure form over WhatsApp, or generate a link and send it yourself. Answers appear
+          in this record automatically.
         </p>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            disabled={disabled}
-            onClick={() => send("pre_visit")}
-          >
-            {pending === "pre_visit" ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <ClipboardList className="size-4" />
-            )}
+        <div className="rounded-control border border-hairline bg-app p-3">
+          <p className="mb-2 flex items-center gap-1.5 text-[12.5px] font-bold text-ink">
+            <ClipboardList className="size-3.5 text-primary" aria-hidden="true" />
             Pre-visit form
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            disabled={disabled}
-            onClick={() => send("document_upload")}
-          >
-            {pending === "document_upload" ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <FileUp className="size-4" />
-            )}
-            Upload documents
-          </Button>
+          </p>
+          {actionRow("pre_visit")}
         </div>
 
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="min-w-[180px]">
-            <label
-              htmlFor="psych-link-assessment"
-              className="text-[12.5px] font-bold text-ink"
-            >
-              Assessment
-            </label>
-            <NativeSelect
-              id="psych-link-assessment"
-              value={assessmentType}
-              disabled={disabled}
-              onChange={(event) => setAssessmentType(event.target.value)}
-            >
-              <optgroup label="Validated instruments">
-                {VALIDATED_INSTRUMENTS.map((instrument) => (
-                  <option key={instrument.code} value={instrument.code}>
-                    {instrument.shortName}
+        <div className="rounded-control border border-hairline bg-app p-3">
+          <p className="mb-2 flex items-center gap-1.5 text-[12.5px] font-bold text-ink">
+            <FileUp className="size-3.5 text-primary" aria-hidden="true" />
+            Document upload
+          </p>
+          {actionRow("document_upload")}
+        </div>
+
+        <div className="space-y-3 rounded-control border border-hairline bg-app p-3">
+          <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-ink">
+            <ClipboardList className="size-3.5 text-primary" aria-hidden="true" />
+            Assessment
+          </p>
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="min-w-[180px]">
+              <label
+                htmlFor="psych-link-assessment"
+                className="text-[12.5px] font-bold text-ink"
+              >
+                Assessment
+              </label>
+              <NativeSelect
+                id="psych-link-assessment"
+                value={assessmentType}
+                disabled={!canManage || busy}
+                onChange={(event) => setAssessmentType(event.target.value)}
+              >
+                <optgroup label="Validated instruments">
+                  {VALIDATED_INSTRUMENTS.map((instrument) => (
+                    <option key={instrument.code} value={instrument.code}>
+                      {instrument.shortName}
+                    </option>
+                  ))}
+                </optgroup>
+                {LEGACY_KEYS.length > 0 ? (
+                  <optgroup label="Built-in">
+                    {LEGACY_KEYS.map((key) => (
+                      <option key={key} value={key}>
+                        {PSYCHOMETRIC_INSTRUMENTS[key].shortName}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                {templates.length > 0 ? (
+                  <optgroup label="Assessment Library">
+                    {templates.map((template) => (
+                      <option key={template.id} value={templateOptionValue(template)}>
+                        {template.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+              </NativeSelect>
+            </div>
+            <div className="min-w-[150px]">
+              <label
+                htmlFor="psych-link-respondent"
+                className="text-[12.5px] font-bold text-ink"
+              >
+                Respondent
+              </label>
+              <NativeSelect
+                id="psych-link-respondent"
+                value={raterType}
+                disabled={!canManage || busy}
+                onChange={(event) => setRaterType(event.target.value as AssessmentRaterType)}
+              >
+                {ASSESSMENT_RATERS.map((rater) => (
+                  <option key={rater.value} value={rater.value}>
+                    {rater.label}
                   </option>
                 ))}
-              </optgroup>
-              {LEGACY_KEYS.length > 0 ? (
-                <optgroup label="Built-in">
-                  {LEGACY_KEYS.map((key) => (
-                    <option key={key} value={key}>
-                      {PSYCHOMETRIC_INSTRUMENTS[key].shortName}
-                    </option>
-                  ))}
-                </optgroup>
-              ) : null}
-              {templates.length > 0 ? (
-                <optgroup label="Assessment Library">
-                  {templates.map((template) => (
-                    <option key={template.id} value={templateOptionValue(template)}>
-                      {template.name}
-                    </option>
-                  ))}
-                </optgroup>
-              ) : null}
-            </NativeSelect>
+              </NativeSelect>
+            </div>
           </div>
-          <div className="min-w-[150px]">
-            <label
-              htmlFor="psych-link-respondent"
-              className="text-[12.5px] font-bold text-ink"
-            >
-              Respondent
-            </label>
-            <NativeSelect
-              id="psych-link-respondent"
-              value={raterType}
-              disabled={disabled}
-              onChange={(event) => setRaterType(event.target.value as AssessmentRaterType)}
-            >
-              {ASSESSMENT_RATERS.map((rater) => (
-                <option key={rater.value} value={rater.value}>
-                  {rater.label}
-                </option>
-              ))}
-            </NativeSelect>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            disabled={disabled}
-            onClick={() => send("assessment")}
-          >
-            {pending === "assessment" ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <ClipboardList className="size-4" />
-            )}
-            Send assessment
-          </Button>
+          {actionRow("assessment")}
         </div>
 
+        {readyLink && (
+          <div className="rounded-control border border-primary/20 bg-primary/5 p-3">
+            <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-primary">
+              <Link2 className="size-3" aria-hidden="true" />
+              Link ready
+            </p>
+            <div className="mt-1.5 flex items-center gap-2">
+              <input
+                readOnly
+                value={readyLink}
+                onFocus={(event) => event.currentTarget.select()}
+                className="w-full rounded-control border border-hairline bg-surface px-2 py-1.5 text-[11.5px] text-text-secondary outline-none"
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="shrink-0 gap-1.5"
+                onClick={copyReadyLink}
+              >
+                <Copy className="size-3.5" aria-hidden="true" />
+                Copy
+              </Button>
+            </div>
+            <p className="mt-1.5 text-[10.5px] text-ink-faint">
+              Send it via WhatsApp, SMS, email or any other channel.
+            </p>
+          </div>
+        )}
+
         {!hasWhatsapp && (
-          <>
-            <p className="text-[11px] text-status-warning">
-              This patient has no WhatsApp number. WhatsApp send is disabled, but you can still copy the link manually.
-            </p>
-            <p className="text-[11px] text-text-muted">
-              The link will be copied to your clipboard — send it via SMS or any other channel.
-            </p>
-          </>
+          <p className="text-[11px] text-status-warning">
+            This patient has no WhatsApp number. Use{" "}
+            <span className="font-semibold">Copy link</span> to generate a link and send it manually.
+          </p>
         )}
       </div>
     </RecordSection>
