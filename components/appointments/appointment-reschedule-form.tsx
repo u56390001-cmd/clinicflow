@@ -75,9 +75,9 @@ export function AppointmentRescheduleForm({
               required
             />
             {end && (
-              <p className="text-xs text-text-secondary">
+              <p className="text-xs text-brand-muted">
                 Ends at{" "}
-                <span className="font-medium text-text-primary">
+                <span className="font-medium text-brand-ink">
                   {formatNaiveTime(end)}
                 </span>
               </p>

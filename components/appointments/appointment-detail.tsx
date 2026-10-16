@@ -25,10 +25,10 @@ export function AppointmentDetail({
       <CardContent className="space-y-4 pt-6">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <h2 className="text-lg font-medium text-secondary">
+            <h2 className="text-lg font-medium text-brand-ink">
               {appointment.patientName}
             </h2>
-            <p className="mt-1 text-sm text-text-secondary">
+            <p className="mt-1 text-sm text-brand-muted">
               {formatClinicLocalRange(
                 appointment.start_time,
                 appointment.end_time,
@@ -71,10 +71,10 @@ export function AppointmentDetail({
           </MetaItem>
           {appointment.notes && (
             <div className="sm:col-span-2">
-              <dt className="text-xs font-medium uppercase tracking-wide text-text-muted">
+              <dt className="text-xs font-medium uppercase tracking-wide text-brand-faint">
                 Notes
               </dt>
-              <dd className="mt-0.5 text-text-primary">
+              <dd className="mt-0.5 text-brand-ink">
                 {appointment.notes}
               </dd>
             </div>
@@ -113,10 +113,10 @@ function MetaItem({
 }) {
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-text-muted">
+      <dt className="text-xs font-medium uppercase tracking-wide text-brand-faint">
         {label}
       </dt>
-      <dd className="mt-0.5 text-text-primary">{children}</dd>
+      <dd className="mt-0.5 text-brand-ink">{children}</dd>
     </div>
   );
 }

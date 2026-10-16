@@ -36,22 +36,22 @@ export function ActionConfirmModal({
       aria-modal="true"
       aria-label={title}
     >
-      <div className="w-full max-w-sm animate-scale-in rounded-2xl border border-border-light bg-white p-5 shadow-modal">
+      <div className="w-full max-w-sm animate-scale-in rounded-card border border-brand-line bg-surface p-5 shadow-dropdown">
         <div className="flex items-start gap-3">
           <div
             className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
               variant === "destructive"
-                ? "bg-red-50 text-status-destructive"
-                : "bg-primary/10 text-primary"
+                ? "bg-brand-danger-soft text-brand-danger"
+                : "bg-brand-pale text-brand-cta"
             }`}
           >
             <Icon className="h-5 w-5" aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="text-base font-semibold text-text-primary">
+            <h2 className="text-base font-semibold text-brand-ink">
               {title}
             </h2>
-            <p className="mt-1 text-sm text-text-secondary">{message}</p>
+            <p className="mt-1 text-sm text-brand-muted">{message}</p>
           </div>
         </div>
 
@@ -71,7 +71,7 @@ export function ActionConfirmModal({
             className={
               variant === "destructive"
                 ? "bg-status-destructive text-white hover:bg-status-destructive/90"
-                : "bg-primary text-white hover:bg-primary-light"
+                : "bg-brand-cta text-white hover:bg-brand-cta-hover"
             }
           >
             {busy ? "Processing..." : confirmText}

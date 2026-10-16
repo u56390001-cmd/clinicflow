@@ -30,8 +30,8 @@ export function ServicesTab({
     return (
       <Card>
         <CardContent className="py-12 text-center">
-          <p className="text-sm text-text-muted">No services configured.</p>
-          <p className="mt-1 text-xs text-text-muted">
+          <p className="text-sm text-brand-faint">No services configured.</p>
+          <p className="mt-1 text-xs text-brand-faint">
             Add services from the Services Settings page.
           </p>
         </CardContent>
@@ -51,26 +51,26 @@ export function ServicesTab({
     <div className="space-y-6">
       {Object.entries(grouped).map(([category, svcs]) => (
         <div key={category}>
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-brand-faint">
             {CATEGORY_LABELS[category] ?? category}
           </h3>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {svcs.map((svc) => (
               <Card
                 key={svc.id}
-                className="transition-colors hover:border-primary/30"
+                className="transition-colors hover:border-brand-sage"
               >
                 <CardContent className="flex items-start justify-between gap-3 p-4">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-text-primary">
+                    <p className="truncate text-sm font-semibold text-brand-ink">
                       {svc.name}
                     </p>
                     {svc.description && (
-                      <p className="mt-0.5 line-clamp-2 text-xs text-text-muted">
+                      <p className="mt-0.5 line-clamp-2 text-xs text-brand-faint">
                         {svc.description}
                       </p>
                     )}
-                    <div className="mt-2 flex items-center gap-3 text-xs text-text-secondary">
+                    <div className="mt-2 flex items-center gap-3 text-xs text-brand-muted">
                       {svc.duration_minutes > 0 && (
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" aria-hidden="true" />
@@ -85,7 +85,7 @@ export function ServicesTab({
                       )}
                     </div>
                     {svc.doctor_id && (
-                      <p className="mt-1 text-[10px] text-text-muted">
+                      <p className="mt-1 text-[10px] text-brand-faint">
                         Assigned doctor
                       </p>
                     )}

@@ -261,14 +261,12 @@ function getInitials(name: string): string {
 }
 
 const AVATAR_COLORS = [
-  "bg-blue-500",
-  "bg-purple-500",
-  "bg-emerald-500",
-  "bg-orange-500",
-  "bg-rose-500",
-  "bg-cyan-500",
-  "bg-amber-500",
-  "bg-indigo-500",
+  "bg-brand-cta",
+  "bg-brand-sage",
+  "bg-brand-info",
+  "bg-brand-success",
+  "bg-brand-forest",
+  "bg-brand-deep",
 ];
 
 function avatarColor(name: string): string {
@@ -662,25 +660,25 @@ export function AppointmentManager({
       label: "Today",
       value: todayCount,
       icon: Calendar,
-      color: "bg-primary/10 text-primary",
+      color: "bg-brand-pale text-brand-cta",
     },
     {
       label: "Confirmed",
       value: confirmedCount,
       icon: CheckCircle,
-      color: "bg-green-100 text-green-600",
+      color: "bg-brand-success-soft text-brand-success",
     },
     {
       label: "Pending",
       value: pendingCount,
       icon: AlertCircle,
-      color: "bg-yellow-100 text-yellow-600",
+      color: "bg-brand-warning-soft text-brand-warning",
     },
     {
       label: "Cancelled",
       value: cancelledCount,
       icon: XCircle,
-      color: "bg-red-100 text-red-600",
+      color: "bg-brand-danger-soft text-brand-danger",
     },
   ];
 
@@ -733,28 +731,27 @@ export function AppointmentManager({
   return (
     <div className="mx-auto w-full max-w-7xl">
       {/* Page header */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="mb-1 text-xl font-bold text-text-primary lg:text-2xl">
-              Appointments
-            </h1>
-            <p className="text-sm text-text-secondary lg:text-base">
-              Manage and track patient appointments
-            </p>
-          </div>
-          {canManage && (
-            <button
-              type="button"
-              onClick={() => setCreating(viewMode)}
-              title="Book Consultation"
-              aria-label="Book new appointment"
-              className="rounded-full bg-primary p-2.5 text-white shadow-sm transition-colors hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-primary/30"
-            >
-              <Plus className="h-5 w-5" aria-hidden="true" />
-            </button>
-          )}
+      <div className="mb-5 flex items-start justify-between gap-4 sm:items-center">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold tracking-tight text-brand-ink lg:text-2xl">
+            Appointments
+          </h1>
+          <p className="mt-0.5 text-sm text-brand-muted">
+            Manage and track patient appointments
+          </p>
         </div>
+        {canManage && (
+          <button
+            type="button"
+            onClick={() => setCreating(viewMode)}
+            title="Book Consultation"
+            aria-label="Book new appointment"
+            className="inline-flex shrink-0 items-center gap-2 rounded-control bg-brand-cta px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-cta-hover focus:outline-none focus:ring-2 focus:ring-brand-sage"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden sm:inline">New Appointment</span>
+          </button>
+        )}
       </div>
 
       {/* Booking Modal */}
@@ -772,23 +769,23 @@ export function AppointmentManager({
       )}
 
       {/* Stat cards */}
-      <div className="mb-4 grid grid-cols-2 gap-2 lg:mb-8 lg:grid-cols-4 lg:gap-6">
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:mb-8 lg:grid-cols-4 lg:gap-4">
         {statCards.map((card) => (
           <div
             key={card.label}
-            className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm lg:p-5"
+            className="rounded-card border border-brand-line bg-surface p-3.5 shadow-sm lg:p-4"
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <div
-                className={`flex-shrink-0 rounded-lg p-1.5 ${card.color}`}
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-control ${card.color}`}
               >
                 <card.icon className="h-4 w-4" aria-hidden="true" />
               </div>
-              <div className="ml-1">
-                <p className="text-xs font-medium tracking-wide text-gray-500">
+              <div className="min-w-0">
+                <p className="truncate text-xs font-medium uppercase tracking-wide text-brand-faint">
                   {card.label}
                 </p>
-                <p className="text-xl font-bold text-text-primary">
+                <p className="text-xl font-bold leading-tight text-brand-ink">
                   {card.value}
                 </p>
               </div>
@@ -799,10 +796,10 @@ export function AppointmentManager({
 
       {/* Consultations / Services sliding toggle */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-1.5 shadow-sm">
+        <div className="w-full max-w-sm rounded-card border border-brand-line bg-surface p-1.5 shadow-sm">
           <div className="relative flex gap-1.5">
             <div
-              className="absolute bottom-0 left-0 top-0 z-0 h-full rounded-xl bg-primary shadow-lg transition-transform duration-300 ease-out"
+              className="absolute bottom-0 left-0 top-0 z-0 h-full rounded-xl bg-brand-cta shadow-lg transition-transform duration-300 ease-out"
               style={{
                 width: "calc(50% - 3px)",
                 transform:
@@ -817,7 +814,7 @@ export function AppointmentManager({
               className={`relative z-10 flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
                 viewMode === "consultation"
                   ? "text-white"
-                  : "text-gray-600 hover:bg-gray-50"
+                  : "text-brand-muted hover:bg-brand-wash"
               }`}
             >
               Consultations
@@ -828,7 +825,7 @@ export function AppointmentManager({
               className={`relative z-10 flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
                 viewMode === "service"
                   ? "text-white"
-                  : "text-gray-600 hover:bg-gray-50"
+                  : "text-brand-muted hover:bg-brand-wash"
               }`}
             >
               Services
@@ -838,9 +835,9 @@ export function AppointmentManager({
       </div>
 
       {/* Main table card */}
-      <div className="w-full overflow-x-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="w-full overflow-x-hidden rounded-lg border border-brand-line bg-surface shadow-sm">
         {/* Sub-tabs + Search/Filter/Export */}
-        <div className="border-b border-gray-200 px-3 py-3 lg:px-6">
+        <div className="border-b border-brand-line px-3 py-3 lg:px-6">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="relative">
               <div className="scrollbar-none flex gap-0 overflow-x-auto pb-1 pr-8 lg:pb-0">
@@ -851,8 +848,8 @@ export function AppointmentManager({
                     onClick={() => setActiveTab(tab.key)}
                     className={`flex-shrink-0 whitespace-nowrap border-b-2 px-3 pb-2 text-sm font-medium capitalize transition-all duration-300 ease-in-out lg:px-4 ${
                       activeTab === tab.key
-                        ? "border-primary text-primary"
-                        : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
+                        ? "border-brand-cta text-brand-cta"
+                        : "border-transparent text-brand-muted hover:border-brand-sage hover:text-brand-ink"
                     }`}
                   >
                     {tab.label}
@@ -864,7 +861,7 @@ export function AppointmentManager({
             <div className="flex w-full items-center gap-1.5 lg:w-auto">
               <div className="relative flex-1 lg:flex-none">
                 <Search
-                  className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-gray-400"
+                  className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-brand-faint"
                   aria-hidden="true"
                 />
                 <input
@@ -875,7 +872,7 @@ export function AppointmentManager({
                   onKeyDown={(e) => {
                     if (e.key === "Enter") setSearchQuery(rawSearch);
                   }}
-                  className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary lg:w-56"
+                  className="w-full rounded-lg border border-brand-line py-2 pl-9 pr-3 text-sm focus:border-brand-cta focus:outline-none focus:ring-2 focus:ring-brand-cta lg:w-56"
                 />
               </div>
 
@@ -884,16 +881,16 @@ export function AppointmentManager({
                 type="button"
                 onClick={() => setFiltersOpen((prev) => !prev)}
                 aria-expanded={filtersOpen}
-                className={`flex items-center space-x-2 rounded-lg border border-gray-300 px-3 py-2 text-sm transition-all duration-200 hover:scale-105 hover:bg-gray-50 active:scale-95 ${
+                className={`flex items-center space-x-2 rounded-lg border border-brand-line px-3 py-2 text-sm transition-all duration-200 hover:scale-105 hover:bg-brand-wash active:scale-95 ${
                   activeFilterCount(filters) > 0
-                    ? "border-primary/40 bg-primary/5 text-primary"
-                    : "text-text-secondary"
+                    ? "border-brand-sage bg-brand-wash text-brand-cta"
+                    : "text-brand-muted"
                 }`}
               >
                 <Funnel className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Filters</span>
                 {activeFilterCount(filters) > 0 && (
-                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-white">
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-cta px-1.5 text-xs font-semibold text-white">
                     {activeFilterCount(filters)}
                   </span>
                 )}
@@ -909,7 +906,7 @@ export function AppointmentManager({
               <button
                 type="button"
                 onClick={handleExport}
-                className="flex items-center space-x-2 rounded-lg border border-gray-300 px-3 py-2 text-sm transition-all duration-200 hover:scale-105 hover:bg-gray-50 active:scale-95"
+                className="flex items-center space-x-2 rounded-lg border border-brand-line px-3 py-2 text-sm transition-all duration-200 hover:scale-105 hover:bg-brand-wash active:scale-95"
               >
                 <Download className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Export</span>
@@ -920,11 +917,11 @@ export function AppointmentManager({
 
         {/* Filter panel (Doctor / Status / Source / Date Range / Clear All) */}
         {filtersOpen && (
-          <div className="animate-fade-in-down border-b border-gray-200 bg-gray-50 px-3 py-4 lg:px-6">
-            <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm lg:p-6">
+          <div className="animate-fade-in-down border-b border-brand-line bg-brand-wash px-3 py-4 lg:px-6">
+            <div className="rounded-card border border-brand-line bg-surface p-3 shadow-sm lg:p-6">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 lg:gap-4">
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label className="mb-2 block text-sm font-medium text-brand-ink">
                     Doctor
                   </label>
                   <select
@@ -935,7 +932,7 @@ export function AppointmentManager({
                       const id = e.target.value;
                       setFilters({ ...filters, doctorIds: id ? [id] : [] });
                     }}
-                    className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm shadow-sm transition-all hover:shadow-md focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full rounded-xl border border-brand-line bg-surface px-4 py-3 text-sm shadow-sm transition-all hover:shadow-md focus:border-brand-cta focus:outline-none focus:ring-2 focus:ring-brand-cta"
                   >
                     <option value="">All Doctors</option>
                     {doctors
@@ -949,7 +946,7 @@ export function AppointmentManager({
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label className="mb-2 block text-sm font-medium text-brand-ink">
                     Status
                   </label>
                   <select
@@ -960,7 +957,7 @@ export function AppointmentManager({
                       const key = e.target.value as StatusFilterKey | "";
                       setFilters({ ...filters, statuses: key ? [key] : [] });
                     }}
-                    className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm shadow-sm transition-all hover:shadow-md focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full rounded-xl border border-brand-line bg-surface px-4 py-3 text-sm shadow-sm transition-all hover:shadow-md focus:border-brand-cta focus:outline-none focus:ring-2 focus:ring-brand-cta"
                   >
                     <option value="">All Statuses</option>
                     {STATUS_FILTER_OPTIONS.map((opt) => (
@@ -972,7 +969,7 @@ export function AppointmentManager({
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label className="mb-2 block text-sm font-medium text-brand-ink">
                     Source
                   </label>
                   <select
@@ -983,7 +980,7 @@ export function AppointmentManager({
                       const source = e.target.value;
                       setFilters({ ...filters, sources: source ? [source] : [] });
                     }}
-                    className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm shadow-sm transition-all hover:shadow-md focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full rounded-xl border border-brand-line bg-surface px-4 py-3 text-sm shadow-sm transition-all hover:shadow-md focus:border-brand-cta focus:outline-none focus:ring-2 focus:ring-brand-cta"
                   >
                     <option value="">All Sources</option>
                     {SOURCE_FILTER_OPTIONS.map((opt) => (
@@ -995,12 +992,12 @@ export function AppointmentManager({
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label className="mb-2 block text-sm font-medium text-brand-ink">
                     Date Range
                   </label>
-                  <div className="flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2.5 shadow-sm">
+                  <div className="flex items-center gap-2 rounded-xl border border-brand-line bg-surface px-3 py-2.5 shadow-sm">
                     <CalendarDays
-                      className="h-4 w-4 shrink-0 text-gray-400"
+                      className="h-4 w-4 shrink-0 text-brand-faint"
                       aria-hidden="true"
                     />
                     <input
@@ -1012,7 +1009,7 @@ export function AppointmentManager({
                       }
                       className="min-w-0 flex-1 text-sm focus:outline-none"
                     />
-                    <span className="text-gray-400">→</span>
+                    <span className="text-brand-faint">→</span>
                     <input
                       type="date"
                       aria-label="To date"
@@ -1031,8 +1028,8 @@ export function AppointmentManager({
                     onClick={() => setFilters(DEFAULT_FILTERS)}
                     className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 font-medium shadow-sm transition-all duration-200 ${
                       activeFilterCount(filters) > 0
-                        ? "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-                        : "cursor-not-allowed bg-gray-100 text-gray-400"
+                        ? "border border-brand-line bg-surface text-brand-ink hover:bg-brand-wash"
+                        : "cursor-not-allowed bg-brand-wash text-brand-faint"
                     }`}
                   >
                     <X className="h-4 w-4" aria-hidden="true" />
@@ -1291,12 +1288,12 @@ function TodayView({
         icon={<AlertCircle className="h-4 w-4" />}
         label={showLiveQueue ? "Not Yet Arrived" : "Today's Appointments"}
         count={notYetArrived.length}
-        color="bg-amber-50 text-amber-700"
-        borderColor="border-amber-200"
+        color="bg-brand-warning-soft text-brand-warning"
+        borderColor="border-brand-warning-soft"
       >
         {notYetArrived.length === 0 ? (
           <div className="px-4 py-8 text-center">
-            <p className="text-sm text-text-secondary">
+            <p className="text-sm text-brand-muted">
               All patients have been checked in
             </p>
           </div>
@@ -1354,19 +1351,19 @@ function ConsultationSection({
         type="button"
         onClick={() => setCollapsed((prev) => !prev)}
         aria-expanded={!collapsed}
-        className="mb-1 flex w-full cursor-pointer items-center justify-between gap-2 rounded-tl-xl rounded-tr-xl border border-primary/20 bg-primary/10 px-3 py-2.5"
+        className="mb-1 flex w-full cursor-pointer items-center justify-between gap-2 rounded-tl-xl rounded-tr-xl border border-brand-sage bg-brand-pale px-3 py-2.5"
       >
         <span className="flex items-center gap-2">
           <Stethoscope
-            className="h-4 w-4 flex-shrink-0 text-primary"
+            className="h-4 w-4 flex-shrink-0 text-brand-cta"
             aria-hidden="true"
           />
-          <span className="text-sm font-semibold text-primary">
+          <span className="text-sm font-semibold text-brand-cta">
             In Consultation ({inConsultation.length})
           </span>
         </span>
         <ChevronDown
-          className={`h-4 w-4 text-primary transition-transform duration-300 ease-in-out ${
+          className={`h-4 w-4 text-brand-cta transition-transform duration-300 ease-in-out ${
             collapsed ? "" : "-rotate-180"
           }`}
           aria-hidden="true"
@@ -1376,11 +1373,11 @@ function ConsultationSection({
       {!collapsed && (
         <div className="animate-fade-in-down space-y-2">
           {inConsultation.length === 0 ? (
-            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-8 text-center">
-              <p className="text-sm text-text-secondary">
+            <div className="rounded-xl border border-brand-line bg-brand-wash px-4 py-8 text-center">
+              <p className="text-sm text-brand-muted">
                 No patient in consultation right now
               </p>
-              <p className="mt-1 text-xs text-text-muted">
+              <p className="mt-1 text-xs text-brand-faint">
                 Check in a patient to begin
               </p>
             </div>
@@ -1393,34 +1390,34 @@ function ConsultationSection({
                 <div
                   key={appt.id}
                   onClick={() => canManage && onViewDetails(appt)}
-                  className={`w-full rounded-xl border border-gray-200 bg-gray-50 p-2.5 transition-colors ${
+                  className={`w-full rounded-xl border border-brand-line bg-brand-wash p-2.5 transition-colors ${
                     canManage ? "cursor-pointer hover:opacity-100" : ""
                   }`}
                 >
                   <div className="flex items-center gap-2">
                     {/* Initial avatar */}
-                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary-light text-xs font-bold text-white">
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand-cta to-brand-sage text-xs font-bold text-white">
                       {getInitials(appt.patientName)}
                     </div>
 
                     {/* Patient + doctor */}
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <p className="truncate text-sm font-semibold text-gray-700">
+                        <p className="truncate text-sm font-semibold text-brand-ink">
                           {appt.patientName}
                         </p>
                         {isWalkIn && (
                           <span
                             title="Walk-in"
-                            className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-orange-100"
+                            className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-brand-warning-soft"
                           >
                             <PersonStanding
-                              className="h-3 w-3 text-orange-500"
+                              className="h-3 w-3 text-brand-warning"
                               aria-hidden="true"
                             />
                           </span>
                         )}
-                        <span className="flex-shrink-0 text-xs text-gray-400">
+                        <span className="flex-shrink-0 text-xs text-brand-faint">
                           {formatRowTimeRange(
                             appt.start_time,
                             appt.end_time,
@@ -1428,7 +1425,7 @@ function ConsultationSection({
                           )}
                         </span>
                       </div>
-                      <p className="truncate text-xs text-gray-400">
+                      <p className="truncate text-xs text-brand-faint">
                         {doctorDisplayName(appt.doctorName)}
                       </p>
                     </div>
@@ -1442,7 +1439,7 @@ function ConsultationSection({
                             e.stopPropagation();
                             onComplete(appt);
                           }}
-                          className="flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
+                          className="flex items-center gap-1 rounded-lg border border-brand-line bg-surface px-3 py-1.5 text-xs font-medium text-brand-muted transition-colors hover:bg-brand-wash hover:text-brand-ink"
                         >
                           <CircleCheckBig
                             className="h-3.5 w-3.5"
@@ -1458,7 +1455,7 @@ function ConsultationSection({
                         >
                           <RowMenu
                             icon={EllipsisVertical}
-                            triggerClassName="p-1.5 rounded-lg text-gray-500 transition-colors hover:bg-gray-200"
+                            triggerClassName="p-1.5 rounded-lg text-brand-muted transition-colors hover:bg-brand-pale"
                             actions={[
                               {
                                 key: "edit",
@@ -1500,14 +1497,14 @@ function SectionGroup({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`rounded-xl border ${borderColor} bg-white`}>
+    <div className={`rounded-xl border ${borderColor} bg-surface`}>
       <div className={`flex items-center gap-2 px-4 py-3 ${color} rounded-t-xl`}>
         {icon}
         <span className="text-sm font-semibold">
           {label} ({count})
         </span>
       </div>
-      <div className="divide-y divide-border-light">{children}</div>
+      <div className="divide-y divide-brand-line">{children}</div>
     </div>
   );
 }
@@ -1603,19 +1600,19 @@ function WaitingQueueSection({
           if (canManage) handleDropTop();
         }}
         aria-expanded={!collapsed}
-        className="flex w-full items-center justify-between gap-2 rounded-tl-xl rounded-tr-xl border border-primary/20 bg-primary/10 px-3 py-2.5 mb-1 cursor-pointer"
+        className="flex w-full items-center justify-between gap-2 rounded-tl-xl rounded-tr-xl border border-brand-sage bg-brand-pale px-3 py-2.5 mb-1 cursor-pointer"
       >
         <span className="flex items-center gap-2">
           <CircleUser
-            className="h-4 w-4 flex-shrink-0 text-primary"
+            className="h-4 w-4 flex-shrink-0 text-brand-cta"
             aria-hidden="true"
           />
-          <span className="text-sm font-semibold text-primary">
+          <span className="text-sm font-semibold text-brand-cta">
             Waiting Queue ({waiting.length})
           </span>
         </span>
         <ChevronDown
-          className={`h-4 w-4 text-primary transition-transform duration-300 ease-in-out ${
+          className={`h-4 w-4 text-brand-cta transition-transform duration-300 ease-in-out ${
             collapsed ? "" : "-rotate-180"
           }`}
           aria-hidden="true"
@@ -1641,10 +1638,10 @@ function WaitingQueueSection({
                 }}
                 onDrop={() => canManage && handleDrop(item)}
                 onClick={() => appt && canManage && onViewDetails(appt)}
-                className={`w-full select-none rounded-xl border bg-white p-3 shadow-sm transition-colors ${
+                className={`w-full select-none rounded-xl border bg-surface p-3 shadow-sm transition-colors ${
                   dragId === item.id
-                    ? "border-primary/40 opacity-60"
-                    : "border-gray-200"
+                    ? "border-brand-sage opacity-60"
+                    : "border-brand-line"
                 } ${appt && canManage ? "cursor-pointer" : ""}`}
               >
                 <div className="flex items-center gap-3">
@@ -1658,7 +1655,7 @@ function WaitingQueueSection({
                     onDragEnd={() => setDragId(null)}
                     title="Drag to reorder token"
                     className={`shrink-0 self-center cursor-grab active:cursor-grabbing select-none p-1 ${
-                      canManage ? "text-gray-400" : "text-gray-300"
+                      canManage ? "text-brand-faint" : "text-brand-faint"
                     }`}
                   >
                     <GripHorizontal
@@ -1668,7 +1665,7 @@ function WaitingQueueSection({
                   </div>
 
                   {/* Token chip */}
-                  <div className="flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary-light shadow-sm">
+                  <div className="flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-lg bg-gradient-to-br from-brand-cta to-brand-sage shadow-sm">
                     <span className="text-[9px] font-medium leading-none text-white/70">
                       Token
                     </span>
@@ -1680,16 +1677,16 @@ function WaitingQueueSection({
                   {/* Patient + doctor + slot time */}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="truncate text-sm font-semibold text-gray-900">
+                      <p className="truncate text-sm font-semibold text-brand-ink">
                         {item.patientName}
                       </p>
                       {isWalkIn && (
                         <span
                           title="Walk-in"
-                          className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-orange-100"
+                          className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-brand-warning-soft"
                         >
                           <PersonStanding
-                            className="h-3.5 w-3.5 text-orange-500"
+                            className="h-3.5 w-3.5 text-brand-warning"
                             aria-hidden="true"
                           />
                         </span>
@@ -1700,10 +1697,10 @@ function WaitingQueueSection({
                         </Badge>
                       )}
                     </div>
-                    <p className="truncate text-xs text-gray-500">
+                    <p className="truncate text-xs text-brand-muted">
                       {item.doctorName ?? "—"}
                     </p>
-                    <p className="mt-0.5 text-xs text-gray-400">
+                    <p className="mt-0.5 text-xs text-brand-faint">
                       {appt
                         ? formatRowTimeRange(
                             appt.start_time,
@@ -1726,7 +1723,7 @@ function WaitingQueueSection({
                     {pendingOcr > 0 && (
                       <span
                         title="Scanned items waiting for doctor review on the History tab"
-                        className="flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700"
+                        className="flex items-center gap-1 rounded-full border border-brand-warning-soft bg-brand-warning-soft px-2 py-0.5 text-[10px] font-medium text-brand-warning"
                       >
                         <Sparkles
                           className="h-3 w-3"
@@ -1743,7 +1740,7 @@ function WaitingQueueSection({
                           onClick={() => appt && onViewDetails(appt)}
                           title="Appointment details"
                           aria-label="View appointment details"
-                          className="rounded-full p-1 text-orange-500 transition-colors hover:bg-orange-50"
+                          className="rounded-full p-1 text-brand-warning transition-colors hover:bg-brand-warning-soft"
                         >
                           <CircleUser
                             className="h-4 w-4"
@@ -1755,7 +1752,7 @@ function WaitingQueueSection({
                           onClick={() => setOcrPatientId(item.patient_id)}
                           title="Upload past medical reports for AI scanning"
                           aria-label="Upload document for AI scanning"
-                          className="flex items-center gap-1 whitespace-nowrap rounded-full border-[1.5px] border-hairline bg-white px-2 py-1 text-[10px] font-semibold text-ink transition-colors hover:bg-slate-50"
+                          className="flex items-center gap-1 whitespace-nowrap rounded-full border-[1.5px] border-brand-line bg-surface px-2 py-1 text-[10px] font-semibold text-brand-ink transition-colors hover:bg-brand-wash"
                         >
                           <FileText
                             className="h-3 w-3"
@@ -1767,7 +1764,7 @@ function WaitingQueueSection({
                           type="button"
                           onClick={() => appt && onAddVitals(appt)}
                           title={hasVitals ? "Update vitals" : "Add vitals"}
-                          className="flex items-center gap-1 whitespace-nowrap rounded-full border-[1.5px] border-primary/30 bg-primary/5 px-2 py-1 text-[10px] font-bold text-primary transition-colors hover:bg-primary/10"
+                          className="flex items-center gap-1 whitespace-nowrap rounded-full border-[1.5px] border-brand-sage bg-brand-wash px-2 py-1 text-[10px] font-bold text-brand-cta transition-colors hover:bg-brand-pale"
                         >
                           <Activity className="h-3 w-3" aria-hidden="true" />
                           {hasVitals ? "Update Vitals" : (appt ? "Add Vitals" : "—")}
@@ -1906,7 +1903,7 @@ function QueueAppointmentRow({
   return (
     <div
       onClick={clickable ? onViewDetails : undefined}
-      className={`flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-subtle ${
+      className={`flex items-center gap-3 px-4 py-3 transition-colors hover:bg-brand-wash ${
         clickable ? "cursor-pointer" : ""
       }`}
     >
@@ -1919,10 +1916,10 @@ function QueueAppointmentRow({
 
       {/* Name + details */}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-text-primary">
+        <p className="truncate text-sm font-semibold text-brand-ink">
           {appointment.patientName}
         </p>
-        <p className="truncate text-xs text-text-secondary">
+        <p className="truncate text-xs text-brand-muted">
           {appointment.doctorName ?? "No doctor"} ·{" "}
           {formatClinicLocalSlot(
             appointment.start_time,
@@ -1941,7 +1938,7 @@ function QueueAppointmentRow({
 
       {/* Token badge */}
       {visit && (
-        <div className="flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded-md bg-primary text-[10px] leading-tight text-white">
+        <div className="flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded-md bg-brand-cta text-[10px] leading-tight text-white">
           <span className="text-[8px] uppercase opacity-80">Token</span>
           <span className="text-xs font-bold">{visit.token_number}</span>
         </div>
@@ -1974,7 +1971,7 @@ function QueueAppointmentRow({
           <button
             type="button"
             onClick={onViewDetails}
-            className="rounded-lg p-1.5 text-primary transition-colors hover:bg-primary/10"
+            className="rounded-lg p-1.5 text-brand-cta transition-colors hover:bg-brand-pale"
             title="View Details"
             aria-label={`View ${appointment.patientName}'s appointment`}
           >
@@ -2045,8 +2042,8 @@ function TableView({
   return (
     <div>
       {/* Desktop column headers */}
-      <div className="hidden border-b border-gray-200 bg-gray-50 px-3 py-3 lg:block lg:px-6">
-        <div className="grid grid-cols-12 gap-4 text-xs font-medium uppercase tracking-wide text-gray-500">
+      <div className="hidden border-b border-brand-line bg-brand-wash px-3 py-3 lg:block lg:px-6">
+        <div className="grid grid-cols-12 gap-4 text-xs font-medium uppercase tracking-wide text-brand-muted">
           <div className="col-span-3">Patient</div>
           <div className="col-span-2">Doctor</div>
           <div className="col-span-3">Date &amp; Slot</div>
@@ -2056,7 +2053,7 @@ function TableView({
         </div>
       </div>
 
-      <div className="divide-y divide-gray-100">
+      <div className="divide-y divide-brand-line">
         {rows.map((row) => {
           const meta = APPOINTMENT_STATUS_META[row.status];
           const uhid = row.patient_id ? uhids.get(row.patient_id) ?? null : null;
@@ -2074,14 +2071,14 @@ function TableView({
           return (
             <div key={row.id}>
               {/* Mobile row */}
-              <div className="px-3 py-2 transition-colors hover:bg-gray-50 lg:hidden">
+              <div className="px-3 py-2 transition-colors hover:bg-brand-wash lg:hidden">
                 <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary-light text-white">
+                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-cta to-brand-sage text-white">
                     <CircleUser className="h-4 w-4" aria-hidden="true" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-sm font-semibold text-gray-900">
+                      <p className="truncate text-sm font-semibold text-brand-ink">
                         {row.patientName}
                       </p>
                       {meta ? (
@@ -2093,18 +2090,18 @@ function TableView({
                       ) : null}
                     </div>
                     <div className="mt-0.5 flex items-center justify-between gap-2">
-                      <p className="truncate text-xs text-gray-500">
+                      <p className="truncate text-xs text-brand-muted">
                         {row.doctorName ?? "—"} · {formatRowDate(row.start_time, timezone)} ·{" "}
                         {formatRowTimeRange(row.start_time, row.end_time, timezone)}
                       </p>
                       <div className="flex flex-shrink-0 items-center gap-1">
-                        <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs font-bold text-primary">
+                        <span className="rounded bg-brand-pale px-1.5 py-0.5 text-xs font-bold text-brand-cta">
                           {token ?? "—"}
                         </span>
                         <button
                           type="button"
                           onClick={() => onView(row)}
-                          className="rounded-lg p-1.5 text-primary transition-colors hover:bg-primary/10"
+                          className="rounded-lg p-1.5 text-brand-cta transition-colors hover:bg-brand-pale"
                           aria-label={`View ${row.patientName}'s appointment`}
                           title="View Details"
                         >
@@ -2118,19 +2115,19 @@ function TableView({
               </div>
 
               {/* Desktop row */}
-              <div className="hidden px-3 py-2.5 transition-all duration-200 hover:bg-gray-50 hover:shadow-sm lg:block lg:px-6">
+              <div className="hidden px-3 py-2.5 transition-all duration-200 hover:bg-brand-wash hover:shadow-sm lg:block lg:px-6">
                 <div className="grid grid-cols-12 items-center gap-4">
                   <div className="col-span-3">
                     <div className="flex items-center space-x-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary-light text-white">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-brand-cta to-brand-sage text-white">
                         <CircleUser className="h-4 w-4" aria-hidden="true" />
                       </div>
                       <div className="flex min-w-0 items-center gap-2">
-                        <p className="truncate text-sm font-medium text-gray-900">
+                        <p className="truncate text-sm font-medium text-brand-ink">
                           {row.patientName}
                         </p>
                         {uhid ? (
-                          <span className="hidden text-xs text-gray-500 xl:inline">
+                          <span className="hidden text-xs text-brand-muted xl:inline">
                             {uhid}
                           </span>
                         ) : null}
@@ -2138,21 +2135,21 @@ function TableView({
                     </div>
                   </div>
                   <div className="col-span-2">
-                    <p className="truncate text-sm text-gray-700">
+                    <p className="truncate text-sm text-brand-ink">
                       {row.doctorName ?? "—"}
                     </p>
                   </div>
                   <div className="col-span-3">
-                    <p className="text-sm font-medium text-gray-900">
+                    <p className="text-sm font-medium text-brand-ink">
                       {formatRowDate(row.start_time, timezone)}
                     </p>
-                    <p className="mt-1 flex items-center text-xs text-gray-500">
+                    <p className="mt-1 flex items-center text-xs text-brand-muted">
                       <Clock className="mr-1 h-3 w-3" aria-hidden="true" />
                       {formatRowTimeRange(row.start_time, row.end_time, timezone)}
                     </p>
                   </div>
                   <div className="col-span-1">
-                    <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs font-bold text-primary">
+                    <span className="rounded bg-brand-pale px-1.5 py-0.5 text-xs font-bold text-brand-cta">
                       {token ?? "—"}
                     </span>
                   </div>
@@ -2164,7 +2161,7 @@ function TableView({
                         {meta.label}
                       </span>
                     ) : (
-                      <span className="text-gray-400">—</span>
+                      <span className="text-brand-faint">—</span>
                     )}
                   </div>
                   <div className="relative col-span-1">
@@ -2172,7 +2169,7 @@ function TableView({
                       <button
                         type="button"
                         onClick={() => onView(row)}
-                        className="rounded-lg p-1.5 text-primary transition-all duration-150 hover:scale-110 hover:bg-primary/10 active:scale-95"
+                        className="rounded-lg p-1.5 text-brand-cta transition-all duration-150 hover:scale-110 hover:bg-brand-pale active:scale-95"
                         title="View Details"
                         aria-label={`View ${row.patientName}'s appointment`}
                       >
@@ -2237,7 +2234,7 @@ function TableActionsDropdown({
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-app hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+        className="flex h-8 w-8 items-center justify-center rounded-full text-brand-faint transition-colors hover:bg-app hover:text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-sage"
         aria-label="Row actions"
         aria-haspopup="menu"
         aria-expanded={open}
@@ -2248,7 +2245,7 @@ function TableActionsDropdown({
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-40 mt-1 w-52 overflow-hidden rounded-md border border-text-muted/30 bg-white shadow-dropdown"
+          className="absolute right-0 z-40 mt-1 w-52 overflow-hidden rounded-md border border-text-muted/30 bg-surface shadow-dropdown"
         >
           {actions.map((action) => {
             const Icon = action.icon;
@@ -2264,7 +2261,7 @@ function TableActionsDropdown({
                 className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm transition-colors hover:bg-app ${
                   action.destructive
                     ? "text-status-destructive"
-                    : "text-text-primary"
+                    : "text-brand-ink"
                 }`}
               >
                 <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />

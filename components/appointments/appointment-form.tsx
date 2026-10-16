@@ -355,10 +355,10 @@ export function AppointmentForm({
         <div
           role="status"
           aria-live="polite"
-          className="flex items-start gap-2 rounded-control border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-text-primary"
+          className="flex items-start gap-2 rounded-control border border-brand-sage bg-brand-wash px-3 py-2 text-xs text-brand-ink"
         >
           <Loader2
-            className="mt-px h-3.5 w-3.5 shrink-0 animate-spin text-primary"
+            className="mt-px h-3.5 w-3.5 shrink-0 animate-spin text-brand-cta"
             aria-hidden="true"
           />
           <span>
@@ -366,7 +366,7 @@ export function AppointmentForm({
             {" — "}
             {optimisticBooking.serviceName}
             {optimisticBooking.when ? ` · ${optimisticBooking.when}` : ""}
-            <span className="text-text-secondary"> · confirming…</span>
+            <span className="text-brand-muted"> · confirming…</span>
           </span>
         </div>
       )}
@@ -385,20 +385,20 @@ export function AppointmentForm({
       <div className="grid gap-6 lg:grid-cols-2">
         {/* ── Left: Patient Information ──────────────────────── */}
         <div className="space-y-4">
-          <div className="flex items-center gap-2 border-b border-border-light pb-2">
-            <Users className="h-4 w-4 text-primary" aria-hidden="true" />
-            <h3 className="text-sm font-semibold text-text-primary">
+          <div className="flex items-center gap-2 border-b border-brand-line pb-2">
+            <Users className="h-4 w-4 text-brand-cta" aria-hidden="true" />
+            <h3 className="text-sm font-semibold text-brand-ink">
               Patient Information
             </h3>
           </div>
 
           {/* Phone Number */}
           <div className="space-y-1.5">
-            <Label htmlFor="appt-phone" className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-              Phone Number <span className="text-red-500">*</span>
+            <Label htmlFor="appt-phone" className="text-xs font-semibold uppercase tracking-wider text-brand-faint">
+              Phone Number <span className="text-brand-danger">*</span>
             </Label>
             <div className="relative">
-              <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" aria-hidden="true" />
+              <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-faint" aria-hidden="true" />
               <Input
                 id="appt-phone"
                 name="patientPhone"
@@ -432,21 +432,21 @@ export function AppointmentForm({
                 <span>{phoneHint.text}</span>
               </p>
             ) : (
-              <p className="text-xs text-text-muted">
+              <p className="text-xs text-brand-faint">
                 Used to look up existing patients
               </p>
             )}
             {phoneHint?.tone === "success" && phoneMatch && (
               <div className="flex items-center gap-2 rounded-control border border-status-success/30 bg-status-success/5 px-3 py-2">
-                <div className="min-w-0 flex-1 text-xs text-text-primary">
+                <div className="min-w-0 flex-1 text-xs text-brand-ink">
                   <span className="font-semibold">{phoneMatch.name}</span>
                   {phoneMatch.age != null && (
-                    <span className="text-text-secondary"> · {phoneMatch.age}</span>
+                    <span className="text-brand-muted"> · {phoneMatch.age}</span>
                   )}
                   {phoneMatch.gender && (
-                    <span className="text-text-secondary"> · {phoneMatch.gender}</span>
+                    <span className="text-brand-muted"> · {phoneMatch.gender}</span>
                   )}
-                  <span className="block text-text-secondary">
+                  <span className="block text-brand-muted">
                     Linked to this patient — details filled in above
                   </span>
                 </div>
@@ -457,8 +457,8 @@ export function AppointmentForm({
 
           {/* Full Name */}
           <div className="space-y-1.5">
-            <Label htmlFor="appt-name" className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-              Full Name <span className="text-red-500">*</span>
+            <Label htmlFor="appt-name" className="text-xs font-semibold uppercase tracking-wider text-brand-faint">
+              Full Name <span className="text-brand-danger">*</span>
             </Label>
             <Input
               id="appt-name"
@@ -474,8 +474,8 @@ export function AppointmentForm({
           {/* Age + Gender */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="appt-age" className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-                Patient Age <span className="text-red-500">*</span>
+              <Label htmlFor="appt-age" className="text-xs font-semibold uppercase tracking-wider text-brand-faint">
+                Patient Age <span className="text-brand-danger">*</span>
               </Label>
               <Input
                 id="appt-age"
@@ -490,8 +490,8 @@ export function AppointmentForm({
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-                Gender <span className="text-red-500">*</span>
+              <Label className="text-xs font-semibold uppercase tracking-wider text-brand-faint">
+                Gender <span className="text-brand-danger">*</span>
               </Label>
               <input type="hidden" name="patientGender" value={gender} />
               <div className="flex gap-1">
@@ -503,8 +503,8 @@ export function AppointmentForm({
                     className={cn(
                       "flex-1 rounded-lg border px-2 py-2 text-xs font-medium capitalize transition-colors",
                       gender === g
-                        ? "border-primary bg-primary/5 text-primary"
-                        : "border-border-light bg-white text-text-secondary hover:border-primary/40",
+                        ? "border-brand-cta bg-brand-wash text-brand-cta"
+                        : "border-brand-line bg-surface text-brand-muted hover:border-brand-sage",
                     )}
                   >
                     {g}
@@ -516,11 +516,11 @@ export function AppointmentForm({
 
           {/* City */}
           <div className="space-y-1.5">
-            <Label htmlFor="appt-city" className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+            <Label htmlFor="appt-city" className="text-xs font-semibold uppercase tracking-wider text-brand-faint">
               City
             </Label>
             <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" aria-hidden="true" />
+              <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-faint" aria-hidden="true" />
               <Input
                 id="appt-city"
                 name="patientCity"
@@ -534,7 +534,7 @@ export function AppointmentForm({
 
           {/* WhatsApp Number */}
           <div className="space-y-1.5">
-            <Label htmlFor="appt-whatsapp" className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+            <Label htmlFor="appt-whatsapp" className="text-xs font-semibold uppercase tracking-wider text-brand-faint">
               WhatsApp Number
             </Label>
             <Input
@@ -545,14 +545,14 @@ export function AppointmentForm({
               value={whatsapp}
               onChange={(e) => setWhatsapp(e.target.value)}
             />
-            <p className="text-xs text-text-muted">
+            <p className="text-xs text-brand-faint">
               Leave empty to use phone number for WhatsApp
             </p>
           </div>
 
           {/* Known Allergies */}
           <div className="space-y-1.5">
-            <Label htmlFor="appt-allergies" className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+            <Label htmlFor="appt-allergies" className="text-xs font-semibold uppercase tracking-wider text-brand-faint">
               Known Allergies
             </Label>
             <textarea
@@ -562,13 +562,13 @@ export function AppointmentForm({
               rows={2}
               value={allergies}
               onChange={(e) => setAllergies(e.target.value)}
-              className="flex w-full rounded-lg border border-border-light bg-white px-3 py-2 text-sm text-text-primary placeholder:text-text-muted transition-colors hover:border-border-medium focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="flex w-full rounded-lg border border-brand-line bg-surface px-3 py-2 text-sm text-brand-ink placeholder:text-brand-faint transition-colors hover:border-brand-sage focus:border-brand-cta focus:outline-none focus:ring-2 focus:ring-brand-sage"
             />
           </div>
 
           {/* Medical Conditions */}
           <div className="space-y-1.5">
-            <Label htmlFor="appt-conditions" className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+            <Label htmlFor="appt-conditions" className="text-xs font-semibold uppercase tracking-wider text-brand-faint">
               Medical Conditions
             </Label>
             <textarea
@@ -578,13 +578,13 @@ export function AppointmentForm({
               rows={2}
               value={conditions}
               onChange={(e) => setConditions(e.target.value)}
-              className="flex w-full rounded-lg border border-border-light bg-white px-3 py-2 text-sm text-text-primary placeholder:text-text-muted transition-colors hover:border-border-medium focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="flex w-full rounded-lg border border-brand-line bg-surface px-3 py-2 text-sm text-brand-ink placeholder:text-brand-faint transition-colors hover:border-brand-sage focus:border-brand-cta focus:outline-none focus:ring-2 focus:ring-brand-sage"
             />
           </div>
 
           {/* Booking Source */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-brand-faint">
               Booking Source
             </Label>
             <div className="flex gap-1">
@@ -599,8 +599,8 @@ export function AppointmentForm({
                   className={cn(
                     "flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
                     bookingSource === src.value
-                      ? "border-primary bg-primary/5 text-primary"
-                      : "border-border-light bg-white text-text-secondary hover:border-primary/40",
+                      ? "border-brand-cta bg-brand-wash text-brand-cta"
+                      : "border-brand-line bg-surface text-brand-muted hover:border-brand-sage",
                   )}
                 >
                   {src.label}
@@ -615,7 +615,7 @@ export function AppointmentForm({
             onClick={() =>
               setPatientMode((m) => (m === "existing" ? "new" : "existing"))
             }
-            className="flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+            className="flex items-center gap-1.5 text-xs font-medium text-brand-cta hover:text-brand-cta transition-colors"
           >
             {patientMode === "existing" ? (
               <>
@@ -633,7 +633,7 @@ export function AppointmentForm({
           {patientMode === "existing" && (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="appt-patient-select" className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+                <Label htmlFor="appt-patient-select" className="text-xs font-semibold uppercase tracking-wider text-brand-faint">
                   Select Patient
                 </Label>
                 {/* Duplicate repair, at the counter. Opens above this modal so
@@ -658,7 +658,7 @@ export function AppointmentForm({
                         ? "Merge this record with a duplicate"
                         : "Pick a patient first, then merge a duplicate into them"
                     }
-                    className="inline-flex items-center gap-1.5 rounded-control border border-border-light px-2.5 py-1.5 text-[11.5px] font-semibold text-primary transition-colors hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:pointer-events-none disabled:opacity-40"
+                    className="inline-flex items-center gap-1.5 rounded-control border border-brand-line px-2.5 py-1.5 text-[11.5px] font-semibold text-brand-cta transition-colors hover:border-brand-sage hover:bg-brand-wash focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-sage disabled:pointer-events-none disabled:opacity-40"
                   >
                     <GitMerge aria-hidden="true" className="size-3.5" />
                     Merge Duplicate
@@ -707,7 +707,7 @@ export function AppointmentForm({
                   ? `Merge ${phoneMatch.name} with a duplicate`
                   : "Find two records for the same person and merge them"
               }
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:pointer-events-none disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-cta transition-colors hover:text-brand-cta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-sage disabled:pointer-events-none disabled:opacity-40"
             >
               <GitMerge aria-hidden="true" className="size-3.5" />
               {phoneMatch
@@ -719,17 +719,17 @@ export function AppointmentForm({
 
         {/* ── Right: Appointment Details ──────────────────────── */}
         <div className="space-y-4">
-          <div className="flex items-center gap-2 border-b border-border-light pb-2">
-            <Calendar className="h-4 w-4 text-primary" aria-hidden="true" />
-            <h3 className="text-sm font-semibold text-text-primary">
+          <div className="flex items-center gap-2 border-b border-brand-line pb-2">
+            <Calendar className="h-4 w-4 text-brand-cta" aria-hidden="true" />
+            <h3 className="text-sm font-semibold text-brand-ink">
               Appointment Details
             </h3>
           </div>
 
           {/* Select Service */}
           <div className="space-y-1.5">
-            <Label htmlFor="appt-service" className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-              Service <span className="text-red-500">*</span>
+            <Label htmlFor="appt-service" className="text-xs font-semibold uppercase tracking-wider text-brand-faint">
+              Service <span className="text-brand-danger">*</span>
             </Label>
             <NativeSelect
               id="appt-service"
@@ -747,7 +747,7 @@ export function AppointmentForm({
               ))}
             </NativeSelect>
             {emergency && !serviceId && (
-              <p className="text-xs text-text-muted">
+              <p className="text-xs text-brand-faint">
                 Left empty — booked as walk-in consultation
               </p>
             )}
@@ -755,8 +755,8 @@ export function AppointmentForm({
 
           {/* Select Doctor — always shown */}
           <div className="space-y-1.5">
-            <Label htmlFor="appt-doctor" className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-              Select Doctor <span className="text-red-500">*</span>
+            <Label htmlFor="appt-doctor" className="text-xs font-semibold uppercase tracking-wider text-brand-faint">
+              Select Doctor <span className="text-brand-danger">*</span>
             </Label>
             <NativeSelect
               id="appt-doctor"
@@ -776,8 +776,8 @@ export function AppointmentForm({
 
           {/* Appointment Date */}
           <div className="space-y-1.5">
-            <Label htmlFor="appt-date" className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-              Appointment Date <span className="text-red-500">*</span>
+            <Label htmlFor="appt-date" className="text-xs font-semibold uppercase tracking-wider text-brand-faint">
+              Appointment Date <span className="text-brand-danger">*</span>
             </Label>
             <Input
               id="appt-date"
@@ -791,8 +791,8 @@ export function AppointmentForm({
 
           {/* Time Slot — Dropdown */}
           <div className="space-y-1.5">
-            <Label htmlFor="appt-slot" className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-              Time Slot <span className="text-red-500">*</span>
+            <Label htmlFor="appt-slot" className="text-xs font-semibold uppercase tracking-wider text-brand-faint">
+              Time Slot <span className="text-brand-danger">*</span>
             </Label>
             <NativeSelect
               id="appt-slot"
@@ -825,8 +825,8 @@ export function AppointmentForm({
 
           {/* Consultation Type */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-              Consultation Type <span className="text-red-500">*</span>
+            <Label className="text-xs font-semibold uppercase tracking-wider text-brand-faint">
+              Consultation Type <span className="text-brand-danger">*</span>
             </Label>
             <div className="flex gap-1">
               {([
@@ -841,8 +841,8 @@ export function AppointmentForm({
                   className={cn(
                     "flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
                     consultationType === ct.value
-                      ? "border-primary bg-primary/5 text-primary"
-                      : "border-border-light bg-white text-text-secondary hover:border-primary/40",
+                      ? "border-brand-cta bg-brand-wash text-brand-cta"
+                      : "border-brand-line bg-surface text-brand-muted hover:border-brand-sage",
                   )}
                 >
                   {ct.label}
@@ -854,10 +854,10 @@ export function AppointmentForm({
           {/* Additional Notes */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <Label htmlFor="appt-notes" className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              <Label htmlFor="appt-notes" className="text-xs font-semibold uppercase tracking-wider text-brand-faint">
                 Additional Notes
               </Label>
-              <span className="text-xs text-text-muted">
+              <span className="text-xs text-brand-faint">
                 {notes.length}/1000
               </span>
             </div>
@@ -869,7 +869,7 @@ export function AppointmentForm({
               maxLength={1000}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="flex w-full rounded-lg border border-border-light bg-white px-3 py-2 text-sm text-text-primary placeholder:text-text-muted transition-colors hover:border-border-medium focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="flex w-full rounded-lg border border-brand-line bg-surface px-3 py-2 text-sm text-brand-ink placeholder:text-brand-faint transition-colors hover:border-brand-sage focus:border-brand-cta focus:outline-none focus:ring-2 focus:ring-brand-sage"
             />
           </div>
 
@@ -878,8 +878,8 @@ export function AppointmentForm({
             className={cn(
               "flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors",
               emergency
-                ? "border-red-300 bg-red-50/60"
-                : "border-border-light hover:border-border-medium",
+                ? "border-brand-danger bg-brand-danger-soft"
+                : "border-brand-line hover:border-brand-sage",
             )}
           >
             <input
@@ -891,13 +891,13 @@ export function AppointmentForm({
             <span className="flex items-start gap-1.5">
               <Siren
                 aria-hidden="true"
-                className="mt-0.5 h-4 w-4 shrink-0 text-red-600"
+                className="mt-0.5 h-4 w-4 shrink-0 text-brand-danger"
               />
               <span>
-                <span className="block text-sm font-medium text-text-primary">
+                <span className="block text-sm font-medium text-brand-ink">
                   Emergency Mode
                 </span>
-                <span className="block text-xs text-text-secondary">
+                <span className="block text-xs text-brand-muted">
                   Rapid walk-in intake: only the patient is required. Service,
                   doctor and details can be filled in later.
                 </span>
@@ -908,9 +908,9 @@ export function AppointmentForm({
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between border-t border-border-light pt-4">
-        <div className="flex items-center gap-2 text-xs text-text-muted">
-          <Shield className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+      <div className="flex items-center justify-between border-t border-brand-line pt-4">
+        <div className="flex items-center gap-2 text-xs text-brand-faint">
+          <Shield className="h-3.5 w-3.5 text-brand-cta" aria-hidden="true" />
           Your data is secure and encrypted
         </div>
         <div className="flex gap-2">

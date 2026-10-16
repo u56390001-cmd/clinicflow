@@ -56,7 +56,7 @@ export function RowMenu({
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className={`${triggerClassName ?? "flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-app hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/30"}`}
+        className={`${triggerClassName ?? "flex h-8 w-8 items-center justify-center rounded-full text-brand-faint transition-colors hover:bg-brand-wash hover:text-brand-ink focus:outline-none focus:ring-2 focus:ring-brand-sage"}`}
         aria-label="Row actions"
         aria-haspopup="menu"
         aria-expanded={open}
@@ -67,7 +67,7 @@ export function RowMenu({
       {open && (
         <div
           role="menu"
-          className={`absolute z-40 mt-1 w-52 overflow-hidden rounded-md border border-text-muted/30 bg-white shadow-dropdown ${
+          className={`absolute z-40 mt-1 w-52 overflow-hidden rounded-md border border-brand-line bg-surface shadow-dropdown ${
             align === "right" ? "right-0" : "left-0"
           }`}
         >
@@ -82,10 +82,10 @@ export function RowMenu({
                   action.onClick();
                   setOpen(false);
                 }}
-                className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm transition-colors hover:bg-app ${
+                className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm transition-colors hover:bg-brand-wash ${
                   action.destructive
-                    ? "text-status-destructive"
-                    : "text-text-primary"
+                    ? "text-brand-danger"
+                    : "text-brand-ink"
                 }`}
               >
                 <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
