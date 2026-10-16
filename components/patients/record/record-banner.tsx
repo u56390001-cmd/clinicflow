@@ -247,7 +247,8 @@ export function RecordBanner({
       {/* Row 1 of 2. Who this is on the left, the actions that move today's
           visit forward on the right. The name is the only thing here at display
           weight, so the eye lands on the person before the interface. */}
-      <div className="flex items-center gap-3 px-[26px] pt-3.5">
+      <div className="flex flex-col gap-3 px-4 pt-3.5 sm:px-[26px] lg:flex-row lg:items-center lg:gap-4">
+        <div className="flex min-w-0 items-center gap-3 lg:flex-1">
         <div
           className={cn(
             "flex size-10 shrink-0 items-center justify-center rounded-full text-[15px] font-bold",
@@ -267,10 +268,12 @@ export function RecordBanner({
             </span>
           )}
         </div>
+        </div>
 
-        {/* Same hierarchy as before — one solid, one outlined, two quiet — but
-            on the identity row, so the header spends no second row on buttons. */}
-        <div className="flex shrink-0 items-center gap-1.5">
+        {/* One solid, one outlined, two quiet. On phones and tablets the actions
+            wrap onto their own row beneath the identity, so the name is never
+            squeezed; from `lg` up they sit inline on the right. */}
+        <div className="flex flex-wrap items-center gap-1.5 lg:shrink-0 lg:justify-end">
           {canManage &&
             (isConsulting ? (
               <button
@@ -313,15 +316,25 @@ export function RecordBanner({
           />
 
           {canMerge && (
-            <button type="button" onClick={onMergeDuplicate} className={GHOST_BUTTON}>
+            <button
+              type="button"
+              onClick={onMergeDuplicate}
+              className={GHOST_BUTTON}
+              aria-label="Merge duplicate"
+            >
               <GitMerge aria-hidden="true" className="size-4" strokeWidth={2} />
-              Merge Duplicate
+              <span className="hidden sm:inline">Merge Duplicate</span>
             </button>
           )}
 
-          <button type="button" onClick={onEdit} className={GHOST_BUTTON}>
+          <button
+            type="button"
+            onClick={onEdit}
+            className={GHOST_BUTTON}
+            aria-label="Edit profile"
+          >
             <SquarePen aria-hidden="true" className="size-4" strokeWidth={2} />
-            Edit Profile
+            <span className="hidden sm:inline">Edit Profile</span>
           </button>
         </div>
       </div>
@@ -331,7 +344,7 @@ export function RecordBanner({
           is the only place on the record where they appear — the tabs below
           never repeat them. Colour is spent once, on the status capsule,
           because that is the one fact that changes what you do next. */}
-      <div className="flex flex-wrap items-center gap-1.5 px-[26px] pb-4 pt-2.5">
+      <div className="flex flex-wrap items-center gap-1.5 px-4 pb-4 pt-2.5 sm:px-[26px]">
         {isFirstVisit && (
           <span className={CAPSULE}>
             <span className="inline-block size-1.5 shrink-0 rounded-full bg-blue-500" />
@@ -414,7 +427,7 @@ export function RecordBanner({
           psychContext.concern ||
           psychContext.diagnosis ||
           psychContext.lastSession) && (
-          <div className="-mt-1 flex flex-wrap items-center gap-1.5 px-[26px] pb-3">
+          <div className="-mt-1 flex flex-wrap items-center gap-1.5 px-4 pb-3 sm:px-[26px]">
             {psychContext.riskLevel && (
               <span
                 className={cn(
@@ -449,7 +462,7 @@ export function RecordBanner({
         )}
 
       {actionError && (
-        <p role="alert" className="px-[26px] pb-3 text-xs text-status-destructive">
+        <p role="alert" className="px-4 pb-3 text-xs text-status-destructive sm:px-[26px]">
           {actionError}
         </p>
       )}

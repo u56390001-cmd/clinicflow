@@ -332,14 +332,14 @@ export function CopilotDrawer({
 
   return (
     <div
-      className={`relative flex shrink-0 flex-col border-l border-slate-200 bg-gradient-to-b from-slate-50 to-white transition-all duration-300 ease-in-out ${
-        isOpen ? 'w-80 lg:w-96' : 'w-12'
+      className={`relative flex shrink-0 flex-col border-t border-slate-200 bg-gradient-to-b from-slate-50 to-white transition-all duration-300 ease-in-out xl:border-l xl:border-t-0 ${
+        isOpen ? 'w-full sm:w-80 2xl:w-96' : 'w-12'
       }`}
     >
       {/* Toggle Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="absolute -left-3 top-6 z-10 flex size-6 items-center justify-center rounded-full border border-teal-200 bg-white shadow-sm transition hover:border-teal-400 hover:bg-teal-50"
+        className="absolute left-2 top-3 z-10 flex size-6 items-center justify-center rounded-full border border-teal-200 bg-white shadow-sm transition hover:border-teal-400 hover:bg-teal-50 xl:-left-3 xl:top-6"
         title={isOpen ? 'Collapse Copilot' : 'Expand Copilot'}
       >
         {isOpen ? <ChevronRight className="size-3.5 text-teal-600" /> : <ChevronLeft className="size-3.5 text-teal-600" />}

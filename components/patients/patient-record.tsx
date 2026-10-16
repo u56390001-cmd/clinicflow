@@ -229,7 +229,7 @@ export function PatientRecord({
             its own subject, and the tab body sits on the slate canvas so the
             white cards read as cards. Documents and their uploader live in the
             Documents tab only. */}
-        <div className="min-w-0 bg-canvas px-5 py-4">
+        <div className="min-w-0 bg-canvas px-4 py-4 sm:px-5 lg:px-6">
           <div>
             {isGeneral ? (
               <>

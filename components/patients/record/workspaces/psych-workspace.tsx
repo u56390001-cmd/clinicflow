@@ -689,7 +689,7 @@ function LatestAssessmentsCard({
                   {assessment.assessment_type}
                 </span>
                 <span className="text-[12px] text-text-secondary">
-                  {assessment.score !== null ? `Score ${assessment.score}` : "Ã¢â‚¬â€"}
+                  {assessment.score !== null ? `Score ${assessment.score}` : "—"}
                   {assessment.severity ? ` · ${assessment.severity}` : ""}
                 </span>
               </div>
@@ -1198,7 +1198,7 @@ function PsychometricsTab({
                 max={max}
                 value={score}
                 onChange={(e) => changeScore(e.target.value)}
-                placeholder={`0â€“${max}`}
+                placeholder={`0–${max}`}
                 className="w-full rounded-control border border-text-muted/25 bg-surface px-2 py-1.5 text-[12.5px] text-text-primary outline-none"
               />
             </div>
@@ -1263,7 +1263,7 @@ function PsychometricsTab({
           <div className="mt-4 flex justify-end">
             <Button type="button" size="sm" onClick={addAssessment} disabled={pending} className="gap-1.5">
               {pending ? <Loader2 aria-hidden="true" className="size-3.5 animate-spin" /> : <TrendingUp aria-hidden="true" className="size-3.5" />}
-              {pending ? "SavingÃ¢â‚¬Â¦" : "Record assessment"}
+              {pending ? "Saving…" : "Record assessment"}
             </Button>
           </div>
         </RecordSection>
@@ -1379,7 +1379,8 @@ function RaterComparisonCard({
       </div>
 
       <div className="overflow-hidden rounded-control border border-text-muted/15">
-        <table className="w-full text-left text-[12.5px]">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[420px] text-left text-[12.5px]">
           <thead className="bg-app text-text-muted">
             <tr>
               <th className="px-3 py-2 font-semibold">Respondent</th>
@@ -1404,6 +1405,7 @@ function RaterComparisonCard({
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </RecordSection>
   );
@@ -1663,7 +1665,7 @@ function AssessmentTrendRow({ assessment, canManage, onDelete, template }: { ass
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-3">
-        <div className="w-28 shrink-0">
+        <div className="w-24 shrink-0 sm:w-28">
           <p className="text-[12px] font-semibold text-secondary">{assessment.assessment_type}</p>
           <p className="text-[11px] text-ink-faint">{assessment.conducted_at}</p>
         </div>
@@ -1675,7 +1677,7 @@ function AssessmentTrendRow({ assessment, canManage, onDelete, template }: { ass
             {assessment.score}
           </div>
         </div>
-        <div className="w-40 shrink-0 text-right">
+        <div className="w-28 min-w-0 shrink text-right sm:w-40">
           <div className="flex flex-wrap items-center justify-end gap-1.5">
             {assessment.severity && <span className="text-[11.5px] font-medium text-text-secondary">{assessment.severity}</span>}
             <CompletedByBadge value={assessment.completed_by} />
@@ -1709,27 +1711,27 @@ function AssessmentTrendRow({ assessment, canManage, onDelete, template }: { ass
                 ) : (
                   <Sparkles aria-hidden="true" className="size-3" />
                 )}
-                {interpreting ? "Interpretingâ€¦" : aiResult ? "Re-interpret" : "AI interpretation"}
+                {interpreting ? "Interpreting…" : aiResult ? "Re-interpret" : "AI interpretation"}
               </button>
             )}
           </div>
         </div>
         {canManage && (
-          <Button type="button" variant="ghost" size="sm" className="text-status-destructive" onClick={() => onDelete(assessment.id)}>
+          <Button type="button" variant="ghost" size="sm" aria-label="Delete assessment" className="text-status-destructive" onClick={() => onDelete(assessment.id)}>
             <Trash2 aria-hidden="true" className="size-3.5" />
           </Button>
         )}
       </div>
 
       {showResponses && responses.length > 0 && (
-        <ul className="ml-28 space-y-1 rounded-control bg-app p-2.5">
+        <ul className="ml-0 space-y-1 rounded-control bg-app p-2.5 sm:ml-28">
           {responses.map((response, index) => (
             <li key={index} className="flex items-start justify-between gap-3">
               <span className="text-[11.5px] leading-snug text-text-secondary">
                 {index + 1}. {response.text}
               </span>
               <span className="shrink-0 text-[11.5px] font-semibold text-text-primary">
-                {response.value ?? "Ã¢â‚¬â€"}
+                {response.value ?? "—"}
               </span>
             </li>
           ))}
@@ -1737,7 +1739,7 @@ function AssessmentTrendRow({ assessment, canManage, onDelete, template }: { ass
       )}
 
       {aiResult && (
-        <div className="ml-28 rounded-control border border-primary/20 bg-primary/5 p-2.5">
+        <div className="ml-0 rounded-control border border-primary/20 bg-primary/5 p-2.5 sm:ml-28">
           <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-primary">
             <Sparkles aria-hidden="true" className="size-3" />
             {aiResult.source === "ai" ? "AI interpretation" : "Template interpretation"}
@@ -1746,7 +1748,7 @@ function AssessmentTrendRow({ assessment, canManage, onDelete, template }: { ass
             {aiResult.interpretation}
           </p>
           <p className="mt-1.5 text-[10px] text-ink-faint">
-            Generated guidance â€” review before use. Not a diagnosis.
+            Generated guidance — review before use. Not a diagnosis.
           </p>
         </div>
       )}
@@ -1798,7 +1800,7 @@ function CarePlanTab({ patientId, psych, canManage }: { patientId: string; psych
           value={carePlan?.therapy_goals}
           onSave={canManage ? save("therapy_goals") : async () => true}
           rows={3}
-          placeholder="Agreed goals, one per lineÃ¢â‚¬Â¦"
+          placeholder="Agreed goals, one per line…"
         />
         <SelectNote
           label="Follow-up frequency"

@@ -497,7 +497,7 @@ export function MseTab({
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
             <Button
               type="button"
-              variant="primary"
+              variant="outline"
               size="sm"
               className="h-8 gap-1.5 px-3 text-[12px]"
               disabled={summaryBusy !== null}

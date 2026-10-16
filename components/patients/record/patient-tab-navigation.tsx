@@ -79,12 +79,12 @@ export function PatientTabNavigation({
       : SPECIALTY_TAB_LABELS[tab as SpecialtyTabId];
 
   return (
-    <div className="border-b-[0.5px] border-hairline bg-surface px-[26px]">
+    <div className="border-b-[0.5px] border-hairline bg-surface sm:px-[26px]">
       <div
         ref={tabsRef}
         role="tablist"
         aria-label="Patient record sections"
-        className="scrollbar-none relative flex overflow-x-auto"
+        className="scrollbar-none relative flex overflow-x-auto px-3 sm:px-0"
       >
         <span
           aria-hidden="true"
@@ -106,7 +106,7 @@ export function PatientTabNavigation({
               href={patientDirectoryHref({ ...params, tab })}
               scroll={false}
               className={cn(
-                "whitespace-nowrap px-[15px] py-3 text-[12.5px] transition-colors",
+                "whitespace-nowrap px-[15px] py-3.5 text-[13px] transition-colors",
                 "focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary",
                 active
                   ? "font-semibold text-primary"
