@@ -139,7 +139,7 @@ export default async function InboxPage({
                 <div className="flex min-w-0 items-center gap-3">
                   <span
                     className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
-                    style={{ backgroundColor: "#0D9488" }}
+                    style={{ backgroundColor: "#4f806c" }}
                   >
                     {initialsOf(name)}
                   </span>

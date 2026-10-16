@@ -130,7 +130,7 @@ export function AiSettingsForm({
 
   // Widget appearance state (Phase 6)
   const [isActivated, setIsActivated] = useState(settings?.is_activated ?? false);
-  const [widgetColor, setWidgetColor] = useState(settings?.widget_color ?? "#0D9488");
+  const [widgetColor, setWidgetColor] = useState(settings?.widget_color ?? "#4f806c");
   const [widgetPosition, setWidgetPosition] = useState<WidgetPosition>(
     settings?.widget_position ?? "bottom-right",
   );
@@ -569,7 +569,7 @@ export function AiSettingsForm({
                       const v = e.target.value;
                       if (/^#[0-9A-Fa-f]{0,6}$/.test(v)) setWidgetColor(v);
                     }}
-                    placeholder="#0D9488"
+                    placeholder="#4f806c"
                     disabled={!canWrite}
                     className="font-mono text-sm"
                   />

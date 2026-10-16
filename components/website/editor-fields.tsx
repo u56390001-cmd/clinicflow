@@ -252,7 +252,7 @@ export function ColorField({
           <input
             type="color"
             aria-label={`${label} swatch`}
-            value={valid ? value : "#0D9488"}
+            value={valid ? value : "#4f806c"}
             onChange={(event) => onChange(event.target.value.toUpperCase())}
             className="size-9 shrink-0 cursor-pointer rounded-control border border-text-muted/40 bg-surface p-0.5"
           />

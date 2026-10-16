@@ -137,9 +137,9 @@ export function IntakeLinkModal({
           ) : (
             link && (
               <>
-                <div className="flex items-start justify-between gap-3 rounded-xl border border-teal-200 bg-teal-50/60 px-4 py-3">
+                <div className="flex items-start justify-between gap-3 rounded-xl border border-brand-sage bg-brand-pale px-4 py-3">
                   <div className="min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-teal-700">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-brand-cta">
                       One-time link
                     </p>
                     <p className="mt-1 break-all text-[12.5px] font-semibold leading-snug text-ink">

@@ -210,7 +210,7 @@ export function SupportWorkspace() {
           aria-label="Frequently asked questions"
           className="overflow-hidden rounded-card border border-hairline bg-surface lg:col-span-2"
         >
-          <div className="flex items-center gap-2 bg-gradient-to-r from-primary to-[#0F766E] px-4 py-4 md:px-6">
+          <div className="flex items-center gap-2 bg-gradient-to-r from-primary to-[#3f6f5d] px-4 py-4 md:px-6">
             <CircleHelp className="size-5 shrink-0 text-white" aria-hidden="true" />
             <h2 className="text-base font-semibold text-white md:text-lg">
               Frequently Asked Questions
@@ -292,7 +292,7 @@ export function SupportWorkspace() {
 
         {/* Need Help? — right rail, sticky on desktop */}
         <aside className="overflow-hidden rounded-card border border-hairline bg-surface md:sticky md:top-6 md:self-start">
-          <div className="flex items-center gap-2 bg-gradient-to-r from-primary to-[#0F766E] px-4 py-4 md:px-6">
+          <div className="flex items-center gap-2 bg-gradient-to-r from-primary to-[#3f6f5d] px-4 py-4 md:px-6">
             <FileText className="size-5 shrink-0 text-white" aria-hidden="true" />
             <h2 className="text-base font-semibold text-white md:text-lg">
               Need Help?

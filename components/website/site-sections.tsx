@@ -921,7 +921,7 @@ export function ServicesBody({
 
 /** Used only when a caller renders services without a theme in hand. */
 const FALLBACK_THEME: WebsiteTheme = {
-  primaryColor: "#0D9488",
+  primaryColor: "#4f806c",
   textColor: "#0F172A",
   fontFamily: SITE_FONT_STACKS[0].stack,
   headingFont: "same",

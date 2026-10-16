@@ -81,7 +81,7 @@ export const PAST_HISTORY_FIELDS = [
  * primary, as the rest of the record already does.
  */
 export const PAST_HISTORY_FIELD_CLASS =
-  "w-full min-h-[72px] resize-none overflow-hidden rounded-[10px] border-[1.5px] border-hairline bg-white px-3 py-2.5 text-[13px] leading-[1.6] text-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-ink-faint focus:border-primary focus:shadow-[0_0_0_3px_rgba(13,148,136,0.1)] read-only:cursor-default read-only:bg-chip read-only:focus:border-hairline read-only:focus:shadow-none";
+  "w-full min-h-[72px] resize-none overflow-hidden rounded-[10px] border-[1.5px] border-hairline bg-white px-3 py-2.5 text-[13px] leading-[1.6] text-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-ink-faint focus:border-primary focus:shadow-[0_0_0_3px_rgba(79,128,108,0.1)] read-only:cursor-default read-only:bg-chip read-only:focus:border-hairline read-only:focus:shadow-none";
 
 /** The card's final divider, drawn above immunisation history only. */
 export const PAST_HISTORY_RULE_CLASS = "border-t border-hairline-soft pt-4";

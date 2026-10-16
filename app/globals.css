@@ -117,15 +117,15 @@
        Do not lower these for a softer look; soften the size or the weight. */
     --site-muted: color-mix(in srgb, var(--site-ink, #0f172a) 68%, transparent);
     --site-faint: color-mix(in srgb, var(--site-ink, #0f172a) 60%, transparent);
-    --site-tint: color-mix(in srgb, var(--site-primary, #0d9488) 4%, transparent);
+    --site-tint: color-mix(in srgb, var(--site-primary, #4f806c) 4%, transparent);
     --site-tint-strong: color-mix(
       in srgb,
-      var(--site-primary, #0d9488) 9%,
+      var(--site-primary, #4f806c) 9%,
       transparent
     );
     --site-on-primary-soft: color-mix(
       in srgb,
-      var(--site-primary, #0d9488) 14%,
+      var(--site-primary, #4f806c) 14%,
       transparent
     );
     /* The page ground itself. Sections sit on this rather than on white: a
@@ -171,7 +171,7 @@
      survives on rounded buttons and never gets clipped by a parent's overflow, and
      `outline-offset` keeps it clear of the text it is marking. */
   *:focus-visible {
-    outline: 2px solid var(--site-primary, #0d9488);
+    outline: 2px solid var(--site-primary, #4f806c);
     outline-offset: 2px;
   }
 }

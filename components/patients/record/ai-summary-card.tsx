@@ -143,7 +143,7 @@ export function AiSummaryCard({
   return (
     <section className="rounded-card border border-hairline bg-white p-4">
       <div className="flex items-center gap-2">
-        <span className="flex size-5 items-center justify-center rounded-md bg-teal-50 text-teal-600">
+        <span className="flex size-5 items-center justify-center rounded-md bg-brand-pale text-brand-cta">
           <Sparkles aria-hidden="true" className="size-3.5" />
         </span>
         <h3 className="text-sm font-semibold text-ink">AI Patient Summary</h3>
@@ -196,7 +196,7 @@ export function AiSummaryCard({
               >
                 <span
                   aria-hidden="true"
-                  className="mt-[7px] size-1.5 shrink-0 rounded-full bg-teal-600"
+                  className="mt-[7px] size-1.5 shrink-0 rounded-full bg-brand-cta"
                 />
                 {bullet}
               </li>

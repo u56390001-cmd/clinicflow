@@ -222,14 +222,14 @@ export function CopilotDrawer({
       /* Already in the form. The button becomes the confirmation it
          really is, instead of disappearing — the doctor needs to see
          that the note landed here and not somewhere else. */
-      <div className="flex items-center justify-center gap-1.5 rounded-lg border border-teal-300 bg-white/70 px-3 py-2 text-[11px] font-medium text-teal-800">
+      <div className="flex items-center justify-center gap-1.5 rounded-lg border border-brand-sage bg-white/70 px-3 py-2 text-[11px] font-medium text-brand-ink">
         <Check className="size-3.5" aria-hidden="true" />
         Written to {formNoun}
       </div>
     ) : (
       <Button
         onClick={() => onPopulateForm(extractedData)}
-        className="w-full justify-center bg-teal-600 text-xs font-semibold text-white shadow-md hover:bg-teal-700"
+        className="w-full justify-center bg-brand-cta text-xs font-semibold text-white shadow-md hover:bg-brand-cta-hover"
         size="sm"
       >
         {populateLabel}
@@ -247,10 +247,10 @@ export function CopilotDrawer({
               ? "bg-amber-100 text-amber-700"
               : "bg-slate-200 text-slate-700";
       return (
-        <div className="flex flex-col gap-3 rounded-xl border border-teal-200 bg-gradient-to-br from-teal-50 to-cyan-50 p-3.5 shadow-sm">
+        <div className="flex flex-col gap-3 rounded-xl border border-brand-sage bg-gradient-to-br from-brand-wash to-brand-pale p-3.5 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-teal-900">Session Note Draft</span>
-            <span className="rounded-full bg-teal-100 px-2 py-0.5 font-mono text-[10px] font-medium text-teal-700">
+            <span className="text-xs font-semibold text-brand-ink">Session Note Draft</span>
+            <span className="rounded-full bg-brand-pale px-2 py-0.5 font-mono text-[10px] font-medium text-brand-cta">
               {note.format}
             </span>
           </div>
@@ -278,10 +278,10 @@ export function CopilotDrawer({
     if (mode === "dermatology") {
       const note = extractedData as DermNoteExtraction;
       return (
-        <div className="flex flex-col gap-3 rounded-xl border border-teal-200 bg-gradient-to-br from-teal-50 to-cyan-50 p-3.5 shadow-sm">
+        <div className="flex flex-col gap-3 rounded-xl border border-brand-sage bg-gradient-to-br from-brand-wash to-brand-pale p-3.5 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-teal-900">Examination Draft</span>
-            <span className="rounded-full bg-teal-100 px-2 py-0.5 font-mono text-[10px] font-medium text-teal-700">
+            <span className="text-xs font-semibold text-brand-ink">Examination Draft</span>
+            <span className="rounded-full bg-brand-pale px-2 py-0.5 font-mono text-[10px] font-medium text-brand-cta">
               {note.chief_complaints.length} complaints
             </span>
           </div>
@@ -306,10 +306,10 @@ export function CopilotDrawer({
 
     const extraction = extractedData as CopilotExtraction;
     return (
-      <div className="flex flex-col gap-3 rounded-xl border border-teal-200 bg-gradient-to-br from-teal-50 to-cyan-50 p-3.5 shadow-sm">
+      <div className="flex flex-col gap-3 rounded-xl border border-brand-sage bg-gradient-to-br from-brand-wash to-brand-pale p-3.5 shadow-sm">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-teal-900">Extracted Draft</span>
-          <span className="rounded-full bg-teal-100 px-2 py-0.5 font-mono text-[10px] font-medium text-teal-700">
+          <span className="text-xs font-semibold text-brand-ink">Extracted Draft</span>
+          <span className="rounded-full bg-brand-pale px-2 py-0.5 font-mono text-[10px] font-medium text-brand-cta">
             {extraction.medicines?.length || 0} meds
           </span>
         </div>
@@ -339,15 +339,15 @@ export function CopilotDrawer({
       {/* Toggle Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="absolute left-2 top-3 z-10 flex size-6 items-center justify-center rounded-full border border-teal-200 bg-white shadow-sm transition hover:border-teal-400 hover:bg-teal-50 xl:-left-3 xl:top-6"
+        className="absolute left-2 top-3 z-10 flex size-6 items-center justify-center rounded-full border border-brand-sage bg-white shadow-sm transition hover:border-brand-sage hover:bg-brand-pale xl:-left-3 xl:top-6"
         title={isOpen ? 'Collapse Copilot' : 'Expand Copilot'}
       >
-        {isOpen ? <ChevronRight className="size-3.5 text-teal-600" /> : <ChevronLeft className="size-3.5 text-teal-600" />}
+        {isOpen ? <ChevronRight className="size-3.5 text-brand-cta" /> : <ChevronLeft className="size-3.5 text-brand-cta" />}
       </button>
 
       {!isOpen ? (
         <div className="flex flex-col items-center gap-6 pt-12">
-          <Sparkles className="size-5 animate-pulse text-teal-500" />
+          <Sparkles className="size-5 animate-pulse text-brand-cta" />
           <span className="rotate-90 whitespace-nowrap text-[10px] font-medium uppercase tracking-widest text-slate-400">
             AI Copilot
           </span>
@@ -385,10 +385,10 @@ export function CopilotDrawer({
           <div className="flex flex-col gap-3 border-b border-slate-200 pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Sparkles className="size-[18px] text-teal-500" />
+                <Sparkles className="size-[18px] text-brand-cta" />
                 <h3 className="text-sm font-semibold text-slate-900">{headerLabel}</h3>
               </div>
-              <span className="rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[10px] font-medium tracking-wide text-teal-700">
+              <span className="rounded-full border border-brand-sage bg-brand-pale px-2 py-0.5 text-[10px] font-medium tracking-wide text-brand-cta">
                 {isRecording ? 'LISTENING' : 'READY'}
               </span>
             </div>
@@ -408,11 +408,11 @@ export function CopilotDrawer({
                     ? `Extracted notes are written into ${formNoun} as soon as they are ready.`
                     : 'Extracted notes wait for you to press the populate button.'
                 }
-                className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 transition hover:text-teal-700"
+                className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 transition hover:text-brand-cta"
               >
                 <span
                   className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${
-                    autoApply ? 'bg-teal-600' : 'bg-slate-300'
+                    autoApply ? 'bg-brand-cta' : 'bg-slate-300'
                   }`}
                 >
                   <span
@@ -422,7 +422,7 @@ export function CopilotDrawer({
                   />
                 </span>
                 Auto-fill form
-                {autoApply && <Zap className="size-3 text-teal-600" aria-hidden="true" />}
+                {autoApply && <Zap className="size-3 text-brand-cta" aria-hidden="true" />}
               </button>
 
               {canUndo && (
@@ -460,7 +460,7 @@ export function CopilotDrawer({
             {!isRecording ? (
               <Button
                 onClick={startRecording}
-                className="w-full justify-center gap-2 bg-teal-600 text-xs font-medium text-white hover:bg-teal-700"
+                className="w-full justify-center gap-2 bg-brand-cta text-xs font-medium text-white hover:bg-brand-cta-hover"
                 size="sm"
                 disabled={isProcessing}
               >
@@ -537,13 +537,13 @@ export function CopilotDrawer({
                       ? "Command Copilot (e.g., 'Change dosage to 7 days')..."
                       : "Describe the prescription (e.g., 'Fever 3 days, paracetamol 500 TDS 5 days')..."
               }
-              className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-9 text-xs text-slate-800 placeholder-slate-400 shadow-sm focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-100 disabled:opacity-60"
+              className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-9 text-xs text-slate-800 placeholder-slate-400 shadow-sm focus:border-brand-sage focus:outline-none focus:ring-2 focus:ring-brand-pale disabled:opacity-60"
               disabled={isProcessingCommand}
             />
             <button
               type="submit"
               disabled={isProcessingCommand || !commandInput.trim()}
-              className="absolute right-2 top-2.5 text-teal-500 transition hover:text-teal-700 disabled:opacity-40"
+              className="absolute right-2 top-2.5 text-brand-cta transition hover:text-brand-cta disabled:opacity-40"
             >
               {isProcessingCommand ? (
                 <Spinner className="size-3.5" />

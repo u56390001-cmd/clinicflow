@@ -46,7 +46,7 @@ export function WhatsappPreview({ message, clinicName }: WhatsappPreviewProps) {
   return (
     <div>
       {/* Cover strip */}
-      <div className="flex items-center justify-between gap-3 rounded-t-card bg-gradient-to-r from-primary to-[#0F766E] px-4 py-3">
+      <div className="flex items-center justify-between gap-3 rounded-t-card bg-gradient-to-r from-primary to-[#3f6f5d] px-4 py-3">
         <div>
           <p className="text-sm font-semibold text-white">WhatsApp Live Preview</p>
           <p className="mt-0.5 text-xs text-white/75">Shown to patients in real time</p>

@@ -42,7 +42,7 @@ const SOURCE_LABEL: Record<ActiveMedicationSource, string> = {
 };
 
 const SOURCE_BADGE_CLASS: Record<ActiveMedicationSource, string> = {
-  prescribed: "bg-teal-50 text-teal-700 border-teal-200",
+  prescribed: "bg-brand-pale text-brand-cta border-brand-sage",
   registration: "bg-blue-50 text-blue-700 border-blue-200",
   ai_ocr: "bg-amber-50 text-amber-700 border-amber-200",
 };
@@ -108,7 +108,7 @@ export function ActiveMedicationsCard({
         <h3 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
           <Pill
             aria-hidden="true"
-            className="size-4 text-teal-600"
+            className="size-4 text-brand-cta"
             strokeWidth={2.25}
           />
           Active Medications
@@ -191,7 +191,7 @@ export function ActiveMedicationsCard({
                 )}
               </div>
               {doseLine(medicine) && (
-                <span className="mt-px shrink-0 rounded border border-teal-100 bg-white px-2 py-0.5 text-[11px] font-semibold text-teal-700 shadow-sm">
+                <span className="mt-px shrink-0 rounded border border-brand-pale bg-white px-2 py-0.5 text-[11px] font-semibold text-brand-cta shadow-sm">
                   {doseLine(medicine)}
                 </span>
               )}
@@ -213,7 +213,7 @@ export function ActiveMedicationsCard({
       <Link
         href={viewAllHref}
         scroll={false}
-        className="mt-3 flex cursor-pointer items-center gap-1 text-xs font-semibold text-teal-600 hover:text-teal-700 hover:underline"
+        className="mt-3 flex cursor-pointer items-center gap-1 text-xs font-semibold text-brand-cta hover:text-brand-cta hover:underline"
       >
         View full history in Medications Tab
         <ChevronRight

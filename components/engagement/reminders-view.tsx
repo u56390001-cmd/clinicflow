@@ -102,7 +102,7 @@ export function RemindersView({
               type="button"
               onClick={() => setModalOpen(true)}
               disabled={!canWrite}
-              className="items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-[#0F766E] px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition-all hover:from-[#0C7A6F] hover:to-[#115E59] hover:shadow-xl"
+              className="items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-[#3f6f5d] px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition-all hover:from-[#3f6f5d] hover:to-[#29423a] hover:shadow-xl"
             >
               <Plus className="size-4" aria-hidden="true" />
               New Reminder
@@ -241,7 +241,7 @@ export function RemindersView({
                 <Button
                   type="button"
                   onClick={() => setModalOpen(true)}
-                  className="mt-4 items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-[#0F766E] px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-all hover:from-[#0C7A6F] hover:to-[#115E59] hover:shadow-xl"
+                  className="mt-4 items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-[#3f6f5d] px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition-all hover:from-[#3f6f5d] hover:to-[#29423a] hover:shadow-xl"
                 >
                   <Plus className="size-4" aria-hidden="true" />
                   New Reminder

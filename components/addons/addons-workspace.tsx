@@ -392,7 +392,7 @@ function AddonCard({
         ) : null}
       </div>
 
-      <div className="flex size-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-[#0F766E] text-white shadow-[0_6px_16px_-8px_rgba(13,148,136,0.55)]">
+      <div className="flex size-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-[#3f6f5d] text-white shadow-[0_6px_16px_-8px_rgba(79,128,108,0.55)]">
         <Icon className="size-5" aria-hidden="true" />
       </div>
 
@@ -461,7 +461,7 @@ function ActivationSummary({
   return (
     <div className="flex items-center justify-between gap-3 rounded-card border border-hairline bg-app p-3">
       <div className="flex items-center gap-3">
-        <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-[#0F766E] text-white">
+        <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-[#3f6f5d] text-white">
           <Icon className="size-5" aria-hidden="true" />
         </div>
         <div>

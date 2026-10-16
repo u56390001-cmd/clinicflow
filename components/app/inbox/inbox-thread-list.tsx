@@ -171,7 +171,7 @@ export function InboxThreadList({
               <>
                 <span
                   className="flex h-[46px] w-[46px] flex-shrink-0 items-center justify-center rounded-full font-semibold text-white"
-                  style={{ fontSize: "15px", backgroundColor: "#0D9488" }}
+                  style={{ fontSize: "15px", backgroundColor: "#4f806c" }}
                 >
                   {initialsOf(name)}
                 </span>

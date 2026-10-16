@@ -199,7 +199,7 @@ export function CollectPaymentModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="flex max-h-[92vh] w-full max-w-[920px] flex-col overflow-hidden rounded-[20px] bg-surface shadow-2xl">
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between bg-gradient-to-br from-primary to-teal-600 px-6 py-[18px] text-white">
+        <div className="flex shrink-0 items-center justify-between bg-gradient-to-br from-primary to-brand-cta-hover px-6 py-[18px] text-white">
           <div className="flex items-center gap-3.5">
             <div className="flex size-10 items-center justify-center rounded-xl bg-white/20">
               <FileText className="size-5" aria-hidden="true" />
@@ -240,7 +240,7 @@ export function CollectPaymentModal({
               </div>
 
               <div className="mb-3.5 flex items-center gap-2.5">
-                <div className="flex size-[42px] shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-teal-600 text-sm font-extrabold text-white">
+                <div className="flex size-[42px] shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-brand-cta-hover text-sm font-extrabold text-white">
                   {initials}
                 </div>
                 <div className="min-w-0">

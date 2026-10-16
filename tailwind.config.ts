@@ -9,12 +9,12 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        primary: "#0D9488",
-        "primary-light": "#14B8A6",
-        secondary: "#0F172A",
-        app: "#F9FAFB",
+        primary: "#4f806c",
+        "primary-light": "#679986",
+        secondary: "#29423a",
+        app: "#f7f9f7",
         surface: "#FFFFFF",
-        skeleton: "#F1F5F9",
+        skeleton: "#eef5f1",
         /**
          * Patient-record neutrals: the cool slate scale the record renders on.
          * The record is a dense clinical readout, so it sits on slate-50 with
@@ -23,13 +23,13 @@ const config: Config = {
          * six-column dashboard from turning into a pile of floating tiles.
          * Scoped to the record so the rest of the app keeps its own palette.
          */
-        canvas: "#F8FAFC",
-        hairline: "#E2E8F0",
-        "hairline-soft": "#F1F5F9",
-        chip: "#F8FAFC",
+        canvas: "#f7f9f7",
+        hairline: "#dce5e1",
+        "hairline-soft": "#eef5f1",
+        chip: "#eef5f1",
         /** Teal tint surfaces — the reference's teal-50. */
-        "primary-tint": "#F0FDFA",
-        "primary-tint-border": "#99F6E4",
+        "primary-tint": "#dcebe3",
+        "primary-tint-border": "#cfe3d7",
         /**
          * Marketing/landing palette (approved landing page v2). Scoped to the
          * public marketing site only — the SaaS dashboard keeps its teal system.
@@ -73,19 +73,19 @@ const config: Config = {
           "info-soft": "var(--brand-info-soft)",
         },
         text: {
-          primary: "#0F172A",
-          secondary: "#475569",
-          muted: "#64748B",
-          /** Value readouts. Near-black slate, the record's highest contrast. */
-          ink: "#0F172A",
-          "ink-soft": "#64748B",
-          "ink-faint": "#94A3B8",
+          primary: "#29423a",
+          secondary: "#667872",
+          muted: "#8a9793",
+          /** Value readouts. Deep forest ink, the record's highest contrast. */
+          ink: "#29423a",
+          "ink-soft": "#667872",
+          "ink-faint": "#8a9793",
         },
         status: {
-          success: "#22C55E",
-          destructive: "#EF4444",
-          warning: "#F59E0B",
-          info: "#0EA5E9",
+          success: "#249a67",
+          destructive: "#d9534f",
+          warning: "#d99a32",
+          info: "#3b82a0",
         },
       },
       fontFamily: {
@@ -131,7 +131,7 @@ const config: Config = {
         card: "0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04)",
         dropdown:
           "0 10px 15px rgba(15, 23, 42, 0.10), 0 4px 6px rgba(15, 23, 42, 0.05)",
-        "focus-ring": "0 0 0 3px rgba(13, 148, 136, 0.25)",
+        "focus-ring": "0 0 0 3px rgba(79, 128, 108, 0.25)",
         /** The soft green lift under the record's primary action. */
         action: "0 2px 8px rgba(22, 163, 74, 0.30)",
       },

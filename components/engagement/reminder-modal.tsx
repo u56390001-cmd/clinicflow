@@ -288,7 +288,7 @@ export function ReminderModal({
         className="max-w-5xl gap-0 overflow-hidden rounded-3xl border-0 bg-white p-0 shadow-2xl"
       >
         {/* Gradient header — primary instead of the reference indigo */}
-        <div className="relative bg-gradient-to-r from-primary to-[#0F766E] p-6 text-white">
+        <div className="relative bg-gradient-to-r from-primary to-[#3f6f5d] p-6 text-white">
           <div className="absolute inset-0 bg-black/5" aria-hidden="true" />
           <div className="relative flex items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-3">
@@ -704,7 +704,7 @@ export function ReminderModal({
                         </svg>
                         <div
                           className="flex size-9 items-center justify-center rounded-full shadow-sm"
-                          style={{ background: "linear-gradient(135deg, #0D9488 0%, #0F766E 100%)" }}
+                          style={{ background: "linear-gradient(135deg, #4f806c 0%, #3f6f5d 100%)" }}
                         >
                           <span className="text-sm font-bold text-white">{initialsOf(clinicName)}</span>
                         </div>
@@ -870,7 +870,7 @@ export function ReminderModal({
               type="button"
               onClick={handleSave}
               disabled={!canSave}
-              className="items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-[#0F766E] px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition-all hover:from-[#0C7A6F] hover:to-[#115E59] hover:shadow-xl"
+              className="items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-[#3f6f5d] px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition-all hover:from-[#3f6f5d] hover:to-[#29423a] hover:shadow-xl"
             >
               {saving ? (
                 "Saving…"

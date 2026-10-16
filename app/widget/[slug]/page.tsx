@@ -89,7 +89,7 @@ export default async function WidgetPage({ params }: Props) {
               height: "48px",
               margin: "0 auto 1.25rem",
               borderRadius: "9999px",
-              backgroundColor: settings.widget_color ?? "#0D9488",
+              backgroundColor: settings.widget_color ?? "#4f806c",
               opacity: 0.12,
             }}
           />

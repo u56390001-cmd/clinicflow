@@ -70,7 +70,7 @@ const PLOT_H = H - M.top - M.bottom;
 const DAY_MS = 86_400_000;
 
 /** Distinct hues drawn from the product palette — teal first. */
-const SERIES_COLORS = ["#0D9488", "#0EA5E9", "#F59E0B", "#7C3AED", "#E11D48", "#65A30D"];
+const SERIES_COLORS = ["#4f806c", "#0EA5E9", "#F59E0B", "#7C3AED", "#E11D48", "#65A30D"];
 
 /** Severity zones grade from reassuring (green) to alarming (red) by band order. */
 const BAND_FILLS = [
@@ -407,7 +407,7 @@ export function TrendChart({ assessments, templates = [], className }: TrendChar
           <TrendTooltip
             point={hoveredPoint}
             label={plotted.find((s) => s.key === hover?.key)?.label ?? ""}
-            color={plotted.find((s) => s.key === hover?.key)?.color ?? "#0D9488"}
+            color={plotted.find((s) => s.key === hover?.key)?.color ?? "#4f806c"}
             x={x(hoveredPoint.t)}
             y={y(hoveredPoint.score)}
           />
