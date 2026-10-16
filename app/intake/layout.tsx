@@ -1,10 +1,6 @@
-import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { Wordmark } from "@/components/brand";
-
-/** Patient fills one form here — never an installed app, so no web manifest. */
-export const metadata: Metadata = { manifest: null };
 
 /**
  * Standalone patient-facing canvas for the pre-intake form pages. No app
