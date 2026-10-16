@@ -1,6 +1,15 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { Wordmark } from "@/components/brand";
+
+/**
+ * Patient-facing form links are a single, focused page — never an installed
+ * app. `manifest: null` drops the root layout's web-app manifest from every
+ * form route (assessment, pre-visit, upload, eval) so Chrome never offers
+ * "Install app" to a patient who is only here to fill in one form.
+ */
+export const metadata: Metadata = { manifest: null };
 
 /**
  * Standalone patient-facing canvas for the WhatsApp share-link forms
