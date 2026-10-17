@@ -19,6 +19,7 @@ import type { WorkspaceKind } from "@/lib/specialty-workspaces";
 import type { HistoryItem } from "@/types/history";
 import type {
   Database,
+  DermDiagnosis,
   DermExam,
   DermLesion,
   DermPhoto,
@@ -112,6 +113,7 @@ export type PatientDermBundle = {
   photos: DermPhoto[];
   prescriptions: DermPrescription[];
   lesions: DermLesion[];
+  diagnoses: DermDiagnosis[];
 };
 
 const EMPTY_PSYCH: PatientPsychBundle = {
@@ -131,6 +133,7 @@ const EMPTY_DERM: PatientDermBundle = {
   photos: [],
   prescriptions: [],
   lesions: [],
+  diagnoses: [],
 };
 
 const EMPTY: PatientRecordData = {
@@ -361,49 +364,62 @@ export async function fetchPatientRecord(
       suggestions: (suggestionsRes.data as PsychIntakeSuggestion[]) ?? [],
     };
   } else if (workspaceKind === "dermatology") {
-    const [profile, examsRes, proceduresRes, photosRes, rxRes, lesionsRes] =
-      await Promise.all([
-        supabase
-          .from("derm_profiles")
-          .select("*")
-          .eq("clinic_id", clinicId)
-          .eq("patient_id", patientId)
-          .maybeSingle(),
-        supabase
-          .from("derm_exams")
-          .select("*")
-          .eq("clinic_id", clinicId)
-          .eq("patient_id", patientId)
-          .order("exam_date", { ascending: false })
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("derm_procedures")
-          .select("*")
-          .eq("clinic_id", clinicId)
-          .eq("patient_id", patientId)
-          .order("procedure_date", { ascending: false })
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("derm_photos")
-          .select("*")
-          .eq("clinic_id", clinicId)
-          .eq("patient_id", patientId)
-          .order("taken_at", { ascending: false })
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("derm_prescriptions")
-          .select("*")
-          .eq("clinic_id", clinicId)
-          .eq("patient_id", patientId)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("derm_lesions")
-          .select("*")
-          .eq("clinic_id", clinicId)
-          .eq("patient_id", patientId)
-          .order("pin_number", { ascending: true })
-          .order("created_at", { ascending: false }),
-      ]);
+    const [
+      profile,
+      examsRes,
+      proceduresRes,
+      photosRes,
+      rxRes,
+      lesionsRes,
+      diagnosesRes,
+    ] = await Promise.all([
+      supabase
+        .from("derm_profiles")
+        .select("*")
+        .eq("clinic_id", clinicId)
+        .eq("patient_id", patientId)
+        .maybeSingle(),
+      supabase
+        .from("derm_exams")
+        .select("*")
+        .eq("clinic_id", clinicId)
+        .eq("patient_id", patientId)
+        .order("exam_date", { ascending: false })
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("derm_procedures")
+        .select("*")
+        .eq("clinic_id", clinicId)
+        .eq("patient_id", patientId)
+        .order("procedure_date", { ascending: false })
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("derm_photos")
+        .select("*")
+        .eq("clinic_id", clinicId)
+        .eq("patient_id", patientId)
+        .order("taken_at", { ascending: false })
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("derm_prescriptions")
+        .select("*")
+        .eq("clinic_id", clinicId)
+        .eq("patient_id", patientId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("derm_lesions")
+        .select("*")
+        .eq("clinic_id", clinicId)
+        .eq("patient_id", patientId)
+        .order("pin_number", { ascending: true })
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("derm_diagnoses")
+        .select("*")
+        .eq("clinic_id", clinicId)
+        .eq("patient_id", patientId)
+        .order("created_at", { ascending: false }),
+    ]);
 
     derm = {
       profile: (profile.data as DermProfile | null) ?? null,
@@ -412,6 +428,7 @@ export async function fetchPatientRecord(
       photos: (photosRes.data as DermPhoto[]) ?? [],
       prescriptions: (rxRes.data as DermPrescription[]) ?? [],
       lesions: (lesionsRes.data as DermLesion[]) ?? [],
+      diagnoses: (diagnosesRes.data as DermDiagnosis[]) ?? [],
     };
   }
 

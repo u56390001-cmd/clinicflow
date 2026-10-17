@@ -256,6 +256,29 @@ const saveDermExamSchema = z.object({
   associated_symptoms: textList,
   hpi: note,
   severity_scores: z.array(dermSeverityScoreSchema).optional(),
+  assessment: note,
+  patient_explanation: note,
+});
+
+const DIAGNOSIS_STATUS = [
+  "primary",
+  "differential",
+  "suspected",
+  "provisional",
+] as const;
+
+const saveDermDiagnosisSchema = z.object({
+  id: optionalUuid,
+  exam_id: optionalUuid,
+  label: z.string().trim().min(1, "Enter the diagnosis.").max(160),
+  icd_code: z
+    .string()
+    .trim()
+    .max(20, "ICD code is too long.")
+    .optional()
+    .or(z.literal("")),
+  status: z.enum(DIAGNOSIS_STATUS).default("primary"),
+  notes: note,
 });
 
 const saveDermProcedureSchema = z.object({
@@ -2079,6 +2102,14 @@ export async function saveDermExamAction(
     ...(rest.severity_scores !== undefined
       ? { severity_scores: rest.severity_scores }
       : {}),
+    // Tab 3 fields are only touched when the caller (the examination form)
+    // actually sends them, so a Tab 1 complaint save preserves the assessment.
+    ...(rest.assessment !== undefined
+      ? { assessment: rest.assessment || null }
+      : {}),
+    ...(rest.patient_explanation !== undefined
+      ? { patient_explanation: rest.patient_explanation || null }
+      : {}),
   };
 
   // Editing today's encounter row (form passes its id back) vs. a fresh visit.
@@ -2365,4 +2396,66 @@ export async function saveDermScoresAction(
   if (error) return { ok: false, message: error.message };
   revalidatePath(APP_ROUTES.app.patients);
   return { ok: true, data: data.id };
+}
+
+export async function saveDermDiagnosisAction(
+  patientId: string,
+  raw: unknown,
+): Promise<ActionResult<string>> {
+  const parsed = saveDermDiagnosisSchema.safeParse(raw);
+  if (!parsed.success) return err(firstIssue(parsed));
+  const g = await guard();
+  if (!g.ok) return g.result;
+
+  const { id, ...rest } = parsed.data;
+  const payload = {
+    exam_id: rest.exam_id || null,
+    label: rest.label,
+    icd_code: rest.icd_code || null,
+    status: rest.status,
+    notes: rest.notes || null,
+  };
+
+  if (id) {
+    const { error } = await g.supabase
+      .from("derm_diagnoses")
+      .update(payload)
+      .eq("id", id)
+      .eq("clinic_id", g.clinicId)
+      .eq("patient_id", patientId);
+    if (error) return { ok: false, message: error.message };
+    revalidatePath(APP_ROUTES.app.patients);
+    return { ok: true, data: id };
+  }
+
+  const { data, error } = await g.supabase
+    .from("derm_diagnoses")
+    .insert({
+      clinic_id: g.clinicId,
+      patient_id: patientId,
+      doctor_id: await doctorId(g.supabase, g.clinicId),
+      ...payload,
+    })
+    .select("id")
+    .single();
+  if (error) return { ok: false, message: error.message };
+  revalidatePath(APP_ROUTES.app.patients);
+  return { ok: true, data: data.id };
+}
+
+export async function deleteDermDiagnosisAction(
+  id: string,
+): Promise<ActionResult<string>> {
+  const parsed = idSchema.safeParse({ id });
+  if (!parsed.success) return err(firstIssue(parsed));
+  const g = await guard();
+  if (!g.ok) return g.result;
+
+  const { error } = await g.supabase
+    .from("derm_diagnoses")
+    .delete()
+    .eq("id", id)
+    .eq("clinic_id", g.clinicId);
+  if (error) return { ok: false, message: error.message };
+  return ok();
 }

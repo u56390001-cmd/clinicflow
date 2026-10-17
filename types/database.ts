@@ -1586,6 +1586,24 @@ export type DermExam = {
   associated_symptoms: string[];
   hpi: string | null;
   severity_scores: DermSeverityScore[];
+  assessment: string | null;
+  patient_explanation: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Dermatology — a single diagnosis on an encounter, with its status so
+ *  "primary vs differential" is real data (migration 0097). */
+export type DermDiagnosis = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  doctor_id: string | null;
+  exam_id: string | null;
+  label: string;
+  icd_code: string | null;
+  status: "primary" | "differential" | "suspected" | "provisional";
+  notes: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -5954,6 +5972,8 @@ export type Database = {
           associated_symptoms?: string[];
           hpi?: string | null;
           severity_scores?: DermSeverityScore[];
+          assessment?: string | null;
+          patient_explanation?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -5975,6 +5995,8 @@ export type Database = {
           associated_symptoms?: string[];
           hpi?: string | null;
           severity_scores?: DermSeverityScore[];
+          assessment?: string | null;
+          patient_explanation?: string | null;
           created_at?: never;
           updated_at?: string;
         };
@@ -5998,6 +6020,65 @@ export type Database = {
             columns: ["doctor_id"];
             isOneToOne: false;
             referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      derm_diagnoses: {
+        Row: DermDiagnosis;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          doctor_id?: string | null;
+          exam_id?: string | null;
+          label: string;
+          icd_code?: string | null;
+          status?: "primary" | "differential" | "suspected" | "provisional";
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          doctor_id?: string | null;
+          exam_id?: string | null;
+          label?: string;
+          icd_code?: string | null;
+          status?: "primary" | "differential" | "suspected" | "provisional";
+          notes?: string | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "derm_diagnoses_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "derm_diagnoses_clinic_patient_fkey";
+            columns: ["clinic_id", "patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["clinic_id", "id"];
+          },
+          {
+            foreignKeyName: "derm_diagnoses_doctor_id_fkey";
+            columns: ["doctor_id"];
+            isOneToOne: false;
+            referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "derm_diagnoses_exam_id_fkey";
+            columns: ["exam_id"];
+            isOneToOne: false;
+            referencedRelation: "derm_exams";
             referencedColumns: ["id"];
           },
         ];

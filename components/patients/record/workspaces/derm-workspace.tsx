@@ -42,6 +42,7 @@ import {
   DermBodyMap,
   DermScoringTools,
 } from "@/components/patients/record/workspaces/derm-body-map";
+import { DermDiagnoses } from "@/components/patients/record/workspaces/derm-diagnosis";
 import { DermPhotosTab } from "@/components/patients/record/workspaces/derm-photos-tab";
 import {
   AutosaveNote,
@@ -772,6 +773,10 @@ function ExamTab({
   const [diagnosis, setDiagnosis] = useState(todayExam?.diagnosis ?? "");
   const [icdCode, setIcdCode] = useState(todayExam?.icd_code ?? "");
   const [notes, setNotes] = useState(todayExam?.notes ?? "");
+  const [assessment, setAssessment] = useState(todayExam?.assessment ?? "");
+  const [patientExplanation, setPatientExplanation] = useState(
+    todayExam?.patient_explanation ?? "",
+  );
   const [duration] = useState(todayExam?.duration ?? "");
   const [severity] = useState(todayExam?.severity ?? "");
   const [triggers] = useState<string[]>(todayExam?.triggers ?? []);
@@ -787,7 +792,9 @@ function ExamTab({
       morphology.length > 0 ||
       distribution.length > 0 ||
       diagnosis.trim().length > 0 ||
-      notes.trim().length > 0;
+      notes.trim().length > 0 ||
+      assessment.trim().length > 0 ||
+      patientExplanation.trim().length > 0;
     if (!hasClinicalDetail) {
       setError(
         "Record at least a complaint, morphology, diagnosis or note before saving.",
@@ -809,6 +816,8 @@ function ExamTab({
       triggers,
       associated_symptoms: associatedSymptoms,
       hpi,
+      assessment,
+      patient_explanation: patientExplanation,
     });
     setPending(false);
     if (result.ok) {
@@ -981,6 +990,40 @@ function ExamTab({
                   placeholder="Lesion size, distribution, dermoscopy findings, patient instructions…"
                 />
               </div>
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label
+                    htmlFor="derm-exam-assessment"
+                    className="text-ink mb-1.5 block text-[12.5px] font-bold"
+                  >
+                    Assessment
+                  </label>
+                  <Textarea
+                    id="derm-exam-assessment"
+                    rows={4}
+                    value={assessment}
+                    onChange={(event) => setAssessment(event.target.value)}
+                    placeholder="Clinical reasoning, differentials considered, confidence…"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="derm-exam-explanation"
+                    className="text-ink mb-1.5 block text-[12.5px] font-bold"
+                  >
+                    Explanation for the patient
+                  </label>
+                  <Textarea
+                    id="derm-exam-explanation"
+                    rows={4}
+                    value={patientExplanation}
+                    onChange={(event) =>
+                      setPatientExplanation(event.target.value)
+                    }
+                    placeholder="Plain-language summary the patient can take away…"
+                  />
+                </div>
+              </div>
               {error && (
                 <p className="mt-2 text-[12px] font-medium text-status-destructive">
                   {error}
@@ -1033,6 +1076,13 @@ function ExamTab({
           />
         </>
       )}
+
+      <DermDiagnoses
+        patientId={patient.id}
+        examId={todayExam?.id ?? null}
+        diagnoses={derm.diagnoses}
+        canManage={canManage}
+      />
 
       {derm.exams.length > 0 ? (
         <div className="space-y-3">
