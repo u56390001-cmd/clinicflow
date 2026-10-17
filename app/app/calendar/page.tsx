@@ -2,10 +2,7 @@ import type { Metadata } from "next";
 
 import { ClinicCalendar } from "@/components/calendar/clinic-calendar";
 import { ClinicEmptyState } from "@/components/app/clinic-empty-state";
-import {
-  buildAppointmentViews,
-  type RuleView,
-} from "@/lib/appointments-view";
+import { buildAppointmentViews, type RuleView } from "@/lib/appointments-view";
 import { canManageClinical, getCurrentClinic } from "@/lib/clinic-access";
 import { createClient } from "@/lib/supabase/server";
 
@@ -44,14 +41,8 @@ export default async function CalendarPage() {
       .select("*")
       .eq("clinic_id", access.clinic.id)
       .order("start_time", { ascending: true }),
-    supabase
-      .from("patients")
-      .select("*")
-      .eq("clinic_id", access.clinic.id),
-    supabase
-      .from("services")
-      .select("*")
-      .eq("clinic_id", access.clinic.id),
+    supabase.from("patients").select("*").eq("clinic_id", access.clinic.id),
+    supabase.from("services").select("*").eq("clinic_id", access.clinic.id),
     supabase
       .from("doctors")
       .select("*")
@@ -77,30 +68,18 @@ export default async function CalendarPage() {
   }));
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-secondary">
-          Calendar
-        </h1>
-        <p className="mt-1 text-sm text-text-secondary">
-          {access.clinic.name} · /{access.clinic.slug} ·{" "}
-          {access.clinic.timezone}
-        </p>
-      </div>
-
-      <ClinicCalendar
-        timezone={access.clinic.timezone}
-        rules={ruleViews}
-        blockedTimes={blockedTimes ?? []}
-        doctors={(doctors ?? []).filter((doctor) => doctor.is_visible)}
-        appointments={buildAppointmentViews(
-          appointments ?? [],
-          patients ?? [],
-          services ?? [],
-          doctors ?? [],
-        )}
-        canManage={canManageClinical(access.role)}
-      />
-    </div>
+    <ClinicCalendar
+      timezone={access.clinic.timezone}
+      rules={ruleViews}
+      blockedTimes={blockedTimes ?? []}
+      doctors={(doctors ?? []).filter((doctor) => doctor.is_visible)}
+      appointments={buildAppointmentViews(
+        appointments ?? [],
+        patients ?? [],
+        services ?? [],
+        doctors ?? [],
+      )}
+      canManage={canManageClinical(access.role)}
+    />
   );
 }

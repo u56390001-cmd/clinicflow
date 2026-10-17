@@ -1,17 +1,9 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  CalendarDays,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  Plus,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { NativeSelect } from "@/components/ui/select";
@@ -35,6 +27,7 @@ import type { BlockedTime, Doctor } from "@/types/database";
 const PX_PER_MINUTE = 1.2;
 const MIN_BLOCK_PX = 26;
 const AXIS_WIDTH = 56;
+const GRID_PAD_Y = 14;
 const WEEK_MIN_COLUMN_PX = 116;
 const MONTH_CELL_ITEMS = 3;
 const WEEKDAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -365,16 +358,13 @@ export function ClinicCalendar({
 
   const range = computeRange(gridDays, byDate, ruleByDay, timezone);
 
-  const summary = useMemo(() => {
+  const scopedCount = useMemo(() => {
     const scope =
       view === "month" ? monthDays : view === "week" ? weekDays : [safeAnchor];
-    const scoped = scope.flatMap((day) => byDate.get(day) ?? []);
-    return {
-      total: scoped.length,
-      pending: scoped.filter((a) => a.status === "pending").length,
-      confirmed: scoped.filter((a) => a.status === "confirmed").length,
-      completed: scoped.filter((a) => a.status === "completed").length,
-    };
+    return scope.reduce(
+      (total, day) => total + (byDate.get(day)?.length ?? 0),
+      0,
+    );
   }, [view, monthDays, weekDays, safeAnchor, byDate]);
 
   const rangeLabel =
@@ -397,15 +387,33 @@ export function ClinicCalendar({
     router.push(APP_ROUTES.app.appointments);
   }
 
-  const gridHeight = (range.end - range.start) * PX_PER_MINUTE;
+  const gridHeight = (range.end - range.start) * PX_PER_MINUTE + GRID_PAD_Y * 2;
   const columnCount = view === "week" ? 7 : 1;
   const hourMarks: number[] = [];
   for (let minute = range.start; minute <= range.end; minute += 60) {
     hourMarks.push(minute);
   }
+  const topFor = (minute: number) =>
+    GRID_PAD_Y + (minute - range.start) * PX_PER_MINUTE;
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+        <h1 className="text-2xl font-semibold tracking-tight text-secondary">
+          Calendar
+        </h1>
+        <div className="text-right">
+          <p className="text-base font-semibold text-text-primary">
+            {rangeLabel}
+          </p>
+          <p className="text-sm text-text-secondary">
+            {scopedCount === 0
+              ? "No appointments scheduled"
+              : `${scopedCount} appointment${scopedCount === 1 ? "" : "s"}`}
+          </p>
+        </div>
+      </div>
+
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1.5">
           <Button
@@ -476,38 +484,6 @@ export function ClinicCalendar({
         )}
       </div>
 
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="text-lg font-semibold text-text-primary">{rangeLabel}</p>
-        <p className="text-sm text-text-secondary">
-          {summary.total === 0
-            ? "No appointments scheduled"
-            : `${summary.total} appointment${summary.total === 1 ? "" : "s"}`}
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <SummaryTile
-          icon={<CalendarDays aria-hidden="true" />}
-          label="Total"
-          value={summary.total}
-        />
-        <SummaryTile
-          icon={<Clock aria-hidden="true" />}
-          label="Pending"
-          value={summary.pending}
-        />
-        <SummaryTile
-          icon={<CheckCircle2 aria-hidden="true" />}
-          label="Confirmed"
-          value={summary.confirmed}
-        />
-        <SummaryTile
-          icon={<CheckCircle2 aria-hidden="true" />}
-          label="Completed"
-          value={summary.completed}
-        />
-      </div>
-
       {view === "month" ? (
         <MonthGrid
           days={monthDays}
@@ -525,7 +501,7 @@ export function ClinicCalendar({
         <Card className="overflow-hidden p-0">
           <div
             className="overflow-auto"
-            style={{ maxHeight: "min(72svh, 680px)" }}
+            style={{ maxHeight: "min(80svh, 760px)" }}
           >
             <div
               style={{
@@ -583,7 +559,7 @@ export function ClinicCalendar({
                   <div
                     key={minute}
                     className="absolute right-2 -translate-y-1/2 text-[11px] text-text-muted"
-                    style={{ top: (minute - range.start) * PX_PER_MINUTE }}
+                    style={{ top: topFor(minute) }}
                   >
                     {formatHourLabel(minute)}
                   </div>
@@ -604,7 +580,7 @@ export function ClinicCalendar({
                       <div
                         key={minute}
                         className="pointer-events-none absolute inset-x-0 border-t border-text-muted/15"
-                        style={{ top: (minute - range.start) * PX_PER_MINUTE }}
+                        style={{ top: topFor(minute) }}
                       />
                     ))}
 
@@ -613,7 +589,7 @@ export function ClinicCalendar({
                         key={block.id}
                         className="pointer-events-none absolute inset-x-1 overflow-hidden rounded-control bg-status-destructive/10"
                         style={{
-                          top: (block.start - range.start) * PX_PER_MINUTE,
+                          top: topFor(block.start),
                           height: Math.max(
                             (block.end - block.start) * PX_PER_MINUTE,
                             18,
@@ -634,9 +610,7 @@ export function ClinicCalendar({
 
                     {positioned.map((item) => {
                       const meta = STATUS_META[item.appointment.status];
-                      const top =
-                        (Math.max(item.start, range.start) - range.start) *
-                        PX_PER_MINUTE;
+                      const top = topFor(Math.max(item.start, range.start));
                       const height = Math.max(
                         (Math.min(item.end, range.end) -
                           Math.max(item.start, range.start)) *
@@ -694,9 +668,6 @@ export function ClinicCalendar({
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-text-secondary">
         <span className="inline-flex items-center gap-1.5">
-          <Badge variant="outline" className="font-normal">
-            Tip
-          </Badge>
           Click an appointment to open it
         </span>
         <span className="ml-auto inline-flex flex-wrap items-center gap-3">
@@ -716,32 +687,6 @@ export function ClinicCalendar({
           )}
         </span>
       </div>
-    </div>
-  );
-}
-
-function SummaryTile({
-  icon,
-  label,
-  value,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: number;
-}) {
-  return (
-    <div className="flex items-center gap-2.5 rounded-card border border-text-muted/20 bg-surface px-3 py-2.5">
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-control bg-primary-tint text-primary [&_svg]:h-4 [&_svg]:w-4">
-        {icon}
-      </span>
-      <span className="min-w-0">
-        <span className="block text-lg font-semibold leading-none text-text-primary">
-          {value}
-        </span>
-        <span className="block truncate text-xs text-text-secondary">
-          {label}
-        </span>
-      </span>
     </div>
   );
 }
