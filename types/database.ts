@@ -1642,6 +1642,20 @@ export type DermLesion = {
   updated_at: string;
 };
 
+/** Dermatology — the family of procedure, which drives the parameter fields. */
+export type DermProcedureKind =
+  | "laser"
+  | "injectable"
+  | "peel"
+  | "cryotherapy"
+  | "electrocautery"
+  | "minor_surgery"
+  | "biopsy"
+  | "other";
+
+export type DermSpecimenStatus =
+  "collected" | "sent_to_lab" | "in_lab" | "reported" | "cancelled";
+
 /** Dermatology — one procedure (biopsy, cryotherapy, laser, …). */
 export type DermProcedure = {
   id: string;
@@ -1652,6 +1666,17 @@ export type DermProcedure = {
   procedure_date: string;
   notes: string | null;
   consent_status: "obtained" | "declined" | "documented";
+  procedure_kind: DermProcedureKind | null;
+  lesion_id: string | null;
+  body_site: string | null;
+  params: Record<string, string>;
+  aftercare: string | null;
+  complications: string | null;
+  specimen_id: string | null;
+  specimen_type: string | null;
+  specimen_lab: string | null;
+  specimen_status: DermSpecimenStatus | null;
+  specimen_dispatched_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -6171,6 +6196,17 @@ export type Database = {
           procedure_date?: string;
           notes?: string | null;
           consent_status?: "obtained" | "declined" | "documented";
+          procedure_kind?: DermProcedureKind | null;
+          lesion_id?: string | null;
+          body_site?: string | null;
+          params?: Record<string, string>;
+          aftercare?: string | null;
+          complications?: string | null;
+          specimen_id?: string | null;
+          specimen_type?: string | null;
+          specimen_lab?: string | null;
+          specimen_status?: DermSpecimenStatus | null;
+          specimen_dispatched_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -6183,6 +6219,17 @@ export type Database = {
           procedure_date?: string;
           notes?: string | null;
           consent_status?: "obtained" | "declined" | "documented";
+          procedure_kind?: DermProcedureKind | null;
+          lesion_id?: string | null;
+          body_site?: string | null;
+          params?: Record<string, string>;
+          aftercare?: string | null;
+          complications?: string | null;
+          specimen_id?: string | null;
+          specimen_type?: string | null;
+          specimen_lab?: string | null;
+          specimen_status?: DermSpecimenStatus | null;
+          specimen_dispatched_at?: string | null;
           created_at?: never;
           updated_at?: string;
         };

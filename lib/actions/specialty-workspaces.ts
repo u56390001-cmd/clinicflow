@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 import { getGeminiProvider } from "@/lib/ai/gemini-provider";
@@ -281,7 +282,27 @@ const saveDermDiagnosisSchema = z.object({
   notes: note,
 });
 
+const PROCEDURE_KINDS = [
+  "laser",
+  "injectable",
+  "peel",
+  "cryotherapy",
+  "electrocautery",
+  "minor_surgery",
+  "biopsy",
+  "other",
+] as const;
+
+const SPECIMEN_STATUSES = [
+  "collected",
+  "sent_to_lab",
+  "in_lab",
+  "reported",
+  "cancelled",
+] as const;
+
 const saveDermProcedureSchema = z.object({
+  id: optionalUuid,
   procedure_name: z
     .string()
     .trim()
@@ -294,6 +315,25 @@ const saveDermProcedureSchema = z.object({
     .or(z.literal("")),
   notes: note,
   consent_status: z.enum(CONSENT),
+  procedure_kind: z.enum(PROCEDURE_KINDS).optional().nullable(),
+  lesion_id: optionalUuid,
+  body_site: note,
+  params: z.record(z.string(), z.string().trim().max(240)).optional(),
+  aftercare: note,
+  complications: note,
+  specimen_type: note,
+  specimen_lab: note,
+  specimen_status: z.enum(SPECIMEN_STATUSES).optional().nullable(),
+  specimen_dispatched_at: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .or(z.literal("")),
+});
+
+const updateDermSpecimenStatusSchema = z.object({
+  id: z.string().uuid(),
+  specimen_status: z.enum(SPECIMEN_STATUSES),
 });
 
 const saveDermPhotoSchema = z.object({
@@ -2184,19 +2224,78 @@ export async function saveDermProcedureAction(
   const g = await guard();
   if (!g.ok) return g.result;
 
+  const { id, ...rest } = parsed.data;
+  const isBiopsy = rest.procedure_kind === "biopsy";
+  // A specimen ID is minted by the backend for a biopsy that has none yet — the
+  // clinic's own numbering, not a fabricated lab barcode.
+  const specimenId =
+    isBiopsy && !id
+      ? `SP-${(
+          rest.procedure_date || new Date().toISOString().slice(0, 10)
+        ).replace(/-/g, "")}-${randomUUID().slice(0, 6).toUpperCase()}`
+      : undefined;
+
+  const payload = {
+    procedure_name: rest.procedure_name,
+    procedure_date: rest.procedure_date || undefined,
+    notes: rest.notes || null,
+    consent_status: rest.consent_status,
+    procedure_kind: rest.procedure_kind || null,
+    lesion_id: rest.lesion_id || null,
+    body_site: rest.body_site || null,
+    params: rest.params ?? {},
+    aftercare: rest.aftercare || null,
+    complications: rest.complications || null,
+    specimen_type: rest.specimen_type || null,
+    specimen_lab: rest.specimen_lab || null,
+    specimen_status: rest.specimen_status ?? (isBiopsy ? "collected" : null),
+    specimen_dispatched_at: rest.specimen_dispatched_at || null,
+    ...(specimenId ? { specimen_id: specimenId } : {}),
+  };
+
+  if (id) {
+    const { error } = await g.supabase
+      .from("derm_procedures")
+      .update(payload)
+      .eq("id", id)
+      .eq("clinic_id", g.clinicId)
+      .eq("patient_id", patientId);
+    if (error) return { ok: false, message: error.message };
+    revalidatePath(APP_ROUTES.app.patients);
+    return { ok: true, data: id };
+  }
+
   const { data, error } = await g.supabase
     .from("derm_procedures")
     .insert({
       clinic_id: g.clinicId,
       patient_id: patientId,
       doctor_id: await doctorId(g.supabase, g.clinicId),
-      ...parsed.data,
+      ...payload,
     })
     .select("id")
     .single();
   if (error) return { ok: false, message: error.message };
   revalidatePath(APP_ROUTES.app.patients);
   return { ok: true, data: data.id };
+}
+
+export async function updateDermSpecimenStatusAction(
+  raw: unknown,
+): Promise<ActionResult<string>> {
+  const parsed = updateDermSpecimenStatusSchema.safeParse(raw);
+  if (!parsed.success) return err(firstIssue(parsed));
+  const g = await guard();
+  if (!g.ok) return g.result;
+
+  const { error } = await g.supabase
+    .from("derm_procedures")
+    .update({ specimen_status: parsed.data.specimen_status })
+    .eq("id", parsed.data.id)
+    .eq("clinic_id", g.clinicId);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath(APP_ROUTES.app.patients);
+  return ok();
 }
 
 export async function deleteDermProcedureAction(

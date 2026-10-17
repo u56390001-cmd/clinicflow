@@ -43,6 +43,7 @@ import {
   DermScoringTools,
 } from "@/components/patients/record/workspaces/derm-body-map";
 import { DermDiagnoses } from "@/components/patients/record/workspaces/derm-diagnosis";
+import { DermProcedures } from "@/components/patients/record/workspaces/derm-procedures";
 import { DermRxMeds } from "@/components/patients/record/workspaces/derm-rx-meds";
 import { DermPhotosTab } from "@/components/patients/record/workspaces/derm-photos-tab";
 import {
@@ -140,7 +141,12 @@ export function DermWorkspace({
         />
       )}
       {activeTab === "derm_procedures" && (
-        <ProceduresTab patient={patient} derm={derm} canManage={canManage} />
+        <DermProcedures
+          patientId={patient.id}
+          procedures={derm.procedures}
+          lesions={derm.lesions}
+          canManage={canManage}
+        />
       )}
       {activeTab === "derm_rx" && (
         <RxTab patient={patient} derm={derm} canManage={canManage} />
@@ -1288,249 +1294,6 @@ function ExamRow({
       <div className="mt-2">
         <RecordNote label="Notes" value={exam.notes} />
       </div>
-    </RecordSection>
-  );
-}
-
-/* ------------------------------------------------------------------------- */
-/* Procedures                                                                */
-/* ------------------------------------------------------------------------- */
-
-const PROCEDURE_PRESETS = [
-  "Skin biopsy",
-  "Cryotherapy",
-  "Chemical peel",
-  "Laser procedure",
-  "Minor procedure",
-] as const;
-const CONSENT_OPTIONS = ["Obtained", "Declined", "Documented"] as const;
-
-function ProceduresTab({
-  patient,
-  derm,
-  canManage,
-}: {
-  patient: PatientDirectoryRow;
-  derm: PatientDermBundle;
-  canManage: boolean;
-}) {
-  const router = useRouter();
-  const today = new Date().toISOString().slice(0, 10);
-
-  const [pending, setPending] = useState(false);
-  const [name, setName] = useState("");
-  const [date, setDate] = useState(today);
-  const [consent, setConsent] = useState<string[]>(["Documented"]);
-  const [notes, setNotes] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  async function addProcedure() {
-    if (!canManage) return;
-    if (!name.trim()) {
-      setError("Enter or pick a procedure name.");
-      return;
-    }
-    setError(null);
-    setPending(true);
-    const result = await saveDermProcedureAction(patient.id, {
-      procedure_name: name,
-      procedure_date: date,
-      consent_status: (consent[0] ?? "Documented").toLowerCase(),
-      notes,
-    });
-    setPending(false);
-    if (result.ok) {
-      toast.success("Procedure recorded");
-      setName("");
-      setDate(today);
-      setConsent(["Documented"]);
-      setNotes("");
-      router.refresh();
-    } else {
-      toast.error(result.message);
-    }
-  }
-
-  async function removeProcedure(id: string) {
-    const result = await deleteDermProcedureAction(id);
-    if (result.ok) {
-      toast.success("Procedure removed");
-      router.refresh();
-    } else {
-      toast.error(result.message);
-    }
-  }
-
-  return (
-    <div className="space-y-4">
-      {canManage && (
-        <RecordSection
-          title="Record a procedure"
-          meta={<Badge className="bg-app text-text-secondary">Logbook</Badge>}
-        >
-          <div className="mb-3 flex flex-wrap gap-1.5">
-            {PROCEDURE_PRESETS.map((preset) => (
-              <button
-                key={preset}
-                type="button"
-                onClick={() => setName(preset)}
-                aria-pressed={name === preset}
-                className={
-                  name === preset
-                    ? "rounded-pill border border-primary bg-primary/10 px-2.5 py-1 text-[11.5px] font-semibold text-primary"
-                    : "rounded-pill border border-hairline bg-app px-2.5 py-1 text-[11.5px] font-medium text-text-secondary transition-colors hover:border-primary/40 hover:text-primary"
-                }
-              >
-                {preset}
-              </button>
-            ))}
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div>
-              <label
-                htmlFor="derm-proc-name"
-                className="text-ink mb-1.5 block text-[12.5px] font-bold"
-              >
-                Procedure name
-              </label>
-              <Input
-                id="derm-proc-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="e.g. Punch biopsy"
-                autoComplete="off"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="derm-proc-date"
-                className="text-ink mb-1.5 block text-[12.5px] font-bold"
-              >
-                Date
-              </label>
-              <Input
-                id="derm-proc-date"
-                type="date"
-                value={date}
-                max={today}
-                onChange={(event) => setDate(event.target.value)}
-              />
-            </div>
-            <ChipPicker
-              label="Consent"
-              single
-              value={consent}
-              onChange={setConsent}
-              options={CONSENT_OPTIONS}
-            />
-          </div>
-          <div className="mt-4">
-            <label
-              htmlFor="derm-proc-notes"
-              className="text-ink mb-1.5 block text-[12.5px] font-bold"
-            >
-              Notes
-            </label>
-            <Textarea
-              id="derm-proc-notes"
-              rows={2}
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              placeholder="Site, settings, aftercare, specimen details…"
-            />
-          </div>
-          {error && (
-            <p className="mt-2 text-[12px] font-medium text-status-destructive">
-              {error}
-            </p>
-          )}
-          <div className="mt-4 flex justify-end">
-            <Button
-              type="button"
-              size="sm"
-              onClick={addProcedure}
-              disabled={pending}
-              className="gap-1.5"
-            >
-              {pending ? (
-                <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
-              ) : (
-                <Scissors aria-hidden="true" className="size-3.5" />
-              )}
-              {pending ? "Saving…" : "Record procedure"}
-            </Button>
-          </div>
-        </RecordSection>
-      )}
-
-      {derm.procedures.length > 0 ? (
-        <div className="space-y-3">
-          <SpecialtyHeading
-            title="Procedure history"
-            description="Newest first"
-          />
-          {derm.procedures.map((procedure) => (
-            <ProcedureRow
-              key={procedure.id}
-              procedure={procedure}
-              canManage={canManage}
-              onDelete={removeProcedure}
-            />
-          ))}
-        </div>
-      ) : (
-        <RecordEmpty
-          icon={Scissors}
-          title="No procedures recorded"
-          description="Biopsy, cryotherapy, chemical peel, laser procedures and minor procedures."
-        />
-      )}
-    </div>
-  );
-}
-
-const CONSENT_LABEL: Record<string, string> = {
-  obtained: "Consent obtained",
-  declined: "Consent declined",
-  documented: "Consent documented",
-};
-
-function ProcedureRow({
-  procedure,
-  canManage,
-  onDelete,
-}: {
-  procedure: DermProcedure;
-  canManage: boolean;
-  onDelete: (id: string) => void;
-}) {
-  return (
-    <RecordSection
-      title={procedure.procedure_name}
-      meta={
-        canManage && (
-          <ConfirmDeleteButton
-            ariaLabel="Delete procedure"
-            title="Delete this procedure?"
-            description="This permanently removes the procedure record entry."
-            onConfirm={() => onDelete(procedure.id)}
-          />
-        )
-      }
-    >
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="text-ink-faint flex items-center gap-1 text-[11px]">
-          <CalendarDays aria-hidden="true" className="size-3.5" />
-          {procedure.procedure_date}
-        </span>
-        {procedure.consent_status && (
-          <Badge className="bg-app text-text-secondary">
-            {CONSENT_LABEL[procedure.consent_status] ??
-              procedure.consent_status}
-          </Badge>
-        )}
-      </div>
-      <RecordNote label="Notes" value={procedure.notes} />
     </RecordSection>
   );
 }
