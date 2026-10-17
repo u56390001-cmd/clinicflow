@@ -29,6 +29,7 @@ import {
   CalendarDays,
   Camera,
   ChevronRight,
+  ClipboardList,
   History,
   Loader2,
   Pill,
@@ -45,6 +46,7 @@ import {
 import { DermDiagnoses } from "@/components/patients/record/workspaces/derm-diagnosis";
 import { DermProcedures } from "@/components/patients/record/workspaces/derm-procedures";
 import { DermRxMeds } from "@/components/patients/record/workspaces/derm-rx-meds";
+import { DermSummary } from "@/components/patients/record/workspaces/derm-summary";
 import { DermPhotosTab } from "@/components/patients/record/workspaces/derm-photos-tab";
 import {
   AutosaveNote,
@@ -68,9 +70,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   deleteDermExamAction,
-  deleteDermProcedureAction,
   saveDermExamAction,
-  saveDermProcedureAction,
   saveDermProfileAction,
   saveDermRxAction,
 } from "@/lib/actions/specialty-workspaces";
@@ -89,7 +89,6 @@ import { DERMATOLOGY_WORKSPACE } from "@/lib/specialty-workspaces";
 import type {
   DermExam,
   DermPrescription,
-  DermProcedure,
   PatientDirectoryRow,
 } from "@/types/database";
 
@@ -112,6 +111,8 @@ export function DermWorkspace({
   params,
   timezone,
 }: Props) {
+  const today = todayIso();
+  const todayExam = derm.exams.find((exam) => exam.exam_date === today) ?? null;
   return (
     <div className="space-y-4">
       {activeTab === "derm_overview" && (
@@ -150,6 +151,17 @@ export function DermWorkspace({
       )}
       {activeTab === "derm_rx" && (
         <RxTab patient={patient} derm={derm} canManage={canManage} />
+      )}
+      {activeTab === "derm_summary" && (
+        <DermSummary
+          patientId={patient.id}
+          exam={todayExam}
+          diagnoses={derm.diagnoses}
+          lesions={derm.lesions}
+          procedures={derm.procedures}
+          prescriptions={derm.prescriptions}
+          canManage={canManage}
+        />
       )}
       {activeTab === "derm_documents" && (
         <DocumentsTab
@@ -247,6 +259,7 @@ function SkinOverviewTab({
     { tab: "derm_photos", label: "Skin photos", icon: Camera },
     { tab: "derm_procedures", label: "Procedures", icon: Scissors },
     { tab: "derm_rx", label: "Prescription & routine", icon: Pill },
+    { tab: "derm_summary", label: "Summary / Follow-up", icon: ClipboardList },
   ] as const;
 
   return (

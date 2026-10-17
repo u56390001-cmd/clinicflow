@@ -1588,6 +1588,8 @@ export type DermExam = {
   severity_scores: DermSeverityScore[];
   assessment: string | null;
   patient_explanation: string | null;
+  follow_up_date: string | null;
+  follow_up_notes: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -6001,6 +6003,8 @@ export type Database = {
           severity_scores?: DermSeverityScore[];
           assessment?: string | null;
           patient_explanation?: string | null;
+          follow_up_date?: string | null;
+          follow_up_notes?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -6024,6 +6028,8 @@ export type Database = {
           severity_scores?: DermSeverityScore[];
           assessment?: string | null;
           patient_explanation?: string | null;
+          follow_up_date?: string | null;
+          follow_up_notes?: string | null;
           created_at?: never;
           updated_at?: string;
         };

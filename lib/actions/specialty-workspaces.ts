@@ -259,6 +259,12 @@ const saveDermExamSchema = z.object({
   severity_scores: z.array(dermSeverityScoreSchema).optional(),
   assessment: note,
   patient_explanation: note,
+  follow_up_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .or(z.literal("")),
+  follow_up_notes: note,
 });
 
 const DIAGNOSIS_STATUS = [
@@ -2167,6 +2173,12 @@ export async function saveDermExamAction(
       : {}),
     ...(rest.patient_explanation !== undefined
       ? { patient_explanation: rest.patient_explanation || null }
+      : {}),
+    ...(rest.follow_up_date !== undefined
+      ? { follow_up_date: rest.follow_up_date || null }
+      : {}),
+    ...(rest.follow_up_notes !== undefined
+      ? { follow_up_notes: rest.follow_up_notes || null }
       : {}),
   };
 

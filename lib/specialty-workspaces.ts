@@ -16,7 +16,11 @@
  * union (`PatientTabId`) admits so the record keeps one URL-driven tab system.
  */
 
-export const WORKSPACE_KINDS = ["general", "psychology", "dermatology"] as const;
+export const WORKSPACE_KINDS = [
+  "general",
+  "psychology",
+  "dermatology",
+] as const;
 export type WorkspaceKind = (typeof WORKSPACE_KINDS)[number];
 
 /** The general medical workspace's tab ids — mirrors `PATIENT_TABS`. */
@@ -47,6 +51,7 @@ export const DERM_TAB_IDS = [
   "derm_photos",
   "derm_procedures",
   "derm_rx",
+  "derm_summary",
   "derm_documents",
 ] as const;
 export type DermTabId = (typeof DERM_TAB_IDS)[number];
@@ -79,6 +84,7 @@ export const SPECIALTY_TAB_LABELS: Record<SpecialtyTabId, string> = {
   derm_photos: "Photos & Body Map",
   derm_procedures: "Procedures & Biopsy",
   derm_rx: "Prescriptions",
+  derm_summary: "Summary & Follow-up",
   derm_documents: "Documents",
 };
 
@@ -143,7 +149,8 @@ export function resolveDoctorWorkspace(
 export const GENERAL_WORKSPACE: WorkspaceConfig = {
   kind: "general",
   name: "General Medical",
-  description: "Primary care record — history, vitals, prescriptions, documents.",
+  description:
+    "Primary care record — history, vitals, prescriptions, documents.",
   tabs: undefined,
   defaultTab: "overview",
   writeTab: "medications",
