@@ -118,11 +118,10 @@ export function PatientsWorkspace({
    * Both panes become their own scroll region from `lg` up — sticky, capped to
    * the viewport below the app header. That is what lets the patient header pin
    * *inside* the record without the page scrolling out from under it. Below `lg`
-   * only one pane is on screen and the page scrolls normally, which is what the
-   * fixed header there anchors to.
+   * only one pane is on screen and the app scroll area scrolls normally.
    */
   const paneFrame =
-    "lg:sticky lg:top-[calc(var(--app-header-h)_+_1rem)] lg:max-h-[calc(100svh_-_var(--app-header-h)_-_2rem)] lg:overflow-y-auto";
+    "lg:sticky lg:top-6 lg:max-h-[calc(100svh_-_var(--app-header-h)_-_2rem)] lg:overflow-y-auto";
 
   return (
     <PatientRecordPaneActionsContext.Provider value={recordPaneActions}>
@@ -175,7 +174,10 @@ export function PatientsWorkspace({
       {form && <PatientFormModal patient={form.patient} onClose={closeForm} />}
 
       {mergeOpen && selectedPatient && (
-        <MergePatientModal primary={selectedPatient} onClose={closeMergeDuplicate} />
+        <MergePatientModal
+          primary={selectedPatient}
+          onClose={closeMergeDuplicate}
+        />
       )}
     </PatientRecordPaneActionsContext.Provider>
   );

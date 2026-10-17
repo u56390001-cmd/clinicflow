@@ -108,7 +108,9 @@ function NavLink({
             : "text-brand-muted hover:bg-brand-canvas hover:text-brand-ink",
         )}
       >
-        {Icon ? <Icon className="size-[18px] shrink-0" aria-hidden="true" /> : null}
+        {Icon ? (
+          <Icon className="size-[18px] shrink-0" aria-hidden="true" />
+        ) : null}
         {!collapsed && item.label}
       </Link>
     </li>
@@ -169,10 +171,7 @@ function SidebarFooter({
           onClick={onToggle}
           aria-expanded={!collapsed}
           aria-label={collapsed ? "Expand sidebar" : "Collapse"}
-          {...tipProps(
-            collapsed ? "Expand sidebar" : "Collapse",
-            collapsed,
-          )}
+          {...tipProps(collapsed ? "Expand sidebar" : "Collapse", collapsed)}
           className={cn(
             "mt-0.5 flex h-9 w-full items-center rounded-control text-brand-muted transition-colors hover:bg-brand-canvas hover:text-brand-ink",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-sage",
@@ -278,8 +277,7 @@ export function AppSidebarShell({
 
       <aside
         className={cn(
-          "sticky hidden shrink-0 flex-col border-r border-brand-line bg-surface md:flex",
-          "top-[var(--app-header-h)] h-[calc(100svh_-_var(--app-header-h))]",
+          "hidden h-full shrink-0 flex-col border-r border-brand-line bg-surface md:flex",
           collapsed ? "w-[72px]" : "w-64",
         )}
       >

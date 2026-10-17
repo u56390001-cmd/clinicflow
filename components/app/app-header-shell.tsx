@@ -57,9 +57,10 @@ export function AppHeaderShell({
 
   /**
    * Publish the header's measured height as `--app-header-h`. The header is two
-   * rows whose height depends on the breakpoint, so anything that has to begin
-   * *below* it (sticky rails, the fixed patient header) needs the real number
-   * rather than a hard-coded 64px guess.
+   * rows whose height varies by breakpoint. Panels that size themselves against
+   * the viewport (the website builder, the patient workspace panes, the
+   * prescription workspace) subtract it, so they need the real number rather
+   * than a hard-coded 64px guess.
    */
   useEffect(() => {
     const header = document.querySelector<HTMLElement>("[data-app-header]");
@@ -79,7 +80,7 @@ export function AppHeaderShell({
   return (
     <header
       data-app-header
-      className="sticky top-0 z-30 shrink-0 bg-surface/95 backdrop-blur"
+      className="relative z-30 shrink-0 bg-surface/95 backdrop-blur"
     >
       {/* ── Row 1: Logo · Search · Chat · Notifications · User ── */}
       <div className="flex items-center justify-between gap-2 border-b border-brand-line px-3 py-3 sm:px-6">
@@ -152,9 +153,7 @@ export function AppHeaderShell({
 
           <NotificationBell notifications={notifications} clinicId={clinicId} />
 
-          <ProfileDropdown
-            user={{ name: userName, email: userEmail, role }}
-          />
+          <ProfileDropdown user={{ name: userName, email: userEmail, role }} />
         </div>
       </div>
 

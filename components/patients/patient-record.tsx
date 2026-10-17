@@ -52,9 +52,9 @@ import type { PatientDirectoryRow } from "@/types/database";
  * re-renders from cache rather than re-querying per tab.
  *
  * The header + tabs block is sticky: on `lg` and up the record is its own
- * scroll region, so it pins to the top of that region; below `lg` the page
- * scrolls and it pins under the app header instead. Same block, two anchors —
- * `--app-header-h` is what makes the second one safe.
+ * scroll region, so it pins to the top of that region; below `lg` it pins to
+ * the top of the app scroll area. The app header sits outside that area, so
+ * nothing needs to offset below it.
  */
 
 /** First token of a persisted comma list, trimmed and length-capped for a capsule. */
@@ -158,7 +158,8 @@ export function PatientRecord({
    * → Session Notes, Dermatology → Dermatology Rx.
    */
   const openPrescriptionWorkspace = useCallback(
-    () => router.push(patientDirectoryHref({ ...params, tab: workspace.writeTab })),
+    () =>
+      router.push(patientDirectoryHref({ ...params, tab: workspace.writeTab })),
     [router, params, workspace.writeTab],
   );
 
@@ -187,7 +188,7 @@ export function PatientRecord({
           </Button>
         </div>
 
-        <div className="sticky top-[var(--app-header-h)] z-20 bg-surface lg:top-0">
+        <div className="sticky top-0 z-20 bg-surface">
           <RecordBanner
             patient={patient}
             canManage={canManage}
@@ -207,15 +208,23 @@ export function PatientRecord({
               workspace.kind === "psychology"
                 ? {
                     riskLevel: record.psych.safety?.risk_level ?? null,
-                    concern: firstListToken(record.psych.safety?.current_concerns),
-                    diagnosis: firstListToken(record.psych.intake?.previous_diagnosis),
+                    concern: firstListToken(
+                      record.psych.safety?.current_concerns,
+                    ),
+                    diagnosis: firstListToken(
+                      record.psych.intake?.previous_diagnosis,
+                    ),
                     lastSession: record.psych.sessions[0]?.session_date ?? null,
                   }
                 : null
             }
           />
 
-          <PatientTabNavigation workspace={workspace} params={params} activeTab={activeTab} />
+          <PatientTabNavigation
+            workspace={workspace}
+            params={params}
+            activeTab={activeTab}
+          />
         </div>
 
         {/* There is no left rail here, and that is deliberate. A 272px sidebar

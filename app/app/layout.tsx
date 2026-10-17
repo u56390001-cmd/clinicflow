@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 
 import { AppHeader } from "@/components/app/app-header";
+import { AppScrollArea } from "@/components/app/app-scroll-area";
 import { AppSidebar } from "@/components/app/app-sidebar";
 import { MobileNavProvider } from "@/components/app/mobile-nav-context";
 import { PwaInstallListener } from "@/components/app/pwa-install-listener";
@@ -19,7 +20,7 @@ function AppSidebarFallback() {
     <>
       <div className="md:hidden" aria-hidden="true" />
       <div
-        className="hidden w-64 shrink-0 border-r border-text-muted/30 bg-surface"
+        className="hidden h-full w-64 shrink-0 border-r border-text-muted/30 bg-surface md:block"
         aria-hidden="true"
       />
     </>
@@ -32,19 +33,19 @@ export default function AppLayout({
   return (
     <MobileNavProvider>
       <PwaInstallListener />
-      <div className="flex min-h-svh flex-col bg-app">
+      <div className="flex h-svh flex-col overflow-hidden bg-app">
         <Suspense fallback={<AppHeaderFallback />}>
           <AppHeader />
         </Suspense>
-        <div className="flex min-w-0 flex-1">
+        <div className="flex min-h-0 min-w-0 flex-1">
           <Suspense fallback={<AppSidebarFallback />}>
             <AppSidebar />
           </Suspense>
-          <div className="min-w-0 flex-1">
+          <AppScrollArea>
             <main className="mx-auto w-full max-w-5xl px-4 py-8">
               {children}
             </main>
-          </div>
+          </AppScrollArea>
         </div>
       </div>
     </MobileNavProvider>
