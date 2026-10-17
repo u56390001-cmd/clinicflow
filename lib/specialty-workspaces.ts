@@ -74,11 +74,11 @@ export const SPECIALTY_TAB_LABELS: Record<SpecialtyTabId, string> = {
   psy_psychometrics: "Psychometrics",
   psy_documents: "Documents",
   psy_care_plan: "Care Plan",
-  derm_overview: "Skin Overview",
-  derm_exam: "Skin Examination",
-  derm_photos: "Photo & Body Mapping",
-  derm_procedures: "Procedures",
-  derm_rx: "Dermatology Rx",
+  derm_overview: "Overview & History",
+  derm_exam: "Examination & Diagnosis",
+  derm_photos: "Photos & Body Map",
+  derm_procedures: "Procedures & Biopsy",
+  derm_rx: "Prescriptions",
   derm_documents: "Documents",
 };
 
