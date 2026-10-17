@@ -527,7 +527,11 @@ export default function WebsiteBuilder({
   };
 
   return (
-    <div data-app-wide className="flex h-[calc(100vh-var(--app-header-h,4rem)-1.5rem)] flex-col">
+    <div
+      data-app-wide
+      data-app-fill
+      className="flex h-[calc(100svh-var(--app-header-h,4rem))] flex-col overflow-hidden"
+    >
       {/* Top toolbar — workspace identity, save state, preview, publish */}
       <header className="flex items-center justify-between border-b border-text-muted/20 bg-surface px-4 py-2.5">
         {/* Left: workspace identity */}

@@ -176,6 +176,20 @@
   }
 }
 
+@layer utilities {
+  /**
+   * Full-height workspaces (the Website Builder). The route root fills the
+   * viewport below the sticky header and scrolls its own panes, so the shell
+   * must not add page padding: `py-8` would push the document 4rem past the
+   * viewport, giving the page a second scrollbar and dragging the sticky
+   * sidebar with it. Lives in the utilities layer so it outranks the `px-4
+   * py-8` on <main>. The route opts in with `data-app-fill`.
+   */
+  main:has(> [data-app-wide][data-app-fill]) {
+    padding: 0;
+  }
+}
+
 @layer components {
   /* ---------------------------------------------------------------------------
      Clinic website layout
