@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Plus, Stethoscope } from "lucide-react";
 
 import { ConfirmDeleteButton } from "@/components/patients/record/workspaces/confirm-delete";
+import { TerminologySearch } from "@/components/patients/record/workspaces/terminology-search";
 import { RecordSection } from "@/components/patients/record/record-primitives";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,9 +36,9 @@ const STATUS_TONE: Record<DiagnosisStatus, string> = {
   differential: "border-hairline bg-surface-muted text-text-secondary",
 };
 
-/** Common starting terms for fast entry. These are plain labels, not a coded
- *  terminology lookup — the clinician confirms the wording and, if they have
- *  one, adds the ICD code themselves. */
+/** Common starting terms for fast entry. Plain labels — tapping one only fills
+ *  the label. The diagnosis field itself searches the coded catalog
+ *  (migration 0101), so picking a hit supplies the label and its ICD code. */
 const COMMON_TERMS = [
   "Acne vulgaris",
   "Atopic dermatitis",
@@ -219,25 +220,22 @@ export function DermDiagnoses({
           </div>
 
           <div className="grid gap-3 sm:grid-cols-[1fr_130px_150px]">
-            <div>
-              <label
-                htmlFor="dx-label"
-                className="text-ink mb-1.5 block text-[12px] font-bold"
-              >
-                Diagnosis
-              </label>
-              <Input
-                id="dx-label"
-                value={form.label}
-                placeholder="e.g. Atopic dermatitis"
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    label: event.target.value,
-                  }))
-                }
-              />
-            </div>
+            <TerminologySearch
+              label="Diagnosis"
+              inputId="dx-label"
+              value={form.label}
+              placeholder="e.g. Atopic dermatitis"
+              onChange={(next) =>
+                setForm((current) => ({ ...current, label: next }))
+              }
+              onSelect={(hit) =>
+                setForm((current) => ({
+                  ...current,
+                  label: hit.display,
+                  icd_code: hit.code,
+                }))
+              }
+            />
             <div>
               <label
                 htmlFor="dx-icd"

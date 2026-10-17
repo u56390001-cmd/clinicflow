@@ -14,9 +14,8 @@
  * — in `derm_photos` rather than owning files.
  *
  * The workspace only wires up what the backend actually supports. Capabilities
- * that need schema/service work (persisted body-map pins, coded terminology
- * search, specimen tracking, encounter-scoped visits) are reported as gaps, not
- * faked here.
+ * that need schema/service work (persisted body-map pins, specimen tracking,
+ * encounter-scoped visits) are reported as gaps, not faked here.
  */
 
 "use client";
@@ -48,6 +47,7 @@ import { DermProcedures } from "@/components/patients/record/workspaces/derm-pro
 import { DermRxMeds } from "@/components/patients/record/workspaces/derm-rx-meds";
 import { DermSummary } from "@/components/patients/record/workspaces/derm-summary";
 import { DermPhotosTab } from "@/components/patients/record/workspaces/derm-photos-tab";
+import { TerminologySearch } from "@/components/patients/record/workspaces/terminology-search";
 import {
   AutosaveNote,
   ChipPicker,
@@ -960,21 +960,17 @@ function ExamTab({
                   options={DISTRIBUTIONS}
                 />
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label
-                      htmlFor="derm-exam-diagnosis"
-                      className="text-ink mb-1.5 block text-[12.5px] font-bold"
-                    >
-                      Diagnosis
-                    </label>
-                    <Input
-                      id="derm-exam-diagnosis"
-                      value={diagnosis}
-                      onChange={(event) => setDiagnosis(event.target.value)}
-                      placeholder="e.g. Plaque psoriasis"
-                      autoComplete="off"
-                    />
-                  </div>
+                  <TerminologySearch
+                    label="Diagnosis"
+                    inputId="derm-exam-diagnosis"
+                    value={diagnosis}
+                    placeholder="e.g. Plaque psoriasis"
+                    onChange={setDiagnosis}
+                    onSelect={(hit) => {
+                      setDiagnosis(hit.display);
+                      setIcdCode(hit.code);
+                    }}
+                  />
                   <div>
                     <label
                       htmlFor="derm-exam-icd"

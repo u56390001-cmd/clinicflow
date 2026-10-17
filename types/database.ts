@@ -1719,6 +1719,33 @@ export type DermPrescription = {
   updated_at: string;
 };
 
+/** Code system accepted by DB CHECK `terminology_codes_code_system_check`. */
+export type TerminologyCodeSystem = "ICD-10-CM" | "SNOMED-CT";
+
+/**
+ * Coded diagnosis terminology (migration 0101). Global reference rows carry
+ * `clinic_id: null`; clinics may add their own custom codes via RLS.
+ */
+export type TerminologyCode = {
+  id: string;
+  clinic_id: string | null;
+  code_system: TerminologyCodeSystem;
+  code: string;
+  display: string;
+  category: string | null;
+  synonyms: string[];
+  search_text: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+/** The subset of a terminology row the diagnosis pickers render. */
+export type TerminologyHit = Pick<
+  TerminologyCode,
+  "code" | "code_system" | "display" | "category"
+>;
+
 /** MIME types accepted by DB CHECK `patient_documents_mime_type_check`. */
 export const PATIENT_DOCUMENT_MIME_TYPES = [
   "application/pdf",
@@ -6394,6 +6421,44 @@ export type Database = {
             columns: ["visit_id"];
             isOneToOne: false;
             referencedRelation: "visits";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      terminology_codes: {
+        Row: TerminologyCode;
+        Insert: {
+          id?: string;
+          clinic_id?: string | null;
+          code_system?: TerminologyCodeSystem;
+          code: string;
+          display: string;
+          category?: string | null;
+          synonyms?: string[];
+          search_text?: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          code_system?: TerminologyCodeSystem;
+          code?: string;
+          display?: string;
+          category?: string | null;
+          synonyms?: string[];
+          search_text?: never;
+          is_active?: boolean;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "terminology_codes_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
             referencedColumns: ["id"];
           },
         ];
