@@ -1686,6 +1686,8 @@ export type DermPrescription = {
   skincare_routine_am: string | null;
   skincare_routine_pm: string | null;
   patient_education: string | null;
+  medicines: MedicineEntry[];
+  lab_orders: LabOrder[];
   created_at: string;
   updated_at: string;
 };
@@ -6291,6 +6293,8 @@ export type Database = {
           skincare_routine_am?: string | null;
           skincare_routine_pm?: string | null;
           patient_education?: string | null;
+          medicines?: MedicineEntry[];
+          lab_orders?: LabOrder[];
           created_at?: string;
           updated_at?: string;
         };
@@ -6305,6 +6309,8 @@ export type Database = {
           skincare_routine_am?: string | null;
           skincare_routine_pm?: string | null;
           patient_education?: string | null;
+          medicines?: MedicineEntry[];
+          lab_orders?: LabOrder[];
           created_at?: never;
           updated_at?: string;
         };

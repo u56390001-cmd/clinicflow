@@ -335,6 +335,22 @@ const saveDermLesionSchema = z.object({
   observations: note,
 });
 
+const dermMedicineEntrySchema = z.object({
+  name: z.string().trim().max(160).default(""),
+  route: z.string().trim().max(80).default(""),
+  form: z.string().trim().max(80).default(""),
+  frequency: z.string().trim().max(120).default(""),
+  duration: z.string().trim().max(120).default(""),
+  unit: z.string().trim().max(80).default(""),
+  instructions: z.string().trim().max(240).default(""),
+});
+
+const dermLabOrderSchema = z.object({
+  test_name: z.string().trim().max(160).default(""),
+  notes: z.string().trim().max(240).default(""),
+  sub_parameters: z.array(z.string().trim().max(80)).optional(),
+});
+
 const saveDermRxSchema = z.object({
   id: optionalUuid,
   topical_form: z.enum(DERM_FORM).optional().nullable().or(z.literal("")),
@@ -342,6 +358,8 @@ const saveDermRxSchema = z.object({
   skincare_routine_am: note,
   skincare_routine_pm: note,
   patient_education: note,
+  medicines: z.array(dermMedicineEntrySchema).optional(),
+  lab_orders: z.array(dermLabOrderSchema).optional(),
 });
 
 const idSchema = z.object({ id: z.string().uuid() });

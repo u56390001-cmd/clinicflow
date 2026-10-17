@@ -43,6 +43,7 @@ import {
   DermScoringTools,
 } from "@/components/patients/record/workspaces/derm-body-map";
 import { DermDiagnoses } from "@/components/patients/record/workspaces/derm-diagnosis";
+import { DermRxMeds } from "@/components/patients/record/workspaces/derm-rx-meds";
 import { DermPhotosTab } from "@/components/patients/record/workspaces/derm-photos-tab";
 import {
   AutosaveNote,
@@ -1587,6 +1588,16 @@ function RxTab({
 
   return (
     <div className="space-y-4">
+      <DermRxMeds
+        patientId={patient.id}
+        prescriptionId={latest?.id ?? null}
+        medicines={latest?.medicines ?? []}
+        labOrders={latest?.lab_orders ?? []}
+        skincareAm={latest?.skincare_routine_am ?? null}
+        skincarePm={latest?.skincare_routine_pm ?? null}
+        canManage={canManage}
+      />
+
       <RecordSection
         title={
           latest
