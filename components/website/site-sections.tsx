@@ -60,6 +60,7 @@ export type {
   SiteService,
 } from "@/components/website/site-ui";
 export { openWidgetFallback } from "@/components/website/site-ui";
+export { StickyCtaBody } from "@/components/website/site-sticky-cta";
 
 // ---------------------------------------------------------------------------
 // Section heading
@@ -145,27 +146,25 @@ export function HeroBody({
 
   const headline =
     hero.headline ||
-    `${context.clinic.doctor_name ?? context.clinic.name} — care you can book today`;
+    `${context.clinic.doctor_name ?? context.clinic.name} • care you can book today`;
 
   // A specialty line is the second thing a visitor reads. It comes from the
   // doctors ClinicFlow already holds rather than from a new config field, which
   // would be a value the clinic has to type twice.
   const specialty = specialtyLine(context.doctors);
 
-  /* `flex flex-col justify-center` because the hero grid now stretches both
-     columns to the section's full height (so the figure can reach the bottom
-     edge) — this column re-centres its own copy inside that taller box. */
   return (
     <div
       className={cn(
-        "flex flex-col justify-center",
+        "flex flex-col gap-6 sm:gap-8",
         centered && "mx-auto max-w-3xl text-center",
       )}
     >
+      {/* Specialty line */}
       {specialty ? (
         <p
           className={cn(
-            "mb-4 flex items-center gap-2 text-sm font-medium",
+            "mb-2 flex items-center gap-2 text-sm font-medium",
             theme.primaryColor,
             centered && "justify-center",
           )}
@@ -179,47 +178,51 @@ export function HeroBody({
         </p>
       ) : null}
 
+      {/* Headline */}
       <h1
-        className="site-display text-[var(--site-ink)]"
+        className={cn(
+          "site-display text-[var(--site-ink)]",
+          "mb-3 sm:mb-4",
+          centered && "mx-auto",
+        )}
         style={{ fontFamily: "var(--site-heading-font)" }}
       >
         {headline}
       </h1>
 
+      {/* Description */}
       {hero.description ? (
-        <p className={cn("site-lede mt-5", centered && "mx-auto")}>
+        <p className={cn("site-lede", centered && "mx-auto")}>
           {hero.description}
         </p>
       ) : null}
 
-      {hero.ctaText || (hero.ctaSecondaryLabel && context.clinic.phone) ? (
-        <div
+      {/* Primary CTA */}
+      {hero.ctaText ? (
+        <SiteCta
+          widgetSlug={context.widgetSlug}
+          theme={theme}
+          className="site-cta"
+        >
+          {hero.ctaText}
+        </SiteCta>
+      ) : null}
+
+      {/* Secondary CTA */}
+      {hero.ctaSecondaryLabel && context.clinic.phone ? (
+        <a
+          href={`tel:${context.clinic.phone}`}
           className={cn(
-            "site-cta-row mt-8",
-            centered && "site-cta-row-centered",
+            "site-cta inline-flex min-h-11 items-center justify-center rounded-[var(--site-radius)] border border-black/15 px-6 py-3 text-sm font-medium text-[var(--site-ink)] transition-colors hover:bg-black/[0.03] hover:text-[var(--site-primary)]",
+            centered && "mx-auto",
           )}
         >
-          {hero.ctaText ? (
-            <SiteCta
-              widgetSlug={context.widgetSlug}
-              theme={theme}
-              className="site-cta"
-            >
-              {hero.ctaText}
-            </SiteCta>
-          ) : null}
-          {hero.ctaSecondaryLabel && context.clinic.phone ? (
-            <a
-              href={`tel:${context.clinic.phone}`}
-              className={cn(
-                "site-cta inline-flex min-h-11 items-center justify-center rounded-[var(--site-radius)] border border-black/15 px-6 py-3 text-sm font-medium text-[var(--site-ink)] transition-colors hover:bg-black/[0.03]",
-              )}
-            >
-              {hero.ctaSecondaryLabel}
-            </a>
-          ) : null}
-        </div>
+          {hero.ctaSecondaryLabel}
+        </a>
       ) : null}
+
+      {/* Spacer for mobile */}
+      {centered && <div className="h-4 sm:hidden" />}
     </div>
   );
 }
@@ -927,6 +930,9 @@ const FALLBACK_THEME: WebsiteTheme = {
   headingFont: "same",
   buttonStyle: "solid",
   cornerStyle: "soft",
+  defaultSurface: "plain",
+  blockPadding: "",
+  containerWidth: "",
   logoUrl: "",
   showHeader: true,
   alignment: "left",

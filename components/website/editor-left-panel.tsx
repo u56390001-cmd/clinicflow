@@ -15,6 +15,7 @@ import {
   Info,
   LayoutTemplate,
   MapPin,
+  MousePointerClick,
   Stethoscope,
   type LucideIcon,
 } from "lucide-react";
@@ -51,6 +52,7 @@ export const SECTION_ICONS: Record<WebsiteSectionId, LucideIcon> = {
   experience: Award,
   faq: CircleHelp,
   contact: MapPin,
+  "sticky-cta": MousePointerClick,
 };
 
 type Props = {
@@ -227,17 +229,17 @@ export function EditorLeftPanel({
 
       {/* Hidden sections */}
       {hiddenSections.length > 0 ? (
-        <div className="px-3 py-3">
-          <div className="flex items-baseline justify-between px-1">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-text-muted">
-              Hidden
+        <div className="border-t border-text-muted/20 bg-app/30 px-3 py-3">
+          <div className="flex items-baseline justify-between px-1 mb-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Hidden sections
             </h2>
-            <span className="text-sm text-text-muted">
-              {hiddenSections.length} section{hiddenSections.length === 1 ? "" : "s"}
-            </span>
+            <Badge variant="outline" className="bg-app/50 border-transparent">
+              {hiddenSections.length}
+            </Badge>
           </div>
 
-          <ul className="mt-2 flex flex-col gap-0.5" onMouseLeave={hideTip}>
+          <ul className="flex flex-col gap-1.5" onMouseLeave={hideTip}>
             {hiddenSections.map((section, index) => {
               const Icon = SECTION_ICONS[section.id];
               const isSelected = section.id === selectedId;
@@ -245,14 +247,37 @@ export function EditorLeftPanel({
               return (
                 <li key={section.id}>
                   <div
+                    draggable
+                    onDragStart={() => setDragging(section.id)}
+                    onDragEnd={() => {
+                      setDragging(null);
+                      setDropTarget(null);
+                    }}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      if (dragging && dragging !== section.id) {
+                        setDropTarget(section.id);
+                      }
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      if (dragging) onReorder(dragging, section.id);
+                      setDragging(null);
+                      setDropTarget(null);
+                    }}
                     className={cn(
-                      "flex items-center gap-0.5 rounded-control border py-1 pe-1 ps-1.5",
+                      "flex items-center gap-0.5 rounded-control border border-dashed border-text-muted/40 bg-app px-1.5 py-1.5 transition-colors",
                       isSelected
                         ? "border-primary/40 bg-primary/5"
-                        : "border-transparent hover:bg-app",
+                        : "border-transparent hover:border-text-muted/60 hover:bg-app/50",
+                      dropTarget === section.id && dragging !== section.id && "border-dashed border-primary",
+                      dragging === section.id && "opacity-50",
                     )}
                   >
-                    <span className="cursor-grab text-text-muted/50">
+                    <span
+                      aria-hidden="true"
+                      className="cursor-grab text-text-muted/40 active:cursor-grabbing"
+                    >
                       <GripVertical className="size-4" />
                     </span>
 
@@ -266,10 +291,10 @@ export function EditorLeftPanel({
                         <Icon className="size-3.5" aria-hidden="true" />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm text-text-muted">
+                        <span className="block truncate text-sm font-medium text-text-muted">
                           {section.label}
                         </span>
-                        <span className="block text-[11px] text-text-muted">
+                        <span className="block text-xs text-text-muted/70">
                           Hidden from visitors
                         </span>
                       </span>
@@ -281,7 +306,7 @@ export function EditorLeftPanel({
                       aria-label={`Show ${section.label}`}
                       onClick={() => onToggle(section.id)}
                       {...tip(`Show ${section.label}`)}
-                      className="size-7"
+                      className="size-7 text-text-muted/70 hover:text-text-primary"
                     >
                       <Eye />
                     </Button>

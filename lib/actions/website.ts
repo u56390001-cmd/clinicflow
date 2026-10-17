@@ -809,6 +809,7 @@ export async function readWebsiteDomain(): Promise<
   ActionResult<{
     domain: string | null;
     domain_status: WebsiteDomainStatus;
+    ssl_enabled: boolean;
     token: string | null;
     records: ReturnType<typeof dnsInstructions> | null;
   }>
@@ -834,7 +835,7 @@ export async function readWebsiteDomain(): Promise<
     });
     return {
       ok: true,
-      data: { domain: null, domain_status: "none", token: null, records: null },
+      data: { domain: null, domain_status: "none", ssl_enabled: false, token: null, records: null },
     };
   }
 
@@ -848,12 +849,14 @@ export async function readWebsiteDomain(): Promise<
 
   const domain = row?.domain ?? null;
   const token = row?.domain_verification_token ?? null;
+  const domainStatus = row?.domain_status ?? "none";
 
   return {
     ok: true,
     data: {
       domain,
-      domain_status: row?.domain_status ?? "none",
+      domain_status: domainStatus,
+      ssl_enabled: domainStatus === "verified",
       token,
       records:
         domain && token ? dnsInstructions(domain, token, apexHost()) : null,

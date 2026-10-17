@@ -14,6 +14,7 @@ import {
   FaqBody,
   GalleryBody,
   HeroBody,
+  StickyCtaBody,
   isDarkSurface,
   SectionHeading,
   ServicesBody,
@@ -147,6 +148,12 @@ export function WebsiteLayout({
   const { theme, content } = config;
   const sections = visibleSections(content.sections);
 
+  /* Theme overrides win when the clinic has chosen them; otherwise the template
+     preset's own rhythm and width apply, which is what keeps Classic and
+     Minimal distinct from each other. */
+  const blockPadding = theme.blockPadding || spec.blockPadding;
+  const containerWidth = theme.containerWidth || spec.containerWidth;
+
   /**
    * Anchor ids have to be unique per rendered instance, not just per section.
    *
@@ -193,7 +200,7 @@ export function WebsiteLayout({
       ) : null}
 
       {sections.map((section) => {
-        const surface = spec.surfaces[section.id] ?? spec.defaultSurface;
+        const surface = spec.surfaces[section.id] ?? theme.defaultSurface;
 
         // Hero owns its own composition — a split of copy and the clinic's
         // photograph with floating detail cards — so it is laid out here rather
@@ -261,7 +268,7 @@ export function WebsiteLayout({
                  anchor lands with the section's heading hidden underneath it. */
               className={cn(
                 "scroll-mt-20 px-6",
-                spec.blockPadding,
+                blockPadding,
                 spec.divider === "hairline" && "border-t border-black/10",
                 /* The surface below flips `--site-ink` to white, but a custom
                    property is only recomputed on an element that *declares* the
@@ -273,7 +280,7 @@ export function WebsiteLayout({
               )}
               style={sectionSurface(surface, theme)}
             >
-              <div className={`mx-auto ${spec.containerWidth}`}>{body}</div>
+              <div className={`mx-auto ${containerWidth}`}>{body}</div>
             </section>
           </Previewable>
         );
@@ -375,12 +382,20 @@ function renderBody(
       return <ExperienceBody config={config} theme={theme} />;
     case "faq":
       return <FaqBody config={config} theme={theme} />;
-    case "contact":
-      return <ContactBody config={config} context={context} theme={theme} />;
-    default:
-      // `hero` is handled by the caller; an unknown id renders nothing rather
-      // than an empty band.
-      return null;
+      case "contact":
+        return <ContactBody config={config} context={context} theme={theme} />;
+      case "sticky-cta":
+        return (
+          <StickyCtaBody
+            config={config}
+            theme={theme}
+            widgetSlug={context.widgetSlug}
+          />
+        );
+      default:
+        // `hero` is handled by the caller; an unknown id renders nothing rather
+        // than an empty band.
+        return null;
   }
 }
 

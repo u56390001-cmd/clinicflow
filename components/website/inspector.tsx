@@ -126,10 +126,10 @@ export function Inspector({
         </div>
       ) : (
         <>
-          <div className="border-b border-text-muted/20 px-2">
+          <div className="border-b border-text-muted/20 bg-surface px-2 pt-1">
             <nav
               role="tablist"
-              className="flex gap-1 overflow-x-auto"
+              className="flex gap-0.5 overflow-x-auto"
             >
               {TABS.map(({ id, label, icon: Icon }) => (
                 <button
@@ -137,11 +137,12 @@ export function Inspector({
                   type="button"
                   role="tab"
                   aria-selected={tab === id}
+                  aria-controls={`tab-${id}`}
                   onClick={() => setTab(id)}
                   className={cn(
-                    "flex items-center gap-1.5 rounded-control px-3.5 py-2 text-sm font-medium transition-colors whitespace-nowrap",
+                    "flex items-center gap-1.5 rounded-control px-3.5 py-2.5 text-sm font-medium transition-all whitespace-nowrap",
                     tab === id
-                      ? "bg-primary/10 text-primary"
+                      ? "bg-brand-wash text-brand-ink shadow-sm"
                       : "text-text-secondary hover:bg-app hover:text-text-primary",
                   )}
                 >
@@ -238,131 +239,181 @@ function ContentTab({
       ) : null}
 
       {selectedSectionId === "hero" ? (
-        <InspectorGroup title="Hero" description="The first thing every visitor reads.">
-          <LongTextField
-            label="Headline"
-            value={content.hero.headline}
-            onChange={(value) => patch({ hero: { ...content.hero, headline: value } })}
-            placeholder="Book an appointment today"
-            maxLength={120}
-            hint="One line. Say what the clinic is and who it is for."
-          />
-          <LongTextField
-            label="Description"
-            value={content.hero.description}
-            onChange={(value) =>
-              patch({ hero: { ...content.hero, description: value } })
-            }
-            placeholder="Evening and Saturday appointments available."
-            maxLength={280}
-            hint="Two sentences at most. This is what appears under the headline."
-          />
-          <TextField
-            label="Button text"
-            value={content.hero.ctaText}
-            onChange={(value) => patch({ hero: { ...content.hero, ctaText: value } })}
-            placeholder="Book an Appointment"
-            maxLength={40}
-          />
-          <TextField
-            label="Button link"
-            value={content.hero.ctaUrl}
-            onChange={(value) => patch({ hero: { ...content.hero, ctaUrl: value } })}
-            placeholder="Leave empty to open the booking assistant"
-            type="url"
-            hint="Leave empty and the button opens your AI booking assistant instead."
-          />
-          <TextField
-            label="Second button label"
-            value={content.hero.ctaSecondaryLabel ?? ""}
-            onChange={(value) =>
-              patch({ hero: { ...content.hero, ctaSecondaryLabel: value || undefined } })
-            }
-            placeholder="Call the clinic"
-            maxLength={40}
-            hint="Optional. Renders as a phone link if the clinic has a number."
-          />
+        <InspectorGroup title="Hero Section" description="The main headline and CTA for your website.">
+          {/* Headline and Description */}
+          <div className="flex flex-col gap-4">
+            <LongTextField
+              label="Headline"
+              value={content.hero.headline}
+              onChange={(value) => patch({ hero: { ...content.hero, headline: value } })}
+              placeholder="Book an appointment today"
+              maxLength={120}
+              hint="The main heading that appears at the top of the hero section."
+            />
+            <LongTextField
+              label="Description"
+              value={content.hero.description}
+              onChange={(value) =>
+                patch({ hero: { ...content.hero, description: value } })
+              }
+              placeholder="Evening and Saturday appointments available."
+              maxLength={280}
+              hint="Two sentences at most. This appears under the headline."
+            />
+          </div>
+
+          {/* Primary CTA */}
+          <CollapsibleGroup
+            title="Primary CTA Button"
+            description="The main button that drives bookings."
+            defaultOpen={true}
+          >
+            <TextField
+              label="Button text"
+              value={content.hero.ctaText}
+              onChange={(value) => patch({ hero: { ...content.hero, ctaText: value } })}
+              placeholder="Book an Appointment"
+              maxLength={40}
+            />
+            <TextField
+              label="Button link"
+              value={content.hero.ctaUrl}
+              onChange={(value) => patch({ hero: { ...content.hero, ctaUrl: value } })}
+              placeholder="Leave empty to open the booking assistant"
+              type="url"
+              hint="Leave empty and the button opens your AI booking assistant instead."
+            />
+          </CollapsibleGroup>
+
+          {/* Secondary CTA */}
+          <CollapsibleGroup
+            title="Secondary CTA Button"
+            description="Optional button for phone or other actions."
+            defaultOpen={false}
+          >
+            <TextField
+              label="Button label"
+              value={content.hero.ctaSecondaryLabel ?? ""}
+              onChange={(value) =>
+                patch({ hero: { ...content.hero, ctaSecondaryLabel: value || undefined } })
+              }
+              placeholder="Call the clinic"
+              maxLength={40}
+              hint="Optional. Renders as a phone link if the clinic has a phone number."
+            />
+          </CollapsibleGroup>
+
+          {/* Photo cards */}
+          <CollapsibleGroup
+            title="Photo Details"
+            description="Optional cards floating over the hero image."
+            defaultOpen={Boolean(content.hero.imageBadgeText || content.hero.imageStatText)}
+          >
+            <div className="flex flex-col gap-4">
+              <TextField
+                label="Badge (top-left)"
+                value={content.hero.imageBadgeText}
+                onChange={(value) =>
+                  patch({ hero: { ...content.hero, imageBadgeText: value } })
+                }
+                placeholder="No. 1 Top Best Hospital"
+                maxLength={60}
+                hint="A claim about your clinic. Keep it true!"
+              />
+              <TextField
+                label="Statistic (bottom-right)"
+                value={content.hero.imageStatText}
+                onChange={(value) =>
+                  patch({ hero: { ...content.hero, imageStatText: value } })
+                }
+                placeholder="870+ Doctors"
+                maxLength={60}
+                hint="A number that builds trust. Empty to hide the card."
+              />
+              <p className="text-sm leading-relaxed text-text-muted">
+                The photo behind these cards is the <strong>Hero banner</strong> image —
+                upload or swap it in the Images section.
+              </p>
+            </div>
+          </CollapsibleGroup>
         </InspectorGroup>
       ) : null}
 
-      {selectedSectionId === "hero" ? (
-        <CollapsibleGroup
-          title="Hero photo cards"
-          description="The two cards floating over the corners of the hero photograph."
-          defaultOpen={Boolean(content.hero.imageBadgeText || content.hero.imageStatText)}
-        >
-          <TextField
-            label="Badge on the photo (top-left)"
-            value={content.hero.imageBadgeText}
-            onChange={(value) =>
-              patch({ hero: { ...content.hero, imageBadgeText: value } })
-            }
-            placeholder="No. 1 Top Best Hospital"
-            maxLength={60}
-            hint="The glass pill over the left corner. A claim your clinic gets to make — keep it true."
-          />
-          <TextField
-            label="Stat on the photo (bottom-right)"
-            value={content.hero.imageStatText}
-            onChange={(value) =>
-              patch({ hero: { ...content.hero, imageStatText: value } })
-            }
-            placeholder="870+ Doctors"
-            maxLength={60}
-            hint="The glass card over the right corner. Empty either field to hide that card."
-          />
-          <p className="text-sm leading-relaxed text-text-muted">
-            The photo behind these cards is the <strong>Hero banner</strong> image —
-            upload or swap it in the Images section.
-          </p>
-        </CollapsibleGroup>
-      ) : null}
-
       {selectedSectionId === "doctors" ? (
-        <InspectorGroup title="Doctors" description="Your team, pulled from ClinicFlow.">
-          <LiveDataNote>
-            Names, photos, qualifications and descriptions come from the{" "}
-            <strong>Doctors</strong> page. Edit them there and this section follows
-            automatically — nothing to retype here.
+        <InspectorGroup title="Doctors Section" description="Show your clinic team on your website.">
+          <LiveDataNote
+            title="Data-driven section"
+            description={
+              <>
+                This section displays your doctors from the{" "}
+                <strong className="text-text-primary">Doctors page</strong>.
+              </>
+            }
+          >
+            Names, photos, qualifications and descriptions come directly from ClinicFlow.
+            Edit them there and this section updates automatically.
           </LiveDataNote>
-          <TextField
-            label="Heading"
-            value={content.doctors.title}
-            onChange={(value) => patch({ doctors: { ...content.doctors, title: value } })}
-            maxLength={60}
-          />
-          <LongTextField
-            label="Description"
-            value={content.doctors.description}
-            onChange={(value) =>
-              patch({ doctors: { ...content.doctors, description: value } })
-            }
-            maxLength={200}
-          />
-          <TextField
-            label="How many doctors to show"
-            value={String(content.doctors.limit)}
-            onChange={(value) => {
-              const limit = Number.parseInt(value, 10);
-              patch({
-                doctors: {
-                  ...content.doctors,
-                  limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 24) : 6,
-                },
-              });
-            }}
-            type="number"
-            hint="Between 1 and 24. The rest stay on the Doctors page."
-          />
-          <TextField
-            label="Button text"
-            value={content.doctors.ctaText}
-            onChange={(value) =>
-              patch({ doctors: { ...content.doctors, ctaText: value } })
-            }
-            placeholder="Book with our team"
-            maxLength={40}
-          />
+
+          <div className="flex flex-col gap-3 mt-4">
+            <div className="rounded-control border border-text-muted/20 bg-app p-4">
+              <p className="text-sm font-semibold text-text-primary mb-2">What you can control here:</p>
+              <ul className="flex list-disc flex-col gap-1 ps-4 text-sm text-text-secondary">
+                <li>Section heading and description</li>
+                <li>How many doctors to display (1-24)</li>
+                <li>Call-to-action button text</li>
+              </ul>
+            </div>
+
+            <a
+              href="/app/doctors"
+              className="text-sm font-medium text-primary underline underline-offset-4"
+            >
+              Go to Doctors page to manage team
+            </a>
+
+            <p className="text-sm text-text-muted">
+              To change what doctors appear, edit them in the Doctors page and save.
+              The changes will show up here automatically.
+            </p>
+          </div>
+
+          <CollapsibleGroup
+            title="Display settings"
+            description="Control how many doctors show up on the page."
+            defaultOpen={false}
+          >
+            <TextField
+              label="Number of doctors to show"
+              value={String(content.doctors.limit)}
+              onChange={(value) => {
+                const limit = Number.parseInt(value, 10);
+                patch({
+                  doctors: {
+                    ...content.doctors,
+                    limit: Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 24) : 6,
+                  },
+                });
+              }}
+              type="number"
+              hint="Select between 1 and 24 doctors to display. The rest stay on the Doctors page."
+            />
+          </CollapsibleGroup>
+
+          <CollapsibleGroup
+            title="Call-to-action"
+            description="Button text that appears below the doctors."
+            defaultOpen={false}
+          >
+            <TextField
+              label="Button text"
+              value={content.doctors.ctaText}
+              onChange={(value) =>
+                patch({ doctors: { ...content.doctors, ctaText: value } })
+              }
+              placeholder="Book with our team"
+              maxLength={40}
+            />
+          </CollapsibleGroup>
         </InspectorGroup>
       ) : null}
 
@@ -410,15 +461,42 @@ function ContentTab({
       ) : null}
 
       {selectedSectionId === "services" ? (
-        <InspectorGroup title="Services" description="Your treatments, pulled from ClinicFlow.">
-          <LiveDataNote>
-            Service names, durations and prices come from the{" "}
-            <strong>Services</strong> page. Add, rename or retire them there and this
-            list keeps itself in step.
+        <InspectorGroup title="Services Section" description="Your available treatments and services.">
+          <LiveDataNote
+            title="Data-driven section"
+            description={
+              <>
+                This section displays your services from the{" "}
+                <strong className="text-text-primary">Services page</strong>.
+              </>
+            }
+          >
+            Service names, durations, prices and descriptions come directly from ClinicFlow.
+            Edit them there and this section updates automatically.
           </LiveDataNote>
-          <p className="text-sm text-text-muted">
-            To change what appears, edit your services in ClinicFlow.
-          </p>
+
+          <div className="flex flex-col gap-3 mt-4">
+            <div className="rounded-control border border-text-muted/20 bg-app p-4">
+              <p className="text-sm font-semibold text-text-primary mb-2">What you can control here:</p>
+              <ul className="flex list-disc flex-col gap-1 ps-4 text-sm text-text-secondary">
+                <li>Section heading and description</li>
+                <li>How many services to display</li>
+                <li>Call-to-action button text</li>
+              </ul>
+            </div>
+
+            <a
+              href="/app/services"
+              className="text-sm font-medium text-primary underline underline-offset-4"
+            >
+              Go to Services page to manage treatments
+            </a>
+
+            <p className="text-sm text-text-muted">
+              To change what services appear, edit them in the Services page and save.
+              The changes will show up here automatically.
+            </p>
+          </div>
         </InspectorGroup>
       ) : null}
 
@@ -555,55 +633,112 @@ function ContentTab({
       {selectedSectionId === "faq" ? <FaqGroup content={content} patch={patch} /> : null}
 
       {selectedSectionId === "contact" ? (
-        <InspectorGroup title="Contact" description="How patients reach you.">
-          <TextField
-            label="Heading"
-            value={content.contact.title}
-            onChange={(value) => patch({ contact: { ...content.contact, title: value } })}
-            maxLength={60}
-          />
-          <LiveDataNote>
-            Phone, email, address and opening hours are read from ClinicFlow settings.
-            Use the switches below to choose what this section shows.
+        <InspectorGroup title="Contact Section" description="Make it easy for patients to reach you.">
+          <LiveDataNote
+            title="Data-driven contact information"
+            description={
+              <>
+                Phone, email, address and opening hours come from{" "}
+                <strong className="text-text-primary">ClinicFlow settings</strong>.
+              </>
+            }
+          >
+            Use the toggles below to choose what contact information appears.
+            Changes in ClinicFlow settings will automatically update here.
           </LiveDataNote>
-          <ToggleRow
-            label="Phone number"
-            checked={content.contact.showPhone}
-            onChange={(showPhone) => patch({ contact: { ...content.contact, showPhone } })}
-          />
-          <ToggleRow
-            label="Email address"
-            checked={content.contact.showEmail}
-            onChange={(showEmail) => patch({ contact: { ...content.contact, showEmail } })}
-          />
-          <ToggleRow
-            label="Address"
-            checked={content.contact.showAddress}
-            onChange={(showAddress) => patch({ contact: { ...content.contact, showAddress } })}
-          />
-          <ToggleRow
-            label="Opening hours"
-            checked={content.contact.showHours}
-            onChange={(showHours) => patch({ contact: { ...content.contact, showHours } })}
-          />
-          <TextField
-            label="Button text"
-            value={content.contact.bookingCtaText}
-            onChange={(value) =>
-              patch({ contact: { ...content.contact, bookingCtaText: value } })
-            }
-            maxLength={40}
-          />
-          <TextField
-            label="Google Maps embed link"
-            value={content.contact.mapEmbedUrl ?? ""}
-            onChange={(value) =>
-              patch({ contact: { ...content.contact, mapEmbedUrl: value } })
-            }
-            type="url"
-            placeholder="https://www.google.com/maps/embed?pb=..."
-            hint="In Google Maps, choose Share → Embed a map and paste the link here."
-          />
+
+          <div className="flex flex-col gap-3 mt-4">
+            <div className="rounded-control border border-text-muted/20 bg-app p-4">
+              <p className="text-sm font-semibold text-text-primary mb-2">What you can control here:</p>
+              <ul className="flex list-disc flex-col gap-1 ps-4 text-sm text-text-secondary">
+                <li>Section heading</li>
+                <li>Contact information toggles (what to show)</li>
+                <li>Call-to-action button text</li>
+                <li>Google Maps embed link</li>
+              </ul>
+            </div>
+
+            <p className="text-sm text-text-muted">
+              Toggle on the information you want patients to see. This information
+              is pulled from your ClinicFlow settings and will update automatically.
+            </p>
+          </div>
+
+          {/* Heading */}
+          <CollapsibleGroup
+            title="Section heading"
+            description="The main heading for the contact section."
+            defaultOpen={false}
+          >
+            <TextField
+              label="Heading"
+              value={content.contact.title}
+              onChange={(value) => patch({ contact: { ...content.contact, title: value } })}
+              maxLength={60}
+            />
+          </CollapsibleGroup>
+
+          {/* Contact information toggles */}
+          <CollapsibleGroup
+            title="Contact information"
+            description="Choose what information to display."
+            defaultOpen={true}
+          >
+            <ToggleRow
+              label="Phone number"
+              checked={content.contact.showPhone}
+              onChange={(showPhone) => patch({ contact: { ...content.contact, showPhone } })}
+            />
+            <ToggleRow
+              label="Email address"
+              checked={content.contact.showEmail}
+              onChange={(showEmail) => patch({ contact: { ...content.contact, showEmail } })}
+            />
+            <ToggleRow
+              label="Address"
+              checked={content.contact.showAddress}
+              onChange={(showAddress) => patch({ contact: { ...content.contact, showAddress } })}
+            />
+            <ToggleRow
+              label="Opening hours"
+              checked={content.contact.showHours}
+              onChange={(showHours) => patch({ contact: { ...content.contact, showHours } })}
+            />
+          </CollapsibleGroup>
+
+          {/* CTA Button */}
+          <CollapsibleGroup
+            title="Call-to-action button"
+            description="Button text that appears below the contact information."
+            defaultOpen={false}
+          >
+            <TextField
+              label="Button text"
+              value={content.contact.bookingCtaText}
+              onChange={(value) =>
+                patch({ contact: { ...content.contact, bookingCtaText: value } })
+              }
+              maxLength={40}
+            />
+          </CollapsibleGroup>
+
+          {/* Google Maps */}
+          <CollapsibleGroup
+            title="Google Maps"
+            description="Optional map for patients to find your clinic."
+            defaultOpen={false}
+          >
+            <TextField
+              label="Google Maps embed link"
+              value={content.contact.mapEmbedUrl ?? ""}
+              onChange={(value) =>
+                patch({ contact: { ...content.contact, mapEmbedUrl: value } })
+              }
+              type="url"
+              placeholder="https://www.google.com/maps/embed?pb=..."
+              hint="In Google Maps, choose Share → Embed a map and paste the link here."
+            />
+          </CollapsibleGroup>
         </InspectorGroup>
       ) : null}
     </div>
@@ -810,6 +945,35 @@ function DesignTab({
         />
       </InspectorGroup>
 
+      <InspectorGroup title="Theme" description="Choose a pre-built design style.">
+        <Segmented
+          label="Template style"
+          value={config.template}
+          options={[
+            { value: "modern", label: "Modern" },
+            { value: "classic", label: "Classic" },
+            { value: "minimal", label: "Minimal" },
+          ]}
+          onChange={(template) => onUpdate({ ...config, template })}
+          hint="Modern uses full-width images. Classic uses a tight column. Minimal is the lightest, with no backgrounds."
+        />
+      </InspectorGroup>
+
+      <InspectorGroup title="Surfaces" description="Backgrounds for each section.">
+        <Segmented
+          label="Default surface"
+          value={theme.defaultSurface}
+          options={[
+            { value: "plain", label: "White" },
+            { value: "tint", label: "Light tint" },
+            { value: "tinted", label: "Coloured" },
+            { value: "ink", label: "Dark" },
+          ]}
+          onChange={(defaultSurface) => patch({ defaultSurface })}
+          hint="Plain = white background. Tint = soft colour. Tinted = strong brand colour. Ink = dark background."
+        />
+      </InspectorGroup>
+
       <CollapsibleGroup
         title="Logo"
         description="Shown in the header bar."
@@ -823,6 +987,38 @@ function DesignTab({
           type="url"
           placeholder="Leave empty to use the logo from Settings"
           hint="Paste a direct link to the image. If empty, we use the clinic logo you uploaded in Settings."
+        />
+      </CollapsibleGroup>
+
+      <CollapsibleGroup
+        title="Spacing"
+        description="Vertical rhythm and margins."
+        defaultOpen={false}
+        icon={LayoutList}
+      >
+        <Segmented
+          label="Block padding"
+          value={theme.blockPadding}
+          options={[
+            { value: "py-12 sm:py-14", label: "Small" },
+            { value: "py-14 sm:py-16", label: "Medium" },
+            { value: "py-16 sm:py-20", label: "Large" },
+            { value: "py-20 sm:py-24", label: "Extra large" },
+          ]}
+          onChange={(blockPadding) => patch({ blockPadding })}
+          hint="Controls the vertical space between sections."
+        />
+        <Segmented
+          label="Container width"
+          value={theme.containerWidth}
+          options={[
+            { value: "max-w-3xl", label: "Narrow" },
+            { value: "max-w-4xl", label: "Medium" },
+            { value: "max-w-5xl", label: "Wide" },
+            { value: "max-w-6xl", label: "Extra wide" },
+          ]}
+          onChange={(containerWidth) => patch({ containerWidth })}
+          hint="Controls the width of the content area."
         />
       </CollapsibleGroup>
     </div>
@@ -987,6 +1183,14 @@ function SeoTab({
           rows={3}
         />
         <TextField
+          label="URL slug"
+          value={seo.slug}
+          onChange={(value) => patch({ slug: value })}
+          placeholder={seo.title || "your-clinic-name"}
+          type="text"
+          hint="This is the part of the URL after /site/. Leave empty to auto-generate from the title."
+        />
+        <TextField
           label="Keywords"
           value={seo.keywords}
           onChange={(value) => patch({ keywords: value })}
@@ -1051,6 +1255,8 @@ function SeoTab({
 type DomainState = {
   domain: string | null;
   domain_status: WebsiteDomainStatus;
+  /** HTTPS is provisioned once the domain is verified. */
+  ssl_enabled: boolean;
   token: string | null;
   records: {
     cname: ReadonlyArray<{ type: string; name: string; value: string }>;
@@ -1247,6 +1453,51 @@ function DomainTab({ slug }: { slug: string }) {
           issuing its SSL certificate is handled by our hosting layer, so those steps
           can take a little longer than the check.
         </p>
+      </InspectorGroup>
+
+      <InspectorGroup title="SSL Certificate" description="Secure your site with HTTPS.">
+        {state === null ? (
+          <p className="flex items-center gap-2 text-sm text-text-muted">
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            Checking SSL status…
+          </p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-2">
+              <Badge variant={state.ssl_enabled ? "success" : "outline"}>
+                {state.ssl_enabled ? "Secured" : "Unsecured"}
+              </Badge>
+              <span className="truncate text-sm font-medium text-text-primary">
+                {state.ssl_enabled ? "https://" : "http://"}
+                {state.domain || slug}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => void run("verify", verify)}
+                disabled={busy !== null || status === "verified"}
+              >
+                {busy === "verify" ? (
+                  <Loader2 className="size-4 animate-spin" data-icon="inline-start" />
+                ) : null}
+                Refresh SSL
+              </Button>
+            </div>
+            {state.ssl_enabled ? (
+              <p className="text-sm leading-relaxed text-text-secondary">
+                Your site is accessible over HTTPS. Users will see a secure lock icon in
+                their browser.
+              </p>
+            ) : (
+              <p className="text-sm leading-relaxed text-text-secondary">
+                SSL is not yet enabled. Once your domain is verified, we will automatically
+                provision an SSL certificate and enable HTTPS.
+              </p>
+            )}
+          </div>
+        )}
       </InspectorGroup>
     </div>
   );

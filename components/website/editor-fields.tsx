@@ -474,11 +474,22 @@ export function CollapsibleGroup({
  * text. Naming the page that edits it is the whole point — otherwise a doctor
  * hunts through the builder for a field that was never there.
  */
-export function LiveDataNote({ children }: { children: React.ReactNode }) {
+export function LiveDataNote({
+  title,
+  description,
+  children,
+}: {
+  title?: string;
+  description?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
   return (
     <div className="rounded-control border border-primary/20 bg-primary/5 p-3 text-sm leading-relaxed text-text-secondary">
-      <span className="font-medium text-primary">Comes from ClinicFlow. </span>
-      {children}
+      <span className="block font-semibold text-primary">
+        {title ?? "Comes from ClinicFlow"}
+      </span>
+      {description ? <span className="mt-1 block">{description}</span> : null}
+      {children ? <span className="mt-1 block">{children}</span> : null}
     </div>
   );
 }

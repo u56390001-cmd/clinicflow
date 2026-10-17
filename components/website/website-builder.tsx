@@ -8,6 +8,7 @@ import {
   ChevronsRight,
   Copy,
   Globe,
+  LayoutList,
   Laptop,
   Loader2,
   Maximize2,
@@ -16,10 +17,13 @@ import {
   Plus,
   Save,
   Smartphone,
+  SmartphoneIcon,
   Tablet,
+  TabletIcon,
   Trash2,
   Undo2,
   X,
+  Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -86,6 +90,27 @@ type Props = {
 
 type Device = "desktop" | "tablet" | "mobile";
 
+/**
+ * Subscribe to a CSS media query.
+ *
+ * A tiny local replacement for `react-use`'s `useMedia`: the dependency is not
+ * installed, and the builder only needs the one boolean. Returns `false` during
+ * server render and updates after mount, matching `useMedia`'s behaviour.
+ */
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(false);
+
+  useEffect(() => {
+    const mql = window.matchMedia(query);
+    const update = () => setMatches(mql.matches);
+    update();
+    mql.addEventListener("change", update);
+    return () => mql.removeEventListener("change", update);
+  }, [query]);
+
+  return matches;
+}
+
 /** Build the public URL for this clinic's website. */
 function buildSiteUrl(clinicSlug: string): string {
   const origin =
@@ -108,7 +133,8 @@ export default function WebsiteBuilder({
   services,
   availabilityRules,
   doctors,
-}: Props) {
+  }: Props) {
+  const isMobile = useMediaQuery("(max-width: 640px)");
   const [config, setConfig] = useState<WebsiteConfig>(initialConfig);
   const [images, setImages] = useState<WebsiteImage[]>(initialImages);
   const [selectedId, setSelectedId] = useState<WebsiteSectionId | null>(null);
@@ -242,6 +268,15 @@ export default function WebsiteBuilder({
       const saved = await handleSave();
       if (!saved) return;
     }
+
+    // Show confirmation dialog before publishing
+    const confirmed = confirm(
+      `Are you sure you want to ${nextStatus === "published" ? "publish" : "unpublish"} this website?` +
+      "\n\nThis action will make the changes visible to visitors immediately."
+    );
+
+    if (!confirmed) return;
+
     setPublishing(true);
     try {
       const formData = new FormData();
@@ -350,49 +385,57 @@ export default function WebsiteBuilder({
 
   /** Shared device switch, used in the toolbar and in fullscreen. */
   const deviceToggle = (
-    <div className="flex items-center gap-1 rounded-control bg-app p-1">
-      <button
-        type="button"
-        aria-label="Desktop preview"
-        aria-pressed={device === "desktop"}
-        onClick={() => setDevice("desktop")}
-        className={cn(
-          "rounded-control p-1.5",
-          device === "desktop"
-            ? "bg-surface text-text-primary shadow-card"
-            : "text-text-muted",
-        )}
-      >
-        <Laptop className="size-4" aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        aria-label="Tablet preview"
-        aria-pressed={device === "tablet"}
-        onClick={() => setDevice("tablet")}
-        className={cn(
-          "rounded-control p-1.5",
-          device === "tablet"
-            ? "bg-surface text-text-primary shadow-card"
-            : "text-text-muted",
-        )}
-      >
-        <Tablet className="size-4" aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        aria-label="Mobile preview"
-        aria-pressed={device === "mobile"}
-        onClick={() => setDevice("mobile")}
-        className={cn(
-          "rounded-control p-1.5",
-          device === "mobile"
-            ? "bg-surface text-text-primary shadow-card"
-            : "text-text-muted",
-        )}
-      >
-        <Smartphone className="size-4" aria-hidden="true" />
-      </button>
+    <div className="flex items-center gap-2 rounded-control bg-brand-canvas px-2 py-1.5 border border-brand-line/40">
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs font-medium text-text-muted">Preview on:</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          aria-label="Desktop preview"
+          aria-pressed={device === "desktop"}
+          onClick={() => setDevice("desktop")}
+          className={cn(
+            "flex items-center gap-1.5 rounded-control px-2.5 py-1.5 text-sm font-medium transition-all",
+            device === "desktop"
+              ? "bg-brand-wash text-brand-ink shadow-sm"
+              : "text-text-secondary hover:bg-app hover:text-text-primary",
+          )}
+        >
+          <Laptop className="size-4" aria-hidden="true" />
+          <span className="hidden sm:inline">Desktop</span>
+        </button>
+        <button
+          type="button"
+          aria-label="Tablet preview"
+          aria-pressed={device === "tablet"}
+          onClick={() => setDevice("tablet")}
+          className={cn(
+            "flex items-center gap-1.5 rounded-control px-2.5 py-1.5 text-sm font-medium transition-all",
+            device === "tablet"
+              ? "bg-brand-wash text-brand-ink shadow-sm"
+              : "text-text-secondary hover:bg-app hover:text-text-primary",
+          )}
+        >
+          <Tablet className="size-4" aria-hidden="true" />
+          <span className="hidden sm:inline">Tablet</span>
+        </button>
+        <button
+          type="button"
+          aria-label="Mobile preview"
+          aria-pressed={device === "mobile"}
+          onClick={() => setDevice("mobile")}
+          className={cn(
+            "flex items-center gap-1.5 rounded-control px-2.5 py-1.5 text-sm font-medium transition-all",
+            device === "mobile"
+              ? "bg-brand-wash text-brand-ink shadow-sm"
+              : "text-text-secondary hover:bg-app hover:text-text-primary",
+          )}
+        >
+          <Smartphone className="size-4" aria-hidden="true" />
+          <span className="hidden sm:inline">Mobile</span>
+        </button>
+      </div>
     </div>
   );
 
@@ -488,25 +531,39 @@ export default function WebsiteBuilder({
       {/* Top toolbar — workspace identity, save state, preview, publish */}
       <header className="flex items-center justify-between border-b border-text-muted/20 bg-surface px-4 py-2.5">
         {/* Left: workspace identity */}
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-text-primary">
+              MedBook AI
+            </h2>
+            <span className="text-xs text-text-muted">•</span>
+            <h2 className="text-base font-semibold text-text-primary">
+              {clinicName}
+            </h2>
+            <Badge variant={isPublished ? "success" : "outline"}>
+              {isPublished ? "Published" : "Draft"}
+            </Badge>
+          </div>
+          <p className="text-xs text-text-muted">Website Builder</p>
+        </div>
+
+        {/* Center: page/site state */}
         <div className="flex items-center gap-3">
-          <h1 className="text-base font-semibold text-text-primary">
-            Website Builder
-          </h1>
-          <Badge variant={isPublished ? "success" : "outline"}>
-            {isPublished ? "Published" : "Draft"}
-          </Badge>
+          <span className="text-sm font-medium text-text-primary">
+            {selectedId ? `Editing ${config.content.sections.find(s => s.id === selectedId)?.label}` : "Editing Home"}
+          </span>
           {dirtyBadge}
         </div>
 
-        {/* Center: preview controls */}
-        <div className="flex items-center gap-3">
+        {/* Right: actions (undo/redo, preview, save, publish) */}
+        <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 text-sm text-text-secondary">
             <Undo2 className="size-4" aria-hidden="true" />
-            <span>Undo</span>
+            <span className="hidden sm:inline">Undo</span>
           </div>
           <div className="flex items-center gap-1.5 text-sm text-text-secondary">
             <Copy className="size-4" aria-hidden="true" />
-            <span>Redo</span>
+            <span className="hidden sm:inline">Redo</span>
           </div>
           {deviceToggle}
           <Button
@@ -518,59 +575,8 @@ export default function WebsiteBuilder({
             title="Open live website"
           >
             <Globe className="size-4" aria-hidden="true" />
-            View site
+            <span className="hidden sm:inline">View site</span>
           </Button>
-        </div>
-
-        {/* Right: save and publish actions */}
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => void handleSave()}
-            disabled={saving || !dirty}
-            aria-label="Save changes"
-            title="Save (Ctrl+S)"
-          >
-            {saving ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Save className="size-4" />
-            )}
-            <span className="hidden sm:inline">
-              {saving ? "Saving…" : "Save draft"}
-            </span>
-          </Button>
-
-          {isPublished ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => void handlePublish("unpublished")}
-              disabled={publishing}
-            >
-              <Pause className="size-4" />
-              <span className="hidden sm:inline">Unpublish</span>
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => void handlePublish("published")}
-              disabled={publishing}
-            >
-              {publishing ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Globe className="size-4" />
-              )}
-              <span className="hidden sm:inline">
-                {publishing ? "Publishing…" : "Publish"}
-              </span>
-            </Button>
-          )}
         </div>
       </header>
 
@@ -581,6 +587,8 @@ export default function WebsiteBuilder({
           className={cn(
             "flex flex-shrink-0 flex-col border-e border-text-muted/20 transition-[width]",
             sectionsCollapsed ? "w-14" : "w-72",
+            isMobile && !sectionsCollapsed && "fixed inset-y-0 left-0 z-30 w-72",
+            isMobile && sectionsCollapsed && "hidden",
           )}
         >
           <div className="flex items-center justify-end border-b border-text-muted/20 bg-surface px-1.5 py-1.5">
@@ -635,6 +643,8 @@ export default function WebsiteBuilder({
           className={cn(
             "flex flex-shrink-0 flex-col border-e border-text-muted/20 transition-[width]",
             inspectorCollapsed ? "w-14" : "w-96",
+            isMobile && !inspectorCollapsed && "fixed inset-y-0 right-0 z-30 w-96",
+            isMobile && inspectorCollapsed && "hidden",
           )}
         >
           <div className="flex items-center justify-end border-b border-text-muted/20 bg-surface px-1.5 py-1.5">
@@ -701,6 +711,97 @@ export default function WebsiteBuilder({
           </div>
         </main>
       </div>
+
+      {/* Mobile overlay for sections panel */}
+      {isMobile && !sectionsCollapsed && (
+        <div
+          className="fixed inset-0 z-20 bg-black/50 transition-opacity"
+          onClick={() => setSectionsCollapsed(true)}
+        />
+      )}
+
+      {/* Mobile overlay for inspector panel */}
+      {isMobile && !inspectorCollapsed && (
+        <div
+          className="fixed inset-0 z-20 bg-black/50 transition-opacity"
+          onClick={() => setInspectorCollapsed(true)}
+        />
+      )}
+
+      {/* Mobile bottom navigation */}
+      {isMobile && !previewFullscreen && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-brand-line bg-brand-canvas px-2 py-2 shadow-lg sm:hidden">
+          <nav
+            role="tablist"
+            className="flex items-center justify-around gap-1"
+          >
+            <button
+              type="button"
+              onClick={() => setPreviewFullscreen(true)}
+              className={cn(
+                "flex flex-1 flex-col items-center justify-center gap-1 rounded-control px-3 py-2 transition-all",
+                "text-sm font-medium",
+                "text-text-secondary hover:bg-brand-wash hover:text-text-primary",
+              )}
+              aria-label="Preview website"
+            >
+              <SmartphoneIcon className="size-5" aria-hidden="true" />
+              <span>Preview</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSave()}
+              disabled={saving || !dirty}
+              className={cn(
+                "flex flex-1 flex-col items-center justify-center gap-1 rounded-control px-3 py-2 transition-all",
+                "text-sm font-medium",
+                "text-text-secondary hover:bg-brand-wash hover:text-text-primary",
+              )}
+              aria-label="Save changes"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="size-5 animate-spin" aria-hidden="true" />
+                  <span className="text-xs">Saving...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="size-5" aria-hidden="true" />
+                  <span className="text-xs">Save</span>
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handlePublish("published")}
+              disabled={publishing}
+              className={cn(
+                "flex flex-1 flex-col items-center justify-center gap-1 rounded-control px-3 py-2 transition-all",
+                "text-sm font-medium",
+                "text-text-secondary hover:bg-brand-wash hover:text-text-primary",
+              )}
+              aria-label="Publish website"
+            >
+              {publishing ? (
+                <>
+                  <Loader2 className="size-5 animate-spin" aria-hidden="true" />
+                  <span className="text-xs">Publishing...</span>
+                </>
+              ) : isPublished ? (
+                <>
+                  <Pause className="size-5" aria-hidden="true" />
+                  <span className="text-xs">Unpublish</span>
+                </>
+              ) : (
+                <>
+                  <Globe className="size-5" aria-hidden="true" />
+                  <span className="text-xs">Publish</span>
+                </>
+              )}
+            </button>
+          </nav>
+        </div>
+      )}
 
       {/* Fullscreen: the website alone, no side panels. */}
       {previewFullscreen ? (

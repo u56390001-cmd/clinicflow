@@ -24,7 +24,8 @@ export type WebsiteSectionId =
   | "gallery"
   | "experience"
   | "faq"
-  | "contact";
+  | "contact"
+  | "sticky-cta";
 
 export type WebsiteSectionConfig = {
   id: WebsiteSectionId;
@@ -53,6 +54,7 @@ export const SECTION_LIBRARY: readonly WebsiteSectionKind[] = [
   { id: "experience", label: "Experience", blurb: "Years in practice, patients seen and qualifications." },
   { id: "faq", label: "Questions", blurb: "The questions patients ask before their first visit." },
   { id: "contact", label: "Contact", blurb: "Phone, address, map and opening hours." },
+  { id: "sticky-cta", label: "Sticky CTA", blurb: "Floating call-to-action button that sticks to the bottom or side of the screen." },
 ];
 
 // ---------------------------------------------------------------------------
@@ -133,6 +135,25 @@ export type WebsiteContactContent = {
   mapEmbedUrl?: string;
 };
 
+export type WebsiteStickyCtaContent = {
+  /** Text displayed on the CTA button */
+  text: string;
+  /** URL the CTA button links to (defaults to /widget/<clinicSlug>) */
+  url?: string;
+  /** Position of the floating widget */
+  position: "bottom-right" | "bottom-left" | "top-right" | "top-left";
+  /** Size of the CTA button */
+  size: "small" | "medium" | "large";
+  /** Shape of the CTA button */
+  shape: "pill" | "rounded" | "square";
+  /** Background color (hex) or use theme primary */
+  backgroundColor?: string;
+  /** Icon to display on the CTA button */
+  icon?: string;
+  /** Show/hide the CTA button */
+  visible: boolean;
+};
+
 export type WebsiteContent = {
   hero: WebsiteHeroContent;
   doctors: WebsiteDoctorsContent;
@@ -141,6 +162,7 @@ export type WebsiteContent = {
   experience: WebsiteExperienceContent;
   faq: WebsiteFaqContent;
   contact: WebsiteContactContent;
+  stickyCta: WebsiteStickyCtaContent;
   sections: WebsiteSectionConfig[];
 };
 
@@ -162,6 +184,9 @@ export type WebsiteTheme = {
   buttonStyle: WebsiteButtonStyle;
   /** Rounded, soft or sharp. Read by every button and card on the site. */
   cornerStyle: "sharp" | "soft" | "round";
+  defaultSurface: "plain" | "tint" | "tinted" | "primary" | "ink";
+  blockPadding: string;
+  containerWidth: string;
   /** Logo object URL. Falls back to the clinic logo from Settings. */
   logoUrl: string;
   /** Hide the template's own header bar and let the hero own the top of the page. */
@@ -206,6 +231,8 @@ export type WebsiteSeo = {
   title: string;
   description: string;
   keywords: string;
+  /** Preferred URL slug for the public site. Blank keeps the stored slug. */
+  slug: string;
   /** Absolute URL of the social sharing image. */
   ogImage: string;
   /** Keep the site out of search results. Drafts and previews set this. */
@@ -246,7 +273,7 @@ export function defaultSections(): WebsiteSectionConfig[] {
   return SECTION_LIBRARY.map((kind, index) => ({
     id: kind.id,
     label: kind.label,
-    visible: !["experience", "faq"].includes(kind.id),
+    visible: !["experience", "faq", "sticky-cta"].includes(kind.id),
     order: index,
   }));
 }
@@ -332,6 +359,16 @@ export const DEFAULT_CONTENT: WebsiteContent = {
     bookingCtaText: "Book Now",
     mapEmbedUrl: "",
   },
+  stickyCta: {
+    text: "Book Now",
+    url: "",
+    position: "bottom-right",
+    size: "medium",
+    shape: "pill",
+    backgroundColor: "",
+    icon: "PhoneCall",
+    visible: true,
+  },
   sections: defaultSections(),
 };
 
@@ -342,6 +379,9 @@ export const DEFAULT_THEME: WebsiteTheme = {
   headingFont: "same",
   buttonStyle: "solid",
   cornerStyle: "soft",
+  defaultSurface: "plain",
+  blockPadding: "",
+  containerWidth: "",
   logoUrl: "",
   showHeader: true,
   alignment: "left",
@@ -359,6 +399,7 @@ export const DEFAULT_SEO: WebsiteSeo = {
   title: "",
   description: "",
   keywords: "",
+  slug: "",
   ogImage: "",
   noindex: false,
 };
@@ -421,6 +462,7 @@ export function normalizeWebsiteConfig(input: {
       experience: { ...base.content.experience, ...content.experience },
       faq: { ...base.content.faq, ...content.faq },
       contact: { ...base.content.contact, ...content.contact },
+      stickyCta: { ...base.content.stickyCta, ...content.stickyCta },
       sections: Array.isArray(content.sections) && content.sections.length > 0
         ? mergeSections(content.sections)
         : base.content.sections,
