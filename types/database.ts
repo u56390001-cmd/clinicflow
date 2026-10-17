@@ -1111,7 +1111,9 @@ export type IntakeProvenanceEntry = {
 };
 
 /** Display-only per-field provenance map on `psych_intake` (0083). */
-export type IntakeProvenance = Partial<Record<IntakeFieldKey, IntakeProvenanceEntry>>;
+export type IntakeProvenance = Partial<
+  Record<IntakeFieldKey, IntakeProvenanceEntry>
+>;
 
 /** Psychology — Intake & Psychological History (one per patient). */
 export type PsychIntake = {
@@ -1146,11 +1148,7 @@ export type PsychIntakeField =
 
 /** Where an Intake & History suggestion was extracted from. */
 export type PsychIntakeSuggestionSource =
-  | "pre_visit"
-  | "document"
-  | "session"
-  | "assessment"
-  | "ai";
+  "pre_visit" | "document" | "session" | "assessment" | "ai";
 
 /**
  * Psychology — AI-extracted Intake & History suggestion awaiting the
@@ -1235,10 +1233,12 @@ export type PsychSession = {
 };
 
 /** Where an assessment was administered: the patient's own phone, the front desk, or the clinician. */
-export type PsychAssessmentCompletedBy = "patient_online" | "reception" | "psychologist";
+export type PsychAssessmentCompletedBy =
+  "patient_online" | "reception" | "psychologist";
 
 /** Phase 1 §3.1 — how the instrument was administered (distinct from who typed it in). */
-export type PsychAssessmentAdministrationMode = "SELF_REPORT" | "CLINICIAN_ENTERED" | "PROXY";
+export type PsychAssessmentAdministrationMode =
+  "SELF_REPORT" | "CLINICIAN_ENTERED" | "PROXY";
 
 /** Phase 7 — the respondent who answered a measure (multi-rater tools). */
 export type AssessmentRaterType =
@@ -1284,7 +1284,11 @@ export type AssessmentQuestion = {
   required: boolean;
 };
 
-export type AssessmentSeverityBand = { min: number; max: number; label: string };
+export type AssessmentSeverityBand = {
+  min: number;
+  max: number;
+  label: string;
+};
 
 export type AssessmentScoring = {
   method: "sum" | "average" | "manual";
@@ -1295,9 +1299,14 @@ export type AssessmentScoring = {
 };
 
 /** Score range → clinician-provided interpretation / AI guidance text. */
-export type AssessmentInterpretationRule = { min: number; max: number; text: string };
+export type AssessmentInterpretationRule = {
+  min: number;
+  max: number;
+  text: string;
+};
 
-export type AssessmentTargetSpecialty = "psychology" | "psychiatry" | "general_medicine";
+export type AssessmentTargetSpecialty =
+  "psychology" | "psychiatry" | "general_medicine";
 export type AssessmentTemplateStatus = "draft" | "active";
 
 /** Assessment Library — one clinic-scoped category bucket. */
@@ -1430,13 +1439,16 @@ export type ClinicalNote = {
 };
 
 /** Where a share link sends the patient. */
-export type PatientShareLinkKind = "pre_visit" | "assessment" | "document_upload";
+export type PatientShareLinkKind =
+  "pre_visit" | "assessment" | "document_upload";
 export type PatientShareLinkStatus = "pending" | "used" | "revoked" | "expired";
 
 /** How an invite left the clinic (Phase 3, migration 0089). */
-export type PatientShareLinkDeliveryChannel = "whatsapp" | "sms" | "in_clinic" | "link";
+export type PatientShareLinkDeliveryChannel =
+  "whatsapp" | "sms" | "in_clinic" | "link";
 /** Provider delivery acknowledgement — distinct from the single-use `status`. */
-export type PatientShareLinkDeliveryStatus = "pending" | "sent" | "delivered" | "failed";
+export type PatientShareLinkDeliveryStatus =
+  "pending" | "sent" | "delivered" | "failed";
 
 /**
  * Psychology OPD — a shareable patient link (migration 0080). Generalises
@@ -1468,7 +1480,8 @@ export type PatientShareLink = {
   created_at: string;
 };
 
-export type TelehealthStatus = "SCHEDULED" | "ACTIVE" | "COMPLETED" | "CANCELLED";
+export type TelehealthStatus =
+  "SCHEDULED" | "ACTIVE" | "COMPLETED" | "CANCELLED";
 
 /**
  * Phase 8 — one telehealth video room (migration 0094). The KitToken is minted
@@ -1542,6 +1555,13 @@ export type DermProfile = {
   biopsy_alert: boolean;
   biopsy_notes: string | null;
   previous_treatment_history: string | null;
+  fitzpatrick_type: string | null;
+  drug_allergies: string | null;
+  topical_allergies: string | null;
+  current_orals: string | null;
+  current_topicals: string | null;
+  relevant_systemic_history: string | null;
+  family_history: string | null;
   updated_by: string | null;
   created_at: string;
   updated_at: string;
@@ -1560,6 +1580,11 @@ export type DermExam = {
   diagnosis: string | null;
   icd_code: string | null;
   notes: string | null;
+  duration: string | null;
+  severity: "Mild" | "Moderate" | "Severe" | null;
+  triggers: string[];
+  associated_symptoms: string[];
+  hpi: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -1968,10 +1993,7 @@ export type Addon = {
  * unambiguous re-enable — rather than the absence of a row.
  */
 export type AddonSubscriptionStatus =
-  | "active"
-  | "pending_approval"
-  | "cancelled"
-  | "expired";
+  "active" | "pending_approval" | "cancelled" | "expired";
 
 /** One clinic's subscription for a single add-on (migration 0060). */
 export type ClinicAddon = {
@@ -1997,17 +2019,12 @@ export type ClinicAddon = {
  * insert), not by the app UI.
  */
 export type SupportTicketType =
-  | "Bug Report"
-  | "Feature Improvement Request"
-  | "General Help & Support";
+  "Bug Report" | "Feature Improvement Request" | "General Help & Support";
 
 export type SupportTicketPriority = "Low" | "Medium" | "High";
 
 export type SupportTicketStatus =
-  | "open"
-  | "in_progress"
-  | "resolved"
-  | "closed";
+  "open" | "in_progress" | "resolved" | "closed";
 
 export type SupportTicket = {
   id: string;
@@ -2049,10 +2066,7 @@ export type EngagementTemplateType =
   | "auto_follow_up";
 
 export type EngagementMessageStatus =
-  | "queued"
-  | "sent"
-  | "failed"
-  | "delivered";
+  "queued" | "sent" | "failed" | "delivered";
 
 export type EngagementAutomation = {
   id: string;
@@ -5287,8 +5301,20 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [
-          { foreignKeyName: "psych_safety_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
-          { foreignKeyName: "psych_safety_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] }
+          {
+            foreignKeyName: "psych_safety_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "psych_safety_clinic_patient_fkey";
+            columns: ["clinic_id", "patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["clinic_id", "id"];
+          },
         ];
       };
       psych_intake: {
@@ -5334,8 +5360,20 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [
-          { foreignKeyName: "psych_intake_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
-          { foreignKeyName: "psych_intake_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] }
+          {
+            foreignKeyName: "psych_intake_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "psych_intake_clinic_patient_fkey";
+            columns: ["clinic_id", "patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["clinic_id", "id"];
+          },
         ];
       };
       psych_intake_suggestions: {
@@ -5373,8 +5411,20 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [
-          { foreignKeyName: "psych_intake_suggestions_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
-          { foreignKeyName: "psych_intake_suggestions_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] }
+          {
+            foreignKeyName: "psych_intake_suggestions_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "psych_intake_suggestions_clinic_patient_fkey";
+            columns: ["clinic_id", "patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["clinic_id", "id"];
+          },
         ];
       };
       psych_mse: {
@@ -5432,8 +5482,20 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [
-          { foreignKeyName: "psych_mse_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
-          { foreignKeyName: "psych_mse_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] }
+          {
+            foreignKeyName: "psych_mse_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "psych_mse_clinic_patient_fkey";
+            columns: ["clinic_id", "patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["clinic_id", "id"];
+          },
         ];
       };
       psych_sessions: {
@@ -5445,7 +5507,8 @@ export type Database = {
           doctor_id?: string | null;
           session_date?: string;
           format?: "BIRP" | "SOAP" | "DAP";
-          session_type?: "initial" | "individual" | "follow_up" | "crisis" | "group";
+          session_type?:
+            "initial" | "individual" | "follow_up" | "crisis" | "group";
           status?: "draft" | "approved";
           behavior?: string | null;
           intervention?: string | null;
@@ -5471,7 +5534,8 @@ export type Database = {
           doctor_id?: string | null;
           session_date?: string;
           format?: "BIRP" | "SOAP" | "DAP";
-          session_type?: "initial" | "individual" | "follow_up" | "crisis" | "group";
+          session_type?:
+            "initial" | "individual" | "follow_up" | "crisis" | "group";
           status?: "draft" | "approved";
           behavior?: string | null;
           intervention?: string | null;
@@ -5491,9 +5555,27 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [
-          { foreignKeyName: "psych_sessions_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
-          { foreignKeyName: "psych_sessions_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] },
-          { foreignKeyName: "psych_sessions_doctor_id_fkey"; columns: ["doctor_id"]; isOneToOne: false; referencedRelation: "doctors"; referencedColumns: ["id"] }
+          {
+            foreignKeyName: "psych_sessions_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "psych_sessions_clinic_patient_fkey";
+            columns: ["clinic_id", "patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["clinic_id", "id"];
+          },
+          {
+            foreignKeyName: "psych_sessions_doctor_id_fkey";
+            columns: ["doctor_id"];
+            isOneToOne: false;
+            referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          },
         ];
       };
       clinical_notes: {
@@ -5521,9 +5603,27 @@ export type Database = {
           created_at?: never;
         };
         Relationships: [
-          { foreignKeyName: "clinical_notes_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
-          { foreignKeyName: "clinical_notes_patient_fk"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] },
-          { foreignKeyName: "clinical_notes_author_user_id_fkey"; columns: ["author_user_id"]; isOneToOne: false; referencedRelation: "users"; referencedColumns: ["id"] }
+          {
+            foreignKeyName: "clinical_notes_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "clinical_notes_patient_fk";
+            columns: ["clinic_id", "patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["clinic_id", "id"];
+          },
+          {
+            foreignKeyName: "clinical_notes_author_user_id_fkey";
+            columns: ["author_user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
         ];
       };
       psych_assessments: {
@@ -5595,11 +5695,41 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [
-          { foreignKeyName: "psych_assessments_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
-          { foreignKeyName: "psych_assessments_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] },
-          { foreignKeyName: "psych_assessments_doctor_id_fkey"; columns: ["doctor_id"]; isOneToOne: false; referencedRelation: "doctors"; referencedColumns: ["id"] },
-          { foreignKeyName: "psych_assessments_source_link_id_fkey"; columns: ["source_link_id"]; isOneToOne: false; referencedRelation: "patient_share_links"; referencedColumns: ["id"] },
-          { foreignKeyName: "psych_assessments_template_id_fkey"; columns: ["template_id"]; isOneToOne: false; referencedRelation: "assessment_templates"; referencedColumns: ["id"] }
+          {
+            foreignKeyName: "psych_assessments_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "psych_assessments_clinic_patient_fkey";
+            columns: ["clinic_id", "patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["clinic_id", "id"];
+          },
+          {
+            foreignKeyName: "psych_assessments_doctor_id_fkey";
+            columns: ["doctor_id"];
+            isOneToOne: false;
+            referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "psych_assessments_source_link_id_fkey";
+            columns: ["source_link_id"];
+            isOneToOne: false;
+            referencedRelation: "patient_share_links";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "psych_assessments_template_id_fkey";
+            columns: ["template_id"];
+            isOneToOne: false;
+            referencedRelation: "assessment_templates";
+            referencedColumns: ["id"];
+          },
         ];
       };
       assessment_safety_events: {
@@ -5635,9 +5765,27 @@ export type Database = {
           created_at?: never;
         };
         Relationships: [
-          { foreignKeyName: "assessment_safety_events_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
-          { foreignKeyName: "assessment_safety_events_patient_id_fkey"; columns: ["patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["id"] },
-          { foreignKeyName: "assessment_safety_events_assessment_id_fkey"; columns: ["assessment_id"]; isOneToOne: false; referencedRelation: "psych_assessments"; referencedColumns: ["id"] }
+          {
+            foreignKeyName: "assessment_safety_events_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "assessment_safety_events_patient_id_fkey";
+            columns: ["patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "assessment_safety_events_assessment_id_fkey";
+            columns: ["assessment_id"];
+            isOneToOne: false;
+            referencedRelation: "psych_assessments";
+            referencedColumns: ["id"];
+          },
         ];
       };
       psych_care_plans: {
@@ -5671,8 +5819,20 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [
-          { foreignKeyName: "psych_care_plans_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
-          { foreignKeyName: "psych_care_plans_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] }
+          {
+            foreignKeyName: "psych_care_plans_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "psych_care_plans_clinic_patient_fkey";
+            columns: ["clinic_id", "patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["clinic_id", "id"];
+          },
         ];
       };
       derm_profiles: {
@@ -5688,6 +5848,13 @@ export type Database = {
           biopsy_alert?: boolean;
           biopsy_notes?: string | null;
           previous_treatment_history?: string | null;
+          fitzpatrick_type?: string | null;
+          drug_allergies?: string | null;
+          topical_allergies?: string | null;
+          current_orals?: string | null;
+          current_topicals?: string | null;
+          relevant_systemic_history?: string | null;
+          family_history?: string | null;
           updated_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -5703,13 +5870,32 @@ export type Database = {
           biopsy_alert?: boolean;
           biopsy_notes?: string | null;
           previous_treatment_history?: string | null;
+          fitzpatrick_type?: string | null;
+          drug_allergies?: string | null;
+          topical_allergies?: string | null;
+          current_orals?: string | null;
+          current_topicals?: string | null;
+          relevant_systemic_history?: string | null;
+          family_history?: string | null;
           updated_by?: string | null;
           created_at?: never;
           updated_at?: string;
         };
         Relationships: [
-          { foreignKeyName: "derm_profiles_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
-          { foreignKeyName: "derm_profiles_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] }
+          {
+            foreignKeyName: "derm_profiles_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "derm_profiles_clinic_patient_fkey";
+            columns: ["clinic_id", "patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["clinic_id", "id"];
+          },
         ];
       };
       derm_exams: {
@@ -5726,6 +5912,11 @@ export type Database = {
           diagnosis?: string | null;
           icd_code?: string | null;
           notes?: string | null;
+          duration?: string | null;
+          severity?: "Mild" | "Moderate" | "Severe" | null;
+          triggers?: string[];
+          associated_symptoms?: string[];
+          hpi?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -5741,13 +5932,36 @@ export type Database = {
           diagnosis?: string | null;
           icd_code?: string | null;
           notes?: string | null;
+          duration?: string | null;
+          severity?: "Mild" | "Moderate" | "Severe" | null;
+          triggers?: string[];
+          associated_symptoms?: string[];
+          hpi?: string | null;
           created_at?: never;
           updated_at?: string;
         };
         Relationships: [
-          { foreignKeyName: "derm_exams_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
-          { foreignKeyName: "derm_exams_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] },
-          { foreignKeyName: "derm_exams_doctor_id_fkey"; columns: ["doctor_id"]; isOneToOne: false; referencedRelation: "doctors"; referencedColumns: ["id"] }
+          {
+            foreignKeyName: "derm_exams_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "derm_exams_clinic_patient_fkey";
+            columns: ["clinic_id", "patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["clinic_id", "id"];
+          },
+          {
+            foreignKeyName: "derm_exams_doctor_id_fkey";
+            columns: ["doctor_id"];
+            isOneToOne: false;
+            referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          },
         ];
       };
       derm_procedures: {
@@ -5777,9 +5991,27 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [
-          { foreignKeyName: "derm_procedures_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
-          { foreignKeyName: "derm_procedures_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] },
-          { foreignKeyName: "derm_procedures_doctor_id_fkey"; columns: ["doctor_id"]; isOneToOne: false; referencedRelation: "doctors"; referencedColumns: ["id"] }
+          {
+            foreignKeyName: "derm_procedures_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "derm_procedures_clinic_patient_fkey";
+            columns: ["clinic_id", "patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["clinic_id", "id"];
+          },
+          {
+            foreignKeyName: "derm_procedures_doctor_id_fkey";
+            columns: ["doctor_id"];
+            isOneToOne: false;
+            referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          },
         ];
       };
       derm_photos: {
@@ -5813,11 +6045,41 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [
-          { foreignKeyName: "derm_photos_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
-          { foreignKeyName: "derm_photos_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] },
-          { foreignKeyName: "derm_photos_doctor_id_fkey"; columns: ["doctor_id"]; isOneToOne: false; referencedRelation: "doctors"; referencedColumns: ["id"] },
-          { foreignKeyName: "derm_photos_document_id_fkey"; columns: ["document_id"]; isOneToOne: false; referencedRelation: "patient_documents"; referencedColumns: ["id"] },
-          { foreignKeyName: "derm_photos_paired_with_fkey"; columns: ["paired_with"]; isOneToOne: false; referencedRelation: "derm_photos"; referencedColumns: ["id"] }
+          {
+            foreignKeyName: "derm_photos_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "derm_photos_clinic_patient_fkey";
+            columns: ["clinic_id", "patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["clinic_id", "id"];
+          },
+          {
+            foreignKeyName: "derm_photos_doctor_id_fkey";
+            columns: ["doctor_id"];
+            isOneToOne: false;
+            referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "derm_photos_document_id_fkey";
+            columns: ["document_id"];
+            isOneToOne: false;
+            referencedRelation: "patient_documents";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "derm_photos_paired_with_fkey";
+            columns: ["paired_with"];
+            isOneToOne: false;
+            referencedRelation: "derm_photos";
+            referencedColumns: ["id"];
+          },
         ];
       };
       derm_prescriptions: {
@@ -5851,10 +6113,34 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [
-          { foreignKeyName: "derm_prescriptions_clinic_id_fkey"; columns: ["clinic_id"]; isOneToOne: false; referencedRelation: "clinics"; referencedColumns: ["id"] },
-          { foreignKeyName: "derm_prescriptions_clinic_patient_fkey"; columns: ["clinic_id", "patient_id"]; isOneToOne: false; referencedRelation: "patients"; referencedColumns: ["clinic_id", "id"] },
-          { foreignKeyName: "derm_prescriptions_doctor_id_fkey"; columns: ["doctor_id"]; isOneToOne: false; referencedRelation: "doctors"; referencedColumns: ["id"] },
-          { foreignKeyName: "derm_prescriptions_visit_id_fkey"; columns: ["visit_id"]; isOneToOne: false; referencedRelation: "visits"; referencedColumns: ["id"] }
+          {
+            foreignKeyName: "derm_prescriptions_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "derm_prescriptions_clinic_patient_fkey";
+            columns: ["clinic_id", "patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["clinic_id", "id"];
+          },
+          {
+            foreignKeyName: "derm_prescriptions_doctor_id_fkey";
+            columns: ["doctor_id"];
+            isOneToOne: false;
+            referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "derm_prescriptions_visit_id_fkey";
+            columns: ["visit_id"];
+            isOneToOne: false;
+            referencedRelation: "visits";
+            referencedColumns: ["id"];
+          },
         ];
       };
     };

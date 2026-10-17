@@ -29,7 +29,10 @@ import {
   type SessionNoteFormat,
   type SessionSectionKey,
 } from "@/lib/psych-session";
-import { PSYCHOMETRIC_INSTRUMENTS, isPsychometricKey } from "@/lib/psychometrics";
+import {
+  PSYCHOMETRIC_INSTRUMENTS,
+  isPsychometricKey,
+} from "@/lib/psychometrics";
 import {
   ASSESSMENT_RATERS,
   DEFAULT_RATER_TYPE,
@@ -61,13 +64,25 @@ const longNote = z
   .or(z.literal(""));
 
 /** Recording length in seconds. */
-const duration = z.coerce.number().int().min(0).max(86400).optional().nullable();
+const duration = z.coerce
+  .number()
+  .int()
+  .min(0)
+  .max(86400)
+  .optional()
+  .nullable();
 
 const optionalUuid = z.string().uuid().optional().nullable().or(z.literal(""));
 
 const RISK_LEVELS = ["low", "moderate", "high", "crisis"] as const;
 const SESSION_FORMATS = ["BIRP", "SOAP", "DAP"] as const;
-const SESSION_TYPES = ["initial", "individual", "follow_up", "crisis", "group"] as const;
+const SESSION_TYPES = [
+  "initial",
+  "individual",
+  "follow_up",
+  "crisis",
+  "group",
+] as const;
 const DERM_FORM = ["cream", "ointment", "gel", "lotion"] as const;
 const CONSENT = ["obtained", "declined", "documented"] as const;
 const PHOTO_TYPES = ["baseline", "follow_up", "post_treatment"] as const;
@@ -161,7 +176,14 @@ const savePsychAssessmentSchema = z.object({
   severity: note,
   notes: note,
   /** Phase 7 — who answered the measure (defaults to a self-report). */
-  rater_type: z.enum(ASSESSMENT_RATERS.map((rater) => rater.value) as [AssessmentRaterType, ...AssessmentRaterType[]]).optional(),
+  rater_type: z
+    .enum(
+      ASSESSMENT_RATERS.map((rater) => rater.value) as [
+        AssessmentRaterType,
+        ...AssessmentRaterType[],
+      ],
+    )
+    .optional(),
   rater_name: note,
   conducted_at: z
     .string()
@@ -184,12 +206,27 @@ const saveDermProfileSchema = z.object({
   active_conditions: note,
   allergies: note,
   previous_skin_conditions: note,
-  biopsy_alert: z.boolean().optional().default(false),
+  // No `.default(false)`: an omitted checkbox must mean "leave as-is", not
+  // "clear", so a single-field autosave never wipes the biopsy alert.
+  biopsy_alert: z.boolean().optional(),
   biopsy_notes: note,
   previous_treatment_history: note,
+  fitzpatrick_type: z
+    .enum(["Type I", "Type II", "Type III", "Type IV", "Type V", "Type VI"])
+    .optional()
+    .nullable()
+    .or(z.literal("")),
+  drug_allergies: note,
+  topical_allergies: note,
+  current_orals: note,
+  current_topicals: note,
+  relevant_systemic_history: note,
+  family_history: note,
 });
 
 const saveDermExamSchema = z.object({
+  /** Re-save today's encounter row (set by the form once the row exists). */
+  id: optionalUuid,
   chief_complaints: textList,
   morphology: textList,
   distribution: z.enum(DISTRIBUTIONS).optional().nullable().or(z.literal("")),
@@ -201,6 +238,15 @@ const saveDermExamSchema = z.object({
     .optional()
     .or(z.literal("")),
   notes: note,
+  duration: note,
+  severity: z
+    .enum(["Mild", "Moderate", "Severe"])
+    .optional()
+    .nullable()
+    .or(z.literal("")),
+  triggers: textList,
+  associated_symptoms: textList,
+  hpi: note,
 });
 
 const saveDermProcedureSchema = z.object({
@@ -243,23 +289,41 @@ const saveDermRxSchema = z.object({
 const idSchema = z.object({ id: z.string().uuid() });
 
 type Guard =
-  | { ok: true; supabase: Awaited<ReturnType<typeof createClient>>; clinicId: string }
+  | {
+      ok: true;
+      supabase: Awaited<ReturnType<typeof createClient>>;
+      clinicId: string;
+    }
   | { ok: false; result: ActionResult<string> };
 
 async function guard(): Promise<Guard> {
   const supabase = await createClient();
   const access = await getCurrentClinic(supabase);
   if (!access) {
-    return { ok: false, result: { ok: false, message: "You must have a clinic to perform this action." } };
+    return {
+      ok: false,
+      result: {
+        ok: false,
+        message: "You must have a clinic to perform this action.",
+      },
+    };
   }
   if (!canManageClinical(access.role)) {
-    return { ok: false, result: { ok: false, message: "Your role cannot manage clinical records." } };
+    return {
+      ok: false,
+      result: {
+        ok: false,
+        message: "Your role cannot manage clinical records.",
+      },
+    };
   }
   return { ok: true, supabase, clinicId: access.clinic.id };
 }
 
 /** Snapshots the signed-in user's display name for the update stamp. */
-async function authorName(supabase: Awaited<ReturnType<typeof createClient>>): Promise<string | null> {
+async function authorName(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<string | null> {
   const { data } = await supabase.auth.getUser();
   const user = data.user;
   if (!user) return null;
@@ -285,7 +349,10 @@ function ok(): ActionResult<string> {
   return { ok: true, data: "Saved" };
 }
 
-function err(first: z.ZodIssue | undefined, fallback = "Invalid input."): ActionResult<string> {
+function err(
+  first: z.ZodIssue | undefined,
+  fallback = "Invalid input.",
+): ActionResult<string> {
   return { ok: false, message: first?.message ?? fallback };
 }
 
@@ -307,22 +374,20 @@ export async function savePsychSafetyAction(
   if (!g.ok) return g.result;
 
   const me = await authorName(g.supabase);
-  const { error } = await g.supabase
-    .from("psych_safety")
-    .upsert(
-      {
-        clinic_id: g.clinicId,
-        patient_id: patientId,
-        risk_level: parsed.data.risk_level,
-        mental_health_summary: parsed.data.mental_health_summary ?? null,
-        current_concerns: parsed.data.current_concerns ?? null,
-        risk_factors: parsed.data.risk_factors ?? null,
-        emergency_contact: parsed.data.emergency_contact ?? null,
-        updated_by: me,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "patient_id" },
-    );
+  const { error } = await g.supabase.from("psych_safety").upsert(
+    {
+      clinic_id: g.clinicId,
+      patient_id: patientId,
+      risk_level: parsed.data.risk_level,
+      mental_health_summary: parsed.data.mental_health_summary ?? null,
+      current_concerns: parsed.data.current_concerns ?? null,
+      risk_factors: parsed.data.risk_factors ?? null,
+      emergency_contact: parsed.data.emergency_contact ?? null,
+      updated_by: me,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "patient_id" },
+  );
   if (error) return { ok: false, message: error.message };
   return ok();
 }
@@ -358,7 +423,9 @@ export async function savePsychIntakeAction(
     .maybeSingle();
   if (loadError) return { ok: false, message: loadError.message };
 
-  const priorValues = (existing ?? {}) as Partial<Record<IntakeFieldKey, string | null>>;
+  const priorValues = (existing ?? {}) as Partial<
+    Record<IntakeFieldKey, string | null>
+  >;
   const provenance = readIntakeProvenance(existing?.field_provenance);
 
   const me = await authorName(g.supabase);
@@ -422,7 +489,8 @@ export async function assistPsychIntakeAction(
   if (kind !== "draft" && text.length === 0) {
     return {
       ok: false,
-      message: "Write or dictate something first, then let AI improve or summarise it.",
+      message:
+        "Write or dictate something first, then let AI improve or summarise it.",
     };
   }
 
@@ -445,12 +513,18 @@ export async function assistPsychIntakeAction(
     });
     const cleaned = output.trim();
     if (!cleaned) {
-      return { ok: false, message: "The assistant returned nothing. Try again." };
+      return {
+        ok: false,
+        message: "The assistant returned nothing. Try again.",
+      };
     }
     return { ok: true, data: cleaned };
   } catch (error) {
     console.error("[assistPsychIntakeAction] failed:", error);
-    return { ok: false, message: "The assistant could not respond. Try again." };
+    return {
+      ok: false,
+      message: "The assistant could not respond. Try again.",
+    };
   }
 }
 
@@ -594,7 +668,10 @@ function mergeIntakeValue(
   return `${cur}\n\n${inc}`;
 }
 
-function digestLine(label: string, value: string | null | undefined): string | null {
+function digestLine(
+  label: string,
+  value: string | null | undefined,
+): string | null {
   const trimmed = (value ?? "").trim();
   return trimmed ? `${label}: ${trimmed}` : null;
 }
@@ -614,7 +691,10 @@ export async function generatePsychIntakeSuggestionsAction(
   if (!g.ok) return g.result;
 
   if (!process.env.GEMINI_API_KEY) {
-    return { ok: false, message: "The AI assistant is not configured on this server yet." };
+    return {
+      ok: false,
+      message: "The AI assistant is not configured on this server yet.",
+    };
   }
 
   const [intakeRes, sessionsRes, assessmentsRes] = await Promise.all([
@@ -722,12 +802,18 @@ export async function generatePsychIntakeSuggestionsAction(
     });
     const validated = generateSuggestionsSchema.safeParse(raw);
     if (!validated.success) {
-      return { ok: false, message: "The assistant's suggestions were unreadable. Try again." };
+      return {
+        ok: false,
+        message: "The assistant's suggestions were unreadable. Try again.",
+      };
     }
     parsedOutput = validated.data;
   } catch (error) {
     console.error("[generatePsychIntakeSuggestionsAction] failed:", error);
-    return { ok: false, message: "The assistant could not respond. Try again." };
+    return {
+      ok: false,
+      message: "The assistant could not respond. Try again.",
+    };
   }
 
   if (parsedOutput.suggestions.length === 0) {
@@ -779,7 +865,9 @@ export async function generatePsychIntakeSuggestionsAction(
     return { ok: true, data: "No new history details were found." };
   }
 
-  const { error } = await g.supabase.from("psych_intake_suggestions").insert(rows);
+  const { error } = await g.supabase
+    .from("psych_intake_suggestions")
+    .insert(rows);
   if (error) return { ok: false, message: error.message };
 
   revalidatePath(APP_ROUTES.app.patients);
@@ -805,7 +893,8 @@ export async function approvePsychIntakeSuggestionAction(
     .eq("id", parsed.data.id)
     .maybeSingle();
   if (loadError) return { ok: false, message: loadError.message };
-  if (!suggestion) return { ok: false, message: "That suggestion is no longer available." };
+  if (!suggestion)
+    return { ok: false, message: "That suggestion is no longer available." };
   if (suggestion.status !== "pending") {
     return { ok: false, message: "That suggestion was already reviewed." };
   }
@@ -821,7 +910,11 @@ export async function approvePsychIntakeSuggestionAction(
 
   const me = await authorName(g.supabase);
   const base = (currentIntake as Record<string, string | null> | null) ?? {};
-  const mergedValue = mergeIntakeValue(field, base[field] ?? null, suggestion.value);
+  const mergedValue = mergeIntakeValue(
+    field,
+    base[field] ?? null,
+    suggestion.value,
+  );
   const valueFor = (column: string) =>
     column === field ? mergedValue : (base[column] ?? null);
 
@@ -840,7 +933,11 @@ export async function approvePsychIntakeSuggestionAction(
       field_provenance: withIntakeProvenance(
         provenance,
         field as IntakeFieldKey,
-        aiApprovalEntry(provenance[field as IntakeFieldKey], hadContent, suggestion.source_label),
+        aiApprovalEntry(
+          provenance[field as IntakeFieldKey],
+          hadContent,
+          suggestion.source_label,
+        ),
       ),
       updated_by: me,
       updated_at: new Date().toISOString(),
@@ -851,7 +948,11 @@ export async function approvePsychIntakeSuggestionAction(
 
   const { error: reviewError } = await g.supabase
     .from("psych_intake_suggestions")
-    .update({ status: "approved", reviewed_by: me, reviewed_at: new Date().toISOString() })
+    .update({
+      status: "approved",
+      reviewed_by: me,
+      reviewed_at: new Date().toISOString(),
+    })
     .eq("clinic_id", g.clinicId)
     .eq("id", suggestion.id);
   if (reviewError) return { ok: false, message: reviewError.message };
@@ -903,12 +1004,15 @@ export async function approveAllPsychIntakeSuggestionsAction(
       merged[suggestion.field] ?? base[suggestion.field] ?? null,
       suggestion.value,
     );
-    firstLabels[suggestion.field] = firstLabels[suggestion.field] ?? suggestion.source_label ?? null;
+    firstLabels[suggestion.field] =
+      firstLabels[suggestion.field] ?? suggestion.source_label ?? null;
   }
 
   let nextProvenance = provenance;
   for (const field of Object.keys(merged) as IntakeFieldKey[]) {
-    const hadContent = Boolean(((base as Record<string, string | null>)[field] ?? "").trim());
+    const hadContent = Boolean(
+      ((base as Record<string, string | null>)[field] ?? "").trim(),
+    );
     nextProvenance = withIntakeProvenance(
       nextProvenance,
       field,
@@ -921,12 +1025,21 @@ export async function approveAllPsychIntakeSuggestionsAction(
     {
       clinic_id: g.clinicId,
       patient_id: patientId,
-      previous_therapy_history: merged.previous_therapy_history ?? base.previous_therapy_history ?? null,
-      previous_diagnosis: merged.previous_diagnosis ?? base.previous_diagnosis ?? null,
-      family_mental_health_history: merged.family_mental_health_history ?? base.family_mental_health_history ?? null,
-      psychosocial_background: merged.psychosocial_background ?? base.psychosocial_background ?? null,
+      previous_therapy_history:
+        merged.previous_therapy_history ??
+        base.previous_therapy_history ??
+        null,
+      previous_diagnosis:
+        merged.previous_diagnosis ?? base.previous_diagnosis ?? null,
+      family_mental_health_history:
+        merged.family_mental_health_history ??
+        base.family_mental_health_history ??
+        null,
+      psychosocial_background:
+        merged.psychosocial_background ?? base.psychosocial_background ?? null,
       stressors: merged.stressors ?? base.stressors ?? null,
-      substance_use_history: merged.substance_use_history ?? base.substance_use_history ?? null,
+      substance_use_history:
+        merged.substance_use_history ?? base.substance_use_history ?? null,
       field_provenance: nextProvenance,
       updated_by: me,
       updated_at: new Date().toISOString(),
@@ -937,7 +1050,11 @@ export async function approveAllPsychIntakeSuggestionsAction(
 
   const { error: reviewError } = await g.supabase
     .from("psych_intake_suggestions")
-    .update({ status: "approved", reviewed_by: me, reviewed_at: new Date().toISOString() })
+    .update({
+      status: "approved",
+      reviewed_by: me,
+      reviewed_at: new Date().toISOString(),
+    })
     .eq("clinic_id", g.clinicId)
     .eq("patient_id", patientId)
     .eq("status", "pending");
@@ -959,7 +1076,11 @@ export async function rejectPsychIntakeSuggestionAction(
   const me = await authorName(g.supabase);
   const { error } = await g.supabase
     .from("psych_intake_suggestions")
-    .update({ status: "rejected", reviewed_by: me, reviewed_at: new Date().toISOString() })
+    .update({
+      status: "rejected",
+      reviewed_by: me,
+      reviewed_at: new Date().toISOString(),
+    })
     .eq("clinic_id", g.clinicId)
     .eq("id", parsed.data.id)
     .eq("status", "pending");
@@ -1080,22 +1201,30 @@ const MSE_ASSIST_INSTRUCTION: Record<MseAssistKind, string> = {
  * summarize an observation note). Rides on the same clinic-wide Gemini provider
  * as every other AI surface — it is not a second agent.
  */
-export async function assistPsychMseAction(raw: unknown): Promise<ActionResult<string>> {
+export async function assistPsychMseAction(
+  raw: unknown,
+): Promise<ActionResult<string>> {
   const parsed = mseAssistSchema.safeParse(raw);
   if (!parsed.success) return err(firstIssue(parsed));
 
   const { kind, fieldLabel } = parsed.data;
   const text = parsed.data.text.trim();
   const findingsDigest =
-    kind === "summary" ? mseFindingsDigest(readMseFindings(parsed.data.findings)) : "";
+    kind === "summary"
+      ? mseFindingsDigest(readMseFindings(parsed.data.findings))
+      : "";
 
   if (kind === "summary" && findingsDigest.length === 0) {
-    return { ok: false, message: "Record some findings first, then generate the summary." };
+    return {
+      ok: false,
+      message: "Record some findings first, then generate the summary.",
+    };
   }
   if (kind !== "summary" && text.length === 0) {
     return {
       ok: false,
-      message: "Write or dictate something first, then let AI improve or summarise it.",
+      message:
+        "Write or dictate something first, then let AI improve or summarise it.",
     };
   }
 
@@ -1103,7 +1232,10 @@ export async function assistPsychMseAction(raw: unknown): Promise<ActionResult<s
   if (!g.ok) return g.result;
 
   if (!process.env.GEMINI_API_KEY) {
-    return { ok: false, message: "The AI assistant is not configured on this server yet." };
+    return {
+      ok: false,
+      message: "The AI assistant is not configured on this server yet.",
+    };
   }
 
   try {
@@ -1119,12 +1251,18 @@ export async function assistPsychMseAction(raw: unknown): Promise<ActionResult<s
     });
     const cleaned = output.trim();
     if (!cleaned) {
-      return { ok: false, message: "The assistant returned nothing. Try again." };
+      return {
+        ok: false,
+        message: "The assistant returned nothing. Try again.",
+      };
     }
     return { ok: true, data: cleaned };
   } catch (error) {
     console.error("[assistPsychMseAction] failed:", error);
-    return { ok: false, message: "The assistant could not respond. Try again." };
+    return {
+      ok: false,
+      message: "The assistant could not respond. Try again.",
+    };
   }
 }
 
@@ -1138,23 +1276,21 @@ export async function savePsychCarePlanAction(
   if (!g.ok) return g.result;
 
   const me = await authorName(g.supabase);
-  const { error } = await g.supabase
-    .from("psych_care_plans")
-    .upsert(
-      {
-        clinic_id: g.clinicId,
-        patient_id: patientId,
-        therapy_goals: parsed.data.therapy_goals ?? null,
-        intervention_plan: parsed.data.intervention_plan ?? null,
-        homework_assignments: parsed.data.homework_assignments ?? null,
-        follow_up_frequency: parsed.data.follow_up_frequency ?? null,
-        psychiatrist_referral: parsed.data.psychiatrist_referral,
-        referral_notes: parsed.data.referral_notes ?? null,
-        updated_by: me,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "patient_id" },
-    );
+  const { error } = await g.supabase.from("psych_care_plans").upsert(
+    {
+      clinic_id: g.clinicId,
+      patient_id: patientId,
+      therapy_goals: parsed.data.therapy_goals ?? null,
+      intervention_plan: parsed.data.intervention_plan ?? null,
+      homework_assignments: parsed.data.homework_assignments ?? null,
+      follow_up_frequency: parsed.data.follow_up_frequency ?? null,
+      psychiatrist_referral: parsed.data.psychiatrist_referral,
+      referral_notes: parsed.data.referral_notes ?? null,
+      updated_by: me,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "patient_id" },
+  );
   if (error) return { ok: false, message: error.message };
   return ok();
 }
@@ -1171,7 +1307,8 @@ export async function savePsychSessionAction(
   const data = parsed.data;
   const me = await authorName(g.supabase);
   const doctor = await doctorId(g.supabase, g.clinicId);
-  const sessionDate = data.session_date || new Date().toISOString().slice(0, 10);
+  const sessionDate =
+    data.session_date || new Date().toISOString().slice(0, 10);
 
   const values = {
     session_date: sessionDate,
@@ -1216,7 +1353,9 @@ export async function savePsychSessionAction(
   return { ok: true, data: inserted.id };
 }
 
-export async function approvePsychSessionAction(id: string): Promise<ActionResult<string>> {
+export async function approvePsychSessionAction(
+  id: string,
+): Promise<ActionResult<string>> {
   const parsed = approveSessionSchema.safeParse({ id });
   if (!parsed.success) return err(firstIssue(parsed));
   const g = await guard();
@@ -1290,19 +1429,27 @@ Rules:
 - Return only the finished section text.`;
 }
 
-export async function assistPsychSessionAction(raw: unknown): Promise<ActionResult<string>> {
+export async function assistPsychSessionAction(
+  raw: unknown,
+): Promise<ActionResult<string>> {
   const parsed = assistSessionSchema.safeParse(raw);
   if (!parsed.success) return err(firstIssue(parsed));
 
   const { kind, format, section, fieldLabel, text, transcript } = parsed.data;
   if (SESSION_SECTIONS[format].every((def) => def.key !== section)) {
-    return { ok: false, message: `"${format}" notes do not have a "${fieldLabel}" section.` };
+    return {
+      ok: false,
+      message: `"${format}" notes do not have a "${fieldLabel}" section.`,
+    };
   }
 
   const g = await guard();
   if (!g.ok) return g.result;
   if (!process.env.GEMINI_API_KEY) {
-    return { ok: false, message: "The AI assistant is not configured on this server yet." };
+    return {
+      ok: false,
+      message: "The AI assistant is not configured on this server yet.",
+    };
   }
 
   const source =
@@ -1312,20 +1459,35 @@ export async function assistPsychSessionAction(raw: unknown): Promise<ActionResu
 
   try {
     const output = await getGeminiProvider().complete({
-      systemInstruction: assistSessionSystemPrompt(format, section, fieldLabel, kind),
+      systemInstruction: assistSessionSystemPrompt(
+        format,
+        section,
+        fieldLabel,
+        kind,
+      ),
       prompt: source,
       temperature: kind === "draft" ? 0.3 : 0.2,
       maxOutputTokens: 800,
     });
     const cleaned = output.trim();
-    if (!cleaned) return { ok: false, message: "The assistant returned nothing. Try again." };
+    if (!cleaned)
+      return {
+        ok: false,
+        message: "The assistant returned nothing. Try again.",
+      };
     if (cleaned.length > 6000) {
-      return { ok: false, message: "The assistant's draft was too long. Try again." };
+      return {
+        ok: false,
+        message: "The assistant's draft was too long. Try again.",
+      };
     }
     return { ok: true, data: cleaned };
   } catch (error) {
     console.error("[assistPsychSessionAction] failed:", error);
-    return { ok: false, message: "The assistant could not respond. Try again." };
+    return {
+      ok: false,
+      message: "The assistant could not respond. Try again.",
+    };
   }
 }
 
@@ -1334,7 +1496,10 @@ function sessionNoteJsonSchema(format: SessionNoteFormat) {
   const sectionProps = Object.fromEntries(
     SESSION_SECTIONS[format].map(({ key, label }) => [
       key,
-      { type: "string", description: `The "${label}" section of the ${format} note.` },
+      {
+        type: "string",
+        description: `The "${label}" section of the ${format} note.`,
+      },
     ]),
   );
   return {
@@ -1376,22 +1541,37 @@ Fill exactly the sections of the requested note format and nothing else. Never i
 export async function generatePsychSessionNoteAction(
   patientId: string,
   raw: unknown,
-): Promise<ActionResult<{ format: SessionNoteFormat; sections: Record<string, string> }>> {
+): Promise<
+  ActionResult<{ format: SessionNoteFormat; sections: Record<string, string> }>
+> {
   const parsed = generateSessionNoteSchema.safeParse(raw);
   if (!parsed.success) {
-    return { ok: false, message: firstIssue(parsed)?.message ?? "Invalid note request." };
+    return {
+      ok: false,
+      message: firstIssue(parsed)?.message ?? "Invalid note request.",
+    };
   }
   const { format, transcript } = parsed.data;
 
   const g = await guard();
   if (!g.ok) {
     if (!g.result.ok) {
-      return { ok: false, message: g.result.message, fieldErrors: g.result.fieldErrors };
+      return {
+        ok: false,
+        message: g.result.message,
+        fieldErrors: g.result.fieldErrors,
+      };
     }
-    return { ok: false, message: "You must have a clinic to perform this action." };
+    return {
+      ok: false,
+      message: "You must have a clinic to perform this action.",
+    };
   }
   if (!process.env.GEMINI_API_KEY) {
-    return { ok: false, message: "The AI assistant is not configured on this server yet." };
+    return {
+      ok: false,
+      message: "The AI assistant is not configured on this server yet.",
+    };
   }
 
   // Continuity context: the latest intake concern and the most recent session
@@ -1450,7 +1630,10 @@ export async function generatePsychSessionNoteAction(
     });
     const validated = sessionNoteOutputSchema(format).safeParse(rawJson);
     if (!validated.success) {
-      return { ok: false, message: "The assistant's note was unreadable. Try again." };
+      return {
+        ok: false,
+        message: "The assistant's note was unreadable. Try again.",
+      };
     }
     const rawSections = validated.data.sections as Record<string, string>;
     for (const { key } of SESSION_SECTIONS[format]) {
@@ -1458,29 +1641,44 @@ export async function generatePsychSessionNoteAction(
     }
   } catch (error) {
     console.error("[generatePsychSessionNoteAction] failed:", error);
-    return { ok: false, message: "The assistant could not respond. Try again." };
+    return {
+      ok: false,
+      message: "The assistant could not respond. Try again.",
+    };
   }
   if (Object.values(sections).every((value) => !value)) {
-    return { ok: false, message: "The assistant found nothing in that transcript. Try a longer recording." };
+    return {
+      ok: false,
+      message:
+        "The assistant found nothing in that transcript. Try a longer recording.",
+    };
   }
   return { ok: true, data: { format, sections } };
 }
 
 /** Read-only display name of the signed-in clinician, for the note header. */
-export async function getCurrentClinicianNameAction(): Promise<ActionResult<string>> {
+export async function getCurrentClinicianNameAction(): Promise<
+  ActionResult<string>
+> {
   const g = await guard();
   if (!g.ok) return g.result;
   const name = await authorName(g.supabase);
   return { ok: true, data: name ?? "" };
 }
 
-export async function deletePsychSessionAction(id: string): Promise<ActionResult<string>> {
+export async function deletePsychSessionAction(
+  id: string,
+): Promise<ActionResult<string>> {
   const parsed = idSchema.safeParse({ id });
   if (!parsed.success) return err(firstIssue(parsed));
   const g = await guard();
   if (!g.ok) return g.result;
 
-  const { error } = await g.supabase.from("psych_sessions").delete().eq("id", id).eq("clinic_id", g.clinicId);
+  const { error } = await g.supabase
+    .from("psych_sessions")
+    .delete()
+    .eq("id", id)
+    .eq("clinic_id", g.clinicId);
   if (error) return { ok: false, message: error.message };
   return ok();
 }
@@ -1505,7 +1703,8 @@ export async function savePsychAssessmentAction(
       score: parsed.data.score ?? null,
       severity: parsed.data.severity || null,
       notes: parsed.data.notes || null,
-      conducted_at: parsed.data.conducted_at || new Date().toISOString().slice(0, 10),
+      conducted_at:
+        parsed.data.conducted_at || new Date().toISOString().slice(0, 10),
       rater_type: raterType,
       rater_name: parsed.data.rater_name || null,
       administration_mode: administrationModeForRater(raterType),
@@ -1518,7 +1717,9 @@ export async function savePsychAssessmentAction(
   return { ok: true, data: data.id };
 }
 
-export async function deletePsychAssessmentAction(id: string): Promise<ActionResult<string>> {
+export async function deletePsychAssessmentAction(
+  id: string,
+): Promise<ActionResult<string>> {
   const parsed = idSchema.safeParse({ id });
   if (!parsed.success) return err(firstIssue(parsed));
   const g = await guard();
@@ -1557,7 +1758,10 @@ export async function updateAssessmentReviewStatusAction(
 ): Promise<ActionResult<string>> {
   const parsed = updateAssessmentReviewStatusSchema.safeParse(raw);
   if (!parsed.success) {
-    return { ok: false, message: firstIssue(parsed)?.message ?? "Invalid input." };
+    return {
+      ok: false,
+      message: firstIssue(parsed)?.message ?? "Invalid input.",
+    };
   }
   const g = await guard();
   if (!g.ok) return g.result;
@@ -1573,7 +1777,8 @@ export async function updateAssessmentReviewStatusAction(
     .eq("id", parsed.data.assessment_id)
     .eq("clinic_id", g.clinicId)
     .maybeSingle();
-  if (!assessment) return { ok: false, message: "That assessment is no longer on file." };
+  if (!assessment)
+    return { ok: false, message: "That assessment is no longer on file." };
 
   const now = new Date().toISOString();
   const { error } = await g.supabase
@@ -1588,20 +1793,22 @@ export async function updateAssessmentReviewStatusAction(
   if (error) return { ok: false, message: error.message };
 
   const me = await authorName(g.supabase);
-  const { error: eventError } = await g.supabase.from("assessment_safety_events").insert({
-    clinic_id: g.clinicId,
-    patient_id: assessment.patient_id,
-    assessment_id: assessment.id,
-    from_status: assessment.review_status,
-    to_status: parsed.data.status,
-    risk_level: assessment.risk_level,
-    actor_type: "provider",
-    actor_user_id: userId,
-    actor_name: me,
-    rationale: parsed.data.rationale || null,
-    details: {},
-    created_at: now,
-  });
+  const { error: eventError } = await g.supabase
+    .from("assessment_safety_events")
+    .insert({
+      clinic_id: g.clinicId,
+      patient_id: assessment.patient_id,
+      assessment_id: assessment.id,
+      from_status: assessment.review_status,
+      to_status: parsed.data.status,
+      risk_level: assessment.risk_level,
+      actor_type: "provider",
+      actor_user_id: userId,
+      actor_name: me,
+      rationale: parsed.data.rationale || null,
+      details: {},
+      created_at: now,
+    });
   if (eventError) {
     console.error("[updateAssessmentReviewStatusAction] event insert failed", {
       assessmentId: assessment.id,
@@ -1655,14 +1862,24 @@ export async function generateAssessmentInterpretationAction(
 ): Promise<ActionResult<{ interpretation: string; source: "ai" | "rule" }>> {
   const parsed = idSchema.safeParse({ id: assessmentId });
   if (!parsed.success) {
-    return { ok: false, message: firstIssue(parsed)?.message ?? "Invalid assessment id." };
+    return {
+      ok: false,
+      message: firstIssue(parsed)?.message ?? "Invalid assessment id.",
+    };
   }
   const g = await guard();
   if (!g.ok) {
     if (!g.result.ok) {
-      return { ok: false, message: g.result.message, fieldErrors: g.result.fieldErrors };
+      return {
+        ok: false,
+        message: g.result.message,
+        fieldErrors: g.result.fieldErrors,
+      };
     }
-    return { ok: false, message: "You must have a clinic to perform this action." };
+    return {
+      ok: false,
+      message: "You must have a clinic to perform this action.",
+    };
   }
 
   const { data: assessment } = await g.supabase
@@ -1671,7 +1888,8 @@ export async function generateAssessmentInterpretationAction(
     .eq("id", assessmentId)
     .eq("clinic_id", g.clinicId)
     .maybeSingle();
-  if (!assessment) return { ok: false, message: "That assessment is no longer on file." };
+  if (!assessment)
+    return { ok: false, message: "That assessment is no longer on file." };
   if (assessment.score === null) {
     return { ok: false, message: "This assessment has no score to interpret." };
   }
@@ -1695,14 +1913,18 @@ export async function generateAssessmentInterpretationAction(
       ruleText = interpretationForScore(rules, assessment.score);
       for (const question of template.questions as AssessmentQuestion[]) {
         if (question.type === "text") continue;
-        answered.push(`- ${question.text}: ${assessment.answers?.[question.id] ?? "not answered"}`);
+        answered.push(
+          `- ${question.text}: ${assessment.answers?.[question.id] ?? "not answered"}`,
+        );
       }
     }
   } else if (isPsychometricKey(assessment.assessment_type)) {
     const instrument = PSYCHOMETRIC_INSTRUMENTS[assessment.assessment_type];
     instrumentLabel = instrument.name;
     for (const item of instrument.items) {
-      answered.push(`- ${item.text}: ${assessment.answers?.[item.id] ?? "not answered"}`);
+      answered.push(
+        `- ${item.text}: ${assessment.answers?.[item.id] ?? "not answered"}`,
+      );
     }
   }
 
@@ -1710,17 +1932,24 @@ export async function generateAssessmentInterpretationAction(
   if (!process.env.GEMINI_API_KEY) {
     return fallbackRule
       ? { ok: true, data: { interpretation: fallbackRule, source: "rule" } }
-      : { ok: false, message: "The AI assistant is not configured on this server yet." };
+      : {
+          ok: false,
+          message: "The AI assistant is not configured on this server yet.",
+        };
   }
 
   const prompt = [
     `Assessment: ${instrumentLabel}`,
     `Score: ${assessment.score}`,
     assessment.severity ? `Severity: ${assessment.severity}` : null,
-    fallbackRule ? `Clinician-authored interpretation rule for this score: ${fallbackRule}` : null,
+    fallbackRule
+      ? `Clinician-authored interpretation rule for this score: ${fallbackRule}`
+      : null,
     "",
     "Item-level answers (question: patient value):",
-    answered.length > 0 ? answered.join("\n") : "(no item-level answers recorded)",
+    answered.length > 0
+      ? answered.join("\n")
+      : "(no item-level answers recorded)",
   ]
     .filter((line): line is string => line !== null)
     .join("\n");
@@ -1747,7 +1976,10 @@ export async function generateAssessmentInterpretationAction(
   if (fallbackRule) {
     return { ok: true, data: { interpretation: fallbackRule, source: "rule" } };
   }
-  return { ok: false, message: "The assistant could not phrase an interpretation. Try again." };
+  return {
+    ok: false,
+    message: "The assistant could not phrase an interpretation. Try again.",
+  };
 }
 
 /* ------------------------------------------------------------------------- */
@@ -1764,24 +1996,23 @@ export async function saveDermProfileAction(
   if (!g.ok) return g.result;
 
   const me = await authorName(g.supabase);
-  const { error } = await g.supabase
-    .from("derm_profiles")
-    .upsert(
-      {
-        clinic_id: g.clinicId,
-        patient_id: patientId,
-        skin_type: parsed.data.skin_type ?? null,
-        active_conditions: parsed.data.active_conditions ?? null,
-        allergies: parsed.data.allergies ?? null,
-        previous_skin_conditions: parsed.data.previous_skin_conditions ?? null,
-        biopsy_alert: parsed.data.biopsy_alert,
-        biopsy_notes: parsed.data.biopsy_notes ?? null,
-        previous_treatment_history: parsed.data.previous_treatment_history ?? null,
-        updated_by: me,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "patient_id" },
-    );
+  // Only persist the fields the caller actually sent, so a single-field
+  // autosave patches the snapshot instead of nulling every other column.
+  const values: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(parsed.data)) {
+    if (value === undefined) continue;
+    values[key] = value === "" ? null : value;
+  }
+  const { error } = await g.supabase.from("derm_profiles").upsert(
+    {
+      clinic_id: g.clinicId,
+      patient_id: patientId,
+      ...values,
+      updated_by: me,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "patient_id" },
+  );
   if (error) return { ok: false, message: error.message };
   return ok();
 }
@@ -1795,14 +2026,41 @@ export async function saveDermExamAction(
   const g = await guard();
   if (!g.ok) return g.result;
 
+  const { id, ...rest } = parsed.data;
+  const payload = {
+    chief_complaints: rest.chief_complaints,
+    morphology: rest.morphology,
+    distribution: rest.distribution || null,
+    diagnosis: rest.diagnosis || null,
+    icd_code: rest.icd_code || null,
+    notes: rest.notes || null,
+    duration: rest.duration || null,
+    severity: rest.severity || null,
+    triggers: rest.triggers,
+    associated_symptoms: rest.associated_symptoms,
+    hpi: rest.hpi || null,
+  };
+
+  // Editing today's encounter row (form passes its id back) vs. a fresh visit.
+  if (id) {
+    const { error } = await g.supabase
+      .from("derm_exams")
+      .update(payload)
+      .eq("id", id)
+      .eq("clinic_id", g.clinicId)
+      .eq("patient_id", patientId);
+    if (error) return { ok: false, message: error.message };
+    revalidatePath(APP_ROUTES.app.patients);
+    return { ok: true, data: id };
+  }
+
   const { data, error } = await g.supabase
     .from("derm_exams")
     .insert({
       clinic_id: g.clinicId,
       patient_id: patientId,
       doctor_id: await doctorId(g.supabase, g.clinicId),
-      ...parsed.data,
-      distribution: parsed.data.distribution || null,
+      ...payload,
     })
     .select("id")
     .single();
@@ -1811,13 +2069,19 @@ export async function saveDermExamAction(
   return { ok: true, data: data.id };
 }
 
-export async function deleteDermExamAction(id: string): Promise<ActionResult<string>> {
+export async function deleteDermExamAction(
+  id: string,
+): Promise<ActionResult<string>> {
   const parsed = idSchema.safeParse({ id });
   if (!parsed.success) return err(firstIssue(parsed));
   const g = await guard();
   if (!g.ok) return g.result;
 
-  const { error } = await g.supabase.from("derm_exams").delete().eq("id", id).eq("clinic_id", g.clinicId);
+  const { error } = await g.supabase
+    .from("derm_exams")
+    .delete()
+    .eq("id", id)
+    .eq("clinic_id", g.clinicId);
   if (error) return { ok: false, message: error.message };
   return ok();
 }
@@ -1846,7 +2110,9 @@ export async function saveDermProcedureAction(
   return { ok: true, data: data.id };
 }
 
-export async function deleteDermProcedureAction(id: string): Promise<ActionResult<string>> {
+export async function deleteDermProcedureAction(
+  id: string,
+): Promise<ActionResult<string>> {
   const parsed = idSchema.safeParse({ id });
   if (!parsed.success) return err(firstIssue(parsed));
   const g = await guard();
@@ -1887,7 +2153,9 @@ export async function saveDermPhotoAction(
   return { ok: true, data: data.id };
 }
 
-export async function deleteDermPhotoAction(id: string): Promise<ActionResult<string>> {
+export async function deleteDermPhotoAction(
+  id: string,
+): Promise<ActionResult<string>> {
   const parsed = idSchema.safeParse({ id });
   if (!parsed.success) return err(firstIssue(parsed));
   const g = await guard();

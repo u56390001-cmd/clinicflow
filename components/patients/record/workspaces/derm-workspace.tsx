@@ -29,10 +29,12 @@ import {
   CalendarDays,
   Camera,
   ChevronRight,
+  History,
   Loader2,
   Pill,
   Scissors,
   Stethoscope,
+  TriangleAlert,
 } from "lucide-react";
 
 import { ConfirmDeleteButton } from "@/components/patients/record/workspaces/confirm-delete";
@@ -40,7 +42,10 @@ import { DermPhotosTab } from "@/components/patients/record/workspaces/derm-phot
 import {
   AutosaveNote,
   ChipPicker,
+  NoteStatus,
+  SelectNote,
   SpecialtyHeading,
+  type NoteState,
 } from "@/components/patients/record/workspaces/specialty-form";
 import {
   RecordEmpty,
@@ -67,6 +72,7 @@ import type {
   WorkspaceExtraction,
 } from "@/lib/copilot/types";
 import { patientDirectoryHref } from "@/lib/patient-directory";
+import { cn } from "@/lib/utils";
 import type { PatientDermBundle } from "@/lib/patient-record";
 import { DERMATOLOGY_WORKSPACE } from "@/lib/specialty-workspaces";
 import type { PatientDocumentView } from "@/lib/patient-documents-queries";
@@ -172,20 +178,42 @@ function SkinOverviewTab({
     }
   }
 
-  const fields: Array<{
+  const today = todayIso();
+  const todayExam = derm.exams.find((exam) => exam.exam_date === today) ?? null;
+  const previousExam =
+    derm.exams.find((exam) => exam.id !== todayExam?.id) ?? null;
+
+  const allergies = [
+    profile?.drug_allergies?.trim(),
+    profile?.topical_allergies?.trim(),
+    profile?.allergies?.trim(),
+    patient.known_allergies?.trim(),
+  ].filter((value): value is string => Boolean(value && value.length > 0));
+
+  const riskFields: Array<{
     field:
-      | "skin_type"
-      | "active_conditions"
+      | "drug_allergies"
+      | "topical_allergies"
       | "allergies"
+      | "current_orals"
+      | "current_topicals"
+      | "active_conditions"
       | "previous_skin_conditions"
-      | "biopsy_notes"
-      | "previous_treatment_history";
+      | "relevant_systemic_history"
+      | "family_history"
+      | "previous_treatment_history"
+      | "biopsy_notes";
     label: string;
   }> = [
-    { field: "skin_type", label: "Skin type" },
+    { field: "drug_allergies", label: "Drug allergies" },
+    { field: "topical_allergies", label: "Topical / contact allergies" },
+    { field: "allergies", label: "Other allergies & sensitivities" },
+    { field: "current_orals", label: "Current oral medications" },
+    { field: "current_topicals", label: "Current topicals & skincare" },
     { field: "active_conditions", label: "Active conditions" },
-    { field: "allergies", label: "Allergies & sensitivities" },
-    { field: "previous_skin_conditions", label: "Previous skin conditions" },
+    { field: "previous_skin_conditions", label: "Past skin conditions" },
+    { field: "relevant_systemic_history", label: "Relevant systemic history" },
+    { field: "family_history", label: "Family history" },
     {
       field: "previous_treatment_history",
       label: "Previous treatment history",
@@ -246,9 +274,31 @@ function SkinOverviewTab({
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-        <RecordSection title="Skin profile" className="lg:col-span-2">
-          <div className="mb-4 flex flex-wrap items-center gap-3">
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+        <RecordSection title="Patient snapshot">
+          <dl className="grid grid-cols-1 gap-3">
+            <RecordFact label="Name">{patient.name}</RecordFact>
+            <RecordFact label="Patient ID">{patient.patient_code}</RecordFact>
+            <RecordFact label="Date of birth">
+              {patient.date_of_birth}
+            </RecordFact>
+            <RecordFact label="Sex">{patient.gender}</RecordFact>
+            <RecordFact label="Phone">{patient.phone}</RecordFact>
+            <RecordFact label="Blood group">{patient.blood_group}</RecordFact>
+          </dl>
+          <div className="mt-4 border-t border-hairline pt-3">
+            <SelectNote
+              label="Fitzpatrick skin type"
+              name="derm-fitzpatrick"
+              value={profile?.fitzpatrick_type ?? null}
+              options={FITZPATRICK_TYPES}
+              onSave={canManage ? save("fitzpatrick_type") : async () => true}
+              disabled={!canManage}
+              placeholder="Not recorded"
+              helper="Laser & chemical-peel safety classification."
+            />
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <label className="text-ink flex items-center gap-2 text-[12.5px] font-bold">
               <input
                 type="checkbox"
@@ -268,50 +318,65 @@ function SkinOverviewTab({
               </Badge>
             )}
           </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {fields.map(({ field, label }) => (
+        </RecordSection>
+
+        <RecordSection
+          title="Today's complaint & HPI"
+          meta={<span className="text-ink-faint text-[11px]">{today}</span>}
+        >
+          <DermComplaintCard
+            patient={patient}
+            todayExam={todayExam}
+            previousExam={previousExam}
+            canManage={canManage}
+          />
+        </RecordSection>
+
+        <RecordSection title="Risks, allergies & history">
+          <div
+            className={cn(
+              "rounded-card border p-2.5",
+              allergies.length > 0
+                ? "border-status-destructive/40 bg-status-destructive/5"
+                : "border-hairline bg-app/60",
+            )}
+          >
+            <p
+              className={cn(
+                "flex items-center gap-1.5 text-[11.5px] font-bold",
+                allergies.length > 0
+                  ? "text-status-destructive"
+                  : "text-text-secondary",
+              )}
+            >
+              <TriangleAlert aria-hidden="true" className="size-3.5" />
+              Allergy alert
+            </p>
+            {allergies.length > 0 ? (
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[11.5px] text-text-primary">
+                {allergies.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-ink-faint mt-1 text-[11.5px]">
+                No allergies recorded.
+              </p>
+            )}
+          </div>
+          <div className="mt-3 grid grid-cols-1 gap-3">
+            {riskFields.map(({ field, label }) => (
               <AutosaveNote
                 key={field}
                 label={label}
                 name={`derm-profile-${field}`}
                 value={profile?.[field] ?? null}
                 onSave={canManage ? save(field) : async () => true}
-                rows={3}
+                rows={2}
               />
             ))}
           </div>
         </RecordSection>
-
-        <div className="space-y-4">
-          <RecordSection title="Patient">
-            <dl className="grid grid-cols-1 gap-3">
-              <RecordFact label="Name">{patient.name}</RecordFact>
-              <RecordFact label="Patient ID">{patient.patient_code}</RecordFact>
-              <RecordFact label="Phone">{patient.phone}</RecordFact>
-              <RecordFact label="Known allergies">
-                {patient.known_allergies}
-              </RecordFact>
-              <RecordFact label="Current medications">
-                {patient.current_medications}
-              </RecordFact>
-            </dl>
-          </RecordSection>
-
-          <RecordSection title="At a glance">
-            <dl className="grid grid-cols-2 gap-3">
-              <RecordFact label="Examinations">{derm.exams.length}</RecordFact>
-              <RecordFact label="Procedures">
-                {derm.procedures.length}
-              </RecordFact>
-              <RecordFact label="Tagged photos">
-                {derm.photos.length}
-              </RecordFact>
-              <RecordFact label="Prescriptions">
-                {derm.prescriptions.length}
-              </RecordFact>
-            </dl>
-          </RecordSection>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -407,6 +472,250 @@ function SkinOverviewTab({
 }
 
 /* ------------------------------------------------------------------------- */
+/* Overview & History — quick chips, today's encounter + copy-forward        */
+/* ------------------------------------------------------------------------- */
+
+const FITZPATRICK_TYPES = [
+  "Type I",
+  "Type II",
+  "Type III",
+  "Type IV",
+  "Type V",
+  "Type VI",
+] as const;
+
+const CHIEF_COMPLAINT_OPTIONS = [
+  "Acne",
+  "Eczema flare",
+  "Hair loss",
+  "Rash",
+  "Mole check",
+  "Pigmentation",
+] as const;
+const DURATION_OPTIONS = ["Days", "Weeks", "Months", "Years"] as const;
+const SEVERITY_OPTIONS = ["Mild", "Moderate", "Severe"] as const;
+const TRIGGER_OPTIONS = [
+  "Sun exposure",
+  "New skincare",
+  "Stress",
+  "Diet",
+  "Seasonal change",
+] as const;
+const SYMPTOM_OPTIONS = [
+  "Itching",
+  "Pain",
+  "Bleeding",
+  "Scaling",
+  "Burning",
+] as const;
+
+/** Local calendar date (YYYY-MM-DD) — matches how visit days are recorded. */
+function todayIso(): string {
+  return new Date().toLocaleDateString("en-CA");
+}
+
+type EncounterFields = {
+  chief_complaints: string[];
+  morphology: string[];
+  distribution: string;
+  diagnosis: string;
+  icd_code: string;
+  notes: string;
+  duration: string;
+  severity: string;
+  triggers: string[];
+  associated_symptoms: string[];
+  hpi: string;
+};
+
+/**
+ * The whole encounter row, so a Tab 1 save carries Tab 2's fields through
+ * unchanged instead of clearing them.
+ */
+function encounterFields(exam: DermExam | null): EncounterFields {
+  return {
+    chief_complaints: exam?.chief_complaints ?? [],
+    morphology: exam?.morphology ?? [],
+    distribution: exam?.distribution ?? "",
+    diagnosis: exam?.diagnosis ?? "",
+    icd_code: exam?.icd_code ?? "",
+    notes: exam?.notes ?? "",
+    duration: exam?.duration ?? "",
+    severity: exam?.severity ?? "",
+    triggers: exam?.triggers ?? [],
+    associated_symptoms: exam?.associated_symptoms ?? [],
+    hpi: exam?.hpi ?? "",
+  };
+}
+
+/**
+ * "Today's complaint" — the Tab 1 quick-chip capture (chief complaint, duration,
+ * severity, triggers, associated symptoms, HPI) written to today's `derm_exams`
+ * encounter row. Autosaves on each chip tap; a follow-up can carry the previous
+ * visit's complaint forward, which stays a visible draft until the clinician
+ * changes something (or presses the explicit save).
+ */
+function DermComplaintCard({
+  patient,
+  todayExam,
+  previousExam,
+  canManage,
+}: {
+  patient: PatientDirectoryRow;
+  todayExam: DermExam | null;
+  previousExam: DermExam | null;
+  canManage: boolean;
+}) {
+  const router = useRouter();
+  const [rowId, setRowId] = useState<string | null>(todayExam?.id ?? null);
+  const [fields, setFields] = useState<EncounterFields>(() =>
+    encounterFields(todayExam),
+  );
+  const [status, setStatus] = useState<NoteState>("idle");
+  const [message, setMessage] = useState<string | null>(null);
+  const [carriedFrom, setCarriedFrom] = useState<string | null>(null);
+
+  function persist(patch: Partial<EncounterFields>) {
+    if (!canManage) return;
+    const next = { ...fields, ...patch };
+    setFields(next);
+    setStatus("saving");
+    setMessage(null);
+    void saveDermExamAction(patient.id, {
+      id: rowId ?? "",
+      chief_complaints: next.chief_complaints,
+      morphology: next.morphology,
+      distribution: next.distribution,
+      diagnosis: next.diagnosis,
+      icd_code: next.icd_code,
+      notes: next.notes,
+      duration: next.duration,
+      severity: next.severity,
+      triggers: next.triggers,
+      associated_symptoms: next.associated_symptoms,
+      hpi: next.hpi,
+    }).then((result) => {
+      if (result.ok) {
+        setRowId(result.data);
+        setStatus("saved");
+        setCarriedFrom(null);
+        router.refresh();
+      } else {
+        setStatus("error");
+        setMessage(result.message);
+      }
+    });
+  }
+
+  function carryForward() {
+    if (!previousExam) return;
+    const prior = encounterFields(previousExam);
+    setFields((current) => ({
+      ...current,
+      chief_complaints: prior.chief_complaints,
+      duration: prior.duration,
+      severity: prior.severity,
+      triggers: prior.triggers,
+      associated_symptoms: prior.associated_symptoms,
+      hpi: prior.hpi,
+    }));
+    setCarriedFrom(previousExam.exam_date);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-ink-faint text-[11px]">
+          {todayExam
+            ? "Saved against today's encounter."
+            : "New encounter — the first save creates today's record."}
+        </p>
+        <NoteStatus state={status} message={message} />
+      </div>
+
+      <ChipPicker
+        label="Chief complaint"
+        options={CHIEF_COMPLAINT_OPTIONS}
+        value={fields.chief_complaints}
+        onChange={(next) => persist({ chief_complaints: next })}
+      />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <ChipPicker
+          label="Duration"
+          single
+          options={DURATION_OPTIONS}
+          value={fields.duration ? [fields.duration] : []}
+          onChange={(next) => persist({ duration: next[0] ?? "" })}
+        />
+        <ChipPicker
+          label="Severity"
+          single
+          options={SEVERITY_OPTIONS}
+          value={fields.severity ? [fields.severity] : []}
+          onChange={(next) => persist({ severity: next[0] ?? "" })}
+        />
+      </div>
+
+      <ChipPicker
+        label="Triggers"
+        options={TRIGGER_OPTIONS}
+        value={fields.triggers}
+        onChange={(next) => persist({ triggers: next })}
+      />
+
+      <ChipPicker
+        label="Associated symptoms"
+        options={SYMPTOM_OPTIONS}
+        value={fields.associated_symptoms}
+        onChange={(next) => persist({ associated_symptoms: next })}
+      />
+
+      <div>
+        <label
+          htmlFor="derm-hpi"
+          className="text-ink mb-1.5 block text-[12.5px] font-bold"
+        >
+          History of present illness
+        </label>
+        <Textarea
+          id="derm-hpi"
+          rows={3}
+          value={fields.hpi}
+          onChange={(event) =>
+            setFields((current) => ({ ...current, hpi: event.target.value }))
+          }
+          onBlur={(event) => persist({ hpi: event.currentTarget.value })}
+          placeholder="Onset, progression, prior treatments, relevant background…"
+          disabled={!canManage}
+        />
+      </div>
+
+      {previousExam && (
+        <div className="flex flex-wrap items-center gap-2 border-t border-hairline pt-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={carryForward}
+            disabled={!canManage}
+          >
+            <History aria-hidden="true" className="size-3.5" />
+            Copy previous history
+          </Button>
+          {carriedFrom && (
+            <span className="text-[11px] font-medium text-status-warning">
+              Carried forward from {carriedFrom} — review, then save.
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------------- */
 /* Examination & Diagnosis                                                   */
 /* ------------------------------------------------------------------------- */
 
@@ -424,14 +733,35 @@ function ExamTab({
   canManage: boolean;
 }) {
   const router = useRouter();
+  const todayExam =
+    derm.exams.find((exam) => exam.exam_date === todayIso()) ?? null;
+  const [rowId, setRowId] = useState<string | null>(todayExam?.id ?? null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [complaints, setComplaints] = useState<string[]>([]);
-  const [morphology, setMorphology] = useState<string[]>([]);
-  const [distribution, setDistribution] = useState<string[]>([]);
-  const [diagnosis, setDiagnosis] = useState("");
-  const [icdCode, setIcdCode] = useState("");
-  const [notes, setNotes] = useState("");
+  const [complaints, setComplaints] = useState<string[]>(
+    todayExam?.chief_complaints ?? [],
+  );
+  const [morphology, setMorphology] = useState<string[]>(
+    todayExam?.morphology ?? [],
+  );
+  const [distribution, setDistribution] = useState<string[]>(
+    todayExam?.distribution
+      ? [
+          todayExam.distribution.charAt(0).toUpperCase() +
+            todayExam.distribution.slice(1),
+        ]
+      : [],
+  );
+  const [diagnosis, setDiagnosis] = useState(todayExam?.diagnosis ?? "");
+  const [icdCode, setIcdCode] = useState(todayExam?.icd_code ?? "");
+  const [notes, setNotes] = useState(todayExam?.notes ?? "");
+  const [duration] = useState(todayExam?.duration ?? "");
+  const [severity] = useState(todayExam?.severity ?? "");
+  const [triggers] = useState<string[]>(todayExam?.triggers ?? []);
+  const [associatedSymptoms] = useState<string[]>(
+    todayExam?.associated_symptoms ?? [],
+  );
+  const [hpi] = useState(todayExam?.hpi ?? "");
 
   async function addExam() {
     if (!canManage) return;
@@ -450,22 +780,23 @@ function ExamTab({
     setError(null);
     setPending(true);
     const result = await saveDermExamAction(patient.id, {
+      id: rowId ?? "",
       chief_complaints: complaints,
       morphology,
       distribution: distribution[0]?.toLowerCase() ?? "",
       diagnosis,
       icd_code: icdCode,
       notes,
+      duration,
+      severity,
+      triggers,
+      associated_symptoms: associatedSymptoms,
+      hpi,
     });
     setPending(false);
     if (result.ok) {
-      toast.success("Examination recorded");
-      setComplaints([]);
-      setMorphology([]);
-      setDistribution([]);
-      setDiagnosis("");
-      setIcdCode("");
-      setNotes("");
+      toast.success(rowId ? "Examination updated" : "Examination recorded");
+      setRowId(result.data);
       router.refresh();
     } else {
       toast.error(result.message);
@@ -632,7 +963,11 @@ function ExamTab({
                   ) : (
                     <Stethoscope aria-hidden="true" className="size-3.5" />
                   )}
-                  {pending ? "Saving…" : "Record examination"}
+                  {pending
+                    ? "Saving…"
+                    : rowId
+                      ? "Update examination"
+                      : "Record examination"}
                 </Button>
               </div>
             </RecordSection>
