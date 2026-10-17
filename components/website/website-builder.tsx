@@ -2,28 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  ArrowLeft,
-  ChevronDown,
   ChevronsLeft,
   ChevronsRight,
-  Copy,
+  Eye,
   Globe,
-  LayoutList,
   Laptop,
   Loader2,
   Maximize2,
   Minimize2,
   Pause,
-  Plus,
   Save,
   Smartphone,
   SmartphoneIcon,
   Tablet,
-  TabletIcon,
-  Trash2,
-  Undo2,
   X,
-  Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -440,7 +432,7 @@ export default function WebsiteBuilder({
   );
 
   const dirtyBadge = dirty ? (
-    <span className="flex items-center gap-1 text-sm text-text-muted">
+    <span className="hidden items-center gap-1 text-sm text-text-muted sm:flex">
       <span className="size-1.5 rounded-pill bg-status-warning" />
       Unsaved changes
     </span>
@@ -533,7 +525,7 @@ export default function WebsiteBuilder({
       className="flex h-[calc(100svh-var(--app-header-h,4rem))] flex-col overflow-hidden"
     >
       {/* Top toolbar — workspace identity, save state, preview, publish */}
-      <header className="flex items-center justify-between border-b border-text-muted/20 bg-surface px-4 py-2.5">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-text-muted/20 bg-surface px-4 py-2.5">
         {/* Left: workspace identity */}
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2">
@@ -551,35 +543,69 @@ export default function WebsiteBuilder({
           <p className="text-xs text-text-muted">Website Builder</p>
         </div>
 
-        {/* Center: page/site state */}
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-text-primary">
-            {selectedId ? `Editing ${config.content.sections.find(s => s.id === selectedId)?.label}` : "Editing Home"}
-          </span>
-          {dirtyBadge}
-        </div>
-
-        {/* Right: actions (undo/redo, preview, save, publish) */}
+        {/* Right: preview controls, save state, and the two actions that
+            actually do something — View site, Save, Publish. The old
+            Undo/Redo and "Editing …" labels were inert text; removed. */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 text-sm text-text-secondary">
-            <Undo2 className="size-4" aria-hidden="true" />
-            <span className="hidden sm:inline">Undo</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-sm text-text-secondary">
-            <Copy className="size-4" aria-hidden="true" />
-            <span className="hidden sm:inline">Redo</span>
-          </div>
           {deviceToggle}
+
+          {dirtyBadge}
+
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={() => window.open(buildSiteUrl(clinicSlug), "_blank")}
-            aria-label="Open live website"
-            title="Open live website"
+            disabled={!isPublished}
+            aria-label="View the published website"
+            title={
+              isPublished
+                ? "Open the published website"
+                : "Publish your website to view it live"
+            }
           >
-            <Globe className="size-4" aria-hidden="true" />
+            <Eye className="size-4" aria-hidden="true" />
             <span className="hidden sm:inline">View site</span>
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void handleSave()}
+            disabled={saving || !dirty}
+            aria-label="Save changes"
+            title="Save changes (Ctrl+S)"
+          >
+            {saving ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Save className="size-4" aria-hidden="true" />
+            )}
+            <span className="hidden sm:inline">Save</span>
+          </Button>
+
+          <Button
+            type="button"
+            variant={isPublished ? "outline" : "primary"}
+            size="sm"
+            onClick={() =>
+              void handlePublish(isPublished ? "unpublished" : "published")
+            }
+            disabled={publishing}
+            aria-label={isPublished ? "Unpublish website" : "Publish website"}
+            title={isPublished ? "Unpublish website" : "Publish website"}
+          >
+            {publishing ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            ) : isPublished ? (
+              <Pause className="size-4" aria-hidden="true" />
+            ) : (
+              <Globe className="size-4" aria-hidden="true" />
+            )}
+            <span className="hidden sm:inline">
+              {isPublished ? "Unpublish" : "Publish"}
+            </span>
           </Button>
         </div>
       </header>
@@ -777,14 +803,16 @@ export default function WebsiteBuilder({
             </button>
             <button
               type="button"
-              onClick={() => void handlePublish("published")}
+              onClick={() =>
+                void handlePublish(isPublished ? "unpublished" : "published")
+              }
               disabled={publishing}
               className={cn(
                 "flex flex-1 flex-col items-center justify-center gap-1 rounded-control px-3 py-2 transition-all",
                 "text-sm font-medium",
                 "text-text-secondary hover:bg-brand-wash hover:text-text-primary",
               )}
-              aria-label="Publish website"
+              aria-label={isPublished ? "Unpublish website" : "Publish website"}
             >
               {publishing ? (
                 <>
