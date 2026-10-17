@@ -224,6 +224,14 @@ const saveDermProfileSchema = z.object({
   family_history: note,
 });
 
+const dermSeverityScoreSchema = z.object({
+  kind: z.enum(["GAGS", "PASI", "ABCDE"]),
+  total: z.number(),
+  band: z.string().nullable().optional(),
+  inputs: z.record(z.string(), z.union([z.number(), z.string(), z.boolean()])),
+  recordedAt: z.string(),
+});
+
 const saveDermExamSchema = z.object({
   /** Re-save today's encounter row (set by the form once the row exists). */
   id: optionalUuid,
@@ -247,6 +255,7 @@ const saveDermExamSchema = z.object({
   triggers: textList,
   associated_symptoms: textList,
   hpi: note,
+  severity_scores: z.array(dermSeverityScoreSchema).optional(),
 });
 
 const saveDermProcedureSchema = z.object({
@@ -270,11 +279,37 @@ const saveDermPhotoSchema = z.object({
   photo_type: z.enum(PHOTO_TYPES),
   lesion_notes: note,
   paired_with: optionalUuid,
+  lesion_id: optionalUuid,
   taken_at: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date.")
     .optional()
     .or(z.literal("")),
+});
+
+const saveDermScoresSchema = z.object({
+  id: optionalUuid,
+  severity_scores: z.array(dermSeverityScoreSchema),
+});
+
+const saveDermLesionSchema = z.object({
+  id: optionalUuid,
+  exam_id: optionalUuid,
+  body_region: z.string().trim().min(1, "Body region is required.").max(80),
+  body_view: z.enum(["front", "back"]).optional(),
+  body_x: z.coerce.number().min(0).max(1).nullable().optional(),
+  body_y: z.coerce.number().min(0).max(1).nullable().optional(),
+  laterality: z
+    .enum(["left", "right", "bilateral", "central"])
+    .nullable()
+    .optional()
+    .or(z.literal("")),
+  morphology: textList,
+  color: textList,
+  texture: textList,
+  size_value: z.coerce.number().min(0).max(10000).nullable().optional(),
+  size_unit: z.string().trim().max(10).nullable().optional().or(z.literal("")),
+  observations: note,
 });
 
 const saveDermRxSchema = z.object({
@@ -2039,6 +2074,11 @@ export async function saveDermExamAction(
     triggers: rest.triggers,
     associated_symptoms: rest.associated_symptoms,
     hpi: rest.hpi || null,
+    // Only overwrite the stored scoring sheet when the caller sends one, so a
+    // Tab 1 history save never wipes a Tab 2 score.
+    ...(rest.severity_scores !== undefined
+      ? { severity_scores: rest.severity_scores }
+      : {}),
   };
 
   // Editing today's encounter row (form passes its id back) vs. a fresh visit.
@@ -2145,6 +2185,7 @@ export async function saveDermPhotoAction(
       ...parsed.data,
       document_id: parsed.data.document_id || null,
       paired_with: parsed.data.paired_with || null,
+      lesion_id: parsed.data.lesion_id || null,
     })
     .select("id")
     .single();
@@ -2204,4 +2245,124 @@ export async function saveDermRxAction(
   });
   if (error) return { ok: false, message: error.message };
   return ok();
+}
+
+export async function saveDermLesionAction(
+  patientId: string,
+  raw: unknown,
+): Promise<ActionResult<string>> {
+  const parsed = saveDermLesionSchema.safeParse(raw);
+  if (!parsed.success) return err(firstIssue(parsed));
+  const g = await guard();
+  if (!g.ok) return g.result;
+
+  const { id, ...rest } = parsed.data;
+  const payload = {
+    exam_id: rest.exam_id || null,
+    body_region: rest.body_region,
+    body_view: rest.body_view ?? "front",
+    body_x: rest.body_x ?? null,
+    body_y: rest.body_y ?? null,
+    laterality: rest.laterality || null,
+    morphology: rest.morphology,
+    color: rest.color,
+    texture: rest.texture,
+    size_value: rest.size_value ?? null,
+    size_unit: rest.size_unit || null,
+    observations: rest.observations || null,
+  };
+
+  // Editing an existing pin (the map passes its id back) vs. a new pin.
+  if (id) {
+    const { error } = await g.supabase
+      .from("derm_lesions")
+      .update(payload)
+      .eq("id", id)
+      .eq("clinic_id", g.clinicId)
+      .eq("patient_id", patientId);
+    if (error) return { ok: false, message: error.message };
+    revalidatePath(APP_ROUTES.app.patients);
+    return { ok: true, data: id };
+  }
+
+  // New pins are numbered per patient so "Pin #1 — Left forearm" stays stable.
+  const { data: last } = await g.supabase
+    .from("derm_lesions")
+    .select("pin_number")
+    .eq("clinic_id", g.clinicId)
+    .eq("patient_id", patientId)
+    .order("pin_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const pin_number = ((last?.pin_number as number | null) ?? 0) + 1;
+
+  const { data, error } = await g.supabase
+    .from("derm_lesions")
+    .insert({
+      clinic_id: g.clinicId,
+      patient_id: patientId,
+      doctor_id: await doctorId(g.supabase, g.clinicId),
+      pin_number,
+      ...payload,
+    })
+    .select("id")
+    .single();
+  if (error) return { ok: false, message: error.message };
+  revalidatePath(APP_ROUTES.app.patients);
+  return { ok: true, data: data.id };
+}
+
+export async function deleteDermLesionAction(
+  id: string,
+): Promise<ActionResult<string>> {
+  const parsed = idSchema.safeParse({ id });
+  if (!parsed.success) return err(firstIssue(parsed));
+  const g = await guard();
+  if (!g.ok) return g.result;
+
+  const { error } = await g.supabase
+    .from("derm_lesions")
+    .delete()
+    .eq("id", id)
+    .eq("clinic_id", g.clinicId);
+  if (error) return { ok: false, message: error.message };
+  return ok();
+}
+
+export async function saveDermScoresAction(
+  patientId: string,
+  raw: unknown,
+): Promise<ActionResult<string>> {
+  const parsed = saveDermScoresSchema.safeParse(raw);
+  if (!parsed.success) return err(firstIssue(parsed));
+  const g = await guard();
+  if (!g.ok) return g.result;
+
+  const { id, severity_scores } = parsed.data;
+  // Touches only the scoring sheet on today's encounter row.
+  if (id) {
+    const { error } = await g.supabase
+      .from("derm_exams")
+      .update({ severity_scores })
+      .eq("id", id)
+      .eq("clinic_id", g.clinicId)
+      .eq("patient_id", patientId);
+    if (error) return { ok: false, message: error.message };
+    revalidatePath(APP_ROUTES.app.patients);
+    return { ok: true, data: id };
+  }
+
+  const { data, error } = await g.supabase
+    .from("derm_exams")
+    .insert({
+      clinic_id: g.clinicId,
+      patient_id: patientId,
+      doctor_id: await doctorId(g.supabase, g.clinicId),
+      severity_scores: parsed.data.severity_scores,
+    })
+    .select("id")
+    .single();
+  if (error) return { ok: false, message: error.message };
+  revalidatePath(APP_ROUTES.app.patients);
+  return { ok: true, data: data.id };
 }

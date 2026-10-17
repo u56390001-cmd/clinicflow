@@ -38,6 +38,10 @@ import {
 } from "lucide-react";
 
 import { ConfirmDeleteButton } from "@/components/patients/record/workspaces/confirm-delete";
+import {
+  DermBodyMap,
+  DermScoringTools,
+} from "@/components/patients/record/workspaces/derm-body-map";
 import { DermPhotosTab } from "@/components/patients/record/workspaces/derm-photos-tab";
 import {
   AutosaveNote,
@@ -72,10 +76,13 @@ import type {
   WorkspaceExtraction,
 } from "@/lib/copilot/types";
 import { patientDirectoryHref } from "@/lib/patient-directory";
+import {
+  patientDocumentHref,
+  type PatientDocumentView,
+} from "@/lib/patient-documents-queries";
 import { cn } from "@/lib/utils";
 import type { PatientDermBundle } from "@/lib/patient-record";
 import { DERMATOLOGY_WORKSPACE } from "@/lib/specialty-workspaces";
-import type { PatientDocumentView } from "@/lib/patient-documents-queries";
 import type {
   DermExam,
   DermPrescription,
@@ -113,7 +120,13 @@ export function DermWorkspace({
         />
       )}
       {activeTab === "derm_exam" && (
-        <ExamTab patient={patient} derm={derm} canManage={canManage} />
+        <ExamTab
+          patient={patient}
+          derm={derm}
+          canManage={canManage}
+          documents={documents}
+          params={params}
+        />
       )}
       {activeTab === "derm_photos" && (
         <DermPhotosTab
@@ -727,10 +740,14 @@ function ExamTab({
   patient,
   derm,
   canManage,
+  documents,
+  params,
 }: {
   patient: PatientDirectoryRow;
   derm: PatientDermBundle;
   canManage: boolean;
+  documents: PatientDocumentView[];
+  params: { selectedId: string };
 }) {
   const router = useRouter();
   const todayExam =
@@ -868,9 +885,31 @@ function ExamTab({
   return (
     <div className="space-y-4">
       {canManage && (
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
-          <div className="min-w-0 flex-1">
-            <RecordSection title="Skin examination">
+        <>
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+            <RecordSection
+              title="Body map & lesion pins"
+              className="xl:col-span-2"
+            >
+              <DermBodyMap
+                patientId={patient.id}
+                examId={todayExam?.id ?? null}
+                lesions={derm.lesions}
+                canManage={canManage}
+              />
+            </RecordSection>
+
+            <RecordSection title="Photos & comparison">
+              <DermPhotoStrip
+                documents={documents}
+                derm={derm}
+                params={params}
+              />
+            </RecordSection>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+            <RecordSection title="Skin examination" className="xl:col-span-2">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <ChipPicker
                   label="Chief complaint"
@@ -971,7 +1010,17 @@ function ExamTab({
                 </Button>
               </div>
             </RecordSection>
+
+            <RecordSection title="Severity scoring">
+              <DermScoringTools
+                patientId={patient.id}
+                examId={todayExam?.id ?? null}
+                scores={todayExam?.severity_scores ?? []}
+                canManage={canManage}
+              />
+            </RecordSection>
           </div>
+
           <CopilotDrawer
             mode="dermatology"
             contextLabel={`${DERMATOLOGY_WORKSPACE.name} Copilot`}
@@ -982,7 +1031,7 @@ function ExamTab({
             }}
             onPopulateForm={handleCopilotPopulate}
           />
-        </div>
+        </>
       )}
 
       {derm.exams.length > 0 ? (
@@ -1007,6 +1056,71 @@ function ExamTab({
           description="Record each skin examination with chief complaint, morphology, distribution and an ICD-assisted diagnosis."
         />
       )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------------- */
+/* Photos & comparison — the gallery itself lives in the Photos & Body Map tab */
+/* ------------------------------------------------------------------------- */
+
+function DermPhotoStrip({
+  documents,
+  derm,
+  params,
+}: {
+  documents: PatientDocumentView[];
+  derm: PatientDermBundle;
+  params: { selectedId: string };
+}) {
+  const imageDocs = new Set(
+    documents
+      .filter((doc) => doc.mime_type.startsWith("image/"))
+      .map((doc) => doc.id),
+  );
+  const tagged = derm.photos
+    .filter((photo) => photo.document_id && imageDocs.has(photo.document_id))
+    .slice(0, 6);
+
+  return (
+    <div className="space-y-3">
+      <p className="text-ink-faint text-[11px]">
+        Baseline / follow-up tagging and explicit before/after pairing live in
+        the Photos & Body Map tab.
+      </p>
+      {tagged.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-card border border-dashed border-hairline p-4 text-center">
+          <Camera aria-hidden="true" className="text-ink-faint size-5" />
+          <p className="text-ink-faint mt-2 text-[11.5px]">
+            No tagged photos yet.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-1.5">
+          {tagged.map((photo) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={photo.id}
+              src={patientDocumentHref(photo.document_id as string)}
+              alt={photo.body_region}
+              loading="lazy"
+              decoding="async"
+              className="aspect-square w-full rounded-control border border-hairline object-cover"
+            />
+          ))}
+        </div>
+      )}
+      <Button asChild variant="outline" size="sm" className="w-full">
+        <Link
+          href={patientDirectoryHref({
+            selectedId: params.selectedId,
+            tab: "derm_photos",
+          })}
+          scroll={false}
+        >
+          Open Photos & Body Map
+        </Link>
+      </Button>
     </div>
   );
 }

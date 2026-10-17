@@ -1585,6 +1585,41 @@ export type DermExam = {
   triggers: string[];
   associated_symptoms: string[];
   hpi: string | null;
+  severity_scores: DermSeverityScore[];
+  created_at: string;
+  updated_at: string;
+};
+
+/** A reviewable dermatology scoring sheet stored on the encounter (migration
+ *  0096). `inputs` retains the clinician's raw entries so the calculated
+ *  `total` can always be explained; it is never a standalone diagnosis. */
+export type DermSeverityScore = {
+  kind: "GAGS" | "PASI" | "ABCDE";
+  total: number;
+  band?: string | null;
+  inputs: Record<string, number | string | boolean>;
+  recordedAt: string;
+};
+
+/** Dermatology — a persisted body-map lesion/location pin (migration 0096). */
+export type DermLesion = {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  doctor_id: string | null;
+  exam_id: string | null;
+  pin_number: number;
+  body_region: string;
+  body_view: "front" | "back";
+  body_x: number | null;
+  body_y: number | null;
+  laterality: "left" | "right" | "bilateral" | "central" | null;
+  morphology: string[];
+  color: string[];
+  texture: string[];
+  size_value: number | null;
+  size_unit: string | null;
+  observations: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -1615,6 +1650,7 @@ export type DermPhoto = {
   photo_type: "baseline" | "follow_up" | "post_treatment";
   lesion_notes: string | null;
   paired_with: string | null;
+  lesion_id: string | null;
   taken_at: string;
   created_at: string;
   updated_at: string;
@@ -5917,6 +5953,7 @@ export type Database = {
           triggers?: string[];
           associated_symptoms?: string[];
           hpi?: string | null;
+          severity_scores?: DermSeverityScore[];
           created_at?: string;
           updated_at?: string;
         };
@@ -5937,6 +5974,7 @@ export type Database = {
           triggers?: string[];
           associated_symptoms?: string[];
           hpi?: string | null;
+          severity_scores?: DermSeverityScore[];
           created_at?: never;
           updated_at?: string;
         };
@@ -5960,6 +5998,81 @@ export type Database = {
             columns: ["doctor_id"];
             isOneToOne: false;
             referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      derm_lesions: {
+        Row: DermLesion;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          patient_id: string;
+          doctor_id?: string | null;
+          exam_id?: string | null;
+          pin_number?: number;
+          body_region: string;
+          body_view?: "front" | "back";
+          body_x?: number | null;
+          body_y?: number | null;
+          laterality?: "left" | "right" | "bilateral" | "central" | null;
+          morphology?: string[];
+          color?: string[];
+          texture?: string[];
+          size_value?: number | null;
+          size_unit?: string | null;
+          observations?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          patient_id?: never;
+          doctor_id?: string | null;
+          exam_id?: string | null;
+          pin_number?: number;
+          body_region?: string;
+          body_view?: "front" | "back";
+          body_x?: number | null;
+          body_y?: number | null;
+          laterality?: "left" | "right" | "bilateral" | "central" | null;
+          morphology?: string[];
+          color?: string[];
+          texture?: string[];
+          size_value?: number | null;
+          size_unit?: string | null;
+          observations?: string | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "derm_lesions_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "derm_lesions_clinic_patient_fkey";
+            columns: ["clinic_id", "patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["clinic_id", "id"];
+          },
+          {
+            foreignKeyName: "derm_lesions_doctor_id_fkey";
+            columns: ["doctor_id"];
+            isOneToOne: false;
+            referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "derm_lesions_exam_id_fkey";
+            columns: ["exam_id"];
+            isOneToOne: false;
+            referencedRelation: "derm_exams";
             referencedColumns: ["id"];
           },
         ];
@@ -6026,6 +6139,7 @@ export type Database = {
           photo_type?: "baseline" | "follow_up" | "post_treatment";
           lesion_notes?: string | null;
           paired_with?: string | null;
+          lesion_id?: string | null;
           taken_at?: string;
           created_at?: string;
           updated_at?: string;
@@ -6040,6 +6154,7 @@ export type Database = {
           photo_type?: "baseline" | "follow_up" | "post_treatment";
           lesion_notes?: string | null;
           paired_with?: string | null;
+          lesion_id?: string | null;
           taken_at?: string;
           created_at?: never;
           updated_at?: string;

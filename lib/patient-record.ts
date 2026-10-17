@@ -20,6 +20,7 @@ import type { HistoryItem } from "@/types/history";
 import type {
   Database,
   DermExam,
+  DermLesion,
   DermPhoto,
   DermPrescription,
   DermProcedure,
@@ -110,6 +111,7 @@ export type PatientDermBundle = {
   procedures: DermProcedure[];
   photos: DermPhoto[];
   prescriptions: DermPrescription[];
+  lesions: DermLesion[];
 };
 
 const EMPTY_PSYCH: PatientPsychBundle = {
@@ -128,6 +130,7 @@ const EMPTY_DERM: PatientDermBundle = {
   procedures: [],
   photos: [],
   prescriptions: [],
+  lesions: [],
 };
 
 const EMPTY: PatientRecordData = {
@@ -292,54 +295,61 @@ export async function fetchPatientRecord(
   let derm = EMPTY_DERM;
 
   if (workspaceKind === "psychology") {
-    const [safety, intake, mse, sessionsRes, assessmentsRes, carePlan, suggestionsRes] =
-      await Promise.all([
-        supabase
-          .from("psych_safety")
-          .select("*")
-          .eq("clinic_id", clinicId)
-          .eq("patient_id", patientId)
-          .maybeSingle(),
-        supabase
-          .from("psych_intake")
-          .select("*")
-          .eq("clinic_id", clinicId)
-          .eq("patient_id", patientId)
-          .maybeSingle(),
-        supabase
-          .from("psych_mse")
-          .select("*")
-          .eq("clinic_id", clinicId)
-          .eq("patient_id", patientId)
-          .maybeSingle(),
-        supabase
-          .from("psych_sessions")
-          .select("*")
-          .eq("clinic_id", clinicId)
-          .eq("patient_id", patientId)
-          .order("session_date", { ascending: false })
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("psych_assessments")
-          .select("*")
-          .eq("clinic_id", clinicId)
-          .eq("patient_id", patientId)
-          .order("conducted_at", { ascending: false })
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("psych_care_plans")
-          .select("*")
-          .eq("clinic_id", clinicId)
-          .eq("patient_id", patientId)
-          .maybeSingle(),
-        supabase
-          .from("psych_intake_suggestions")
-          .select("*")
-          .eq("clinic_id", clinicId)
-          .eq("patient_id", patientId)
-          .eq("status", "pending")
-          .order("created_at", { ascending: false }),
-      ]);
+    const [
+      safety,
+      intake,
+      mse,
+      sessionsRes,
+      assessmentsRes,
+      carePlan,
+      suggestionsRes,
+    ] = await Promise.all([
+      supabase
+        .from("psych_safety")
+        .select("*")
+        .eq("clinic_id", clinicId)
+        .eq("patient_id", patientId)
+        .maybeSingle(),
+      supabase
+        .from("psych_intake")
+        .select("*")
+        .eq("clinic_id", clinicId)
+        .eq("patient_id", patientId)
+        .maybeSingle(),
+      supabase
+        .from("psych_mse")
+        .select("*")
+        .eq("clinic_id", clinicId)
+        .eq("patient_id", patientId)
+        .maybeSingle(),
+      supabase
+        .from("psych_sessions")
+        .select("*")
+        .eq("clinic_id", clinicId)
+        .eq("patient_id", patientId)
+        .order("session_date", { ascending: false })
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("psych_assessments")
+        .select("*")
+        .eq("clinic_id", clinicId)
+        .eq("patient_id", patientId)
+        .order("conducted_at", { ascending: false })
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("psych_care_plans")
+        .select("*")
+        .eq("clinic_id", clinicId)
+        .eq("patient_id", patientId)
+        .maybeSingle(),
+      supabase
+        .from("psych_intake_suggestions")
+        .select("*")
+        .eq("clinic_id", clinicId)
+        .eq("patient_id", patientId)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false }),
+    ]);
 
     psych = {
       safety: (safety.data as PsychSafety | null) ?? null,
@@ -351,7 +361,7 @@ export async function fetchPatientRecord(
       suggestions: (suggestionsRes.data as PsychIntakeSuggestion[]) ?? [],
     };
   } else if (workspaceKind === "dermatology") {
-    const [profile, examsRes, proceduresRes, photosRes, rxRes] =
+    const [profile, examsRes, proceduresRes, photosRes, rxRes, lesionsRes] =
       await Promise.all([
         supabase
           .from("derm_profiles")
@@ -386,6 +396,13 @@ export async function fetchPatientRecord(
           .eq("clinic_id", clinicId)
           .eq("patient_id", patientId)
           .order("created_at", { ascending: false }),
+        supabase
+          .from("derm_lesions")
+          .select("*")
+          .eq("clinic_id", clinicId)
+          .eq("patient_id", patientId)
+          .order("pin_number", { ascending: true })
+          .order("created_at", { ascending: false }),
       ]);
 
     derm = {
@@ -394,6 +411,7 @@ export async function fetchPatientRecord(
       procedures: (proceduresRes.data as DermProcedure[]) ?? [],
       photos: (photosRes.data as DermPhoto[]) ?? [],
       prescriptions: (rxRes.data as DermPrescription[]) ?? [],
+      lesions: (lesionsRes.data as DermLesion[]) ?? [],
     };
   }
 
