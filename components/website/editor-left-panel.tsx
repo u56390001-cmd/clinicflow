@@ -94,7 +94,7 @@ export function EditorLeftPanel({
   const hiddenSections = ordered.filter((section) => !section.visible);
 
   return (
-    <div className="flex h-full flex-col bg-surface">
+    <div className="flex h-full flex-col overflow-y-auto bg-surface">
       {/* Live sections */}
       <div className="border-b border-text-muted/20 px-3 py-3">
         <div className="flex items-baseline justify-between px-1">
@@ -319,7 +319,7 @@ export function EditorLeftPanel({
       ) : null}
 
       {/* Block library */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+      <div className="px-3 py-3">
         <div className="flex items-baseline justify-between px-1">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-text-muted">
             All sections
