@@ -76,6 +76,7 @@ export function PatientRecord({
   past,
   timezone,
   canManage,
+  canManageClinic,
   canMerge,
   aiSummaryEnabled,
   activeVisitInfo,
@@ -96,6 +97,8 @@ export function PatientRecord({
   past: AppointmentView[];
   timezone: string;
   canManage: boolean;
+  /** Owner/admin/clinic_admin — clinic-level config surfaces (machine registry). */
+  canManageClinic?: boolean;
   /** Owner/admin — renders the banner's "Merge Duplicate" control. */
   canMerge: boolean;
   /** `PATIENT_AI_SUMMARY_ENABLED` on the server — gates the summary refresh control. */
@@ -348,6 +351,7 @@ export function PatientRecord({
                 documents={documents}
                 activeTab={activeTab as DermTabId}
                 canManage={canManage}
+                canManageClinic={canManageClinic}
                 params={params}
                 timezone={timezone}
               />

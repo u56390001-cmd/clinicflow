@@ -18,6 +18,7 @@ import { fetchMedicalHistory } from "@/lib/medical-history-queries";
 import type { WorkspaceKind } from "@/lib/specialty-workspaces";
 import type { HistoryItem } from "@/types/history";
 import type {
+  ClinicMachine,
   Database,
   DermDiagnosis,
   DermExam,
@@ -114,6 +115,13 @@ export type PatientDermBundle = {
   prescriptions: DermPrescription[];
   lesions: DermLesion[];
   diagnoses: DermDiagnosis[];
+  /**
+   * The clinic's machine registry (migration 0102) — clinic-scoped, not
+   * patient-scoped, loaded with the bundle so Tab 5 can render machine
+   * parameter profiles without a client round trip. Includes inactive rows;
+   * the procedure card only offers the active ones.
+   */
+  machines: ClinicMachine[];
 };
 
 const EMPTY_PSYCH: PatientPsychBundle = {
@@ -134,6 +142,7 @@ const EMPTY_DERM: PatientDermBundle = {
   prescriptions: [],
   lesions: [],
   diagnoses: [],
+  machines: [],
 };
 
 const EMPTY: PatientRecordData = {
@@ -372,6 +381,7 @@ export async function fetchPatientRecord(
       rxRes,
       lesionsRes,
       diagnosesRes,
+      machinesRes,
     ] = await Promise.all([
       supabase
         .from("derm_profiles")
@@ -419,6 +429,11 @@ export async function fetchPatientRecord(
         .eq("clinic_id", clinicId)
         .eq("patient_id", patientId)
         .order("created_at", { ascending: false }),
+      supabase
+        .from("clinic_machines")
+        .select("*")
+        .eq("clinic_id", clinicId)
+        .order("name", { ascending: true }),
     ]);
 
     derm = {
@@ -429,6 +444,7 @@ export async function fetchPatientRecord(
       prescriptions: (rxRes.data as DermPrescription[]) ?? [],
       lesions: (lesionsRes.data as DermLesion[]) ?? [],
       diagnoses: (diagnosesRes.data as DermDiagnosis[]) ?? [],
+      machines: (machinesRes.data as ClinicMachine[]) ?? [],
     };
   }
 

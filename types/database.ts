@@ -1746,6 +1746,31 @@ export type TerminologyHit = Pick<
   "code" | "code_system" | "display" | "category"
 >;
 
+/** One parameter field a clinic defines for its machine profile (0102). */
+export type MachineParameterField = {
+  key: string;
+  label: string;
+  placeholder?: string;
+};
+
+/**
+ * Clinic machine registry (migration 0102): a clinic's in-office devices and
+ * the parameter fields each one actually has. Values recorded against a
+ * machine live in `derm_procedures.params` — history survives a rename or
+ * retirement of the machine row. Read-only for members, admin-writable.
+ */
+export type ClinicMachine = {
+  id: string;
+  clinic_id: string;
+  name: string;
+  brand_model: string | null;
+  category: string | null;
+  parameter_fields: MachineParameterField[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 /** MIME types accepted by DB CHECK `patient_documents_mime_type_check`. */
 export const PATIENT_DOCUMENT_MIME_TYPES = [
   "application/pdf",
@@ -6456,6 +6481,40 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "terminology_codes_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      clinic_machines: {
+        Row: ClinicMachine;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          name: string;
+          brand_model?: string | null;
+          category?: string | null;
+          parameter_fields?: MachineParameterField[];
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          name?: string;
+          brand_model?: string | null;
+          category?: string | null;
+          parameter_fields?: MachineParameterField[];
+          is_active?: boolean;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "clinic_machines_clinic_id_fkey";
             columns: ["clinic_id"];
             isOneToOne: false;
             referencedRelation: "clinics";

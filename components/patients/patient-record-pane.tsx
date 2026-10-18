@@ -44,6 +44,7 @@ export function PatientRecordPane({
   past,
   timezone,
   canManage,
+  canManageClinic,
   aiSummaryEnabled,
   activeVisitInfo,
   backHref,
@@ -61,6 +62,8 @@ export function PatientRecordPane({
   past: AppointmentView[];
   timezone: string;
   canManage: boolean;
+  /** Owner/admin/clinic_admin — forwarded to workspaces with clinic-level config. */
+  canManageClinic?: boolean;
   aiSummaryEnabled: boolean;
   activeVisitInfo: {
     activeVisit: ActiveVisitInfo | null;
@@ -87,6 +90,7 @@ export function PatientRecordPane({
       past={past}
       timezone={timezone}
       canManage={canManage}
+      canManageClinic={canManageClinic}
       aiSummaryEnabled={aiSummaryEnabled}
       activeVisitInfo={activeVisitInfo}
       backHref={backHref}

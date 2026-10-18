@@ -11,6 +11,7 @@ import { buildAppointmentViews } from "@/lib/appointments-view";
 import {
   canManageClinical,
   canMergePatients,
+  canWriteClinic,
   getCurrentClinic,
 } from "@/lib/clinic-access";
 import {
@@ -23,7 +24,10 @@ import {
   type PatientTodayQueue,
 } from "@/lib/patient-directory";
 import { fetchPatientRecord } from "@/lib/patient-record";
-import { fetchPreConsultationAnswers, findDoctorForUser } from "@/lib/consultation-queries";
+import {
+  fetchPreConsultationAnswers,
+  findDoctorForUser,
+} from "@/lib/consultation-queries";
 import { fetchPatientDocuments } from "@/lib/patient-documents-queries";
 import {
   resolveDoctorWorkspace,
@@ -176,7 +180,9 @@ export default async function PatientsPage({
     ? (todayRes.data ?? []).filter((row) => row.doctor_id === activeDoctorId)
     : (todayRes.data ?? []);
   const todayVisitRows = activeDoctorId
-    ? (todayVisitRes.data ?? []).filter((row) => row.doctor_id === activeDoctorId)
+    ? (todayVisitRes.data ?? []).filter(
+        (row) => row.doctor_id === activeDoctorId,
+      )
     : (todayVisitRes.data ?? []);
 
   const todayPatientIds = [
@@ -220,7 +226,10 @@ export default async function PatientsPage({
   }
 
   const stats = {
-    total: doctorPatientIds !== null ? doctorPatientIds.length : (totalResult.count ?? 0),
+    total:
+      doctorPatientIds !== null
+        ? doctorPatientIds.length
+        : (totalResult.count ?? 0),
     newThisMonth: newThisMonthResult.count ?? 0,
     today: todayPatientIds.length,
     waiting: waitingPatientIds.length,
@@ -239,16 +248,25 @@ export default async function PatientsPage({
           ? completedPatientIds
           : todayPatientIds
       : todayPatientIds;
-  const emptyToday =
-    params.scope === "today" && todaySegmentIds.length === 0;
+  const emptyToday = params.scope === "today" && todaySegmentIds.length === 0;
   const emptyDoctor =
     doctorPatientIds !== null && doctorPatientIds.length === 0;
   const emptyList = emptyToday || (params.scope === "all" && emptyDoctor);
 
   const [listResult, selectedPatient] = await Promise.all([
     emptyList
-      ? Promise.resolve({ data: [] as PatientDirectoryRow[], count: 0, error: null })
-      : runDirectoryQuery(supabase, clinicId, params, todaySegmentIds, doctorPatientIds),
+      ? Promise.resolve({
+          data: [] as PatientDirectoryRow[],
+          count: 0,
+          error: null,
+        })
+      : runDirectoryQuery(
+          supabase,
+          clinicId,
+          params,
+          todaySegmentIds,
+          doctorPatientIds,
+        ),
     fetchSelectedPatient(supabase, clinicId, params.selectedId),
   ]);
 
@@ -276,6 +294,7 @@ export default async function PatientsPage({
         timezone={timezone}
         today={today}
         canManage={canManageClinical(access.role)}
+        canManageClinic={canWriteClinic(access.role)}
         aiSummaryEnabled={isPatientSummaryEnabled()}
         backHref={patientDirectoryHref({ ...params, selectedId: "" })}
         activeDoctorId={activeDoctorId}
@@ -312,6 +331,7 @@ async function PatientRecordStream({
   timezone,
   today,
   canManage,
+  canManageClinic,
   aiSummaryEnabled,
   backHref,
   activeDoctorId,
@@ -324,6 +344,8 @@ async function PatientRecordStream({
   timezone: string;
   today: { startIso: string; endIso: string };
   canManage: boolean;
+  /** Owner/admin/clinic_admin — gates clinic-level config surfaces in the record. */
+  canManageClinic: boolean;
   aiSummaryEnabled: boolean;
   backHref: string;
   activeDoctorId: string | null;
@@ -339,9 +361,7 @@ async function PatientRecordStream({
     allDoctors[0] ??
     null;
 
-  const workspace = workspaceForKind(
-    resolveDoctorWorkspace(doctor?.specialty),
-  );
+  const workspace = workspaceForKind(resolveDoctorWorkspace(doctor?.specialty));
 
   const [record, appointments, documents, activeVisitInfo] = await Promise.all([
     fetchPatientRecord(supabase, clinicId, patient.id, workspace.kind),
@@ -375,6 +395,7 @@ async function PatientRecordStream({
       past={appointments.past}
       timezone={timezone}
       canManage={canManage}
+      canManageClinic={canManageClinic}
       aiSummaryEnabled={aiSummaryEnabled}
       activeVisitInfo={activeVisitInfo}
       backHref={backHref}
@@ -616,10 +637,8 @@ async function fetchActiveVisitInfo(
     (row) => sameDoctor(row) && row.status === "in_consultation",
   );
   const firstWaiting =
-    (visits.find((row) => sameDoctor(row) && row.status === "waiting") ??
-      visits.find(
-        (row) => sameDoctor(row) && row.status === "checked_in",
-      )) ??
+    visits.find((row) => sameDoctor(row) && row.status === "waiting") ??
+    visits.find((row) => sameDoctor(row) && row.status === "checked_in") ??
     null;
 
   // The banner's payment pill needs the newest bill for this visit, so it rides

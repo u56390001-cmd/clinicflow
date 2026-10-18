@@ -98,6 +98,8 @@ type Props = {
   documents: PatientDocumentView[];
   activeTab: string;
   canManage: boolean;
+  /** Owner/admin/clinic_admin — Tab 5's machine registry manager only. */
+  canManageClinic?: boolean;
   params: { selectedId: string };
   timezone: string;
 };
@@ -108,6 +110,7 @@ export function DermWorkspace({
   documents,
   activeTab,
   canManage,
+  canManageClinic,
   params,
   timezone,
 }: Props) {
@@ -146,7 +149,9 @@ export function DermWorkspace({
           patientId={patient.id}
           procedures={derm.procedures}
           lesions={derm.lesions}
+          machines={derm.machines}
           canManage={canManage}
+          canManageClinic={canManageClinic}
         />
       )}
       {activeTab === "derm_rx" && (
