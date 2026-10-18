@@ -80,7 +80,10 @@ type ActiveCall = TelehealthStartArgs & {
 
 type TelehealthContextValue = {
   start: (args: TelehealthStartArgs) => Promise<void>;
-  rejoin: (record: TelehealthResumeRecord, args: TelehealthStartArgs) => Promise<void>;
+  rejoin: (
+    record: TelehealthResumeRecord,
+    args: TelehealthStartArgs,
+  ) => Promise<void>;
   pending: boolean;
   /** Patient whose call is live — lets the trigger show the right state. */
   activePatientId: string | null;
@@ -140,6 +143,9 @@ const PHOTO_TYPE_LABEL: Record<PhotoType, string> = {
 /** Floating-panel geometry, remembered per browser session. */
 type Geometry = { x: number; y: number; w: number; h: number };
 const GEOMETRY_KEY = "clinicflow:telehealth:geometry:v1";
+/** Per-patient resume record — read back by the launcher to offer "Rejoin". */
+const resumeKeyFor = (patientId: string) =>
+  `clinicflow:telehealth:${patientId}`;
 const MIN_W = 340;
 const MIN_H = 260;
 const MARGIN = 12;
@@ -277,17 +283,6 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const defaultGeometry = useCallback((): Geometry => {
-    const w = Math.min(860, window.innerWidth - MARGIN * 2);
-    const h = Math.min(520, window.innerHeight - MARGIN * 2);
-    return {
-      w,
-      h,
-      x: Math.max(MARGIN, window.innerWidth - w - MARGIN),
-      y: Math.max(MARGIN, window.innerHeight - h - MARGIN),
-    };
-  }, []);
-
   const persistGeometry = useCallback((next: Geometry) => {
     geometryRef.current = next;
     try {
@@ -332,6 +327,22 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
     setExpanded(false);
     setChatOpen(false);
     setTab("context");
+    // Persist across a reload: the panel lives in the shell, but the record
+    // that knows *who* was being called only lives in the launcher's markup.
+    try {
+      window.sessionStorage.setItem(
+        resumeKeyFor(next.patientId),
+        JSON.stringify({
+          sessionId: next.sessionId,
+          roomId: next.roomId,
+          joinUrl: next.joinUrl,
+          doctorName: next.doctorName,
+          patientId: next.patientId,
+        }),
+      );
+    } catch {
+      /* storage unavailable (private mode) — call still works, just not resumable */
+    }
   }, []);
 
   const start = useCallback(
@@ -403,9 +414,8 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
     (async () => {
       const element = containerRef.current;
       if (!element) return;
-      const { ZegoUIKitPrebuilt } = await import(
-        "@zegocloud/zego-uikit-prebuilt"
-      );
+      const { ZegoUIKitPrebuilt } =
+        await import("@zegocloud/zego-uikit-prebuilt");
       if (cancelled) return;
       const zp = ZegoUIKitPrebuilt.create(call.doctorToken);
       // A clinician often joins before the patient; without this the kit can
@@ -470,12 +480,19 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
 
   const closePanel = useCallback(() => {
     teardown();
+    if (call?.patientId) {
+      try {
+        window.sessionStorage.removeItem(resumeKeyFor(call.patientId));
+      } catch {
+        /* ignore */
+      }
+    }
     setCall(null);
     setExpanded(false);
     setCollapsed(false);
     setSheetOpen(false);
     setChatOpen(false);
-  }, [teardown]);
+  }, [teardown, call?.patientId]);
 
   const end = useCallback(async () => {
     if (!call || ending) return;
@@ -665,11 +682,11 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
       activePatientId: call?.patientId ?? null,
       active: call !== null,
     }),
-    [start, rejoin, pending, call?.patientId],
+    [start, rejoin, pending, call],
   );
 
   const floating = !expanded && !isNarrow;
-  const resolvedGeometry = floating ? geometry ?? null : null;
+  const resolvedGeometry = floating ? (geometry ?? null) : null;
   const phaseCopy = PHASE_COPY[phase];
 
   return (
@@ -1002,7 +1019,10 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
                           </button>
                         ))}
                       </div>
-                      <IconAction label="Close" onClick={() => setSheetOpen(false)}>
+                      <IconAction
+                        label="Close"
+                        onClick={() => setSheetOpen(false)}
+                      >
                         <X className="size-3.5" aria-hidden="true" />
                       </IconAction>
                     </div>

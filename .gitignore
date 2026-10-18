@@ -69,3 +69,7 @@ tmp-*.ts
 
 # landing page design review screenshots
 /.review/
+
+# ad-hoc working material: design exports, source zips and prompt/notes docs
+*.zip
+/docs/

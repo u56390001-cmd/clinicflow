@@ -2,14 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import {
-  Download,
-  FileText,
-  Loader2,
-  Paperclip,
-  Send,
-  X,
-} from "lucide-react";
+import { Download, FileText, Loader2, Paperclip, Send, X } from "lucide-react";
 
 import {
   fetchPatientTelehealthMessagesAction,
@@ -96,7 +89,10 @@ export function TelehealthChat(props: TelehealthChatProps) {
       const result =
         props.mode === "doctor"
           ? await fetchTelehealthMessagesAction(props.sessionId)
-          : await fetchPatientTelehealthMessagesAction(props.roomId, props.token);
+          : await fetchPatientTelehealthMessagesAction(
+              props.roomId,
+              props.token,
+            );
       if (!result.ok) {
         // A closed room is the normal end state, not an error worth shouting.
         if (/ended|no longer valid/i.test(result.message)) {
@@ -281,13 +277,16 @@ export function TelehealthChat(props: TelehealthChatProps) {
             return (
               <div
                 key={message.id}
-                className={cn("flex flex-col", own ? "items-end" : "items-start")}
+                className={cn(
+                  "flex flex-col",
+                  own ? "items-end" : "items-start",
+                )}
               >
                 <div
                   className={cn(
                     "max-w-[85%] rounded-card border-[0.5px] px-2.5 py-2 text-[12.5px] leading-relaxed",
                     own
-                      ? "border-primary/30 bg-primary/10 text-ink"
+                      ? "text-ink border-primary/30 bg-primary/10"
                       : "border-hairline bg-app text-text-primary",
                   )}
                 >

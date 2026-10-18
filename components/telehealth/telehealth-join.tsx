@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, PhoneOff } from "lucide-react";
+import { Loader2, MessageSquare, PhoneOff, X } from "lucide-react";
+
+import { TelehealthChat } from "@/components/telehealth/telehealth-chat";
 
 /**
  * Phase 8 — the patient-facing zero-app WebRTC view. It parses the room and
@@ -9,12 +11,15 @@ import { Loader2, PhoneOff } from "lucide-react";
  * one-on-one mode. The kit renders its own pre-call device check (microphone and
  * camera permission prompts) and adapts bitrate to the network, so there is
  * nothing to install and nothing else for the patient to do.
+ *
+ * The patient chat runs alongside the video, authorised purely by the room id
+ * and the KitToken already in the URL — the patient never signs in.
  */
 export function TelehealthJoinClient({
   roomId,
   token,
-  patientName: _patientName,
-  doctorName: _doctorName,
+  patientName,
+  doctorName,
 }: {
   roomId: string;
   token: string;
@@ -24,6 +29,7 @@ export function TelehealthJoinClient({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const zgRef = useRef<{ destroy: () => void } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -31,9 +37,8 @@ export function TelehealthJoinClient({
       const element = containerRef.current;
       if (!element) return;
       try {
-        const { ZegoUIKitPrebuilt } = await import(
-          "@zegocloud/zego-uikit-prebuilt"
-        );
+        const { ZegoUIKitPrebuilt } =
+          await import("@zegocloud/zego-uikit-prebuilt");
         if (cancelled) return;
         const zp = ZegoUIKitPrebuilt.create(token);
         zgRef.current = zp;
@@ -74,7 +79,7 @@ export function TelehealthJoinClient({
             className="mx-auto mb-3 size-8 text-status-destructive"
             aria-hidden="true"
           />
-          <h1 className="text-[15px] font-bold text-ink">Couldn&apos;t join</h1>
+          <h1 className="text-ink text-[15px] font-bold">Couldn&apos;t join</h1>
           <p className="mt-1.5 text-[13px] leading-relaxed text-text-secondary">
             {error}
           </p>
@@ -84,11 +89,64 @@ export function TelehealthJoinClient({
   }
 
   return (
-    <div
-      ref={containerRef}
-      data-room={roomId}
-      className="h-screen w-screen bg-black"
-    />
+    <div className="flex h-screen w-screen flex-col bg-black">
+      <header className="flex items-center justify-between gap-3 border-b border-white/10 bg-slate-950 px-4 py-2">
+        <div className="min-w-0">
+          <p className="truncate text-[13px] font-semibold text-white">
+            {doctorName ?? "Your clinician"}
+          </p>
+          <p className="truncate text-[11px] text-slate-400">
+            {patientName ?? "Video consultation"}
+            <span aria-hidden="true"> · </span>
+            <span className="hidden sm:inline">Secure video consultation</span>
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setChatOpen((value) => !value)}
+          aria-expanded={chatOpen}
+          className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-white/15 text-slate-200 transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-400"
+          aria-label={chatOpen ? "Close chat" : "Open chat with the clinic"}
+        >
+          {chatOpen ? (
+            <X className="size-4" aria-hidden="true" />
+          ) : (
+            <MessageSquare className="size-4" aria-hidden="true" />
+          )}
+        </button>
+      </header>
+
+      <div className="relative min-h-0 flex-1">
+        <div
+          ref={containerRef}
+          data-room={roomId}
+          className="absolute inset-0 h-full w-full bg-black"
+        />
+
+        {chatOpen && (
+          <aside className="absolute inset-y-0 right-0 z-20 flex w-full flex-col border-l border-white/10 bg-app shadow-dropdown sm:w-[360px]">
+            <div className="flex justify-end border-b border-hairline px-2 py-1.5">
+              <button
+                type="button"
+                onClick={() => setChatOpen(false)}
+                aria-label="Close chat"
+                className="inline-flex size-7 items-center justify-center rounded-md text-text-secondary transition hover:bg-app"
+              >
+                <X className="size-4" aria-hidden="true" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <TelehealthChat
+                mode="patient"
+                roomId={roomId}
+                token={token}
+                patientName={doctorName}
+              />
+            </div>
+          </aside>
+        )}
+      </div>
+    </div>
   );
 }
 
