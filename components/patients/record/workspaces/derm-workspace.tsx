@@ -165,6 +165,7 @@ export function DermWorkspace({
           lesions={derm.lesions}
           procedures={derm.procedures}
           prescriptions={derm.prescriptions}
+          billing={derm.billing}
           canManage={canManage}
         />
       )}

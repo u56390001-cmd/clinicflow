@@ -28,8 +28,11 @@ import type {
   DermProcedure,
   DermProfile,
   PatientAlert,
+  PatientBill,
+  PatientBillItem,
   PatientLabResult,
   PatientMedication,
+  PatientPayment,
   Prescription,
   PsychAssessment,
   PsychCarePlan,
@@ -38,6 +41,7 @@ import type {
   PsychMse,
   PsychSafety,
   PsychSession,
+  Receipt,
   Visit,
   Vitals,
 } from "@/types/database";
@@ -106,6 +110,29 @@ export type PatientPsychBundle = {
   suggestions: PsychIntakeSuggestion[];
 };
 
+/** A patient bill with its line items, payments and receipts (Tab 6 billing). */
+export type DermBillRow = PatientBill & {
+  patient_bill_items: PatientBillItem[];
+  patient_payments: PatientPayment[];
+  receipts: Receipt[];
+};
+
+/**
+ * Real pricing context for Tab 6's itemised invoice (spec §10.3). Every
+ * number here is read from the clinic's own configuration — the active
+ * `services` catalogue and `doctors.consultation_fee` — never hard-coded.
+ * Fetched with the derm bundle so the summary tab can aggregate charges
+ * without a client round trip.
+ */
+export type DermBillingBundle = {
+  /** The patient's recent bills, newest first (capped at 5). */
+  bills: DermBillRow[];
+  /** The clinic's active service catalogue — the only source of procedure prices. */
+  services: { id: string; name: string; price: number }[];
+  /** Clinic doctors and their configured consultation fees. */
+  doctors: { id: string; name: string; consultation_fee: number | null }[];
+};
+
 /** Dermatology workspace rows. */
 export type PatientDermBundle = {
   profile: DermProfile | null;
@@ -122,6 +149,8 @@ export type PatientDermBundle = {
    * the procedure card only offers the active ones.
    */
   machines: ClinicMachine[];
+  /** Billing context for Tab 6 — bills, catalogue and doctor fees. */
+  billing: DermBillingBundle;
 };
 
 const EMPTY_PSYCH: PatientPsychBundle = {
@@ -143,6 +172,7 @@ const EMPTY_DERM: PatientDermBundle = {
   lesions: [],
   diagnoses: [],
   machines: [],
+  billing: { bills: [], services: [], doctors: [] },
 };
 
 const EMPTY: PatientRecordData = {
@@ -382,6 +412,9 @@ export async function fetchPatientRecord(
       lesionsRes,
       diagnosesRes,
       machinesRes,
+      billsRes,
+      servicesRes,
+      doctorsRes,
     ] = await Promise.all([
       supabase
         .from("derm_profiles")
@@ -434,6 +467,30 @@ export async function fetchPatientRecord(
         .select("*")
         .eq("clinic_id", clinicId)
         .order("name", { ascending: true }),
+      // Tab 6 billing: the patient's recent bills with their line items and
+      // receipts (child embeds only — unambiguous; see lib/patient-billing-queries).
+      supabase
+        .from("patient_bills")
+        .select(
+          "*, patient_bill_items ( * ), patient_payments ( * ), receipts ( * )",
+        )
+        .eq("clinic_id", clinicId)
+        .eq("patient_id", patientId)
+        .order("created_at", { ascending: false })
+        .limit(5),
+      // Tab 6 pricing catalogue: active services are the only source of
+      // procedure prices; doctor fees are the only source of consultation prices.
+      supabase
+        .from("services")
+        .select("id, name, price")
+        .eq("clinic_id", clinicId)
+        .eq("status", "active")
+        .order("name", { ascending: true }),
+      supabase
+        .from("doctors")
+        .select("id, name, consultation_fee")
+        .eq("clinic_id", clinicId)
+        .order("name", { ascending: true }),
     ]);
 
     derm = {
@@ -445,6 +502,11 @@ export async function fetchPatientRecord(
       lesions: (lesionsRes.data as DermLesion[]) ?? [],
       diagnoses: (diagnosesRes.data as DermDiagnosis[]) ?? [],
       machines: (machinesRes.data as ClinicMachine[]) ?? [],
+      billing: {
+        bills: (billsRes.data as DermBillRow[]) ?? [],
+        services: (servicesRes.data ?? []) as DermBillingBundle["services"],
+        doctors: (doctorsRes.data ?? []) as DermBillingBundle["doctors"],
+      },
     };
   }
 
