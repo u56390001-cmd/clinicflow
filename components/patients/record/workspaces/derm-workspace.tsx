@@ -1335,6 +1335,15 @@ function RxTab({
 }) {
   const router = useRouter();
   const latest = derm.prescriptions[0] ?? null;
+  // Every allergy string this patient carries — the profile's drug/topical/
+  // other fields plus the record-level known_allergies — in the order the
+  // risk card reads them, fed straight to the safety panel below.
+  const allergies = [
+    derm.profile?.drug_allergies,
+    derm.profile?.topical_allergies,
+    derm.profile?.allergies,
+    patient.known_allergies,
+  ];
 
   const [pending, setPending] = useState(false);
   const [form, setForm] = useState<string[]>(
@@ -1373,6 +1382,7 @@ function RxTab({
         labOrders={latest?.lab_orders ?? []}
         skincareAm={latest?.skincare_routine_am ?? null}
         skincarePm={latest?.skincare_routine_pm ?? null}
+        allergies={allergies}
         canManage={canManage}
       />
 

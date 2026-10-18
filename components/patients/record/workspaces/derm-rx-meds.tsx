@@ -7,6 +7,7 @@ import { Plus, Save } from "lucide-react";
 
 import { LabOrderEntry } from "@/components/consultation/lab-order-entry";
 import { MedicineEntry } from "@/components/consultation/medicine-entry";
+import { RxSafetyPanel } from "@/components/consultation/rx-safety-panel";
 import { RecordSection } from "@/components/patients/record/record-primitives";
 import { Button } from "@/components/ui/button";
 import { saveDermRxAction } from "@/lib/actions/specialty-workspaces";
@@ -34,12 +35,15 @@ function routineSteps(
 }
 
 /**
- * Dermatology medicines, investigations and the patient-facing AM/PM routine.
+ * Dermatology medicines, investigations, the safety checks and the
+ * patient-facing AM/PM routine.
  *
  * The medicine and lab rows are the very components the General Physician
  * prescription uses (`MedicineEntry`, `LabOrderEntry`), so the derm flow shares
- * one editing experience instead of a second prescription engine. The routine
- * preview is derived live from the current draft.
+ * one editing experience instead of a second prescription engine — the safety
+ * panel is the GP builder's panel too. The routine preview and the safety
+ * checks share column 3 (spec §8.4); the routine is derived live from the
+ * current draft, and so are the warnings.
  */
 export function DermRxMeds({
   patientId,
@@ -48,6 +52,7 @@ export function DermRxMeds({
   labOrders,
   skincareAm,
   skincarePm,
+  allergies,
   canManage,
 }: {
   patientId: string;
@@ -56,6 +61,8 @@ export function DermRxMeds({
   labOrders: LabOrder[];
   skincareAm: string | null;
   skincarePm: string | null;
+  /** Recorded allergy strings (patient + derm profile), for the safety panel. */
+  allergies?: Array<string | null | undefined>;
   canManage: boolean;
 }) {
   const router = useRouter();
@@ -189,51 +196,61 @@ export function DermRxMeds({
         )}
       </RecordSection>
 
-      <RecordSection
-        title="Patient AM/PM routine"
-        meta="From the current draft"
-      >
-        <div className="space-y-3">
-          <div>
-            <p className="text-ink mb-1 text-[12px] font-bold uppercase tracking-wide">
-              Morning
+      {/* Column 3 (spec §8.4): the patient-facing AM/PM routine on top, the
+          safety panel under it — both recomputed live from the draft rows at
+          the left. Advisory only: warnings never gate the save. */}
+      <div className="flex min-w-0 flex-col gap-3">
+        <RecordSection
+          title="Patient AM/PM routine"
+          meta="From the current draft"
+        >
+          <div className="space-y-3">
+            <div>
+              <p className="text-ink mb-1 text-[12px] font-bold uppercase tracking-wide">
+                Morning
+              </p>
+              <ol className="list-decimal space-y-0.5 pl-5 text-[13px] text-text-secondary">
+                {skincareAm && <li>{skincareAm}</li>}
+                {am.map((line, index) => (
+                  <li key={`am-${index}`}>{line}</li>
+                ))}
+                {!skincareAm && am.length === 0 && (
+                  <li className="list-none text-text-muted">
+                    Nothing scheduled for the morning.
+                  </li>
+                )}
+              </ol>
+            </div>
+            <div>
+              <p className="text-ink mb-1 text-[12px] font-bold uppercase tracking-wide">
+                Night
+              </p>
+              <ol className="list-decimal space-y-0.5 pl-5 text-[13px] text-text-secondary">
+                {skincarePm && <li>{skincarePm}</li>}
+                {pm.map((line, index) => (
+                  <li key={`pm-${index}`}>{line}</li>
+                ))}
+                {!skincarePm && pm.length === 0 && (
+                  <li className="list-none text-text-muted">
+                    Nothing scheduled for the night.
+                  </li>
+                )}
+              </ol>
+            </div>
+            <p className="text-[11px] leading-relaxed text-text-muted">
+              Medicines appear here when their frequency names a time of day
+              (AM/PM, morning/night); the skincare routine lines come from the
+              fields below. Per-medicine AM/PM scheduling beyond that follows
+              the shared prescription model, which stores one frequency per
+              medicine.
             </p>
-            <ol className="list-decimal space-y-0.5 pl-5 text-[13px] text-text-secondary">
-              {skincareAm && <li>{skincareAm}</li>}
-              {am.map((line, index) => (
-                <li key={`am-${index}`}>{line}</li>
-              ))}
-              {!skincareAm && am.length === 0 && (
-                <li className="list-none text-text-muted">
-                  Nothing scheduled for the morning.
-                </li>
-              )}
-            </ol>
           </div>
-          <div>
-            <p className="text-ink mb-1 text-[12px] font-bold uppercase tracking-wide">
-              Night
-            </p>
-            <ol className="list-decimal space-y-0.5 pl-5 text-[13px] text-text-secondary">
-              {skincarePm && <li>{skincarePm}</li>}
-              {pm.map((line, index) => (
-                <li key={`pm-${index}`}>{line}</li>
-              ))}
-              {!skincarePm && pm.length === 0 && (
-                <li className="list-none text-text-muted">
-                  Nothing scheduled for the night.
-                </li>
-              )}
-            </ol>
-          </div>
-          <p className="text-[11px] leading-relaxed text-text-muted">
-            Medicines appear here when their frequency names a time of day
-            (AM/PM, morning/night); the skincare routine lines come from the
-            fields below. Per-medicine AM/PM scheduling beyond that follows the
-            shared prescription model, which stores one frequency per medicine.
-          </p>
-        </div>
-      </RecordSection>
+        </RecordSection>
+
+        <RecordSection title="Safety & interaction checks" meta="Live draft">
+          <RxSafetyPanel medicines={items} allergies={allergies} />
+        </RecordSection>
+      </div>
 
       <RecordSection title="Investigations & labs" className="xl:col-span-3">
         {labs.length === 0 ? (

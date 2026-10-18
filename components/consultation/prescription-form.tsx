@@ -1,6 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useActionState, useRef, useState, forwardRef, useImperativeHandle } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useActionState,
+  useRef,
+  useState,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 
@@ -10,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { MedicineEntry } from "@/components/consultation/medicine-entry";
 import { LabOrderEntry } from "@/components/consultation/lab-order-entry";
+import { RxSafetyPanel } from "@/components/consultation/rx-safety-panel";
 import { TemplateManager } from "@/components/consultation/template-manager";
 import {
   BLANK_MEDICINE,
@@ -21,7 +31,12 @@ import { savePrescriptionAction } from "@/lib/actions/consultation";
 import { cn } from "@/lib/utils";
 import type { PrescriptionDraft } from "@/components/patients/record/prescription-draft-context";
 import type { ActionResult } from "@/types";
-import type { Prescription, MedicineEntry as MedEntry, LabOrder, PrescriptionTemplate } from "@/types/database";
+import type {
+  Prescription,
+  MedicineEntry as MedEntry,
+  LabOrder,
+  PrescriptionTemplate,
+} from "@/types/database";
 import type { CopilotExtraction } from "@/lib/copilot/types";
 
 export interface PrescriptionFormRef {
@@ -45,23 +60,35 @@ export interface PrescriptionFormRef {
  *   is the voice copilot's write target — `applied` marks ring fields amber
  *   until the doctor edits them.
  */
-export const PrescriptionForm = forwardRef<PrescriptionFormRef, {
-  visitId: string;
-  prescription: Prescription | null;
-  doctorId: string | null;
-  templates: PrescriptionTemplate[];
-  /**
-   * False where "Save as Template" is rendered outside the form — the patient
-   * record's Rx workspace puts it in its sub-header, next to Print and Complete.
-   */
-  showTemplateSave?: boolean;
-}>(function PrescriptionForm({
-  visitId,
-  prescription,
-  doctorId,
-  templates,
-  showTemplateSave = true,
-}, ref) {
+export const PrescriptionForm = forwardRef<
+  PrescriptionFormRef,
+  {
+    visitId: string;
+    prescription: Prescription | null;
+    doctorId: string | null;
+    templates: PrescriptionTemplate[];
+    /**
+     * False where "Save as Template" is rendered outside the form — the patient
+     * record's Rx workspace puts it in its sub-header, next to Print and Complete.
+     */
+    showTemplateSave?: boolean;
+    /**
+     * The patient's recorded allergy strings (typically `known_allergies`),
+     * fed to the safety panel's allergy interlock.
+     */
+    allergies?: Array<string | null | undefined>;
+  }
+>(function PrescriptionForm(
+  {
+    visitId,
+    prescription,
+    doctorId,
+    templates,
+    showTemplateSave = true,
+    allergies,
+  },
+  ref,
+) {
   const router = useRouter();
   // Raw context for seeding; the gated bridge below is only live once the
   // provider actually holds a draft for THIS visit (a different visit's draft
@@ -224,14 +251,14 @@ export const PrescriptionForm = forwardRef<PrescriptionFormRef, {
           frequency: m.frequency,
           duration: m.duration,
           unit: m.unit || "Days",
-          instructions: m.instructions
+          instructions: m.instructions,
         }));
       }
 
       if (extracted.lab_orders && extracted.lab_orders.length > 0) {
         updates.labOrders = extracted.lab_orders.map((l) => ({
           test_name: l.test_name,
-          notes: l.notes || ""
+          notes: l.notes || "",
         }));
       }
 
@@ -259,9 +286,13 @@ export const PrescriptionForm = forwardRef<PrescriptionFormRef, {
   );
 
   // Expose populate method via ref
-  useImperativeHandle(ref, () => ({
-    populateFromCopilot
-  }), [populateFromCopilot]);
+  useImperativeHandle(
+    ref,
+    () => ({
+      populateFromCopilot,
+    }),
+    [populateFromCopilot],
+  );
 
   /** Ring for copilot-written fields — one class source so no field is missed. */
   const ring = (key: keyof PrescriptionDraft) =>
@@ -287,185 +318,250 @@ export const PrescriptionForm = forwardRef<PrescriptionFormRef, {
       )}
 
       <form action={formAction} className="space-y-6">
-      <input type="hidden" name="visitId" value={visitId} />
-      <input type="hidden" name="medicines" value={JSON.stringify(medicines)} />
-      <input type="hidden" name="labOrders" value={JSON.stringify(labOrders)} />
-
-      {/* Chief Complaint */}
-      <div className="space-y-1.5">
-        <Label htmlFor="chiefComplaint" className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
-          Chief Complaint
-          {marked.has("chiefComplaint") && <CopilotMark />}
-        </Label>
-        <Textarea
-          id="chiefComplaint"
-          name="chiefComplaint"
-          value={chiefComplaint}
-          onChange={(e) => patch({ chiefComplaint: e.target.value })}
-          placeholder="Patient's primary complaint..."
-          rows={2}
-          className={ring("chiefComplaint")}
+        <input type="hidden" name="visitId" value={visitId} />
+        <input
+          type="hidden"
+          name="medicines"
+          value={JSON.stringify(medicines)}
         />
-      </div>
-
-      {/* Clinical Findings */}
-      <div className="space-y-1.5">
-        <Label htmlFor="findings" className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
-          Clinical / Examination Findings
-          {marked.has("findings") && <CopilotMark />}
-        </Label>
-        <Textarea
-          id="findings"
-          name="findings"
-          value={findings}
-          onChange={(e) => patch({ findings: e.target.value })}
-          placeholder="Examination findings, observations..."
-          rows={3}
-          className={ring("findings")}
+        <input
+          type="hidden"
+          name="labOrders"
+          value={JSON.stringify(labOrders)}
         />
-      </div>
 
-      {/* Diagnosis */}
-      <div className="grid grid-cols-2 gap-4">
+        {/* Chief Complaint */}
         <div className="space-y-1.5">
-          <Label htmlFor="diagnosis" className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
-            Diagnosis
-            {marked.has("diagnosis") && <CopilotMark />}
+          <Label
+            htmlFor="chiefComplaint"
+            className="text-[10px] font-bold uppercase tracking-wider text-text-muted"
+          >
+            Chief Complaint
+            {marked.has("chiefComplaint") && <CopilotMark />}
           </Label>
-          <Input
-            id="diagnosis"
-            name="diagnosis"
-            value={diagnosis}
-            onChange={(e) => patch({ diagnosis: e.target.value })}
-            placeholder="e.g. Upper Respiratory Infection"
-            className={ring("diagnosis")}
+          <Textarea
+            id="chiefComplaint"
+            name="chiefComplaint"
+            value={chiefComplaint}
+            onChange={(e) => patch({ chiefComplaint: e.target.value })}
+            placeholder="Patient's primary complaint..."
+            rows={2}
+            className={ring("chiefComplaint")}
           />
         </div>
+
+        {/* Clinical Findings */}
         <div className="space-y-1.5">
-          <Label htmlFor="customDiagnosis" className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
-            Custom Diagnosis (Free Text)
-            {marked.has("customDiagnosis") && <CopilotMark />}
+          <Label
+            htmlFor="findings"
+            className="text-[10px] font-bold uppercase tracking-wider text-text-muted"
+          >
+            Clinical / Examination Findings
+            {marked.has("findings") && <CopilotMark />}
           </Label>
-          <Input
-            id="customDiagnosis"
-            name="customDiagnosis"
-            value={customDiagnosis}
-            onChange={(e) => patch({ customDiagnosis: e.target.value })}
-            placeholder="Alternative / additional diagnosis"
-            className={ring("customDiagnosis")}
+          <Textarea
+            id="findings"
+            name="findings"
+            value={findings}
+            onChange={(e) => patch({ findings: e.target.value })}
+            placeholder="Examination findings, observations..."
+            rows={3}
+            className={ring("findings")}
           />
         </div>
-      </div>
 
-      {/* Medicines */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <Label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-text-muted">
-            Medicines ({medicines.length})
-            {marked.has("medicines") && <CopilotMark />}
-          </Label>
-          <Button type="button" variant="outline" size="sm" onClick={addMedicine} className="text-xs">
-            <Plus className="mr-1 h-3 w-3" aria-hidden="true" />
-            Add Medicine
-          </Button>
-        </div>
-        <div className={cn("space-y-2", ring("medicines") && "rounded-lg ring-2 ring-status-warning/60 p-1.5")}>
-          {medicines.map((med, i) => (
-            <MedicineEntry
-              key={i}
-              index={i}
-              medicine={med}
-              onChange={updateMedicine}
-              onRemove={removeMedicine}
-              canRemove={medicines.length > 1}
+        {/* Diagnosis */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label
+              htmlFor="diagnosis"
+              className="text-[10px] font-bold uppercase tracking-wider text-text-muted"
+            >
+              Diagnosis
+              {marked.has("diagnosis") && <CopilotMark />}
+            </Label>
+            <Input
+              id="diagnosis"
+              name="diagnosis"
+              value={diagnosis}
+              onChange={(e) => patch({ diagnosis: e.target.value })}
+              placeholder="e.g. Upper Respiratory Infection"
+              className={ring("diagnosis")}
             />
-          ))}
+          </div>
+          <div className="space-y-1.5">
+            <Label
+              htmlFor="customDiagnosis"
+              className="text-[10px] font-bold uppercase tracking-wider text-text-muted"
+            >
+              Custom Diagnosis (Free Text)
+              {marked.has("customDiagnosis") && <CopilotMark />}
+            </Label>
+            <Input
+              id="customDiagnosis"
+              name="customDiagnosis"
+              value={customDiagnosis}
+              onChange={(e) => patch({ customDiagnosis: e.target.value })}
+              placeholder="Alternative / additional diagnosis"
+              className={ring("customDiagnosis")}
+            />
+          </div>
         </div>
-      </div>
 
-      {/* Lab Orders */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <Label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-text-muted">
-            Lab Tests Ordered ({labOrders.length})
-            {marked.has("labOrders") && <CopilotMark />}
-          </Label>
-          <Button type="button" variant="outline" size="sm" onClick={addLabOrder} className="text-xs">
-            <Plus className="mr-1 h-3 w-3" aria-hidden="true" />
-            Add Lab Test
-          </Button>
-        </div>
-        {labOrders.length > 0 && (
-          <div className={cn("space-y-2", ring("labOrders") && "rounded-lg ring-2 ring-status-warning/60 p-1.5")}>
-            {labOrders.map((order, i) => (
-              <LabOrderEntry
+        {/* Medicines */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-text-muted">
+              Medicines ({medicines.length})
+              {marked.has("medicines") && <CopilotMark />}
+            </Label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addMedicine}
+              className="text-xs"
+            >
+              <Plus className="mr-1 h-3 w-3" aria-hidden="true" />
+              Add Medicine
+            </Button>
+          </div>
+          <div
+            className={cn(
+              "space-y-2",
+              ring("medicines") &&
+                "rounded-lg p-1.5 ring-2 ring-status-warning/60",
+            )}
+          >
+            {medicines.map((med, i) => (
+              <MedicineEntry
                 key={i}
                 index={i}
-                order={order}
-                onChange={updateLabOrder}
-                onRemove={removeLabOrder}
-                canRemove={labOrders.length > 1}
+                medicine={med}
+                onChange={updateMedicine}
+                onRemove={removeMedicine}
+                canRemove={medicines.length > 1}
               />
             ))}
           </div>
+        </div>
+
+        {/* Safety — same panel the record's Rx builder and the dermatology tab
+          render, recomputed against this draft on every keystroke. Advisory:
+          it never blocks the save. */}
+        <div className="space-y-1.5">
+          <Label className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+            Safety & Interaction Checks
+          </Label>
+          <RxSafetyPanel medicines={medicines} allergies={allergies} />
+        </div>
+
+        {/* Lab Orders */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-text-muted">
+              Lab Tests Ordered ({labOrders.length})
+              {marked.has("labOrders") && <CopilotMark />}
+            </Label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addLabOrder}
+              className="text-xs"
+            >
+              <Plus className="mr-1 h-3 w-3" aria-hidden="true" />
+              Add Lab Test
+            </Button>
+          </div>
+          {labOrders.length > 0 && (
+            <div
+              className={cn(
+                "space-y-2",
+                ring("labOrders") &&
+                  "rounded-lg p-1.5 ring-2 ring-status-warning/60",
+              )}
+            >
+              {labOrders.map((order, i) => (
+                <LabOrderEntry
+                  key={i}
+                  index={i}
+                  order={order}
+                  onChange={updateLabOrder}
+                  onRemove={removeLabOrder}
+                  canRemove={labOrders.length > 1}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Follow-up */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label
+              htmlFor="followUpDate"
+              className="text-[10px] font-bold uppercase tracking-wider text-text-muted"
+            >
+              Follow-Up Date
+              {marked.has("followUpDate") && <CopilotMark />}
+            </Label>
+            <Input
+              id="followUpDate"
+              name="followUpDate"
+              type="date"
+              value={followUpDate}
+              onChange={(e) => patch({ followUpDate: e.target.value })}
+              className={ring("followUpDate")}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label
+              htmlFor="followUpNotes"
+              className="text-[10px] font-bold uppercase tracking-wider text-text-muted"
+            >
+              Follow-Up Notes
+              {marked.has("followUpNotes") && <CopilotMark />}
+            </Label>
+            <Input
+              id="followUpNotes"
+              name="followUpNotes"
+              value={followUpNotes}
+              onChange={(e) => patch({ followUpNotes: e.target.value })}
+              placeholder="e.g. Review blood work results"
+              className={ring("followUpNotes")}
+            />
+          </div>
+        </div>
+
+        {/* Doctor Notes */}
+        <div className="space-y-1.5">
+          <Label
+            htmlFor="doctorNotes"
+            className="text-[10px] font-bold uppercase tracking-wider text-text-muted"
+          >
+            Doctor Notes
+            {marked.has("doctorNotes") && <CopilotMark />}
+          </Label>
+          <Textarea
+            id="doctorNotes"
+            name="doctorNotes"
+            value={doctorNotes}
+            onChange={(e) => patch({ doctorNotes: e.target.value })}
+            placeholder="Additional notes for the patient or file..."
+            rows={3}
+            className={ring("doctorNotes")}
+          />
+        </div>
+
+        {state && !state.ok && (
+          <p className="text-xs text-status-destructive">{state.message}</p>
         )}
-      </div>
-
-      {/* Follow-up */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="followUpDate" className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
-            Follow-Up Date
-            {marked.has("followUpDate") && <CopilotMark />}
-          </Label>
-          <Input
-            id="followUpDate"
-            name="followUpDate"
-            type="date"
-            value={followUpDate}
-            onChange={(e) => patch({ followUpDate: e.target.value })}
-            className={ring("followUpDate")}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="followUpNotes" className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
-            Follow-Up Notes
-            {marked.has("followUpNotes") && <CopilotMark />}
-          </Label>
-          <Input
-            id="followUpNotes"
-            name="followUpNotes"
-            value={followUpNotes}
-            onChange={(e) => patch({ followUpNotes: e.target.value })}
-            placeholder="e.g. Review blood work results"
-            className={ring("followUpNotes")}
-          />
-        </div>
-      </div>
-
-      {/* Doctor Notes */}
-      <div className="space-y-1.5">
-        <Label htmlFor="doctorNotes" className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
-          Doctor Notes
-          {marked.has("doctorNotes") && <CopilotMark />}
-        </Label>
-        <Textarea
-          id="doctorNotes"
-          name="doctorNotes"
-          value={doctorNotes}
-          onChange={(e) => patch({ doctorNotes: e.target.value })}
-          placeholder="Additional notes for the patient or file..."
-          rows={3}
-          className={ring("doctorNotes")}
-        />
-      </div>
-
-      {state && !state.ok && (
-        <p className="text-xs text-status-destructive">{state.message}</p>
-      )}
-      {state?.ok && (
-        <p className="text-xs text-status-success">Prescription saved successfully.</p>
-      )}
+        {state?.ok && (
+          <p className="text-xs text-status-success">
+            Prescription saved successfully.
+          </p>
+        )}
       </form>
     </div>
   );

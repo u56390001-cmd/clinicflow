@@ -1771,6 +1771,28 @@ export type ClinicMachine = {
   updated_at: string;
 };
 
+/** Severity accepted by DB CHECK `drug_interaction_rules_severity_check`. */
+export type DrugInteractionSeverity = "major" | "moderate";
+
+/**
+ * A rule for the prescription safety panel (migration 0103). `drug_a` and
+ * `drug_b` are comma-separated name fragments matched case-insensitively on
+ * word boundaries against the draft's medicine names; a warning fires when
+ * two different rows match the two sides. Global rules carry
+ * `clinic_id: null`; clinics may add their own via RLS.
+ */
+export type DrugInteractionRule = {
+  id: string;
+  clinic_id: string | null;
+  drug_a: string;
+  drug_b: string;
+  severity: DrugInteractionSeverity;
+  message: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 /** MIME types accepted by DB CHECK `patient_documents_mime_type_check`. */
 export const PATIENT_DOCUMENT_MIME_TYPES = [
   "application/pdf",
@@ -6481,6 +6503,40 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "terminology_codes_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      drug_interaction_rules: {
+        Row: DrugInteractionRule;
+        Insert: {
+          id?: string;
+          clinic_id?: string | null;
+          drug_a: string;
+          drug_b: string;
+          severity?: DrugInteractionSeverity;
+          message: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          drug_a?: string;
+          drug_b?: string;
+          severity?: DrugInteractionSeverity;
+          message?: string;
+          is_active?: boolean;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "drug_interaction_rules_clinic_id_fkey";
             columns: ["clinic_id"];
             isOneToOne: false;
             referencedRelation: "clinics";

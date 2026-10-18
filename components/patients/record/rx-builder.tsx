@@ -11,11 +11,13 @@ import {
   Pill,
   Plus,
   Search,
+  ShieldAlert,
   X,
 } from "lucide-react";
 
 import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import { Button } from "@/components/ui/button";
+import { RxSafetyPanel } from "@/components/consultation/rx-safety-panel";
 import { DiagnosisTags } from "@/components/patients/record/diagnosis-tags";
 import { LabSubParameterPopover } from "@/components/patients/record/lab-sub-parameter-popover";
 import {
@@ -43,6 +45,7 @@ import {
 import { labTestLabel } from "@/lib/lab-panels";
 import { OPD_MEDICINE_SUGGESTIONS } from "@/lib/opd-medicines";
 import { parseOcrMedicineString } from "@/lib/ocr-medicine-parser";
+import { useMedicineCatalogueNames } from "@/lib/rx-reference";
 import { formatShortDate, addDaysToNaive } from "@/lib/utils/datetime";
 import { cn } from "@/lib/utils";
 import type {
@@ -447,6 +450,7 @@ export function RxBuilder({
   visitDate,
   doctorName,
   templateMenu,
+  allergies,
 }: {
   visitId: string;
   prescription: Prescription | null;
@@ -472,9 +476,15 @@ export function RxBuilder({
   doctorName: string | null;
   /** The "Load Template" control, rendered in the header card's action slot. */
   templateMenu?: React.ReactNode;
+  /**
+   * The patient's recorded allergy strings (typically `known_allergies`),
+   * fed to the safety panel's allergy interlock.
+   */
+  allergies?: Array<string | null | undefined>;
 }) {
   const ctx = usePrescriptionDraft();
   const bridge = usePrescriptionDraftBridge(visitId);
+  const catalogueNames = useMedicineCatalogueNames();
 
   const [localDraft, setLocalDraft] = useState<PrescriptionDraft>(() =>
     draftFromPrescription(prescription),
@@ -612,12 +622,14 @@ export function RxBuilder({
 
   /**
    * What the medicine name cell offers: this patient's own previous drugs
-   * first, then the general OPD catalogue.
+   * first, then the clinic's own catalogue, then the general OPD list.
    *
    * Past medicines come first because they are what a repeat prescription is
    * actually made of — the same drug in a different strength reads as a
    * different drug to the catalogue's dedupe, so putting them ahead keeps the
    * exact bottle the patient already has at the top of their own list.
+   * The clinic catalogue (Manage Medicines) follows, because that is the
+   * list the clinic actually stocks; the OPD list catches everything else.
    *
    * De-duplicated on a normalised name so "Paracetamol 500 mg" does not appear
    * twice under the patient's spelling and the catalogue's, and left
@@ -630,6 +642,7 @@ export function RxBuilder({
     const merged: string[] = [];
     for (const name of [
       ...pastMedicines.map((row) => row.medicine.name),
+      ...catalogueNames,
       ...OPD_MEDICINE_SUGGESTIONS,
     ]) {
       const trimmed = name.trim();
@@ -639,7 +652,7 @@ export function RxBuilder({
       merged.push(trimmed);
     }
     return merged;
-  }, [pastMedicines]);
+  }, [pastMedicines, catalogueNames]);
   const inUse = useMemo(
     () =>
       new Set(
@@ -923,6 +936,14 @@ export function RxBuilder({
             );
           })}
         </div>
+      </RxCard>
+
+      {/* Safety, directly under the medicines it checks: allergies recorded
+          for this patient against the draft, then the clinic's interaction
+          rules between the draft's own rows. Advisory — it never gates the
+          save — but it sits where the eye lands after writing a row. */}
+      <RxCard icon={ShieldAlert} title="Safety & Interaction Checks">
+        <RxSafetyPanel medicines={draft.medicines} allergies={allergies} />
       </RxCard>
 
       {/* What this patient was prescribed before, in the same shape as the table

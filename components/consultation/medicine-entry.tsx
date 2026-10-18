@@ -1,15 +1,22 @@
 "use client";
 
+import { useId } from "react";
 import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useMedicineCatalogueNames } from "@/lib/rx-reference";
 import type { MedicineEntry as MedicineEntryType } from "@/types/database";
 
 /**
  * A single medicine row in the prescription form. Uses the design system's
  * prescriptionGrid: 3fr 2fr 2fr 1.5fr 2fr auto.
+ *
+ * The name field is free text with a datalist over the clinic's own
+ * catalogue (Manage Medicines) — the same catalogue the GP builder offers —
+ * so every surface that writes a medicine row offers the same real list.
+ * The suggestion is a spelling aid, not a gate: typing anything else works.
  */
 export function MedicineEntry({
   index,
@@ -20,31 +27,51 @@ export function MedicineEntry({
 }: {
   index: number;
   medicine: MedicineEntryType;
-  onChange: (index: number, field: keyof MedicineEntryType, value: string) => void;
+  onChange: (
+    index: number,
+    field: keyof MedicineEntryType,
+    value: string,
+  ) => void;
   onRemove: (index: number) => void;
   canRemove: boolean;
 }) {
   const id = `medicine-${index}`;
+  const listId = useId();
+  const catalogueNames = useMedicineCatalogueNames();
 
   return (
     <div className="grid grid-cols-[3fr_2fr_2fr_1.5fr_2fr_auto] items-end gap-2">
       <div className="space-y-1">
         {index === 0 && (
-          <Label htmlFor={`${id}-name`} className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+          <Label
+            htmlFor={`${id}-name`}
+            className="text-[10px] font-bold uppercase tracking-wider text-text-muted"
+          >
             Medicine
           </Label>
         )}
         <Input
           id={`${id}-name`}
+          list={listId}
           value={medicine.name}
           onChange={(e) => onChange(index, "name", e.target.value)}
           placeholder="e.g. Amoxicillin"
         />
+        {catalogueNames.length > 0 && (
+          <datalist id={listId}>
+            {catalogueNames.map((name) => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
+        )}
       </div>
 
       <div className="space-y-1">
         {index === 0 && (
-          <Label htmlFor={`${id}-route`} className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+          <Label
+            htmlFor={`${id}-route`}
+            className="text-[10px] font-bold uppercase tracking-wider text-text-muted"
+          >
             Route / Form
           </Label>
         )}
@@ -62,7 +89,10 @@ export function MedicineEntry({
 
       <div className="space-y-1">
         {index === 0 && (
-          <Label htmlFor={`${id}-frequency`} className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+          <Label
+            htmlFor={`${id}-frequency`}
+            className="text-[10px] font-bold uppercase tracking-wider text-text-muted"
+          >
             Frequency
           </Label>
         )}
@@ -76,7 +106,10 @@ export function MedicineEntry({
 
       <div className="space-y-1">
         {index === 0 && (
-          <Label htmlFor={`${id}-duration`} className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+          <Label
+            htmlFor={`${id}-duration`}
+            className="text-[10px] font-bold uppercase tracking-wider text-text-muted"
+          >
             Duration
           </Label>
         )}
@@ -90,7 +123,10 @@ export function MedicineEntry({
 
       <div className="space-y-1">
         {index === 0 && (
-          <Label htmlFor={`${id}-instructions`} className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+          <Label
+            htmlFor={`${id}-instructions`}
+            className="text-[10px] font-bold uppercase tracking-wider text-text-muted"
+          >
             Instructions
           </Label>
         )}

@@ -92,7 +92,10 @@ import { toast } from "sonner";
 
 import type { ConsultationPreAnswer } from "@/lib/consultation-queries";
 import type { PatientDocumentView } from "@/lib/patient-documents-queries";
-import type { CopilotExtraction, WorkspaceExtraction } from "@/lib/copilot/types";
+import type {
+  CopilotExtraction,
+  WorkspaceExtraction,
+} from "@/lib/copilot/types";
 import type {
   Doctor,
   MedicineEntry,
@@ -1464,6 +1467,7 @@ export function PrescriptionWorkspace({
                         pastLabHistory={pastLabHistory}
                         visitDate={visitDateNaive}
                         doctorName={doctor?.name ?? null}
+                        allergies={[patient.known_allergies]}
                         templateMenu={
                           <TemplateLoadMenu
                             templates={templates}
@@ -1552,7 +1556,9 @@ export function PrescriptionWorkspace({
                               data-icon="inline-start"
                               aria-hidden="true"
                             />
-                            {isAdvancing ? "Completing…" : "Complete Consultation"}
+                            {isAdvancing
+                              ? "Completing…"
+                              : "Complete Consultation"}
                           </Button>
                         </>
                       ) : (
@@ -1563,10 +1569,7 @@ export function PrescriptionWorkspace({
                           disabled={isAdvancing || !canManage}
                           className="h-8 text-[12px] font-semibold"
                         >
-                          <Play
-                            data-icon="inline-start"
-                            aria-hidden="true"
-                          />
+                          <Play data-icon="inline-start" aria-hidden="true" />
                           {isAdvancing
                             ? "Starting…"
                             : isPaused
@@ -1612,7 +1615,9 @@ export function PrescriptionWorkspace({
                           }}
                           disabled={isAdvancing}
                         >
-                          {isAdvancing ? "Completing…" : "Yes, Complete Consultation"}
+                          {isAdvancing
+                            ? "Completing…"
+                            : "Yes, Complete Consultation"}
                         </Button>
                       </DialogFooter>
                     </DialogContent>

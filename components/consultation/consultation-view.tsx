@@ -17,9 +17,7 @@ import { VitalsForm } from "@/components/queue/vitals-form";
 import { PrescriptionForm } from "@/components/consultation/prescription-form";
 import { PrescriptionPreview } from "@/components/consultation/prescription-preview";
 import { useDoctorVitalsConfig } from "@/hooks/use-doctor-vitals-config";
-import {
-  completeAndAdvanceAction,
-} from "@/lib/actions/consultation";
+import { completeAndAdvanceAction } from "@/lib/actions/consultation";
 import type { ActionResult } from "@/types";
 import type { ConsultationData } from "@/lib/consultation-queries";
 import type { DoctorVitalsConfigMap } from "@/lib/vitals-config";
@@ -59,7 +57,8 @@ export function ConsultationView({
   vitalsConfigs?: DoctorVitalsConfigMap | null;
 }) {
   const router = useRouter();
-  const { visit, patient, doctor, service, vitals, prescription, answers } = data;
+  const { visit, patient, doctor, service, vitals, prescription, answers } =
+    data;
   const vitalsConfig = useDoctorVitalsConfig(doctor?.id ?? null, vitalsConfigs);
 
   const [advanceState, advanceFormAction, isAdvancing] = useActionState<
@@ -111,7 +110,8 @@ export function ConsultationView({
               Consultation
             </h1>
             <p className="mt-0.5 text-sm text-text-secondary">
-              {patient.name} · {service?.name ?? "Walk-in"} · Token #{visit.token_number}
+              {patient.name} · {service?.name ?? "Walk-in"} · Token #
+              {visit.token_number}
             </p>
           </div>
         </div>
@@ -144,7 +144,9 @@ export function ConsultationView({
       </div>
 
       {advanceState && !advanceState.ok && (
-        <p className="text-xs text-status-destructive">{advanceState.message}</p>
+        <p className="text-xs text-status-destructive">
+          {advanceState.message}
+        </p>
       )}
 
       <div className="grid grid-cols-[300px_1fr] gap-6">
@@ -160,34 +162,50 @@ export function ConsultationView({
             </CardHeader>
             <CardContent className="space-y-3">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Name</span>
-                <p className="text-sm font-medium text-text-primary">{patient.name}</p>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                  Name
+                </span>
+                <p className="text-sm font-medium text-text-primary">
+                  {patient.name}
+                </p>
               </div>
               {patient.phone && (
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Phone</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                    Phone
+                  </span>
                   <p className="text-sm text-text-primary">{patient.phone}</p>
                 </div>
               )}
               {patient.email && (
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Email</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                    Email
+                  </span>
                   <p className="text-sm text-text-primary">{patient.email}</p>
                 </div>
               )}
               {patient.date_of_birth && (
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Date of Birth</span>
-                  <p className="text-sm text-text-primary">{patient.date_of_birth}</p>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                    Date of Birth
+                  </span>
+                  <p className="text-sm text-text-primary">
+                    {patient.date_of_birth}
+                  </p>
                 </div>
               )}
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Visit Date</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                  Visit Date
+                </span>
                 <p className="text-sm text-text-primary">{visitDate}</p>
               </div>
               {doctor && (
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Doctor</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                    Doctor
+                  </span>
                   <p className="text-sm text-text-primary">
                     Dr. {doctor.name}
                     {doctor.specialty ? ` — ${doctor.specialty}` : ""}
@@ -202,7 +220,10 @@ export function ConsultationView({
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm">
-                  <ListChecks className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <ListChecks
+                    className="h-4 w-4 text-primary"
+                    aria-hidden="true"
+                  />
                   Pre-Consultation Questions
                   {answers.length > 0 && (
                     <Badge variant="success" className="ml-auto text-[10px]">
@@ -217,7 +238,7 @@ export function ConsultationView({
                     <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
                       {answer.question?.question_text ?? "Question"}
                     </span>
-                    <p className="mt-0.5 text-sm whitespace-pre-wrap text-text-primary">
+                    <p className="mt-0.5 whitespace-pre-wrap text-sm text-text-primary">
                       {answer.answer_text}
                     </p>
                   </div>
@@ -244,7 +265,9 @@ export function ConsultationView({
                 visitId={visit.id}
                 existingVitals={vitals}
                 config={
-                  vitalsConfig.status === "ready" ? vitalsConfig.config : undefined
+                  vitalsConfig.status === "ready"
+                    ? vitalsConfig.config
+                    : undefined
                 }
                 configLoading={vitalsConfig.status === "loading"}
               />
@@ -260,6 +283,7 @@ export function ConsultationView({
               prescription={prescription}
               doctorId={doctor?.id ?? null}
               templates={templates}
+              allergies={[patient.known_allergies]}
             />
           </CardContent>
         </Card>
