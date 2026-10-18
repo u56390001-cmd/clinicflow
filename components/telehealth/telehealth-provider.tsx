@@ -146,12 +146,55 @@ const GEOMETRY_KEY = "clinicflow:telehealth:geometry:v1";
 /** Per-patient resume record — read back by the launcher to offer "Rejoin". */
 const resumeKeyFor = (patientId: string) =>
   `clinicflow:telehealth:${patientId}`;
-const MIN_W = 340;
-const MIN_H = 260;
+/**
+ * The call window is phone-sized on purpose. It floats over the clinic screen,
+ * so it must never grow into a takeover: width, height and the aspect window
+ * below keep it in the mobile-screen band (9:16 portrait → 16:9 landscape)
+ * whatever the clinician drags it to, and whatever the monitor is doing.
+ */
+const MIN_W = 320;
+const MIN_H = 420;
+const MAX_W = 560;
+const MAX_H = 860;
+/** Panel aspect ratio (w ÷ h): 9:16 phone portrait … 16:9 widescreen. */
+const MIN_RATIO = 9 / 16;
+const MAX_RATIO = 16 / 9;
 const MARGIN = 12;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
+}
+
+/** Fitting helper: keep w/h inside the caps and the aspect window. */
+function fitPanel(
+  w: number,
+  h: number,
+  room: { right: number; bottom: number },
+) {
+  const width = clamp(w, MIN_W, Math.min(MAX_W, room.right));
+  let height = clamp(h, MIN_H, Math.min(MAX_H, room.bottom));
+  const ratio = width / height;
+  if (ratio < MIN_RATIO) height = Math.round(width / MIN_RATIO);
+  if (ratio > MAX_RATIO) height = Math.round(width / MAX_RATIO);
+  height = clamp(height, MIN_H, Math.min(MAX_H, room.bottom));
+  return { w: width, h: height };
+}
+
+/**
+ * Fresh placement: a 9:16 phone window parked bottom-right so the clinic
+ * record behind it stays readable the moment a call starts.
+ */
+function defaultGeometry(): Geometry {
+  const { w, h } = fitPanel(360, 640, {
+    right: window.innerWidth - MARGIN * 2,
+    bottom: window.innerHeight - MARGIN * 2,
+  });
+  return {
+    w,
+    h,
+    x: Math.max(MARGIN, window.innerWidth - w - MARGIN),
+    y: Math.max(MARGIN, window.innerHeight - h - MARGIN),
+  };
 }
 
 function snapshotLabel() {
@@ -257,30 +300,45 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("resize", measure);
   }, []);
 
-  // Restore remembered geometry, clamped back into the current viewport.
+  // Restore remembered geometry, clamped back into the current viewport. With
+  // no (or a corrupt) record the panel opens at its default phone size instead
+  // of falling back to the full-width sheet — the clinic screen stays visible.
   useEffect(() => {
+    let restored: Geometry | null = null;
     try {
       const raw = window.sessionStorage.getItem(GEOMETRY_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as Geometry;
+      const parsed = raw ? (JSON.parse(raw) as Geometry) : null;
       if (
         typeof parsed?.w === "number" &&
         typeof parsed?.h === "number" &&
         typeof parsed?.x === "number" &&
         typeof parsed?.y === "number"
       ) {
-        const next: Geometry = {
-          w: clamp(parsed.w, MIN_W, window.innerWidth - MARGIN),
-          h: clamp(parsed.h, MIN_H, window.innerHeight - MARGIN),
-          x: clamp(parsed.x, MARGIN, window.innerWidth - MIN_W),
-          y: clamp(parsed.y, MARGIN, window.innerHeight - MIN_H),
+        const { w, h } = fitPanel(parsed.w, parsed.h, {
+          right: window.innerWidth - MARGIN * 2,
+          bottom: window.innerHeight - MARGIN * 2,
+        });
+        restored = {
+          w,
+          h,
+          x: clamp(
+            parsed.x,
+            MARGIN,
+            Math.max(MARGIN, window.innerWidth - w - MARGIN),
+          ),
+          y: clamp(
+            parsed.y,
+            MARGIN,
+            Math.max(MARGIN, window.innerHeight - h - MARGIN),
+          ),
         };
-        setGeometry(next);
-        geometryRef.current = next;
       }
     } catch {
-      /* a missing or corrupt record just means default placement */
+      /* a corrupt record just means default placement */
     }
+    const next = restored ?? defaultGeometry();
+    setGeometry(next);
+    geometryRef.current = next;
   }, []);
 
   const persistGeometry = useCallback((next: Geometry) => {
@@ -646,20 +704,15 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
   function onResizePointerMove(event: React.PointerEvent<HTMLDivElement>) {
     const resize = resizeRef.current;
     if (!resize || resize.pointerId !== event.pointerId || !geometry) return;
-    const next: Geometry = {
-      ...geometry,
-      w: clamp(
-        resize.originW + (event.clientX - resize.startX),
-        MIN_W,
-        window.innerWidth - geometry.x - MARGIN,
-      ),
-      h: clamp(
-        resize.originH + (event.clientY - resize.startY),
-        MIN_H,
-        window.innerHeight - geometry.y - MARGIN,
-      ),
-    };
-    setGeometry(next);
+    const { w, h } = fitPanel(
+      resize.originW + (event.clientX - resize.startX),
+      resize.originH + (event.clientY - resize.startY),
+      {
+        right: window.innerWidth - geometry.x - MARGIN,
+        bottom: window.innerHeight - geometry.y - MARGIN,
+      },
+    );
+    setGeometry({ ...geometry, w, h });
   }
 
   function onResizePointerUp(event: React.PointerEvent<HTMLDivElement>) {
@@ -698,8 +751,11 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
               <div
                 className={cn(
                   "fixed z-50 flex flex-col overflow-hidden border-[0.5px] border-hairline bg-surface shadow-dropdown",
+                  // Never a takeover: even the expanded workspace is a bounded
+                  // card floating over the clinic screen, so records and the
+                  // sidebar stay usable behind it.
                   expanded
-                    ? "inset-0 rounded-none"
+                    ? "left-1/2 top-1/2 h-[min(88vh,620px)] w-[min(92vw,960px)] -translate-x-1/2 -translate-y-1/2 rounded-card"
                     : floating && resolvedGeometry
                       ? "rounded-control"
                       : cn(
