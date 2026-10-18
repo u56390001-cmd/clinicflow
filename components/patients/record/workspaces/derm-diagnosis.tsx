@@ -59,11 +59,14 @@ export function DermDiagnoses({
   examId,
   diagnoses,
   canManage,
+  visitId,
 }: {
   patientId: string;
   examId: string | null;
   diagnoses: DermDiagnosis[];
   canManage: boolean;
+  /** Active visit/encounter stamp for new diagnoses — migration 0104. */
+  visitId?: string | null;
 }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -81,13 +84,17 @@ export function DermDiagnoses({
       return;
     }
     setSaving(true);
-    const result = await saveDermDiagnosisAction(patientId, {
-      exam_id: examId ?? "",
-      label,
-      icd_code: form.icd_code,
-      status: form.status,
-      notes: form.notes,
-    });
+    const result = await saveDermDiagnosisAction(
+      patientId,
+      {
+        exam_id: examId ?? "",
+        label,
+        icd_code: form.icd_code,
+        status: form.status,
+        notes: form.notes,
+      },
+      visitId,
+    );
     setSaving(false);
     if (result.ok) {
       setForm({ label: "", icd_code: "", status: "primary", notes: "" });

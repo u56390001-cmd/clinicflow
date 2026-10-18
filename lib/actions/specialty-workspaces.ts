@@ -467,6 +467,34 @@ async function doctorId(
   return doctor?.id ?? null;
 }
 
+/**
+ * Confirms a caller-supplied visit id really is this patient's encounter in
+ * this clinic before it is stamped onto a clinical row (migration 0104).
+ *
+ * The derm save actions receive the workspace's active visit id from the
+ * client, and a client-supplied id is never trusted as-is: anything that does
+ * not resolve to `(clinic_id, patient_id)` — a stale id, another patient's
+ * visit, a visit since removed — degrades to `null` rather than mis-stamping
+ * a record onto an encounter it does not belong to. Rows created outside an
+ * active visit stay `visit_id null`, which is the honest value.
+ */
+async function resolveEncounterVisitId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clinicId: string,
+  patientId: string,
+  visitId: string | null | undefined,
+): Promise<string | null> {
+  if (!visitId) return null;
+  const { data } = await supabase
+    .from("visits")
+    .select("id")
+    .eq("id", visitId)
+    .eq("clinic_id", clinicId)
+    .eq("patient_id", patientId)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
 function ok(): ActionResult<string> {
   return { ok: true, data: "Saved" };
 }
@@ -2142,6 +2170,7 @@ export async function saveDermProfileAction(
 export async function saveDermExamAction(
   patientId: string,
   raw: unknown,
+  visitId?: string | null,
 ): Promise<ActionResult<string>> {
   const parsed = saveDermExamSchema.safeParse(raw);
   if (!parsed.success) return err(firstIssue(parsed));
@@ -2201,6 +2230,12 @@ export async function saveDermExamAction(
       clinic_id: g.clinicId,
       patient_id: patientId,
       doctor_id: await doctorId(g.supabase, g.clinicId),
+      visit_id: await resolveEncounterVisitId(
+        g.supabase,
+        g.clinicId,
+        patientId,
+        visitId,
+      ),
       ...payload,
     })
     .select("id")
@@ -2230,6 +2265,7 @@ export async function deleteDermExamAction(
 export async function saveDermProcedureAction(
   patientId: string,
   raw: unknown,
+  visitId?: string | null,
 ): Promise<ActionResult<string>> {
   const parsed = saveDermProcedureSchema.safeParse(raw);
   if (!parsed.success) return err(firstIssue(parsed));
@@ -2283,6 +2319,12 @@ export async function saveDermProcedureAction(
       clinic_id: g.clinicId,
       patient_id: patientId,
       doctor_id: await doctorId(g.supabase, g.clinicId),
+      visit_id: await resolveEncounterVisitId(
+        g.supabase,
+        g.clinicId,
+        patientId,
+        visitId,
+      ),
       ...payload,
     })
     .select("id")
@@ -2330,6 +2372,7 @@ export async function deleteDermProcedureAction(
 export async function saveDermPhotoAction(
   patientId: string,
   raw: unknown,
+  visitId?: string | null,
 ): Promise<ActionResult<string>> {
   const parsed = saveDermPhotoSchema.safeParse(raw);
   if (!parsed.success) return err(firstIssue(parsed));
@@ -2342,6 +2385,12 @@ export async function saveDermPhotoAction(
       clinic_id: g.clinicId,
       patient_id: patientId,
       doctor_id: await doctorId(g.supabase, g.clinicId),
+      visit_id: await resolveEncounterVisitId(
+        g.supabase,
+        g.clinicId,
+        patientId,
+        visitId,
+      ),
       ...parsed.data,
       document_id: parsed.data.document_id || null,
       paired_with: parsed.data.paired_with || null,
@@ -2374,6 +2423,7 @@ export async function deleteDermPhotoAction(
 export async function saveDermRxAction(
   patientId: string,
   raw: unknown,
+  visitId?: string | null,
 ): Promise<ActionResult<string>> {
   const parsed = saveDermRxSchema.safeParse(raw);
   if (!parsed.success) return err(firstIssue(parsed));
@@ -2401,6 +2451,12 @@ export async function saveDermRxAction(
     clinic_id: g.clinicId,
     patient_id: patientId,
     doctor_id: await doctorId(g.supabase, g.clinicId),
+    visit_id: await resolveEncounterVisitId(
+      g.supabase,
+      g.clinicId,
+      patientId,
+      visitId,
+    ),
     ...payload,
   });
   if (error) return { ok: false, message: error.message };
@@ -2410,6 +2466,7 @@ export async function saveDermRxAction(
 export async function saveDermLesionAction(
   patientId: string,
   raw: unknown,
+  visitId?: string | null,
 ): Promise<ActionResult<string>> {
   const parsed = saveDermLesionSchema.safeParse(raw);
   if (!parsed.success) return err(firstIssue(parsed));
@@ -2462,6 +2519,12 @@ export async function saveDermLesionAction(
       clinic_id: g.clinicId,
       patient_id: patientId,
       doctor_id: await doctorId(g.supabase, g.clinicId),
+      visit_id: await resolveEncounterVisitId(
+        g.supabase,
+        g.clinicId,
+        patientId,
+        visitId,
+      ),
       pin_number,
       ...payload,
     })
@@ -2492,6 +2555,7 @@ export async function deleteDermLesionAction(
 export async function saveDermScoresAction(
   patientId: string,
   raw: unknown,
+  visitId?: string | null,
 ): Promise<ActionResult<string>> {
   const parsed = saveDermScoresSchema.safeParse(raw);
   if (!parsed.success) return err(firstIssue(parsed));
@@ -2518,6 +2582,12 @@ export async function saveDermScoresAction(
       clinic_id: g.clinicId,
       patient_id: patientId,
       doctor_id: await doctorId(g.supabase, g.clinicId),
+      visit_id: await resolveEncounterVisitId(
+        g.supabase,
+        g.clinicId,
+        patientId,
+        visitId,
+      ),
       severity_scores: parsed.data.severity_scores,
     })
     .select("id")
@@ -2530,6 +2600,7 @@ export async function saveDermScoresAction(
 export async function saveDermDiagnosisAction(
   patientId: string,
   raw: unknown,
+  visitId?: string | null,
 ): Promise<ActionResult<string>> {
   const parsed = saveDermDiagnosisSchema.safeParse(raw);
   if (!parsed.success) return err(firstIssue(parsed));
@@ -2563,6 +2634,12 @@ export async function saveDermDiagnosisAction(
       clinic_id: g.clinicId,
       patient_id: patientId,
       doctor_id: await doctorId(g.supabase, g.clinicId),
+      visit_id: await resolveEncounterVisitId(
+        g.supabase,
+        g.clinicId,
+        patientId,
+        visitId,
+      ),
       ...payload,
     })
     .select("id")

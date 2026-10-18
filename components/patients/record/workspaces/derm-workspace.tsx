@@ -102,6 +102,12 @@ type Props = {
   canManageClinic?: boolean;
   params: { selectedId: string };
   timezone: string;
+  /**
+   * Today's active visit/encounter for this patient (null outside a live
+   * visit). Stamped onto every derm row created while it is active, so the
+   * record answers "what did this visit produce" (migration 0104).
+   */
+  activeVisitId?: string | null;
 };
 
 export function DermWorkspace({
@@ -113,6 +119,7 @@ export function DermWorkspace({
   canManageClinic,
   params,
   timezone,
+  activeVisitId = null,
 }: Props) {
   const today = todayIso();
   const todayExam = derm.exams.find((exam) => exam.exam_date === today) ?? null;
@@ -124,6 +131,7 @@ export function DermWorkspace({
           derm={derm}
           canManage={canManage}
           params={params}
+          visitId={activeVisitId}
         />
       )}
       {activeTab === "derm_exam" && (
@@ -133,6 +141,7 @@ export function DermWorkspace({
           canManage={canManage}
           documents={documents}
           params={params}
+          visitId={activeVisitId}
         />
       )}
       {activeTab === "derm_photos" && (
@@ -142,6 +151,7 @@ export function DermWorkspace({
           documents={documents}
           canManage={canManage}
           params={params}
+          visitId={activeVisitId}
         />
       )}
       {activeTab === "derm_procedures" && (
@@ -152,10 +162,16 @@ export function DermWorkspace({
           machines={derm.machines}
           canManage={canManage}
           canManageClinic={canManageClinic}
+          visitId={activeVisitId}
         />
       )}
       {activeTab === "derm_rx" && (
-        <RxTab patient={patient} derm={derm} canManage={canManage} />
+        <RxTab
+          patient={patient}
+          derm={derm}
+          canManage={canManage}
+          visitId={activeVisitId}
+        />
       )}
       {activeTab === "derm_summary" && (
         <DermSummary
@@ -190,11 +206,13 @@ function SkinOverviewTab({
   derm,
   canManage,
   params,
+  visitId,
 }: {
   patient: PatientDirectoryRow;
   derm: PatientDermBundle;
   canManage: boolean;
   params: { selectedId: string };
+  visitId?: string | null;
 }) {
   const profile = derm.profile;
   const latestExam = derm.exams[0] ?? null;
@@ -369,6 +387,7 @@ function SkinOverviewTab({
             todayExam={todayExam}
             previousExam={previousExam}
             canManage={canManage}
+            visitId={visitId}
           />
         </RecordSection>
 
@@ -600,11 +619,13 @@ function DermComplaintCard({
   todayExam,
   previousExam,
   canManage,
+  visitId,
 }: {
   patient: PatientDirectoryRow;
   todayExam: DermExam | null;
   previousExam: DermExam | null;
   canManage: boolean;
+  visitId?: string | null;
 }) {
   const router = useRouter();
   const [rowId, setRowId] = useState<string | null>(todayExam?.id ?? null);
@@ -621,20 +642,24 @@ function DermComplaintCard({
     setFields(next);
     setStatus("saving");
     setMessage(null);
-    void saveDermExamAction(patient.id, {
-      id: rowId ?? "",
-      chief_complaints: next.chief_complaints,
-      morphology: next.morphology,
-      distribution: next.distribution,
-      diagnosis: next.diagnosis,
-      icd_code: next.icd_code,
-      notes: next.notes,
-      duration: next.duration,
-      severity: next.severity,
-      triggers: next.triggers,
-      associated_symptoms: next.associated_symptoms,
-      hpi: next.hpi,
-    }).then((result) => {
+    void saveDermExamAction(
+      patient.id,
+      {
+        id: rowId ?? "",
+        chief_complaints: next.chief_complaints,
+        morphology: next.morphology,
+        distribution: next.distribution,
+        diagnosis: next.diagnosis,
+        icd_code: next.icd_code,
+        notes: next.notes,
+        duration: next.duration,
+        severity: next.severity,
+        triggers: next.triggers,
+        associated_symptoms: next.associated_symptoms,
+        hpi: next.hpi,
+      },
+      visitId,
+    ).then((result) => {
       if (result.ok) {
         setRowId(result.data);
         setStatus("saved");
@@ -769,12 +794,14 @@ function ExamTab({
   canManage,
   documents,
   params,
+  visitId,
 }: {
   patient: PatientDirectoryRow;
   derm: PatientDermBundle;
   canManage: boolean;
   documents: PatientDocumentView[];
   params: { selectedId: string };
+  visitId?: string | null;
 }) {
   const router = useRouter();
   const todayExam =
@@ -829,22 +856,26 @@ function ExamTab({
     }
     setError(null);
     setPending(true);
-    const result = await saveDermExamAction(patient.id, {
-      id: rowId ?? "",
-      chief_complaints: complaints,
-      morphology,
-      distribution: distribution[0]?.toLowerCase() ?? "",
-      diagnosis,
-      icd_code: icdCode,
-      notes,
-      duration,
-      severity,
-      triggers,
-      associated_symptoms: associatedSymptoms,
-      hpi,
-      assessment,
-      patient_explanation: patientExplanation,
-    });
+    const result = await saveDermExamAction(
+      patient.id,
+      {
+        id: rowId ?? "",
+        chief_complaints: complaints,
+        morphology,
+        distribution: distribution[0]?.toLowerCase() ?? "",
+        diagnosis,
+        icd_code: icdCode,
+        notes,
+        duration,
+        severity,
+        triggers,
+        associated_symptoms: associatedSymptoms,
+        hpi,
+        assessment,
+        patient_explanation: patientExplanation,
+      },
+      visitId,
+    );
     setPending(false);
     if (result.ok) {
       toast.success(rowId ? "Examination updated" : "Examination recorded");
@@ -931,6 +962,7 @@ function ExamTab({
                 examId={todayExam?.id ?? null}
                 lesions={derm.lesions}
                 canManage={canManage}
+                visitId={visitId}
               />
             </RecordSection>
 
@@ -1082,6 +1114,7 @@ function ExamTab({
                 examId={todayExam?.id ?? null}
                 scores={todayExam?.severity_scores ?? []}
                 canManage={canManage}
+                visitId={visitId}
               />
             </RecordSection>
           </div>
@@ -1104,6 +1137,7 @@ function ExamTab({
         examId={todayExam?.id ?? null}
         diagnoses={derm.diagnoses}
         canManage={canManage}
+        visitId={visitId}
       />
 
       {derm.exams.length > 0 ? (
@@ -1328,10 +1362,12 @@ function RxTab({
   patient,
   derm,
   canManage,
+  visitId,
 }: {
   patient: PatientDirectoryRow;
   derm: PatientDermBundle;
   canManage: boolean;
+  visitId?: string | null;
 }) {
   const router = useRouter();
   const latest = derm.prescriptions[0] ?? null;
@@ -1356,14 +1392,18 @@ function RxTab({
   async function saveRx() {
     if (!canManage) return;
     setPending(true);
-    const result = await saveDermRxAction(patient.id, {
-      id: latest?.id ?? null,
-      topical_form: formValue,
-      application_instructions: latest?.application_instructions ?? null,
-      skincare_routine_am: latest?.skincare_routine_am ?? null,
-      skincare_routine_pm: latest?.skincare_routine_pm ?? null,
-      patient_education: latest?.patient_education ?? null,
-    });
+    const result = await saveDermRxAction(
+      patient.id,
+      {
+        id: latest?.id ?? null,
+        topical_form: formValue,
+        application_instructions: latest?.application_instructions ?? null,
+        skincare_routine_am: latest?.skincare_routine_am ?? null,
+        skincare_routine_pm: latest?.skincare_routine_pm ?? null,
+        patient_education: latest?.patient_education ?? null,
+      },
+      visitId,
+    );
     setPending(false);
     if (result.ok) {
       toast.success(latest ? "Prescription updated" : "Prescription saved");
@@ -1384,6 +1424,7 @@ function RxTab({
         skincarePm={latest?.skincare_routine_pm ?? null}
         allergies={allergies}
         canManage={canManage}
+        visitId={visitId}
       />
 
       <RecordSection
@@ -1413,11 +1454,15 @@ function RxTab({
             onSave={
               canManage
                 ? async (value) =>
-                    saveDermRxAction(patient.id, {
-                      id: latest?.id ?? null,
-                      application_instructions: value || null,
-                      topical_form: formValue,
-                    }).then((r) => r.ok)
+                    saveDermRxAction(
+                      patient.id,
+                      {
+                        id: latest?.id ?? null,
+                        application_instructions: value || null,
+                        topical_form: formValue,
+                      },
+                      visitId,
+                    ).then((r) => r.ok)
                 : async () => true
             }
             rows={3}
@@ -1430,11 +1475,15 @@ function RxTab({
             onSave={
               canManage
                 ? async (value) =>
-                    saveDermRxAction(patient.id, {
-                      id: latest?.id ?? null,
-                      patient_education: value || null,
-                      topical_form: formValue,
-                    }).then((r) => r.ok)
+                    saveDermRxAction(
+                      patient.id,
+                      {
+                        id: latest?.id ?? null,
+                        patient_education: value || null,
+                        topical_form: formValue,
+                      },
+                      visitId,
+                    ).then((r) => r.ok)
                 : async () => true
             }
             rows={3}
@@ -1447,11 +1496,15 @@ function RxTab({
             onSave={
               canManage
                 ? async (value) =>
-                    saveDermRxAction(patient.id, {
-                      id: latest?.id ?? null,
-                      skincare_routine_am: value || null,
-                      topical_form: formValue,
-                    }).then((r) => r.ok)
+                    saveDermRxAction(
+                      patient.id,
+                      {
+                        id: latest?.id ?? null,
+                        skincare_routine_am: value || null,
+                        topical_form: formValue,
+                      },
+                      visitId,
+                    ).then((r) => r.ok)
                 : async () => true
             }
             rows={3}
@@ -1464,11 +1517,15 @@ function RxTab({
             onSave={
               canManage
                 ? async (value) =>
-                    saveDermRxAction(patient.id, {
-                      id: latest?.id ?? null,
-                      skincare_routine_pm: value || null,
-                      topical_form: formValue,
-                    }).then((r) => r.ok)
+                    saveDermRxAction(
+                      patient.id,
+                      {
+                        id: latest?.id ?? null,
+                        skincare_routine_pm: value || null,
+                        topical_form: formValue,
+                      },
+                      visitId,
+                    ).then((r) => r.ok)
                 : async () => true
             }
             rows={3}

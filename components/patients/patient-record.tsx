@@ -354,6 +354,7 @@ export function PatientRecord({
                 canManageClinic={canManageClinic}
                 params={params}
                 timezone={timezone}
+                activeVisitId={activeVisitId}
               />
             )}
           </div>

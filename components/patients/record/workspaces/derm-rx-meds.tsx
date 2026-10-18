@@ -54,6 +54,7 @@ export function DermRxMeds({
   skincarePm,
   allergies,
   canManage,
+  visitId,
 }: {
   patientId: string;
   prescriptionId: string | null;
@@ -64,6 +65,8 @@ export function DermRxMeds({
   /** Recorded allergy strings (patient + derm profile), for the safety panel. */
   allergies?: Array<string | null | undefined>;
   canManage: boolean;
+  /** Active visit/encounter stamp for a fresh prescription — migration 0104. */
+  visitId?: string | null;
 }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -120,19 +123,23 @@ export function DermRxMeds({
   async function save() {
     if (!canManage) return;
     setSaving(true);
-    const result = await saveDermRxAction(patientId, {
-      id: prescriptionId,
-      medicines: items.filter(
-        (medicine) =>
-          medicine.name.trim() ||
-          medicine.route.trim() ||
-          medicine.frequency.trim() ||
-          medicine.instructions.trim(),
-      ),
-      lab_orders: labs.filter(
-        (order) => order.test_name.trim() || order.notes.trim(),
-      ),
-    });
+    const result = await saveDermRxAction(
+      patientId,
+      {
+        id: prescriptionId,
+        medicines: items.filter(
+          (medicine) =>
+            medicine.name.trim() ||
+            medicine.route.trim() ||
+            medicine.frequency.trim() ||
+            medicine.instructions.trim(),
+        ),
+        lab_orders: labs.filter(
+          (order) => order.test_name.trim() || order.notes.trim(),
+        ),
+      },
+      visitId,
+    );
     setSaving(false);
     if (result.ok) {
       toast.success("Medicines & investigations saved");

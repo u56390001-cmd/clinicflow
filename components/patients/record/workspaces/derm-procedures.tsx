@@ -199,6 +199,7 @@ export function DermProcedures({
   machines,
   canManage,
   canManageClinic,
+  visitId,
 }: {
   patientId: string;
   procedures: DermProcedure[];
@@ -208,6 +209,8 @@ export function DermProcedures({
   canManage: boolean;
   /** Owner/admin/clinic_admin — gates the machine registry manager. */
   canManageClinic?: boolean;
+  /** Active visit/encounter stamp for new procedures — migration 0104. */
+  visitId?: string | null;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -318,23 +321,27 @@ export function DermProcedures({
     }
     setError(null);
     setPending(true);
-    const result = await saveDermProcedureAction(patientId, {
-      id: editingId ?? "",
-      procedure_name: form.name,
-      procedure_date: form.date,
-      consent_status: (form.consent[0] ?? "Documented").toLowerCase(),
-      procedure_kind: form.kind,
-      lesion_id: form.lesionId,
-      body_site: form.bodySite,
-      params: form.params,
-      notes: form.notes,
-      aftercare: form.aftercare,
-      complications: form.complications,
-      specimen_type: form.specimenType,
-      specimen_lab: form.specimenLab,
-      specimen_status: form.kind === "biopsy" ? form.specimenStatus : "",
-      specimen_dispatched_at: form.specimenDispatchedAt,
-    });
+    const result = await saveDermProcedureAction(
+      patientId,
+      {
+        id: editingId ?? "",
+        procedure_name: form.name,
+        procedure_date: form.date,
+        consent_status: (form.consent[0] ?? "Documented").toLowerCase(),
+        procedure_kind: form.kind,
+        lesion_id: form.lesionId,
+        body_site: form.bodySite,
+        params: form.params,
+        notes: form.notes,
+        aftercare: form.aftercare,
+        complications: form.complications,
+        specimen_type: form.specimenType,
+        specimen_lab: form.specimenLab,
+        specimen_status: form.kind === "biopsy" ? form.specimenStatus : "",
+        specimen_dispatched_at: form.specimenDispatchedAt,
+      },
+      visitId,
+    );
     setPending(false);
     if (result.ok) {
       toast.success(editingId ? "Procedure updated" : "Procedure recorded");

@@ -1573,6 +1573,9 @@ export type DermExam = {
   clinic_id: string;
   patient_id: string;
   doctor_id: string | null;
+  /** The visit/encounter this exam was recorded under (migration 0104);
+   *  null for records written outside an active visit. */
+  visit_id: string | null;
   exam_date: string;
   chief_complaints: string[];
   morphology: string[];
@@ -1601,6 +1604,8 @@ export type DermDiagnosis = {
   clinic_id: string;
   patient_id: string;
   doctor_id: string | null;
+  /** Visit/encounter stamp, migration 0104 — see `DermExam.visit_id`. */
+  visit_id: string | null;
   exam_id: string | null;
   label: string;
   icd_code: string | null;
@@ -1627,6 +1632,8 @@ export type DermLesion = {
   clinic_id: string;
   patient_id: string;
   doctor_id: string | null;
+  /** Visit/encounter stamp, migration 0104 — see `DermExam.visit_id`. */
+  visit_id: string | null;
   exam_id: string | null;
   pin_number: number;
   body_region: string;
@@ -1664,6 +1671,8 @@ export type DermProcedure = {
   clinic_id: string;
   patient_id: string;
   doctor_id: string | null;
+  /** Visit/encounter stamp, migration 0104 — see `DermExam.visit_id`. */
+  visit_id: string | null;
   procedure_name: string;
   procedure_date: string;
   notes: string | null;
@@ -1690,6 +1699,8 @@ export type DermPhoto = {
   clinic_id: string;
   patient_id: string;
   doctor_id: string | null;
+  /** Visit/encounter stamp, migration 0104 — see `DermExam.visit_id`. */
+  visit_id: string | null;
   document_id: string | null;
   body_region: string;
   photo_type: "baseline" | "follow_up" | "post_treatment";
@@ -6062,6 +6073,7 @@ export type Database = {
           clinic_id: string;
           patient_id: string;
           doctor_id?: string | null;
+          visit_id?: string | null;
           exam_date?: string;
           chief_complaints?: string[];
           morphology?: string[];
@@ -6087,6 +6099,7 @@ export type Database = {
           clinic_id?: never;
           patient_id?: never;
           doctor_id?: string | null;
+          visit_id?: string | null;
           exam_date?: string;
           chief_complaints?: string[];
           morphology?: string[];
@@ -6129,6 +6142,13 @@ export type Database = {
             referencedRelation: "doctors";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "derm_exams_visit_id_fkey";
+            columns: ["visit_id"];
+            isOneToOne: false;
+            referencedRelation: "visits";
+            referencedColumns: ["id"];
+          },
         ];
       };
       derm_diagnoses: {
@@ -6138,6 +6158,7 @@ export type Database = {
           clinic_id: string;
           patient_id: string;
           doctor_id?: string | null;
+          visit_id?: string | null;
           exam_id?: string | null;
           label: string;
           icd_code?: string | null;
@@ -6151,6 +6172,7 @@ export type Database = {
           clinic_id?: never;
           patient_id?: never;
           doctor_id?: string | null;
+          visit_id?: string | null;
           exam_id?: string | null;
           label?: string;
           icd_code?: string | null;
@@ -6182,6 +6204,13 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
+            foreignKeyName: "derm_diagnoses_visit_id_fkey";
+            columns: ["visit_id"];
+            isOneToOne: false;
+            referencedRelation: "visits";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "derm_diagnoses_exam_id_fkey";
             columns: ["exam_id"];
             isOneToOne: false;
@@ -6197,6 +6226,7 @@ export type Database = {
           clinic_id: string;
           patient_id: string;
           doctor_id?: string | null;
+          visit_id?: string | null;
           exam_id?: string | null;
           pin_number?: number;
           body_region: string;
@@ -6218,6 +6248,7 @@ export type Database = {
           clinic_id?: never;
           patient_id?: never;
           doctor_id?: string | null;
+          visit_id?: string | null;
           exam_id?: string | null;
           pin_number?: number;
           body_region?: string;
@@ -6257,6 +6288,13 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
+            foreignKeyName: "derm_lesions_visit_id_fkey";
+            columns: ["visit_id"];
+            isOneToOne: false;
+            referencedRelation: "visits";
+            referencedColumns: ["id"];
+          },
+          {
             foreignKeyName: "derm_lesions_exam_id_fkey";
             columns: ["exam_id"];
             isOneToOne: false;
@@ -6272,6 +6310,7 @@ export type Database = {
           clinic_id: string;
           patient_id: string;
           doctor_id?: string | null;
+          visit_id?: string | null;
           procedure_name: string;
           procedure_date?: string;
           notes?: string | null;
@@ -6295,6 +6334,7 @@ export type Database = {
           clinic_id?: never;
           patient_id?: never;
           doctor_id?: string | null;
+          visit_id?: string | null;
           procedure_name?: string;
           procedure_date?: string;
           notes?: string | null;
@@ -6335,6 +6375,13 @@ export type Database = {
             referencedRelation: "doctors";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "derm_procedures_visit_id_fkey";
+            columns: ["visit_id"];
+            isOneToOne: false;
+            referencedRelation: "visits";
+            referencedColumns: ["id"];
+          },
         ];
       };
       derm_photos: {
@@ -6344,6 +6391,7 @@ export type Database = {
           clinic_id: string;
           patient_id: string;
           doctor_id?: string | null;
+          visit_id?: string | null;
           document_id?: string | null;
           body_region: string;
           photo_type?: "baseline" | "follow_up" | "post_treatment";
@@ -6359,6 +6407,7 @@ export type Database = {
           clinic_id?: never;
           patient_id?: never;
           doctor_id?: string | null;
+          visit_id?: string | null;
           document_id?: string | null;
           body_region?: string;
           photo_type?: "baseline" | "follow_up" | "post_treatment";
@@ -6389,6 +6438,13 @@ export type Database = {
             columns: ["doctor_id"];
             isOneToOne: false;
             referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "derm_photos_visit_id_fkey";
+            columns: ["visit_id"];
+            isOneToOne: false;
+            referencedRelation: "visits";
             referencedColumns: ["id"];
           },
           {

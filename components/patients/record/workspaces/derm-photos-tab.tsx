@@ -117,12 +117,15 @@ export function DermPhotosTab({
   documents,
   canManage,
   params,
+  visitId,
 }: {
   patient: PatientDirectoryRow;
   derm: PatientDermBundle;
   documents: PatientDocumentView[];
   canManage: boolean;
   params: { selectedId: string };
+  /** Active visit/encounter stamp for new photo tags — migration 0104. */
+  visitId?: string | null;
 }) {
   const router = useRouter();
 
@@ -188,14 +191,18 @@ export function DermPhotosTab({
     }
     setError(null);
     setPending(true);
-    const result = await saveDermPhotoAction(patient.id, {
-      document_id: documentId,
-      body_region: region.trim(),
-      photo_type: photoType,
-      taken_at: takenAt,
-      lesion_notes: lesionNotes || null,
-      paired_with: pairedWith || null,
-    });
+    const result = await saveDermPhotoAction(
+      patient.id,
+      {
+        document_id: documentId,
+        body_region: region.trim(),
+        photo_type: photoType,
+        taken_at: takenAt,
+        lesion_notes: lesionNotes || null,
+        paired_with: pairedWith || null,
+      },
+      visitId,
+    );
     setPending(false);
     if (result.ok) {
       toast.success("Photo tagged");

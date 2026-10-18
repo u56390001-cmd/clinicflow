@@ -118,11 +118,14 @@ export function DermBodyMap({
   examId,
   lesions,
   canManage,
+  visitId,
 }: {
   patientId: string;
   examId: string | null;
   lesions: DermLesion[];
   canManage: boolean;
+  /** Active visit/encounter stamp for new pins — migration 0104. */
+  visitId?: string | null;
 }) {
   const router = useRouter();
   const [view, setView] = useState<"front" | "back">("front");
@@ -137,13 +140,17 @@ export function DermBodyMap({
   async function addPin(anchor: Anchor, x: number, y: number) {
     if (!canManage || adding) return;
     setAdding(true);
-    const result = await saveDermLesionAction(patientId, {
-      exam_id: examId ?? "",
-      body_region: anchor.name,
-      body_view: view,
-      body_x: Number((x / 200).toFixed(4)),
-      body_y: Number((y / 400).toFixed(4)),
-    });
+    const result = await saveDermLesionAction(
+      patientId,
+      {
+        exam_id: examId ?? "",
+        body_region: anchor.name,
+        body_view: view,
+        body_x: Number((x / 200).toFixed(4)),
+        body_y: Number((y / 400).toFixed(4)),
+      },
+      visitId,
+    );
     setAdding(false);
     if (result.ok) {
       setSelectedId(result.data);
@@ -605,11 +612,14 @@ export function DermScoringTools({
   examId,
   scores,
   canManage,
+  visitId,
 }: {
   patientId: string;
   examId: string | null;
   scores: DermSeverityScore[];
   canManage: boolean;
+  /** Active visit/encounter stamp when this save creates the exam — 0104. */
+  visitId?: string | null;
 }) {
   const router = useRouter();
   const [kind, setKind] = useState<DermSeverityScore["kind"]>("GAGS");
@@ -660,10 +670,14 @@ export function DermScoringTools({
       inputs,
       recordedAt: new Date().toISOString(),
     };
-    const result = await saveDermScoresAction(patientId, {
-      id: examId ?? "",
-      severity_scores: [...scores, score],
-    });
+    const result = await saveDermScoresAction(
+      patientId,
+      {
+        id: examId ?? "",
+        severity_scores: [...scores, score],
+      },
+      visitId,
+    );
     setSaving(false);
     if (result.ok) {
       toast.success(`${kind} score saved to the encounter`);
