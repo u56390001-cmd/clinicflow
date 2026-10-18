@@ -1497,11 +1497,43 @@ export type TelehealthSession = {
   status: TelehealthStatus;
   started_at: string | null;
   ended_at: string | null;
+  /**
+   * Engagement this call documents (migration 0105). Notes, captured frames and
+   * derm photo tags taken during the call carry the same visit.
+   */
+  visit_id: string | null;
   patient_join_url: string;
   created_by: string | null;
   metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+};
+
+/** Who sent an in-call message. Clinic-side participants are all `doctor`. */
+export type TelehealthSenderType = "doctor" | "patient";
+
+/**
+ * One in-call message (migration 0105). Append-only: a message is persisted
+ * before it is broadcast, so history survives a reload on either side.
+ *
+ * Attachments are all four fields or none of them — `attachment_path` is a
+ * storage key in the private `telehealth-attachments` bucket, never a URL. The
+ * readable link is a short-lived signed URL minted per request by the server
+ * action, which re-checks authorization each time.
+ */
+export type TelehealthMessage = {
+  id: string;
+  clinic_id: string;
+  session_id: string;
+  patient_id: string;
+  sender_type: TelehealthSenderType;
+  sender_name: string;
+  body: string | null;
+  attachment_path: string | null;
+  attachment_name: string | null;
+  attachment_mime: string | null;
+  attachment_size: number | null;
+  created_at: string;
 };
 
 /**
@@ -1817,6 +1849,13 @@ export const PATIENT_DOCUMENT_MAX_BYTES = 10_485_760;
 
 /** Private bucket id created in migration 0029. `public` is false — keep it false. */
 export const PATIENT_DOCUMENTS_BUCKET = "patient-documents";
+
+/**
+ * Private bucket for in-call chat attachments (migration 0105). Objects live at
+ * `{clinic_id}/{patient_id}/chat/{uuid}-{name}` and are only ever read through
+ * short-lived signed URLs minted by the telehealth chat actions.
+ */
+export const TELEHEALTH_ATTACHMENTS_BUCKET = "telehealth-attachments";
 
 /**
  * A transient scan staged between the browser and the AI parser (migration
@@ -4962,6 +5001,7 @@ export type Database = {
           status?: TelehealthStatus;
           started_at?: string | null;
           ended_at?: string | null;
+          visit_id?: string | null;
           patient_join_url: string;
           created_by?: string | null;
           metadata?: Record<string, unknown>;
@@ -4978,6 +5018,7 @@ export type Database = {
           status?: TelehealthStatus;
           started_at?: string | null;
           ended_at?: string | null;
+          visit_id?: string | null;
           patient_join_url?: string;
           created_by?: string | null;
           metadata?: Record<string, unknown>;
@@ -5012,6 +5053,67 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "appointments";
             referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "telehealth_sessions_visit_id_fkey";
+            columns: ["visit_id"];
+            isOneToOne: false;
+            referencedRelation: "visits";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      telehealth_messages: {
+        Row: TelehealthMessage;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          session_id: string;
+          patient_id: string;
+          sender_type: TelehealthSenderType;
+          sender_name: string;
+          body?: string | null;
+          attachment_path?: string | null;
+          attachment_name?: string | null;
+          attachment_mime?: string | null;
+          attachment_size?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          session_id?: never;
+          patient_id?: never;
+          sender_type?: never;
+          sender_name?: string;
+          body?: string | null;
+          attachment_path?: string | null;
+          attachment_name?: string | null;
+          attachment_mime?: string | null;
+          attachment_size?: number | null;
+          created_at?: never;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "telehealth_messages_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "telehealth_messages_session_id_fkey";
+            columns: ["session_id"];
+            isOneToOne: false;
+            referencedRelation: "telehealth_sessions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "telehealth_messages_clinic_patient_fkey";
+            columns: ["clinic_id", "patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["clinic_id", "id"];
           },
         ];
       };

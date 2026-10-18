@@ -7,6 +7,7 @@ import {
   TelehealthJoinLoading,
 } from "@/components/telehealth/telehealth-join";
 import { createWidgetClient } from "@/lib/supabase/widget";
+import { patientLinkTokenMatches } from "@/lib/zego/server";
 
 export const metadata: Metadata = {
   title: "Video Consultation",
@@ -14,20 +15,37 @@ export const metadata: Metadata = {
   manifest: null,
 };
 
+type JoinableSession = {
+  patientName: string | null;
+  doctorName: string | null;
+};
+
 /**
  * A completed or cancelled room must stop accepting joins immediately, even
- * though its KitToken is still mathematically valid. Read through the
+ * though its KitToken is still mathematically valid — and the presented token
+ * must be the one that was handed out with this session. Read through the
  * service-role client because this route has no session.
  */
-async function isRoomJoinable(roomId: string): Promise<boolean> {
+async function resolveJoinableSession(
+  roomId: string,
+  token: string,
+): Promise<JoinableSession | null> {
   const widget = createWidgetClient();
   const { data } = await widget
     .from("telehealth_sessions")
-    .select("status")
+    .select("status, metadata")
     .eq("room_id", roomId)
     .maybeSingle();
-  if (!data) return false;
-  return data.status === "SCHEDULED" || data.status === "ACTIVE";
+  if (!data) return null;
+  if (data.status !== "SCHEDULED" && data.status !== "ACTIVE") return null;
+
+  const meta = (data.metadata ?? {}) as Record<string, unknown>;
+  if (!patientLinkTokenMatches(meta.patient_token_hash, token)) return null;
+
+  return {
+    patientName: typeof meta.patient_name === "string" ? meta.patient_name : null,
+    doctorName: typeof meta.doctor_name === "string" ? meta.doctor_name : null,
+  };
 }
 
 function ExpiredCard({ title, body }: { title: string; body: string }) {
@@ -69,7 +87,8 @@ export default async function TelehealthJoinPage({
     );
   }
 
-  if (!(await isRoomJoinable(room))) {
+  const session = await resolveJoinableSession(room, token);
+  if (!session) {
     return (
       <ExpiredCard
         title="This consultation has ended"
@@ -80,7 +99,12 @@ export default async function TelehealthJoinPage({
 
   return (
     <Suspense fallback={<TelehealthJoinLoading />}>
-      <TelehealthJoinClient roomId={room} token={token} />
+      <TelehealthJoinClient
+        roomId={room}
+        token={token}
+        patientName={session.patientName}
+        doctorName={session.doctorName}
+      />
     </Suspense>
   );
 }

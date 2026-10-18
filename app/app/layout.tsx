@@ -5,6 +5,7 @@ import { AppScrollArea } from "@/components/app/app-scroll-area";
 import { AppSidebar } from "@/components/app/app-sidebar";
 import { MobileNavProvider } from "@/components/app/mobile-nav-context";
 import { PwaInstallListener } from "@/components/app/pwa-install-listener";
+import { TelehealthProvider } from "@/components/telehealth/telehealth-provider";
 
 function AppHeaderFallback() {
   return (
@@ -33,21 +34,23 @@ export default function AppLayout({
   return (
     <MobileNavProvider>
       <PwaInstallListener />
-      <div className="flex h-svh flex-col overflow-hidden bg-app">
-        <Suspense fallback={<AppHeaderFallback />}>
-          <AppHeader />
-        </Suspense>
-        <div className="flex min-h-0 min-w-0 flex-1">
-          <Suspense fallback={<AppSidebarFallback />}>
-            <AppSidebar />
+      <TelehealthProvider>
+        <div className="flex h-svh flex-col overflow-hidden bg-app">
+          <Suspense fallback={<AppHeaderFallback />}>
+            <AppHeader />
           </Suspense>
-          <AppScrollArea>
-            <main className="mx-auto w-full max-w-5xl px-4 py-8">
-              {children}
-            </main>
-          </AppScrollArea>
+          <div className="flex min-h-0 min-w-0 flex-1">
+            <Suspense fallback={<AppSidebarFallback />}>
+              <AppSidebar />
+            </Suspense>
+            <AppScrollArea>
+              <main className="mx-auto w-full max-w-5xl px-4 py-8">
+                {children}
+              </main>
+            </AppScrollArea>
+          </div>
         </div>
-      </div>
+      </TelehealthProvider>
     </MobileNavProvider>
   );
 }

@@ -1,4 +1,10 @@
-import { createCipheriv, randomBytes, randomInt } from "node:crypto";
+import {
+  createCipheriv,
+  createHash,
+  randomBytes,
+  randomInt,
+  timingSafeEqual,
+} from "node:crypto";
 
 /**
  * Phase 8 — server-side ZEGOcloud KitToken minting.
@@ -123,8 +129,39 @@ export function generateKitToken(
   return `04${base64(header)}#${envelope}`;
 }
 
-/** Deterministic, tenant-namespaced room id (clinic → doctor → patient). */
-export function buildTelehealthRoomId(params: {
+/**
+ * A patient join link is a bearer capability: whoever holds the URL can join.
+ * Storing a hash of the patient KitToken on the session (in `metadata`) turns
+ * that into something the server can verify — the patient page and every
+ * patient-side action re-derive the hash from the token in the URL, so a link
+ * stops working the moment its session is replaced or closed, and a made-up
+ * token can never read or attach anything.
+ *
+ * The same pattern the assessment share links already use
+ * (`patient_share_links.token_hash`).
+ */
+export function hashPatientLinkToken(token: string): string {
+  return createHash("sha256").update(token, "utf8").digest("hex");
+}
+
+/** Constant-time comparison of a stored link hash and the presented token. */
+export function patientLinkTokenMatches(
+  storedHash: unknown,
+  presentedToken: string,
+): boolean {
+  if (typeof storedHash !== "string" || storedHash.length === 0) return false;
+  let expected: Buffer;
+  try {
+    expected = Buffer.from(storedHash, "hex");
+  } catch {
+    return false;
+  }
+  const provided = Buffer.from(hashPatientLinkToken(presentedToken), "hex");
+  if (expected.length !== provided.length) return false;
+  return timingSafeEqual(expected, provided);
+}
+
+/** Deterministic, tenant-namespaced room id (clinic → doctor → patient). */export function buildTelehealthRoomId(params: {
   clinicId: string;
   doctorId: string | null;
   patientId: string;

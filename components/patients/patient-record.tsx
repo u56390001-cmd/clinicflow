@@ -19,6 +19,7 @@ import { OverviewTab } from "@/components/patients/record/overview-tab";
 import { VitalsTab } from "@/components/patients/record/vitals-tab";
 import { DermWorkspace } from "@/components/patients/record/workspaces/derm-workspace";
 import { PsychWorkspace } from "@/components/patients/record/workspaces/psych-workspace";
+import type { TelehealthPatientContext } from "@/components/telehealth/telehealth-context";
 import { Button } from "@/components/ui/button";
 import {
   patientDirectoryHref,
@@ -36,6 +37,7 @@ import {
   type PsychTabId,
   type SpecialtyTabId,
   type WorkspaceConfig,
+  type WorkspaceKind,
 } from "@/lib/specialty-workspaces";
 import type { ConsultationPreAnswer } from "@/lib/consultation-queries";
 import type { PatientDirectoryRow } from "@/types/database";
@@ -64,6 +66,35 @@ function firstListToken(value?: string | null): string | null {
   if (!first) return null;
   return first.length > 28 ? `${first.slice(0, 27)}…` : first;
 }
+
+/**
+ * The record tabs the telehealth workspace links back into, per specialty. Each
+ * entry is a real `?tab=` id, so selecting one closes the call panel's context
+ * column and drops the doctor straight onto that surface.
+ */
+const TELEHEALTH_SHORTCUTS: Record<
+  WorkspaceKind,
+  { label: string; tab: PatientTabId }[]
+> = {
+  general: [
+    { label: "Overview", tab: "overview" },
+    { label: "Vitals", tab: "vitals" },
+    { label: "Prescriptions", tab: "medications" },
+    { label: "Documents", tab: "documents" },
+  ],
+  psychology: [
+    { label: "Session notes", tab: "psy_sessions" },
+    { label: "Mental status", tab: "psy_mse" },
+    { label: "Psychometrics", tab: "psy_psychometrics" },
+    { label: "Care plan", tab: "psy_care_plan" },
+  ],
+  dermatology: [
+    { label: "Examination", tab: "derm_exam" },
+    { label: "Photos & map", tab: "derm_photos" },
+    { label: "Procedures", tab: "derm_procedures" },
+    { label: "Prescription", tab: "derm_rx" },
+  ],
+};
 
 export function PatientRecord({
   clinicId,
@@ -173,6 +204,94 @@ export function PatientRecord({
     ? (record.visits.find((visit) => visit.id === activeVisitId) ?? null)
     : null;
 
+  /**
+   * The telehealth workspace shows the patient's own facts beside the video, so
+   * a doctor mid-call never has to leave the room to check an allergy or the
+   * medication list. Nothing is fetched here: every value comes from reads the
+   * record already made, and empty facts are simply left out.
+   */
+  const telehealthClinical: TelehealthPatientContext["clinical"] = [];
+  if (patient.medical_conditions) {
+    telehealthClinical.push({
+      label: "Conditions",
+      value: patient.medical_conditions,
+    });
+  }
+  if (patient.current_medications) {
+    telehealthClinical.push({
+      label: "Current medicines",
+      value: patient.current_medications,
+    });
+  } else {
+    const activeMedicines = record.medications.filter(
+      (medicine) => medicine.status !== "discontinued",
+    );
+    if (activeMedicines.length > 0) {
+      telehealthClinical.push({
+        label: "Medication list",
+        value: activeMedicines
+          .slice(0, 4)
+          .map((medicine) =>
+            [medicine.medicine_name, medicine.strength]
+              .filter(Boolean)
+              .join(" "),
+          )
+          .join(", "),
+      });
+    }
+  }
+  for (const alert of record.alerts
+    .filter((item) => item.status !== "dismissed")
+    .slice(0, 3)) {
+    telehealthClinical.push({
+      label: alert.alert_type === "allergy" ? "Allergy alert" : "Known case",
+      value: alert.text,
+    });
+  }
+  if (patient.blood_group) {
+    telehealthClinical.push({
+      label: "Blood group",
+      value: patient.blood_group,
+    });
+  }
+  if (patient.past_illnesses) {
+    telehealthClinical.push({
+      label: "Past illnesses",
+      value: patient.past_illnesses,
+    });
+  }
+
+  const telehealthContext: TelehealthPatientContext = {
+    name: patient.name,
+    patientCode: patient.patient_code,
+    age: patient.age,
+    gender: patient.gender
+      ? patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1)
+      : null,
+    phone: patient.whatsapp_number ?? patient.phone,
+    allergies: patient.known_allergies,
+    visitLabel: activeVisitInfo.activeVisit
+      ? `In consultation · token ${activeVisitInfo.activeVisit.tokenNumber}`
+      : null,
+    clinical: telehealthClinical,
+    documents: documents.slice(0, 5).map((document) => ({
+      id: document.id,
+      name: document.document_name,
+      meta: `${(document.mime_type ?? "").replace("image/", "")} · ${(
+        document.document_date ?? document.uploaded_at
+      ).slice(0, 10)}`,
+    })),
+    // Derm photo tags are rendered by the derm workspace itself; the call panel
+    // deliberately does not re-read them.
+    photos: [],
+    shortcuts: TELEHEALTH_SHORTCUTS[workspace.kind].map((shortcut) => ({
+      label: shortcut.label,
+      href: patientDirectoryHref({ ...params, tab: shortcut.tab }),
+      primary: shortcut.tab === workspace.writeTab,
+    })),
+    dermPhotoTagging: workspace.kind === "dermatology",
+  };
+
   return (
     // The provider wraps the whole record (not just the tab) so a half-typed
     // prescription survives `?tab=` navigation: the tab unmounts, the draft
@@ -202,6 +321,8 @@ export function PatientRecord({
             onMergeDuplicate={onMergeDuplicate}
             onWritePrescription={openPrescriptionWorkspace}
             writePrescriptionLabel={workspace.writeTabLabel}
+            telehealthContext={telehealthContext}
+            activeVisitId={activeVisitId}
             onCompleteAndNext={(nextPatientId) =>
               router.push(
                 patientDirectoryHref({ ...params, selectedId: nextPatientId }),

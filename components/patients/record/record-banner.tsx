@@ -33,6 +33,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { TelehealthLauncher } from "@/components/telehealth/telehealth-launcher";
+import type { TelehealthPatientContext } from "@/components/telehealth/telehealth-context";
 import { avatarColorFor, initialsOf } from "@/lib/utils/avatar";
 import { ageFromDob } from "@/lib/utils/datetime";
 import { cn } from "@/lib/utils";
@@ -67,7 +68,8 @@ const PSYCH_RISK_TONE: Record<string, string> = {
   low: "border-primary/30 bg-primary/10 text-primary",
   moderate: "border-status-warning/30 bg-status-warning/10 text-status-warning",
   high: "border-orange-300 bg-orange-100 text-orange-700",
-  crisis: "border-status-destructive/40 bg-status-destructive/10 text-status-destructive",
+  crisis:
+    "border-status-destructive/40 bg-status-destructive/10 text-status-destructive",
 };
 
 export type ActiveVisitInfo = {
@@ -163,6 +165,8 @@ export function RecordBanner({
   writePrescriptionLabel = "Write Prescription",
   onCompleteAndNext,
   psychContext,
+  telehealthContext = null,
+  activeVisitId = null,
 }: {
   patient: PatientDirectoryRow;
   canManage: boolean;
@@ -183,6 +187,10 @@ export function RecordBanner({
   onCompleteAndNext?: (nextPatientId: string) => void;
   /** Psychology-only context strip; omitted in the general and derm workspaces. */
   psychContext?: PsychHeaderContext | null;
+  /** Serializable facts the telehealth workspace shows beside the video. */
+  telehealthContext?: TelehealthPatientContext | null;
+  /** Today's live encounter, stamped onto frames captured during the call. */
+  activeVisitId?: string | null;
 }) {
   const router = useRouter();
   const [isBusy, startTransition] = useTransition();
@@ -249,25 +257,25 @@ export function RecordBanner({
           weight, so the eye lands on the person before the interface. */}
       <div className="flex flex-col gap-3 px-4 pt-3.5 sm:px-[26px] lg:flex-row lg:items-center lg:gap-4">
         <div className="flex min-w-0 items-center gap-3 lg:flex-1">
-        <div
-          className={cn(
-            "flex size-10 shrink-0 items-center justify-center rounded-full text-[15px] font-bold",
-            avatarColorFor(patient.id),
-          )}
-        >
-          {initialsOf(patient.name)}
-        </div>
+          <div
+            className={cn(
+              "flex size-10 shrink-0 items-center justify-center rounded-full text-[15px] font-bold",
+              avatarColorFor(patient.id),
+            )}
+          >
+            {initialsOf(patient.name)}
+          </div>
 
-        <div className="flex min-w-0 flex-1 items-baseline gap-2">
-          <h1 className="min-w-0 truncate text-[22px] font-bold leading-tight text-ink">
-            {patient.name}
-          </h1>
-          {patient.patient_code && (
-            <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-control border-[0.5px] border-hairline bg-app px-1.5 py-[2px] font-mono text-[11px] font-semibold tracking-tight text-text-secondary">
-              {patient.patient_code}
-            </span>
-          )}
-        </div>
+          <div className="flex min-w-0 flex-1 items-baseline gap-2">
+            <h1 className="text-ink min-w-0 truncate text-[22px] font-bold leading-tight">
+              {patient.name}
+            </h1>
+            {patient.patient_code && (
+              <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-control border-[0.5px] border-hairline bg-app px-1.5 py-[2px] font-mono text-[11px] font-semibold tracking-tight text-text-secondary">
+                {patient.patient_code}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* One solid, one outlined, two quiet. On phones and tablets the actions
@@ -282,7 +290,11 @@ export function RecordBanner({
                 disabled={isBusy}
                 className={ACTION_BUTTON}
               >
-                <Play aria-hidden="true" className="size-4 fill-current" strokeWidth={2} />
+                <Play
+                  aria-hidden="true"
+                  className="size-4 fill-current"
+                  strokeWidth={2}
+                />
                 {isBusy ? "Completing…" : "Complete & Next"}
               </button>
             ) : (
@@ -290,9 +302,21 @@ export function RecordBanner({
               canStart && (
                 <form action={handleStart}>
                   <input type="hidden" name="visitId" value={activeVisit.id} />
-                  <button type="submit" disabled={isBusy} className={ACTION_BUTTON}>
-                    <Play aria-hidden="true" className="size-4 fill-current" strokeWidth={2} />
-                    {isBusy ? "Starting…" : isPaused ? "Resume Consultation" : "Start Consultation"}
+                  <button
+                    type="submit"
+                    disabled={isBusy}
+                    className={ACTION_BUTTON}
+                  >
+                    <Play
+                      aria-hidden="true"
+                      className="size-4 fill-current"
+                      strokeWidth={2}
+                    />
+                    {isBusy
+                      ? "Starting…"
+                      : isPaused
+                        ? "Resume Consultation"
+                        : "Start Consultation"}
                   </button>
                 </form>
               )
@@ -313,6 +337,8 @@ export function RecordBanner({
             patientId={patient.id}
             whatsappNumber={patient.whatsapp_number}
             canManage={canManage}
+            context={telehealthContext}
+            activeVisitId={activeVisitId}
           />
 
           {canMerge && (
@@ -354,7 +380,11 @@ export function RecordBanner({
 
         {activeVisit && (
           <span className={CAPSULE}>
-            <CalendarDays aria-hidden="true" className={CAPSULE_ICON} strokeWidth={2} />
+            <CalendarDays
+              aria-hidden="true"
+              className={CAPSULE_ICON}
+              strokeWidth={2}
+            />
             Today · Token #{activeVisit.tokenNumber}
           </span>
         )}
@@ -365,7 +395,9 @@ export function RecordBanner({
               className={cn(
                 "inline-block size-1.5 shrink-0 rounded-full",
                 statusTone.dot,
-                activeVisit.status === "waiting" && !isPaused && "animate-pulse",
+                activeVisit.status === "waiting" &&
+                  !isPaused &&
+                  "animate-pulse",
               )}
             />
             {isPaused ? "Paused · Draft Saved" : statusMeta.label}
@@ -374,7 +406,11 @@ export function RecordBanner({
 
         {elapsedMs !== null && (
           <span className={cn(CAPSULE, "font-bold tabular-nums")}>
-            <Timer aria-hidden="true" className={CAPSULE_ICON} strokeWidth={2} />
+            <Timer
+              aria-hidden="true"
+              className={CAPSULE_ICON}
+              strokeWidth={2}
+            />
             {formatElapsed(elapsedMs)}
           </span>
         )}
@@ -389,7 +425,11 @@ export function RecordBanner({
                 : "border-status-success/30 bg-status-success/10 text-status-success",
             )}
           >
-            <Wallet aria-hidden="true" className="size-3.5 shrink-0 opacity-80" strokeWidth={2} />
+            <Wallet
+              aria-hidden="true"
+              className="size-3.5 shrink-0 opacity-80"
+              strokeWidth={2}
+            />
             {billingUnpaid
               ? `Pending ₨${billing.pendingAmount.toLocaleString()}`
               : "Bill Paid"}
@@ -412,7 +452,11 @@ export function RecordBanner({
 
         {patient.phone && (
           <span className={CAPSULE}>
-            <Phone aria-hidden="true" className={CAPSULE_ICON} strokeWidth={2} />
+            <Phone
+              aria-hidden="true"
+              className={CAPSULE_ICON}
+              strokeWidth={2}
+            />
             {patient.phone}
           </span>
         )}
@@ -436,25 +480,41 @@ export function RecordBanner({
                   PSYCH_RISK_TONE[psychContext.riskLevel] ?? "",
                 )}
               >
-                <ShieldAlert aria-hidden="true" className="size-3.5 shrink-0" strokeWidth={2} />
+                <ShieldAlert
+                  aria-hidden="true"
+                  className="size-3.5 shrink-0"
+                  strokeWidth={2}
+                />
                 {psychContext.riskLevel.replace(/_/g, " ")} risk
               </span>
             )}
             {psychContext.concern && (
               <span className={CAPSULE}>
-                <ClipboardList aria-hidden="true" className={CAPSULE_ICON} strokeWidth={2} />
+                <ClipboardList
+                  aria-hidden="true"
+                  className={CAPSULE_ICON}
+                  strokeWidth={2}
+                />
                 {psychContext.concern}
               </span>
             )}
             {psychContext.diagnosis && (
               <span className={CAPSULE}>
-                <Stethoscope aria-hidden="true" className={CAPSULE_ICON} strokeWidth={2} />
+                <Stethoscope
+                  aria-hidden="true"
+                  className={CAPSULE_ICON}
+                  strokeWidth={2}
+                />
                 {psychContext.diagnosis}
               </span>
             )}
             {psychContext.lastSession && (
               <span className={CAPSULE}>
-                <CalendarDays aria-hidden="true" className={CAPSULE_ICON} strokeWidth={2} />
+                <CalendarDays
+                  aria-hidden="true"
+                  className={CAPSULE_ICON}
+                  strokeWidth={2}
+                />
                 Last session {psychContext.lastSession}
               </span>
             )}
@@ -462,15 +522,15 @@ export function RecordBanner({
         )}
 
       {actionError && (
-        <p role="alert" className="px-4 pb-3 text-xs text-status-destructive sm:px-[26px]">
+        <p
+          role="alert"
+          className="px-4 pb-3 text-xs text-status-destructive sm:px-[26px]"
+        >
           {actionError}
         </p>
       )}
 
-      <Dialog
-        open={confirmCompleteOpen}
-        onOpenChange={setConfirmCompleteOpen}
-      >
+      <Dialog open={confirmCompleteOpen} onOpenChange={setConfirmCompleteOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Complete this consultation?</DialogTitle>
@@ -507,4 +567,3 @@ export function RecordBanner({
     </div>
   );
 }
-

@@ -13,9 +13,13 @@ import { Loader2, PhoneOff } from "lucide-react";
 export function TelehealthJoinClient({
   roomId,
   token,
+  patientName: _patientName,
+  doctorName: _doctorName,
 }: {
   roomId: string;
   token: string;
+  patientName: string | null;
+  doctorName: string | null;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const zgRef = useRef<{ destroy: () => void } | null>(null);

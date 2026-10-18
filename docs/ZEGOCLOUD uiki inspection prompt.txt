@@ -1,0 +1,26 @@
+Inspect my existing Clinic Management System and its working ZEGOCLOUD Web Prebuilt Call UIKit before making changes.
+
+Use these references:
+- Telehealth design: https://www.zegocloud.com/solutions/telehealth
+- Official Web UIKit docs: https://www.zegocloud.com/docs/uikit/callkit-web/overview
+- Official Web examples: https://github.com/ZEGOCLOUD/zego_uikit_prebuilt_web
+
+First audit the installed SDK version, current integration, call lifecycle, backend APIs, patient records and Design System V2.
+
+Then implement a complete, responsive telehealth consultation workspace inspired by the supplied reference images.
+
+Requirements:
+1. Preserve working video/audio calls, authentication and existing business logic.
+2. Build a clean consultation shell around the existing UIKit.
+3. Add a patient-context panel for clinical notes, documents and relevant patient information.
+4. Integrate chat using supported SDK APIs and existing messaging infrastructure.
+5. Evaluate ZEGOCLOUD Super Board for synchronized medical-image annotation.
+6. Implement frame capture, permission/error states and reconnection UX only through verified, compatible APIs.
+7. Reuse existing CMS document storage, prescription and patient APIs. Never use mock data for real workflows.
+8. On mobile and tablet, adapt panels into accessible drawers or bottom sheets without clipping or hiding essential controls.
+9. Follow Design System V2 for typography, spacing, buttons, icons, colors and states.
+10. Test camera/microphone permissions, call disconnection, reconnection, file access, annotation, responsive layouts and call termination.
+
+Use only APIs verified for the installed Web SDK. Do not assume React Native configuration names apply to Web. Do not replace the working call engine unnecessarily.
+
+Implement the actual working features, not just a mockup. Report completed functionality, changed files, tests and any genuine SDK or backend limitations.
