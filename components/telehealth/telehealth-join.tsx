@@ -120,7 +120,7 @@ export function TelehealthJoinClient({
         <div
           ref={containerRef}
           data-room={roomId}
-          className="absolute inset-0 h-full w-full bg-black"
+          className="telehealth-video-viewport absolute inset-0 h-full w-full bg-black"
         />
 
         {chatOpen && (

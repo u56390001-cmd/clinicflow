@@ -780,7 +780,7 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
                   onPointerUp={onDragPointerUp}
                   onPointerCancel={onDragPointerUp}
                   className={cn(
-                    "flex items-center justify-between gap-2 border-b-[0.5px] border-hairline px-3 py-2",
+                    "flex shrink-0 items-center justify-between gap-2 border-b-[0.5px] border-hairline px-3 py-2",
                     floating && !collapsed && "cursor-move touch-none",
                   )}
                 >
@@ -903,12 +903,19 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
                   </p>
                 ) : (
                   <>
+                    {/*
+                      Video viewport. Header and action bar are `shrink-0`, so
+                      this is the only region that flexes: the feed takes what
+                      is left and is letterboxed inside it (see
+                      `.telehealth-video-viewport` in globals.css) instead of
+                      being cropped when the panel sits at a phone ratio.
+                    */}
                     <div className="flex min-h-0 flex-1">
-                      <div className="relative min-h-0 flex-1 bg-black">
+                      <div className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden bg-black">
                         {/* Never unmounted: overlays cover it instead. */}
                         <div
                           ref={containerRef}
-                          className="absolute inset-0"
+                          className="telehealth-video-viewport absolute inset-0"
                           data-room={call.roomId}
                         />
                         {chatOpen && !expanded && (
@@ -966,7 +973,7 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
                       )}
                     </div>
 
-                    <div className="flex items-center justify-between gap-2 border-t-[0.5px] border-hairline px-3 py-2">
+                    <div className="flex shrink-0 items-center justify-between gap-2 border-t-[0.5px] border-hairline px-3 py-2">
                       <span className="min-w-0 truncate text-[11px] text-text-muted">
                         {phase === "waiting"
                           ? "Waiting for the patient to open the link."
