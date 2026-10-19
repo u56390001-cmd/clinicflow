@@ -5,9 +5,6 @@ import type { Database, AppointmentStatus } from "@/types/database";
 import type { AIToolDefinition } from "@/lib/ai/types";
 import {
   createAppointmentService,
-  listAvailableSlots,
-  rescheduleAppointmentService,
-  setAppointmentStatusService,
   type BookingClinic,
 } from "@/lib/booking-service";
 import { utcIsoToClinicLocalInput } from "@/lib/time";
@@ -163,7 +160,7 @@ export async function executeDualModeBooking(
   }
 
   // 2. Doctor Capability Check for Online Video Consultations
-  let targetDoctorId: string | null = args.doctor_id ?? null;
+  const targetDoctorId: string | null = args.doctor_id ?? null;
   if (targetDoctorId) {
     const capability = await checkDoctorCapability(supabase, clinic.id, targetDoctorId);
     if (!capability) {

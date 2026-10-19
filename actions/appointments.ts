@@ -19,14 +19,47 @@ import { notifyPatient } from "@/lib/notifications";
 import type { ActionResult } from "@/types";
 import type { AppointmentStatus } from "@/types/database";
 
-// Re-export standard dashboard actions from lib/actions/appointments
-export {
-  createAppointmentAction,
-  updateAppointmentAction,
-  setAppointmentStatusAction,
-  rescheduleAppointmentAction as dashboardRescheduleAppointmentAction,
-  fetchAvailableSlots,
-} from "@/lib/actions/appointments";
+// Re-export standard dashboard actions from lib/actions/appointments via async wrappers
+export async function createAppointmentAction(
+  prevState: ActionResult<string> | null,
+  formData: FormData,
+): Promise<ActionResult<string>> {
+  const { createAppointmentAction: action } = await import("@/lib/actions/appointments");
+  return action(prevState, formData);
+}
+
+export async function updateAppointmentAction(
+  prevState: ActionResult<string> | null,
+  formData: FormData,
+): Promise<ActionResult<string>> {
+  const { updateAppointmentAction: action } = await import("@/lib/actions/appointments");
+  return action(prevState, formData);
+}
+
+export async function setAppointmentStatusAction(
+  prevState: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const { setAppointmentStatusAction: action } = await import("@/lib/actions/appointments");
+  return action(prevState, formData);
+}
+
+export async function dashboardRescheduleAppointmentAction(
+  prevState: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const { rescheduleAppointmentAction: action } = await import("@/lib/actions/appointments");
+  return action(prevState, formData);
+}
+
+export async function fetchAvailableSlots(
+  serviceId: string,
+  date: string,
+  doctorId?: string | null,
+) {
+  const { fetchAvailableSlots: action } = await import("@/lib/actions/appointments");
+  return action(serviceId, date, doctorId);
+}
 
 const dualModeBookingSchema = z.object({
   clinicId: z.string().uuid("Invalid clinic ID.").optional(),

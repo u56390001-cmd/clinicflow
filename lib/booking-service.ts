@@ -372,9 +372,15 @@ export async function createAppointmentService(
     p_chief_complaint: input.chiefComplaint ?? null,
   };
 
-  const attempt14 = await (supabase.rpc as any)("book_appointment", rpcPayload14);
+  type RpcCaller = (fn: string, args: Record<string, unknown>) => Promise<{
+    data: Appointment | null;
+    error: { code?: string; message: string } | null;
+  }>;
+  const invokeRpc = supabase.rpc as unknown as RpcCaller;
+
+  const attempt14 = await invokeRpc("book_appointment", rpcPayload14);
   if (!attempt14.error && attempt14.data) {
-    appointment = attempt14.data as Appointment;
+    appointment = attempt14.data;
   } else {
     // If 14-param signature doesn't match or failed with parameter count mismatch, fallback to 10-param
     const rpcPayload10 = {
@@ -389,9 +395,9 @@ export async function createAppointmentService(
       p_doctor_id: doctorId,
       p_consultation_type: effectiveConsultationType as ConsultationType,
     };
-    const attempt10 = await (supabase.rpc as any)("book_appointment", rpcPayload10);
+    const attempt10 = await invokeRpc("book_appointment", rpcPayload10);
     if (!attempt10.error && attempt10.data) {
-      appointment = attempt10.data as Appointment;
+      appointment = attempt10.data;
       // Directly persist dual-mode columns to ensure fields are updated
       await supabase
         .from("appointments")

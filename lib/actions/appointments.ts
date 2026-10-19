@@ -480,8 +480,27 @@ export async function fetchAvailableSlots(
 }
 
 // Export dual-mode appointment scheduling actions
-export {
-  bookAppointmentAction,
-  cancelAppointmentAction,
-  rescheduleAppointmentAction as dualModeRescheduleAppointmentAction,
-} from "@/actions/appointments";
+export async function bookAppointmentAction(
+  prevState: ActionResult<string> | null,
+  formData: FormData,
+): Promise<ActionResult<string>> {
+  const { bookAppointmentAction: action } = await import("@/actions/appointments");
+  return action(prevState, formData);
+}
+
+export async function cancelAppointmentAction(
+  prevState: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const { cancelAppointmentAction: action } = await import("@/actions/appointments");
+  return action(prevState, formData);
+}
+
+export async function dualModeRescheduleAppointmentAction(
+  prevState: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const { rescheduleAppointmentAction: action } = await import("@/actions/appointments");
+  return action(prevState, formData);
+}
+
