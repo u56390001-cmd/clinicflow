@@ -116,12 +116,16 @@ export function TelehealthJoinClient({
         </button>
       </header>
 
-      <div className="relative min-h-0 flex-1">
-        <div
-          ref={containerRef}
-          data-room={roomId}
-          className="telehealth-video-viewport absolute inset-0 h-full w-full bg-black"
-        />
+      <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-black">
+        {/* Strict 16:9 picture, letterboxed on black — same rule as the clinic
+            panel, so a wide laptop screen never stretches the patient's feed. */}
+        <div className="relative aspect-video max-h-full w-full overflow-hidden">
+          <div
+            ref={containerRef}
+            data-room={roomId}
+            className="telehealth-video-viewport absolute inset-0 h-full w-full"
+          />
+        </div>
 
         {chatOpen && (
           <aside className="absolute inset-y-0 right-0 z-20 flex w-full flex-col border-l border-white/10 bg-app shadow-dropdown sm:w-[360px]">

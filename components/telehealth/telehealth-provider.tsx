@@ -905,19 +905,22 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
                   <>
                     {/*
                       Video viewport. Header and action bar are `shrink-0`, so
-                      this is the only region that flexes: the feed takes what
-                      is left and is letterboxed inside it (see
-                      `.telehealth-video-viewport` in globals.css) instead of
-                      being cropped when the panel sits at a phone ratio.
+                      this is the only region that flexes. The kit mounts into
+                      a strict 16:9 `aspect-video` box centred on black — the
+                      panel may be phone-shaped, the picture never is — and
+                      `.telehealth-video-viewport` (globals.css) makes the kit
+                      fill that box without stretching it.
                     */}
-                    <div className="flex min-h-0 flex-1">
+                    <div className="flex min-h-0 flex-1 gap-4">
                       <div className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden bg-black">
-                        {/* Never unmounted: overlays cover it instead. */}
-                        <div
-                          ref={containerRef}
-                          className="telehealth-video-viewport absolute inset-0"
-                          data-room={call.roomId}
-                        />
+                        <div className="relative aspect-video max-h-full w-full overflow-hidden">
+                          {/* Never unmounted: overlays cover it instead. */}
+                          <div
+                            ref={containerRef}
+                            className="telehealth-video-viewport absolute inset-0"
+                            data-room={call.roomId}
+                          />
+                        </div>
                         {chatOpen && !expanded && (
                           <div className="absolute inset-0 z-10 flex flex-col bg-surface">
                             <div className="flex items-center justify-between border-b-[0.5px] border-hairline px-3 py-1.5">
@@ -940,7 +943,7 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
                         )}
                       </div>
                       {expanded && (
-                        <aside className="hidden w-[360px] shrink-0 flex-col border-l-[0.5px] border-hairline lg:flex">
+                        <aside className="hidden w-80 shrink-0 flex-col border-l-[0.5px] border-hairline lg:flex">
                           <div className="flex shrink-0 border-b-[0.5px] border-hairline">
                             {(["context", "chat"] as PanelTab[]).map((key) => (
                               <button

@@ -1788,14 +1788,19 @@ main:has(.medbook-dashboard-overview) {
 /* ---------------------------------------------------------------------------
  * Telehealth video viewport
  *
- * The ZEGO UIKit lays its own <video> and wrapper <div>s out in fixed pixel
- * heights, which truncates the feed once the floating panel is locked to a
- * phone ratio (9:16 - 3:4). Inside our viewport the kit is told to fill the
- * space flexbox has already given it, and the video is letterboxed with
- * `contain` rather than cropped with `cover`: a cropped lesion is a clinical
- * error, not a cosmetic one. Scoped to this class so nothing else in the CMS
- * is affected.
+ * The ZEGO UIKit exposes no aspect-ratio prop — it stretches to whatever box
+ * it lives in, which is what clipped and stretched the feed inside the
+ * phone-ratio panel. The box is therefore ours: a strict 16:9 `aspect-video`
+ * wrapper in telehealth-provider.tsx, and these rules make the kit fill it
+ * exactly once — wrapper divs pinned to 100%, container overflow hidden, and
+ * `video` set to `cover` so a 16:9 camera fills the frame edge-to-edge while a
+ * narrower source crops only its sides instead of distorting. Scoped to this
+ * class so nothing else in the CMS is affected.
  * ------------------------------------------------------------------------- */
+.telehealth-video-viewport {
+  overflow: hidden !important;
+}
+
 .telehealth-video-viewport > div {
   width: 100% !important;
   height: 100% !important;
@@ -1806,6 +1811,6 @@ main:has(.medbook-dashboard-overview) {
 .telehealth-video-viewport video {
   width: 100% !important;
   height: 100% !important;
-  object-fit: contain !important;
+  object-fit: cover !important;
   border-radius: 0 !important;
 }
