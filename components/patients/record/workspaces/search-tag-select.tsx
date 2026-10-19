@@ -29,6 +29,7 @@ export function SearchTagSelect({
   placeholder = "Search or add…",
   helper,
   disabled = false,
+  hideSelectedChips = false,
 }: {
   label: string;
   value?: string | null;
@@ -37,6 +38,9 @@ export function SearchTagSelect({
   placeholder?: string;
   helper?: string;
   disabled?: boolean;
+  /** Search/create-only mode: skip the chips row (a sibling control already
+   *  renders the selection as toggleable chips). */
+  hideSelectedChips?: boolean;
 }) {
   const [selected, setSelected] = useState<string[]>(() => parse(value));
   const [query, setQuery] = useState("");
@@ -69,8 +73,12 @@ export function SearchTagSelect({
   const trimmedQuery = query.trim();
   const canAddCustom =
     trimmedQuery.length > 0 &&
-    !options.some((option) => option.toLowerCase() === trimmedQuery.toLowerCase()) &&
-    !selected.some((option) => option.toLowerCase() === trimmedQuery.toLowerCase());
+    !options.some(
+      (option) => option.toLowerCase() === trimmedQuery.toLowerCase(),
+    ) &&
+    !selected.some(
+      (option) => option.toLowerCase() === trimmedQuery.toLowerCase(),
+    );
 
   const rows = canAddCustom ? filtered.length + 1 : filtered.length;
 
@@ -126,7 +134,13 @@ export function SearchTagSelect({
   }
 
   const statusLabel =
-    state === "saving" ? "Saving" : state === "saved" ? "Saved" : state === "error" ? "Not saved" : "";
+    state === "saving"
+      ? "Saving"
+      : state === "saved"
+        ? "Saved"
+        : state === "error"
+          ? "Not saved"
+          : "";
 
   return (
     <div ref={rootRef} className="relative">
@@ -144,7 +158,7 @@ export function SearchTagSelect({
         )}
       </div>
 
-      {selected.length > 0 && (
+      {!hideSelectedChips && selected.length > 0 && (
         <div className="mb-1.5 flex flex-wrap gap-1.5">
           {selected.map((token) => (
             <span
@@ -202,7 +216,11 @@ export function SearchTagSelect({
             className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-control border border-hairline bg-surface py-1 shadow-lg"
           >
             {filtered.map((option, index) => (
-              <li key={option} role="option" aria-selected={index === highlight}>
+              <li
+                key={option}
+                role="option"
+                aria-selected={index === highlight}
+              >
                 <button
                   type="button"
                   onMouseEnter={() => setHighlight(index)}
@@ -242,7 +260,7 @@ export function SearchTagSelect({
       </div>
 
       {helper && state === "idle" && (
-        <p className="mt-1 text-[11px] text-ink-faint">{helper}</p>
+        <p className="text-ink-faint mt-1 text-[11px]">{helper}</p>
       )}
     </div>
   );

@@ -505,6 +505,7 @@ export function PatientRecord({
                 activeVisitId={activeVisitId}
                 visitType={visitType}
                 pendingIntake={pendingIntake}
+                preAnswers={preAnswers}
               />
             )}
           </div>

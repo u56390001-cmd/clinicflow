@@ -20,7 +20,7 @@
 
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -51,6 +51,12 @@ import { DermProcedures } from "@/components/patients/record/workspaces/derm-pro
 import { DermRxMeds } from "@/components/patients/record/workspaces/derm-rx-meds";
 import { DermSummary } from "@/components/patients/record/workspaces/derm-summary";
 import { DermPhotosTab } from "@/components/patients/record/workspaces/derm-photos-tab";
+import {
+  DermIntakeSummary,
+  buildIntakeSuggestion,
+  type IntakeSuggestion,
+} from "@/components/patients/record/workspaces/derm-intake-summary";
+import { SearchTagSelect } from "@/components/patients/record/workspaces/search-tag-select";
 import { TerminologySearch } from "@/components/patients/record/workspaces/terminology-search";
 import { VoiceInputButton } from "@/components/patients/record/workspaces/voice-input-button";
 import {
@@ -71,6 +77,13 @@ import { CopilotDrawer } from "@/components/consultation/copilot-drawer";
 import { DocumentsTab } from "@/components/patients/record/documents-tab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -86,6 +99,7 @@ import type {
   DermNoteExtraction,
   WorkspaceExtraction,
 } from "@/lib/copilot/types";
+import type { ConsultationPreAnswer } from "@/lib/consultation-queries";
 import { patientDirectoryHref } from "@/lib/patient-directory";
 import {
   patientDocumentHref,
@@ -121,6 +135,8 @@ type Props = {
   visitType?: "online" | "in_clinic" | null;
   /** Unimported pre-intake history rows (source=patient_intake, pending) — Tab 1 banner. */
   pendingIntake?: HistoryItem[];
+  /** Pre-appointment questionnaire answers — Tab 1's AI Intake Summary. */
+  preAnswers?: ConsultationPreAnswer[];
 };
 
 export function DermWorkspace({
@@ -135,6 +151,7 @@ export function DermWorkspace({
   activeVisitId = null,
   visitType = null,
   pendingIntake = [],
+  preAnswers = [],
 }: Props) {
   const today = todayIso();
   const todayExam = derm.exams.find((exam) => exam.exam_date === today) ?? null;
@@ -145,10 +162,10 @@ export function DermWorkspace({
           patient={patient}
           derm={derm}
           canManage={canManage}
-          params={params}
           visitId={activeVisitId}
           visitType={visitType}
           pendingIntake={pendingIntake}
+          preAnswers={preAnswers}
         />
       )}
       {activeTab === "derm_exam" && (
@@ -355,18 +372,18 @@ function SkinOverviewTab({
   patient,
   derm,
   canManage,
-  params,
   visitId,
   visitType = null,
   pendingIntake = [],
+  preAnswers = [],
 }: {
   patient: PatientDirectoryRow;
   derm: PatientDermBundle;
   canManage: boolean;
-  params: { selectedId: string };
   visitId?: string | null;
   visitType?: "online" | "in_clinic" | null;
   pendingIntake?: HistoryItem[];
+  preAnswers?: ConsultationPreAnswer[];
 }) {
   const router = useRouter();
   const profile = derm.profile;
@@ -516,6 +533,22 @@ function SkinOverviewTab({
     else toast.error("Could not save the skin type.");
   }
 
+  /* --- AI intake summary (deterministic, Approve & Import) --------------- */
+  const suggestion = buildIntakeSuggestion(patient, preAnswers);
+  const [intakeImported, setIntakeImported] = useState(false);
+  // The complaint card registers its merge routine here; the button above it
+  // just calls through, so the import uses the card's own save path.
+  const applyIntakeRef = useRef<((s: IntakeSuggestion) => void) | null>(null);
+
+  function approveIntake() {
+    if (!suggestion || !applyIntakeRef.current) return;
+    applyIntakeRef.current(suggestion);
+    setIntakeImported(true);
+  }
+
+  /* --- Past-encounter detail drawer (right side) ------------------------- */
+  const [drawerExam, setDrawerExam] = useState<DermExam | null>(null);
+
   const consent = latestProcedure?.consent_status ?? null;
 
   return (
@@ -646,18 +679,29 @@ function SkinOverviewTab({
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[3fr_2fr]">
-        <RecordSection
-          title="Today's complaint & HPI"
-          meta={<span className="text-ink-faint text-[11px]">{today}</span>}
-        >
-          <DermComplaintCard
-            patient={patient}
-            todayExam={todayExam}
-            previousExam={previousExam}
-            canManage={canManage}
-            visitId={visitId}
-          />
-        </RecordSection>
+        <div className="space-y-4">
+          {suggestion && (
+            <DermIntakeSummary
+              suggestion={suggestion}
+              imported={intakeImported}
+              disabled={!canManage}
+              onApprove={approveIntake}
+            />
+          )}
+          <RecordSection
+            title="Today's complaint & HPI"
+            meta={<span className="text-ink-faint text-[11px]">{today}</span>}
+          >
+            <DermComplaintCard
+              patient={patient}
+              todayExam={todayExam}
+              previousExam={previousExam}
+              canManage={canManage}
+              visitId={visitId}
+              applyIntakeRef={applyIntakeRef}
+            />
+          </RecordSection>
+        </div>
 
         <div className="space-y-4">
           <RecordSection title="Skin type & procedure safety">
@@ -669,7 +713,7 @@ function SkinOverviewTab({
           </RecordSection>
 
           <RecordSection
-            title="Allergies"
+            title="Allergies & Sensitivities"
             meta={
               allergyTags.length > 0 ? (
                 <span className="rounded-pill bg-status-destructive/15 px-2 py-0.5 text-[10.5px] font-bold text-status-destructive">
@@ -860,21 +904,14 @@ function SkinOverviewTab({
                     )}
                   </div>
                   <Button
-                    asChild
+                    type="button"
                     variant="outline"
                     size="sm"
                     className="h-7 shrink-0 gap-0.5 px-2 text-[11px]"
+                    onClick={() => setDrawerExam(exam)}
                   >
-                    <Link
-                      href={patientDirectoryHref({
-                        selectedId: params.selectedId,
-                        tab: "derm_exam",
-                      })}
-                      scroll={false}
-                    >
-                      View Record
-                      <ChevronRight aria-hidden="true" className="size-3" />
-                    </Link>
+                    View Record
+                    <ChevronRight aria-hidden="true" className="size-3" />
                   </Button>
                 </div>
               </li>
@@ -893,6 +930,88 @@ function SkinOverviewTab({
           </p>
         )}
       </RecordSection>
+
+      {/* Past-encounter detail — slides in from the right (drawer, not a tab jump) */}
+      <Dialog
+        open={drawerExam !== null}
+        onOpenChange={(open) => {
+          if (!open) setDrawerExam(null);
+        }}
+      >
+        <DialogContent className="left-auto top-0 h-full max-h-full w-full max-w-md translate-x-0 translate-y-0 rounded-none border-y-0 border-r-0 data-[state=open]:animate-drawer-in">
+          {drawerExam && (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  {drawerExam.exam_date} —{" "}
+                  {drawerExam.diagnosis || "Examination"}
+                </DialogTitle>
+                <DialogDescription>
+                  {patient.name}
+                  {drawerExam.chief_complaints.length > 0
+                    ? ` · ${drawerExam.chief_complaints.join(", ")}`
+                    : ""}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="scrollbar-thin -mr-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+                <ExamDrawerChips
+                  label="Chief complaints"
+                  items={drawerExam.chief_complaints}
+                  tone="primary"
+                />
+                <ExamDrawerChips
+                  label="Morphology"
+                  items={drawerExam.morphology}
+                />
+                <ExamDrawerChips label="Triggers" items={drawerExam.triggers} />
+                <ExamDrawerChips
+                  label="Associated symptoms"
+                  items={drawerExam.associated_symptoms}
+                />
+                {drawerExam.duration && (
+                  <RecordNote label="Duration" value={drawerExam.duration} />
+                )}
+                {drawerExam.severity && (
+                  <RecordNote label="Severity" value={drawerExam.severity} />
+                )}
+                {drawerExam.distribution && (
+                  <RecordNote
+                    label="Distribution"
+                    value={
+                      drawerExam.distribution.charAt(0).toUpperCase() +
+                      drawerExam.distribution.slice(1)
+                    }
+                  />
+                )}
+                <RecordNote
+                  label="Diagnosis"
+                  value={
+                    drawerExam.diagnosis
+                      ? `${drawerExam.diagnosis}${drawerExam.icd_code ? ` (${drawerExam.icd_code})` : ""}`
+                      : null
+                  }
+                />
+                <RecordNote
+                  label="History of present illness"
+                  value={drawerExam.hpi}
+                />
+                <RecordNote label="Notes" value={drawerExam.notes} />
+                <RecordNote label="Assessment" value={drawerExam.assessment} />
+                <RecordNote
+                  label="Patient explanation"
+                  value={drawerExam.patient_explanation}
+                />
+                {drawerExam.follow_up_date && (
+                  <RecordNote
+                    label="Follow-up"
+                    value={`${drawerExam.follow_up_date}${drawerExam.follow_up_notes ? ` — ${drawerExam.follow_up_notes}` : ""}`}
+                  />
+                )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -900,6 +1019,37 @@ function SkinOverviewTab({
 /* ------------------------------------------------------------------------- */
 /* Overview & History — quick chips, today's encounter + copy-forward        */
 /* ------------------------------------------------------------------------- */
+
+/** Chip group inside the past-encounter drawer — renders nothing when empty. */
+function ExamDrawerChips({
+  label,
+  items,
+  tone = "neutral",
+}: {
+  label: string;
+  items: string[];
+  tone?: "neutral" | "primary";
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div>
+      <p className="text-ink text-[11.5px] font-bold">{label}</p>
+      <div className="mt-1 flex flex-wrap gap-1.5">
+        {items.map((item) => (
+          <Badge
+            key={item}
+            className={cn(
+              "bg-app text-text-secondary",
+              tone === "primary" && "bg-primary/10 text-primary",
+            )}
+          >
+            {item}
+          </Badge>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const FITZPATRICK_TYPES = [
   "Type I",
@@ -934,6 +1084,69 @@ const SYMPTOM_OPTIONS = [
   "Scaling",
   "Burning",
 ] as const;
+
+/**
+ * Curated dermatology complaint vocabulary behind Tab 1's search/create
+ * combobox: the six quick chips first, then common skin presentations. The
+ * input also accepts free text, so the list is a starting point, not a gate.
+ */
+const DERM_COMPLAINT_TAGS: readonly string[] = [
+  ...CHIEF_COMPLAINT_OPTIONS,
+  "Acne scars",
+  "Rosacea",
+  "Perioral dermatitis",
+  "Seborrheic dermatitis",
+  "Contact dermatitis",
+  "Atopic dermatitis",
+  "Hand eczema",
+  "Dyshidrotic eczema",
+  "Nummular dermatitis",
+  "Stasis dermatitis",
+  "Psoriasis",
+  "Vitiligo",
+  "Melasma",
+  "Post-inflammatory hyperpigmentation",
+  "Acanthosis nigricans",
+  "Keloid",
+  "Hypertrophic scar",
+  "Striae (stretch marks)",
+  "Warts",
+  "Molluscum",
+  "Skin tag",
+  "Sebaceous cyst",
+  "Seborrheic keratosis",
+  "Herpes simplex",
+  "Herpes zoster",
+  "Impetigo",
+  "Cellulitis",
+  "Folliculitis",
+  "Boil / abscess",
+  "Tinea corporis",
+  "Scalp ringworm",
+  "Athlete's foot",
+  "Nail fungus",
+  "Scabies",
+  "Urticaria",
+  "Angioedema",
+  "Erythema multiforme",
+  "Erythema nodosum",
+  "Lichen planus",
+  "Pityriasis rosea",
+  "Granuloma annulare",
+  "Prurigo nodularis",
+  "Neurodermatitis",
+  "Alopecia areata",
+  "Androgenetic alopecia",
+  "Dandruff",
+  "Hyperhidrosis",
+  "Xerosis",
+  "Sunburn",
+  "Photodermatitis",
+  "Purpura / easy bruising",
+  "Nail changes",
+  "Insect bite reaction",
+  "Lip dermatitis",
+];
 
 /** Local calendar date (YYYY-MM-DD) — matches how visit days are recorded. */
 function todayIso(): string {
@@ -987,12 +1200,15 @@ function DermComplaintCard({
   previousExam,
   canManage,
   visitId,
+  applyIntakeRef,
 }: {
   patient: PatientDirectoryRow;
   todayExam: DermExam | null;
   previousExam: DermExam | null;
   canManage: boolean;
   visitId?: string | null;
+  /** Registers the Approve & Import applier with the parent (Tab 1 summary). */
+  applyIntakeRef?: { current: ((s: IntakeSuggestion) => void) | null };
 }) {
   const router = useRouter();
   const [rowId, setRowId] = useState<string | null>(todayExam?.id ?? null);
@@ -1003,13 +1219,16 @@ function DermComplaintCard({
   const [message, setMessage] = useState<string | null>(null);
   const [carriedFrom, setCarriedFrom] = useState<string | null>(null);
 
-  function persist(patch: Partial<EncounterFields>) {
-    if (!canManage) return;
+  function persist(
+    patch: Partial<EncounterFields>,
+    successMessage?: string,
+  ): Promise<boolean> {
+    if (!canManage) return Promise.resolve(false);
     const next = { ...fields, ...patch };
     setFields(next);
     setStatus("saving");
     setMessage(null);
-    void saveDermExamAction(
+    return saveDermExamAction(
       patient.id,
       {
         id: rowId ?? "",
@@ -1032,12 +1251,55 @@ function DermComplaintCard({
         setStatus("saved");
         setCarriedFrom(null);
         router.refresh();
-      } else {
-        setStatus("error");
-        setMessage(result.message);
+        if (successMessage) toast.success(successMessage);
+        return true;
       }
+      setStatus("error");
+      setMessage(result.message);
+      if (successMessage) toast.error(result.message);
+      return false;
     });
   }
+
+  /**
+   * Approve & Import (AI Intake Summary): union the suggested chips into the
+   * encounter, fill duration/severity/HPI only where they are still empty, and
+   * save the merged result once through the normal autosave path.
+   */
+  function applyIntakeSuggestion(s: IntakeSuggestion) {
+    if (!canManage) return;
+    const merge = (base: string[], extra: string[]) => {
+      const next = base.slice();
+      for (const raw of extra) {
+        const value = raw.trim();
+        if (!value) continue;
+        if (!next.some((item) => item.toLowerCase() === value.toLowerCase())) {
+          next.push(value);
+        }
+      }
+      return next;
+    };
+    void persist(
+      {
+        chief_complaints: merge(fields.chief_complaints, s.chief_complaints),
+        triggers: merge(fields.triggers, s.triggers),
+        associated_symptoms: merge(
+          fields.associated_symptoms,
+          s.associated_symptoms,
+        ),
+        duration: fields.duration || s.duration || "",
+        severity: fields.severity || s.severity || "",
+        hpi: fields.hpi.trim() ? fields.hpi : (s.hpi ?? fields.hpi),
+      },
+      "Suggested intake data merged into today's encounter.",
+    );
+  }
+
+  // Keep the parent's button pointed at the latest closure (no dep array —
+  // re-registers on every render so the merge always sees current fields).
+  useEffect(() => {
+    if (applyIntakeRef) applyIntakeRef.current = applyIntakeSuggestion;
+  });
 
   function carryForward() {
     if (!previousExam) return;
@@ -1067,9 +1329,33 @@ function DermComplaintCard({
 
       <ChipPicker
         label="Chief complaint"
-        options={CHIEF_COMPLAINT_OPTIONS}
+        options={[
+          ...CHIEF_COMPLAINT_OPTIONS,
+          ...fields.chief_complaints.filter(
+            (item) =>
+              !(CHIEF_COMPLAINT_OPTIONS as readonly string[]).includes(item),
+          ),
+        ]}
         value={fields.chief_complaints}
-        onChange={(next) => persist({ chief_complaints: next })}
+        onChange={(next) => void persist({ chief_complaints: next })}
+      />
+
+      <SearchTagSelect
+        label="Search or add complaint"
+        value={fields.chief_complaints.join(", ")}
+        options={DERM_COMPLAINT_TAGS}
+        placeholder="🔍 Search or Add Complaint…"
+        helper="Search the curated list, or type any term to create a custom complaint tag."
+        hideSelectedChips
+        disabled={!canManage}
+        onSave={(next) =>
+          persist({
+            chief_complaints: next
+              .split(",")
+              .map((token) => token.trim())
+              .filter(Boolean),
+          })
+        }
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
