@@ -22,17 +22,16 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
 import {
   Building2,
   CalendarDays,
-  Camera,
   CheckCircle2,
   ChevronRight,
   ClipboardList,
   History,
   Loader2,
+  MapPin,
   Pill,
   Plus,
   Stethoscope,
@@ -43,9 +42,11 @@ import {
 
 import { ConfirmDeleteButton } from "@/components/patients/record/workspaces/confirm-delete";
 import {
-  DermBodyMap,
   DermScoringTools,
+  LesionEditor,
 } from "@/components/patients/record/workspaces/derm-body-map";
+import { BodyMapPanel } from "@/components/patients/record/workspaces/derm-body-map-panel";
+import { PinPhotosPanel } from "@/components/patients/record/workspaces/derm-pin-photos";
 import { DermDiagnoses } from "@/components/patients/record/workspaces/derm-diagnosis";
 import { DermProcedures } from "@/components/patients/record/workspaces/derm-procedures";
 import { DermRxMeds } from "@/components/patients/record/workspaces/derm-rx-meds";
@@ -90,6 +91,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useHoverTip } from "@/components/ui/hover-tip";
 import {
   deleteDermExamAction,
+  deleteDermLesionAction,
   saveDermExamAction,
   saveDermProfileAction,
   saveDermRxAction,
@@ -100,11 +102,7 @@ import type {
   WorkspaceExtraction,
 } from "@/lib/copilot/types";
 import type { ConsultationPreAnswer } from "@/lib/consultation-queries";
-import { patientDirectoryHref } from "@/lib/patient-directory";
-import {
-  patientDocumentHref,
-  type PatientDocumentView,
-} from "@/lib/patient-documents-queries";
+import type { PatientDocumentView } from "@/lib/patient-documents-queries";
 import { cn } from "@/lib/utils";
 import type { PatientDermBundle } from "@/lib/patient-record";
 import { DERMATOLOGY_WORKSPACE } from "@/lib/specialty-workspaces";
@@ -1502,6 +1500,25 @@ function ExamTab({
   );
   const [hpi] = useState(todayExam?.hpi ?? "");
 
+  // The active lesion pin — shared by all three columns (map, photos,
+  // morphology editor) so they stay in sync (Tab 2 spec).
+  const [selectedPinId, setSelectedPinId] = useState<string | null>(
+    derm.lesions[0]?.id ?? null,
+  );
+  const selectedLesion =
+    derm.lesions.find((lesion) => lesion.id === selectedPinId) ?? null;
+
+  async function removePin(id: string) {
+    const result = await deleteDermLesionAction(id);
+    if (result.ok) {
+      if (selectedPinId === id) setSelectedPinId(null);
+      toast.success("Lesion pin removed");
+      router.refresh();
+    } else {
+      toast.error(result.message);
+    }
+  }
+
   async function addExam() {
     if (!canManage) return;
     const hasClinicalDetail =
@@ -1617,26 +1634,62 @@ function ExamTab({
       {canManage && (
         <>
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
-            <RecordSection
-              title="Body map & lesion pins"
-              className="xl:col-span-2"
-            >
-              <DermBodyMap
+            <RecordSection title="Body map">
+              <BodyMapPanel
                 patientId={patient.id}
                 examId={todayExam?.id ?? null}
                 lesions={derm.lesions}
                 canManage={canManage}
                 visitId={visitId}
+                selectedId={selectedPinId}
+                onSelect={setSelectedPinId}
               />
             </RecordSection>
 
-            <RecordSection title="Photos & comparison">
-              <DermPhotoStrip
+            <RecordSection
+              title="Dermoscopy photos"
+              meta={
+                selectedLesion ? (
+                  <Badge className="bg-[#dc2626]/10 text-[#dc2626]">
+                    Pin #{selectedLesion.pin_number}
+                  </Badge>
+                ) : undefined
+              }
+            >
+              <PinPhotosPanel
                 documents={documents}
-                derm={derm}
+                photos={derm.photos}
+                selectedLesion={selectedLesion}
                 params={params}
+                canManage={canManage}
               />
             </RecordSection>
+
+            {selectedLesion ? (
+              <LesionEditor
+                key={selectedLesion.id}
+                patientId={patient.id}
+                lesion={selectedLesion}
+                canManage={canManage}
+                onDelete={removePin}
+                onSaved={() => router.refresh()}
+              />
+            ) : (
+              <RecordSection title="Morphology & findings">
+                <div className="flex h-full min-h-40 flex-col items-center justify-center rounded-card border border-dashed border-hairline p-4 text-center">
+                  <MapPin
+                    aria-hidden="true"
+                    className="text-ink-faint size-5"
+                  />
+                  <p className="mt-2 text-[12px] text-text-secondary">
+                    No pin selected
+                  </p>
+                  <p className="text-ink-faint mt-0.5 text-[11px]">
+                    Click the body map to add a lesion pin.
+                  </p>
+                </div>
+              </RecordSection>
+            )}
           </div>
 
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
@@ -1826,71 +1879,6 @@ function ExamTab({
           description="Record each skin examination with chief complaint, morphology, distribution and an ICD-assisted diagnosis."
         />
       )}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------------- */
-/* Photos & comparison — the gallery itself lives in the Photos & Body Map tab */
-/* ------------------------------------------------------------------------- */
-
-function DermPhotoStrip({
-  documents,
-  derm,
-  params,
-}: {
-  documents: PatientDocumentView[];
-  derm: PatientDermBundle;
-  params: { selectedId: string };
-}) {
-  const imageDocs = new Set(
-    documents
-      .filter((doc) => doc.mime_type.startsWith("image/"))
-      .map((doc) => doc.id),
-  );
-  const tagged = derm.photos
-    .filter((photo) => photo.document_id && imageDocs.has(photo.document_id))
-    .slice(0, 6);
-
-  return (
-    <div className="space-y-3">
-      <p className="text-ink-faint text-[11px]">
-        Baseline / follow-up tagging and explicit before/after pairing live in
-        the Photos & Body Map tab.
-      </p>
-      {tagged.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-card border border-dashed border-hairline p-4 text-center">
-          <Camera aria-hidden="true" className="text-ink-faint size-5" />
-          <p className="text-ink-faint mt-2 text-[11.5px]">
-            No tagged photos yet.
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-3 gap-1.5">
-          {tagged.map((photo) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              key={photo.id}
-              src={patientDocumentHref(photo.document_id as string)}
-              alt={photo.body_region}
-              loading="lazy"
-              decoding="async"
-              className="aspect-square w-full rounded-control border border-hairline object-cover"
-            />
-          ))}
-        </div>
-      )}
-      <Button asChild variant="outline" size="sm" className="w-full">
-        <Link
-          href={patientDirectoryHref({
-            selectedId: params.selectedId,
-            tab: "derm_photos",
-          })}
-          scroll={false}
-        >
-          Open Photos & Body Map
-        </Link>
-      </Button>
     </div>
   );
 }

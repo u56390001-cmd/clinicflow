@@ -2420,6 +2420,36 @@ export async function deleteDermPhotoAction(
   return ok();
 }
 
+/**
+ * Links (or unlinks) an existing derm photo to a lesion pin from the
+ * examination tab's middle column. `lesion_id: null` clears the link.
+ */
+const linkDermPhotoSchema = z.object({
+  id: z.string().uuid(),
+  lesion_id: optionalUuid,
+});
+
+export async function linkDermPhotoToLesionAction(
+  raw: unknown,
+): Promise<ActionResult<string>> {
+  const parsed = linkDermPhotoSchema.safeParse(raw);
+  if (!parsed.success) return err(firstIssue(parsed));
+  const g = await guard();
+  if (!g.ok) return g.result;
+
+  const { data, error } = await g.supabase
+    .from("derm_photos")
+    .update({ lesion_id: parsed.data.lesion_id || null })
+    .eq("id", parsed.data.id)
+    .eq("clinic_id", g.clinicId)
+    .select("id")
+    .maybeSingle();
+  if (error) return { ok: false, message: error.message };
+  if (!data) return { ok: false, message: "Photo not found." };
+  revalidatePath(APP_ROUTES.app.patients);
+  return { ok: true, data: data.id };
+}
+
 export async function saveDermRxAction(
   patientId: string,
   raw: unknown,
