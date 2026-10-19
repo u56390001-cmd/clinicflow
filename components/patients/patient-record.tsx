@@ -41,6 +41,7 @@ import {
 } from "@/lib/specialty-workspaces";
 import type { ConsultationPreAnswer } from "@/lib/consultation-queries";
 import type { PatientDirectoryRow } from "@/types/database";
+import type { HistoryItem } from "@/types/history";
 
 /**
  * The patient record: a fixed identity header over a tab strip, then the
@@ -116,6 +117,7 @@ export function PatientRecord({
   onEdit,
   onMergeDuplicate,
   preAnswers,
+  pendingIntake,
 }: {
   /** The signed-in clinic — templates and the print header for the Rx workspace. */
   clinicId: string;
@@ -153,6 +155,8 @@ export function PatientRecord({
   onMergeDuplicate: () => void;
   /** Pre-consultation answers for the active visit's booking, if any. */
   preAnswers: ConsultationPreAnswer[];
+  /** Unimported pre-intake history rows — Tab 1's import banner. */
+  pendingIntake: HistoryItem[];
 }) {
   const router = useRouter();
 
@@ -291,6 +295,29 @@ export function PatientRecord({
     })),
     dermPhotoTagging: workspace.kind === "dermatology",
   };
+
+  /**
+   * How today's visit is delivered, for the dermatology Tab 1 status badges.
+   * Any appointment starting inside the browser's current day wins; an online
+   * booking anywhere in that window reads as telehealth. No appointment today
+   * → no badge (the record is being read outside a live visit).
+   */
+  const dayStart = new Date();
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+  const todaysAppointments = [...upcoming, ...past].filter(
+    (appointment) =>
+      appointment.start_time >= dayStart.toISOString() &&
+      appointment.start_time < dayEnd.toISOString(),
+  );
+  const visitType: "online" | "in_clinic" | null =
+    todaysAppointments.length === 0
+      ? null
+      : todaysAppointments.some(
+            (appointment) => appointment.consultation_type === "online",
+          )
+        ? "online"
+        : "in_clinic";
 
   return (
     // The provider wraps the whole record (not just the tab) so a half-typed
@@ -476,6 +503,8 @@ export function PatientRecord({
                 params={params}
                 timezone={timezone}
                 activeVisitId={activeVisitId}
+                visitType={visitType}
+                pendingIntake={pendingIntake}
               />
             )}
           </div>

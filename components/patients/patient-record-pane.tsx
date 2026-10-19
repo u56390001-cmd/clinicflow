@@ -11,6 +11,7 @@ import type { PatientRecordData } from "@/lib/patient-record";
 import type { WorkspaceConfig } from "@/lib/specialty-workspaces";
 import type { ConsultationPreAnswer } from "@/lib/consultation-queries";
 import type { PatientDirectoryRow } from "@/types/database";
+import type { HistoryItem } from "@/types/history";
 
 export type PatientRecordPaneActions = {
   onEdit: () => void;
@@ -50,6 +51,7 @@ export function PatientRecordPane({
   backHref,
   workspace,
   preAnswers,
+  pendingIntake,
 }: {
   /** The signed-in clinic — the prescription workspace's templates and print header. */
   clinicId: string;
@@ -74,6 +76,8 @@ export function PatientRecordPane({
   workspace: WorkspaceConfig;
   /** Pre-consultation answers for the active visit's booking, if any. */
   preAnswers: ConsultationPreAnswer[];
+  /** Unimported pre-intake history rows (source=patient_intake, pending). */
+  pendingIntake: HistoryItem[];
 }) {
   const actions = useContext(PatientRecordPaneActionsContext);
 
@@ -99,6 +103,7 @@ export function PatientRecordPane({
       onEdit={actions.onEdit}
       workspace={workspace}
       preAnswers={preAnswers}
+      pendingIntake={pendingIntake}
     />
   );
 }

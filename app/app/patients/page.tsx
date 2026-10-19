@@ -24,6 +24,7 @@ import {
   type PatientTodayQueue,
 } from "@/lib/patient-directory";
 import { fetchPatientRecord } from "@/lib/patient-record";
+import { fetchPendingIntakeHistory } from "@/lib/medical-history-queries";
 import {
   fetchPreConsultationAnswers,
   findDoctorForUser,
@@ -363,12 +364,20 @@ async function PatientRecordStream({
 
   const workspace = workspaceForKind(resolveDoctorWorkspace(doctor?.specialty));
 
-  const [record, appointments, documents, activeVisitInfo] = await Promise.all([
-    fetchPatientRecord(supabase, clinicId, patient.id, workspace.kind),
-    fetchPatientAppointments(supabase, clinicId, patient),
-    fetchPatientDocuments(supabase, clinicId, patient.id),
-    fetchActiveVisitInfo(supabase, clinicId, patient.id, today, activeDoctorId),
-  ]);
+  const [record, appointments, documents, activeVisitInfo, pendingIntake] =
+    await Promise.all([
+      fetchPatientRecord(supabase, clinicId, patient.id, workspace.kind),
+      fetchPatientAppointments(supabase, clinicId, patient),
+      fetchPatientDocuments(supabase, clinicId, patient.id),
+      fetchActiveVisitInfo(
+        supabase,
+        clinicId,
+        patient.id,
+        today,
+        activeDoctorId,
+      ),
+      fetchPendingIntakeHistory(supabase, clinicId, patient.id),
+    ]);
 
   // The prescription workspace shows the pre-consultation answers collected for
   // this booking, so the read keys off the active visit and rides one wave
@@ -401,6 +410,7 @@ async function PatientRecordStream({
       backHref={backHref}
       workspace={workspace}
       preAnswers={preAnswers}
+      pendingIntake={pendingIntake}
     />
   );
 }

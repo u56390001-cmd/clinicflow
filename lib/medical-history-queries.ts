@@ -26,10 +26,6 @@ let warnedTableMissing = false;
 
 /**
  * Fetch all medical history entries for a patient, sorted newest first.
- *
- * Maps the DB row into the shared `HistoryItem` shape (DB column `condition`
- * reads as `title`). Defensive defaults for the 0048 provenance columns keep
- * this resilient if a deployment hasn't applied that migration yet.
  */
 export async function fetchMedicalHistory(
   supabase: SupabaseClient<Database>,
@@ -63,21 +59,67 @@ export async function fetchMedicalHistory(
     return EMPTY;
   }
 
+  return { entries: (data ?? []).map(mapHistoryRow) };
+}
+
+/**
+ * Unimported pre-intake rows: what the patient's pre-visit form (0049) wrote
+ * but nobody has verified yet. Tab 1 of the dermatology workspace shows these
+ * as a "Patient Pre-Intake Received" banner whose import button bulk-verifies
+ * them into the structured history.
+ *
+ * Returns `[]` instead of throwing so the record still renders when the table
+ * has not been migrated yet (PGRST205, same contract as `fetchMedicalHistory`).
+ */
+export async function fetchPendingIntakeHistory(
+  supabase: SupabaseClient<Database>,
+  clinicId: string,
+  patientId: string,
+): Promise<HistoryItem[]> {
+  const { data, error } = await supabase
+    .from("medical_history")
+    .select("*")
+    .eq("clinic_id", clinicId)
+    .eq("patient_id", patientId)
+    .eq("source", "patient_intake")
+    .eq("verification_status", "pending_approval")
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    if (error.code !== "PGRST205") {
+      console.error("[medical-history] pending intake query failed", {
+        clinicId,
+        patientId,
+        code: error.code,
+        message: error.message,
+      });
+    }
+    return [];
+  }
+
+  return (data ?? []).map(mapHistoryRow);
+}
+
+/**
+ * Maps the DB row into the shared `HistoryItem` shape (DB column `condition`
+ * reads as `title`). Defensive defaults for the 0048 provenance columns keep
+ * this resilient if a deployment hasn't applied that migration yet.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- one row mapper shared by both reads; the select("*") row type widens on the 0048 columns
+function mapHistoryRow(row: any): HistoryItem {
   return {
-    entries: (data ?? []).map((row) => ({
-      id: row.id,
-      patient_id: row.patient_id,
-      category: row.category,
-      title: row.condition,
-      onset_date: row.date,
-      report_date: row.report_date ?? null,
-      clinical_status: row.clinical_status ?? "active",
-      source: row.source ?? "doctor_entry",
-      verification_status: row.verification_status ?? "verified",
-      notes: row.notes,
-      relationship: row.relationship,
-      created_at: row.created_at,
-      created_by_name: row.created_by_name,
-    })),
+    id: row.id,
+    patient_id: row.patient_id,
+    category: row.category,
+    title: row.condition,
+    onset_date: row.date,
+    report_date: row.report_date ?? null,
+    clinical_status: row.clinical_status ?? "active",
+    source: row.source ?? "doctor_entry",
+    verification_status: row.verification_status ?? "verified",
+    notes: row.notes,
+    relationship: row.relationship,
+    created_at: row.created_at,
+    created_by_name: row.created_by_name,
   };
 }

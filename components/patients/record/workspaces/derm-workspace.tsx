@@ -20,21 +20,25 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
+  Building2,
   CalendarDays,
   Camera,
+  CheckCircle2,
   ChevronRight,
   ClipboardList,
   History,
   Loader2,
   Pill,
-  Scissors,
+  Plus,
   Stethoscope,
   TriangleAlert,
+  Video,
+  X,
 } from "lucide-react";
 
 import { ConfirmDeleteButton } from "@/components/patients/record/workspaces/confirm-delete";
@@ -48,17 +52,18 @@ import { DermRxMeds } from "@/components/patients/record/workspaces/derm-rx-meds
 import { DermSummary } from "@/components/patients/record/workspaces/derm-summary";
 import { DermPhotosTab } from "@/components/patients/record/workspaces/derm-photos-tab";
 import { TerminologySearch } from "@/components/patients/record/workspaces/terminology-search";
+import { VoiceInputButton } from "@/components/patients/record/workspaces/voice-input-button";
 import {
   AutosaveNote,
   ChipPicker,
   NoteStatus,
-  SelectNote,
+  parseList,
+  serializeList,
   SpecialtyHeading,
   type NoteState,
 } from "@/components/patients/record/workspaces/specialty-form";
 import {
   RecordEmpty,
-  RecordFact,
   RecordNote,
   RecordSection,
 } from "@/components/patients/record/record-primitives";
@@ -67,13 +72,16 @@ import { DocumentsTab } from "@/components/patients/record/documents-tab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useHoverTip } from "@/components/ui/hover-tip";
 import {
   deleteDermExamAction,
   saveDermExamAction,
   saveDermProfileAction,
   saveDermRxAction,
 } from "@/lib/actions/specialty-workspaces";
+import { verifyMedicalHistoryAction } from "@/lib/actions/medical-history";
 import type {
   DermNoteExtraction,
   WorkspaceExtraction,
@@ -91,6 +99,7 @@ import type {
   DermPrescription,
   PatientDirectoryRow,
 } from "@/types/database";
+import type { HistoryItem } from "@/types/history";
 
 type Props = {
   patient: PatientDirectoryRow;
@@ -108,6 +117,10 @@ type Props = {
    * record answers "what did this visit produce" (migration 0104).
    */
   activeVisitId?: string | null;
+  /** How today's visit is delivered (appointments.consultation_type) — Tab 1 badge. */
+  visitType?: "online" | "in_clinic" | null;
+  /** Unimported pre-intake history rows (source=patient_intake, pending) — Tab 1 banner. */
+  pendingIntake?: HistoryItem[];
 };
 
 export function DermWorkspace({
@@ -120,6 +133,8 @@ export function DermWorkspace({
   params,
   timezone,
   activeVisitId = null,
+  visitType = null,
+  pendingIntake = [],
 }: Props) {
   const today = todayIso();
   const todayExam = derm.exams.find((exam) => exam.exam_date === today) ?? null;
@@ -132,6 +147,8 @@ export function DermWorkspace({
           canManage={canManage}
           params={params}
           visitId={activeVisitId}
+          visitType={visitType}
+          pendingIntake={pendingIntake}
         />
       )}
       {activeTab === "derm_exam" && (
@@ -198,8 +215,141 @@ export function DermWorkspace({
 }
 
 /* ------------------------------------------------------------------------- */
-/* Overview & History                                                        */
+/* Overview & History — Tab 1 (spec: gemini-code-1792390612396)              */
+/*                                                                            */
+/* Layout: pre-intake banner → 60/40 grid (complaint capture | risks &        */
+/* background) → past-encounters timeline. The patient snapshot card, the     */
+/* internal sub-nav links and the empty "latest" placeholders are gone: the   */
+/* sticky record header owns demographics, the tab strip owns navigation.     */
 /* ------------------------------------------------------------------------- */
+
+type DermProfileField = keyof NonNullable<PatientDermBundle["profile"]>;
+
+type AllergyCategory = "Drug" | "Topical" | "Other";
+
+const ALLERGY_CATEGORY_FIELD: Record<AllergyCategory, DermProfileField> = {
+  Drug: "drug_allergies",
+  Topical: "topical_allergies",
+  Other: "allergies",
+};
+
+type AllergyTag = {
+  /** Category-prefixed so identical text in two categories never collides. */
+  id: string;
+  text: string;
+  category: AllergyCategory;
+  /** From patients.known_allergies — displayed, edited in Health Info. */
+  readOnly: boolean;
+};
+
+/**
+ * Flattens the three profile allergy columns plus the record-level
+ * known_allergies into the one tag list the unified card renders.
+ */
+function buildAllergyTags(
+  fields: {
+    drugAllergies?: string | null;
+    topicalAllergies?: string | null;
+    otherAllergies?: string | null;
+  },
+  knownAllergies?: string | null,
+): AllergyTag[] {
+  const tags: AllergyTag[] = [];
+  const add = (category: AllergyCategory, raw?: string | null) => {
+    for (const text of parseList(raw)) {
+      const id = `${category}:${text}`;
+      if (!tags.some((tag) => tag.id === id)) {
+        tags.push({ id, text, category, readOnly: false });
+      }
+    }
+  };
+  add("Drug", fields.drugAllergies);
+  add("Topical", fields.topicalAllergies);
+  add("Other", fields.otherAllergies);
+  for (const text of parseList(knownAllergies)) {
+    tags.push({
+      id: `record:${text}`,
+      text,
+      category: "Other",
+      readOnly: true,
+    });
+  }
+  return tags;
+}
+
+/** Laser / chemical-peel safety reading for each Fitzpatrick skin type. */
+const FITZPATRICK_TIPS: Record<(typeof FITZPATRICK_TYPES)[number], string> = {
+  "Type I":
+    "Very fair — always burns, never tans. Lowest laser fluence; high burn & PIH risk.",
+  "Type II":
+    "Fair — burns easily, tans minimally. Conservative fluence, strict sun avoidance.",
+  "Type III":
+    "Light — gradual tan. Moderate fluence; watch post-inflammatory pigment.",
+  "Type IV":
+    "Olive — tans well, rarely burns. Higher PIH risk after ablative lasers.",
+  "Type V":
+    "Brown — usually pigmented. Avoid aggressive resurfacing; test spot first.",
+  "Type VI":
+    "Deeply pigmented — never burns. Lowest fluence, test spot, firm post-care.",
+};
+
+/**
+ * 1-click Fitzpatrick selector (replaces the old SelectNote dropdown); each
+ * type carries its laser/peel safety tooltip. Clicking the active type clears
+ * the value, so "not recorded" is one click away.
+ */
+function FitzpatrickSelector({
+  value,
+  canManage,
+  onSelect,
+}: {
+  value: string | null;
+  canManage: boolean;
+  onSelect: (next: string) => void;
+}) {
+  const { tipProps, tooltip } = useHoverTip();
+  return (
+    <div>
+      <p className="text-ink mb-1.5 text-[12.5px] font-bold">
+        Fitzpatrick skin type
+      </p>
+      <div
+        role="group"
+        aria-label="Fitzpatrick skin type"
+        className="flex flex-wrap gap-1.5"
+      >
+        {FITZPATRICK_TYPES.map((type) => {
+          const selected = value === type;
+          return (
+            <button
+              key={type}
+              type="button"
+              disabled={!canManage}
+              aria-pressed={selected}
+              {...tipProps(FITZPATRICK_TIPS[type], canManage)}
+              onClick={() => onSelect(selected ? "" : type)}
+              className={cn(
+                "rounded-control border px-2.5 py-1 text-[11.5px] font-medium transition-colors",
+                selected
+                  ? "border-primary bg-primary text-white"
+                  : "border-hairline bg-surface text-text-secondary hover:border-primary/50 hover:text-primary",
+                !canManage && "cursor-not-allowed opacity-60",
+              )}
+            >
+              {type}
+            </button>
+          );
+        })}
+      </div>
+      {tooltip}
+      <p className="text-ink-faint mt-1.5 text-[11px]">
+        {value
+          ? `${value} — hover a type for its laser & peel safety rating.`
+          : "Not recorded — hover a type for its laser & peel safety rating."}
+      </p>
+    </div>
+  );
+}
 
 function SkinOverviewTab({
   patient,
@@ -207,22 +357,23 @@ function SkinOverviewTab({
   canManage,
   params,
   visitId,
+  visitType = null,
+  pendingIntake = [],
 }: {
   patient: PatientDirectoryRow;
   derm: PatientDermBundle;
   canManage: boolean;
   params: { selectedId: string };
   visitId?: string | null;
+  visitType?: "online" | "in_clinic" | null;
+  pendingIntake?: HistoryItem[];
 }) {
+  const router = useRouter();
   const profile = derm.profile;
-  const latestExam = derm.exams[0] ?? null;
   const latestProcedure = derm.procedures[0] ?? null;
-  const latestRx = derm.prescriptions[0] ?? null;
 
-  const save =
-    (field: keyof NonNullable<PatientDermBundle["profile"]>) =>
-    (value: string) =>
-      saveDermProfileAction(patient.id, { [field]: value }).then((r) => r.ok);
+  const save = (field: DermProfileField) => (value: string) =>
+    saveDermProfileAction(patient.id, { [field]: value }).then((r) => r.ok);
 
   async function toggleBiopsyAlert(checked: boolean) {
     const result = await saveDermProfileAction(patient.id, {
@@ -239,34 +390,13 @@ function SkinOverviewTab({
   const todayExam = derm.exams.find((exam) => exam.exam_date === today) ?? null;
   const previousExam =
     derm.exams.find((exam) => exam.id !== todayExam?.id) ?? null;
+  const pastEncounters = derm.exams.filter((exam) => exam.exam_date !== today);
 
-  const allergies = [
-    profile?.drug_allergies?.trim(),
-    profile?.topical_allergies?.trim(),
-    profile?.allergies?.trim(),
-    patient.known_allergies?.trim(),
-  ].filter((value): value is string => Boolean(value && value.length > 0));
-
-  const riskFields: Array<{
-    field:
-      | "drug_allergies"
-      | "topical_allergies"
-      | "allergies"
-      | "current_orals"
-      | "current_topicals"
-      | "active_conditions"
-      | "previous_skin_conditions"
-      | "relevant_systemic_history"
-      | "family_history"
-      | "previous_treatment_history"
-      | "biopsy_notes";
+  /** Right column — one box per history field; allergies live in the card. */
+  const historyFields: Array<{
+    field: Exclude<DermProfileField, "biopsy_alert">;
     label: string;
   }> = [
-    { field: "drug_allergies", label: "Drug allergies" },
-    { field: "topical_allergies", label: "Topical / contact allergies" },
-    { field: "allergies", label: "Other allergies & sensitivities" },
-    { field: "current_orals", label: "Current oral medications" },
-    { field: "current_topicals", label: "Current topicals & skincare" },
     { field: "active_conditions", label: "Active conditions" },
     { field: "previous_skin_conditions", label: "Past skin conditions" },
     { field: "relevant_systemic_history", label: "Relevant systemic history" },
@@ -275,19 +405,176 @@ function SkinOverviewTab({
       field: "previous_treatment_history",
       label: "Previous treatment history",
     },
-    { field: "biopsy_notes", label: "Biopsy notes" },
   ];
 
-  const quickActions = [
-    { tab: "derm_exam", label: "Record examination", icon: Stethoscope },
-    { tab: "derm_photos", label: "Skin photos", icon: Camera },
-    { tab: "derm_procedures", label: "Procedures", icon: Scissors },
-    { tab: "derm_rx", label: "Prescription & routine", icon: Pill },
-    { tab: "derm_summary", label: "Summary / Follow-up", icon: ClipboardList },
-  ] as const;
+  /* --- Unified allergy card ------------------------------------------------ */
+  const {
+    drug_allergies: drugAllergies,
+    topical_allergies: topicalAllergies,
+    allergies: otherAllergies,
+  } = profile ?? {};
+  const knownAllergies = patient.known_allergies;
+
+  const [allergyTags, setAllergyTags] = useState<AllergyTag[]>(() =>
+    buildAllergyTags(
+      { drugAllergies, topicalAllergies, otherAllergies },
+      knownAllergies,
+    ),
+  );
+  const [allergyDraft, setAllergyDraft] = useState("");
+  const [allergyCategory, setAllergyCategory] =
+    useState<AllergyCategory>("Drug");
+
+  // The profile comes back from the server after every save; re-sync so the
+  // card never drifts from what was actually persisted.
+  useEffect(() => {
+    setAllergyTags(
+      buildAllergyTags(
+        { drugAllergies, topicalAllergies, otherAllergies },
+        knownAllergies,
+      ),
+    );
+  }, [drugAllergies, topicalAllergies, otherAllergies, knownAllergies]);
+
+  async function persistAllergyCategory(
+    category: AllergyCategory,
+    tags: AllergyTag[],
+  ) {
+    const texts = tags
+      .filter((tag) => !tag.readOnly && tag.category === category)
+      .map((tag) => tag.text);
+    const ok = await save(ALLERGY_CATEGORY_FIELD[category])(
+      serializeList(texts),
+    );
+    if (!ok) {
+      toast.error("Could not save the allergy change.");
+      setAllergyTags(
+        buildAllergyTags(
+          { drugAllergies, topicalAllergies, otherAllergies },
+          knownAllergies,
+        ),
+      );
+    }
+  }
+
+  function addAllergy(event: FormEvent) {
+    event.preventDefault();
+    const text = allergyDraft.trim();
+    if (!text) return;
+    const next: AllergyTag[] = [
+      ...allergyTags,
+      {
+        id: `${allergyCategory}:${text}`,
+        text,
+        category: allergyCategory,
+        readOnly: false,
+      },
+    ];
+    setAllergyTags(next);
+    setAllergyDraft("");
+    void persistAllergyCategory(allergyCategory, next);
+  }
+
+  function removeAllergy(tag: AllergyTag) {
+    const next = allergyTags.filter((item) => item.id !== tag.id);
+    setAllergyTags(next);
+    void persistAllergyCategory(tag.category, next);
+  }
+
+  /* --- Pre-intake import --------------------------------------------------- */
+  const [importing, setImporting] = useState(false);
+
+  /**
+   * Bulk-verifies the patient's unimported pre-intake rows so they land as
+   * first-class, verified entries in the structured medical history (the same
+   * rows the History tab already renders with a pending badge).
+   */
+  async function importIntake() {
+    if (!canManage || pendingIntake.length === 0 || importing) return;
+    setImporting(true);
+    let imported = 0;
+    for (const entry of pendingIntake) {
+      const formData = new FormData();
+      formData.set("entryId", entry.id);
+      const result = await verifyMedicalHistoryAction(null, formData);
+      if (result.ok) imported += 1;
+    }
+    setImporting(false);
+    if (imported > 0) {
+      toast.success(
+        `${imported} pre-intake ${imported === 1 ? "item" : "items"} imported into the medical history`,
+      );
+      router.refresh();
+    } else {
+      toast.error("Nothing was imported — please try again.");
+    }
+  }
+
+  async function selectFitzpatrick(next: string) {
+    const ok = await save("fitzpatrick_type")(next);
+    if (ok) router.refresh();
+    else toast.error("Could not save the skin type.");
+  }
+
+  const consent = latestProcedure?.consent_status ?? null;
 
   return (
     <div className="space-y-4">
+      {/* Status row — visit type, digital consent, biopsy toggle */}
+      <div className="flex flex-wrap items-center gap-2">
+        {visitType === "online" && (
+          <Badge className="gap-1 bg-primary/10 text-primary">
+            <Video aria-hidden="true" className="size-3.5" />
+            Telehealth (ZegoCloud)
+          </Badge>
+        )}
+        {visitType === "in_clinic" && (
+          <Badge className="gap-1 bg-app text-text-secondary">
+            <Building2 aria-hidden="true" className="size-3.5" />
+            In-Person
+          </Badge>
+        )}
+        {consent && latestProcedure && (
+          <Badge
+            className={cn(
+              consent === "obtained" &&
+                "bg-status-success/15 text-status-success",
+              consent === "declined" &&
+                "bg-status-destructive/15 text-status-destructive",
+              consent === "documented" && "bg-app text-text-secondary",
+            )}
+            title={`${latestProcedure.procedure_name} · ${latestProcedure.procedure_date}`}
+          >
+            {consent === "obtained" && (
+              <CheckCircle2 aria-hidden="true" className="size-3.5" />
+            )}
+            {consent === "obtained"
+              ? "Digital Consent Signed"
+              : consent === "declined"
+                ? "Consent declined"
+                : "Consent documented"}
+          </Badge>
+        )}
+        <label className="text-ink ml-auto flex items-center gap-2 text-[12.5px] font-bold">
+          <input
+            type="checkbox"
+            checked={profile?.biopsy_alert ?? false}
+            onChange={(event) =>
+              canManage && toggleBiopsyAlert(event.target.checked)
+            }
+            disabled={!canManage}
+            className="size-4 accent-[var(--color-primary)]"
+          />
+          <Stethoscope aria-hidden="true" className="size-4 text-primary" />
+          Biopsy alert
+        </label>
+        {profile?.biopsy_alert && (
+          <Badge className="bg-status-warning/15 text-status-warning">
+            Biopsy pending
+          </Badge>
+        )}
+      </div>
+
       {profile?.biopsy_alert && (
         <div
           role="status"
@@ -309,75 +596,56 @@ function SkinOverviewTab({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {quickActions.map(({ tab, label, icon: Icon }) => (
-          <Button
-            key={tab}
-            asChild
-            variant="outline"
-            size="sm"
-            className="h-auto justify-start gap-2 py-2.5"
-          >
-            <Link
-              href={patientDirectoryHref({
-                selectedId: params.selectedId,
-                tab,
-              })}
-              scroll={false}
-            >
-              <Icon aria-hidden="true" className="size-4 text-primary" />
-              <span className="text-left text-[12.5px]">{label}</span>
-            </Link>
-          </Button>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
-        <RecordSection title="Patient snapshot">
-          <dl className="grid grid-cols-1 gap-3">
-            <RecordFact label="Name">{patient.name}</RecordFact>
-            <RecordFact label="Patient ID">{patient.patient_code}</RecordFact>
-            <RecordFact label="Date of birth">
-              {patient.date_of_birth}
-            </RecordFact>
-            <RecordFact label="Sex">{patient.gender}</RecordFact>
-            <RecordFact label="Phone">{patient.phone}</RecordFact>
-            <RecordFact label="Blood group">{patient.blood_group}</RecordFact>
-          </dl>
-          <div className="mt-4 border-t border-hairline pt-3">
-            <SelectNote
-              label="Fitzpatrick skin type"
-              name="derm-fitzpatrick"
-              value={profile?.fitzpatrick_type ?? null}
-              options={FITZPATRICK_TYPES}
-              onSave={canManage ? save("fitzpatrick_type") : async () => true}
-              disabled={!canManage}
-              placeholder="Not recorded"
-              helper="Laser & chemical-peel safety classification."
+      {canManage && pendingIntake.length > 0 && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-3 rounded-card border border-status-success/40 bg-status-success/10 p-3"
+        >
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-status-success/15">
+            <ClipboardList
+              aria-hidden="true"
+              className="size-4 text-status-success"
             />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[12.5px] font-semibold text-text-primary">
+              Patient Pre-Intake Received
+            </p>
+            <p className="text-[11.5px] text-text-secondary">
+              {pendingIntake.length}{" "}
+              {pendingIntake.length === 1 ? "entry" : "entries"} waiting to
+              import
+              {pendingIntake.length > 0 && (
+                <>
+                  {": "}
+                  {pendingIntake
+                    .slice(0, 3)
+                    .map((entry) => entry.title)
+                    .join(", ")}
+                  {pendingIntake.length > 3 &&
+                    ` +${pendingIntake.length - 3} more`}
+                </>
+              )}
+            </p>
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <label className="text-ink flex items-center gap-2 text-[12.5px] font-bold">
-              <input
-                type="checkbox"
-                checked={profile?.biopsy_alert ?? false}
-                onChange={(event) =>
-                  canManage && toggleBiopsyAlert(event.target.checked)
-                }
-                disabled={!canManage}
-                className="size-4 accent-[var(--color-primary)]"
-              />
-              <Stethoscope aria-hidden="true" className="size-4 text-primary" />
-              Biopsy alert
-            </label>
-            {profile?.biopsy_alert && (
-              <Badge className="bg-status-warning/15 text-status-warning">
-                Biopsy pending
-              </Badge>
+          <Button
+            type="button"
+            size="sm"
+            className="gap-1.5"
+            onClick={importIntake}
+            disabled={importing}
+          >
+            {importing ? (
+              <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
+            ) : (
+              <ClipboardList aria-hidden="true" className="size-3.5" />
             )}
-          </div>
-        </RecordSection>
+            Import &amp; Pre-fill Intake Data
+          </Button>
+        </div>
+      )}
 
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[3fr_2fr]">
         <RecordSection
           title="Today's complaint & HPI"
           meta={<span className="text-ink-faint text-[11px]">{today}</span>}
@@ -391,139 +659,238 @@ function SkinOverviewTab({
           />
         </RecordSection>
 
-        <RecordSection title="Risks, allergies & history">
-          <div
-            className={cn(
-              "rounded-card border p-2.5",
-              allergies.length > 0
-                ? "border-status-destructive/40 bg-status-destructive/5"
-                : "border-hairline bg-app/60",
-            )}
+        <div className="space-y-4">
+          <RecordSection title="Skin type & procedure safety">
+            <FitzpatrickSelector
+              value={profile?.fitzpatrick_type ?? null}
+              canManage={canManage}
+              onSelect={selectFitzpatrick}
+            />
+          </RecordSection>
+
+          <RecordSection
+            title="Allergies"
+            meta={
+              allergyTags.length > 0 ? (
+                <span className="rounded-pill bg-status-destructive/15 px-2 py-0.5 text-[10.5px] font-bold text-status-destructive">
+                  {allergyTags.length} recorded
+                </span>
+              ) : (
+                <span className="rounded-pill bg-app px-2 py-0.5 text-[10.5px] font-bold text-text-secondary">
+                  NKDA
+                </span>
+              )
+            }
           >
-            <p
+            <div
               className={cn(
-                "flex items-center gap-1.5 text-[11.5px] font-bold",
-                allergies.length > 0
-                  ? "text-status-destructive"
-                  : "text-text-secondary",
+                "rounded-card border-2 p-2.5",
+                allergyTags.length > 0
+                  ? "border-status-destructive/50 bg-status-destructive/5"
+                  : "border-hairline bg-app/60",
               )}
             >
-              <TriangleAlert aria-hidden="true" className="size-3.5" />
-              Allergy alert
-            </p>
-            {allergies.length > 0 ? (
-              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[11.5px] text-text-primary">
-                {allergies.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-ink-faint mt-1 text-[11.5px]">
-                No allergies recorded.
-              </p>
-            )}
-          </div>
-          <div className="mt-3 grid grid-cols-1 gap-3">
-            {riskFields.map(({ field, label }) => (
-              <AutosaveNote
-                key={field}
-                label={label}
-                name={`derm-profile-${field}`}
-                value={profile?.[field] ?? null}
-                onSave={canManage ? save(field) : async () => true}
-                rows={2}
-              />
-            ))}
-          </div>
-        </RecordSection>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <RecordSection
-          title="Latest examination"
-          meta={
-            latestExam && (
-              <Link
-                href={patientDirectoryHref({
-                  selectedId: params.selectedId,
-                  tab: "derm_exam",
-                })}
-                scroll={false}
-                className="flex items-center gap-0.5 text-[11px] font-medium text-primary hover:underline"
+              <p
+                className={cn(
+                  "flex items-center gap-1.5 text-[11.5px] font-bold",
+                  allergyTags.length > 0
+                    ? "text-status-destructive"
+                    : "text-text-secondary",
+                )}
               >
-                All examinations
-                <ChevronRight aria-hidden="true" className="size-3" />
-              </Link>
-            )
-          }
-        >
-          {latestExam ? (
-            <ExamSummary exam={latestExam} />
-          ) : (
-            <RecordNote label="Status" value="No examination recorded yet." />
-          )}
-        </RecordSection>
+                <TriangleAlert aria-hidden="true" className="size-3.5" />
+                Allergy alert
+              </p>
+              {allergyTags.length > 0 ? (
+                <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                  {allergyTags.map((tag) => (
+                    <li
+                      key={tag.id}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-control border px-2 py-0.5 text-[11px] font-medium",
+                        tag.readOnly
+                          ? "border-hairline bg-app text-text-muted"
+                          : tag.category === "Drug"
+                            ? "border-status-destructive/40 bg-status-destructive/10 text-status-destructive"
+                            : "border-status-warning/40 bg-status-warning/10 text-status-warning",
+                      )}
+                    >
+                      <span
+                        title={
+                          tag.readOnly
+                            ? "From the patient's demographics — edit in Health Info"
+                            : tag.category
+                        }
+                      >
+                        {tag.text}
+                      </span>
+                      {tag.readOnly ? (
+                        <span className="text-ink-faint text-[10px]">
+                          record
+                        </span>
+                      ) : (
+                        canManage && (
+                          <button
+                            type="button"
+                            aria-label={`Remove ${tag.text}`}
+                            onClick={() => removeAllergy(tag)}
+                            className="-mr-0.5 rounded-pill p-0.5 transition-colors hover:bg-black/10"
+                          >
+                            <X aria-hidden="true" className="size-3" />
+                          </button>
+                        )
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-ink-faint mt-1.5 text-[11.5px]">
+                  No known allergies recorded.
+                </p>
+              )}
 
-        <RecordSection
-          title="Latest procedure"
-          meta={
-            latestProcedure && (
-              <Link
-                href={patientDirectoryHref({
-                  selectedId: params.selectedId,
-                  tab: "derm_procedures",
-                })}
-                scroll={false}
-                className="flex items-center gap-0.5 text-[11px] font-medium text-primary hover:underline"
-              >
-                All procedures
-                <ChevronRight aria-hidden="true" className="size-3" />
-              </Link>
-            )
-          }
-        >
-          {latestProcedure ? (
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-text-primary">
-                {latestProcedure.procedure_name}
-              </p>
-              <p className="text-ink-faint flex items-center gap-1 text-[11px]">
-                <CalendarDays aria-hidden="true" className="size-3.5" />
-                {latestProcedure.procedure_date}
-              </p>
-              <RecordNote label="Notes" value={latestProcedure.notes} />
+              {canManage && (
+                <form
+                  onSubmit={addAllergy}
+                  className="mt-2.5 flex flex-wrap items-center gap-2"
+                >
+                  <Input
+                    value={allergyDraft}
+                    onChange={(event) => setAllergyDraft(event.target.value)}
+                    placeholder="Add an allergy…"
+                    aria-label="New allergy"
+                    className="h-8 min-w-[10rem] flex-1 text-[12.5px]"
+                  />
+                  <NativeSelect
+                    value={allergyCategory}
+                    onChange={(event) =>
+                      setAllergyCategory(event.target.value as AllergyCategory)
+                    }
+                    aria-label="Allergy category"
+                    className="h-8 w-28 text-[12.5px]"
+                  >
+                    <option>Drug</option>
+                    <option>Topical</option>
+                    <option>Other</option>
+                  </NativeSelect>
+                  <Button
+                    type="submit"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1"
+                    disabled={!allergyDraft.trim()}
+                  >
+                    <Plus aria-hidden="true" className="size-3.5" />
+                    Add Allergy
+                  </Button>
+                </form>
+              )}
             </div>
-          ) : (
-            <RecordNote label="Status" value="No procedure recorded yet." />
-          )}
-        </RecordSection>
+          </RecordSection>
+
+          <RecordSection title="Current skincare & oral meds">
+            <div className="space-y-3">
+              <AutosaveNote
+                label="Oral medications"
+                name="derm-profile-current_orals"
+                value={profile?.current_orals ?? null}
+                onSave={canManage ? save("current_orals") : async () => true}
+                rows={2}
+                helper="e.g. Accutane, antibiotics, supplements"
+              />
+              <AutosaveNote
+                label="Topicals & skincare"
+                name="derm-profile-current_topicals"
+                value={profile?.current_topicals ?? null}
+                onSave={canManage ? save("current_topicals") : async () => true}
+                rows={2}
+                helper="Retinoids, creams, actives"
+              />
+            </div>
+          </RecordSection>
+
+          <RecordSection title="Relevant medical & family history">
+            <div className="space-y-3">
+              {historyFields.map(({ field, label }) => (
+                <AutosaveNote
+                  key={field}
+                  label={label}
+                  name={`derm-profile-${field}`}
+                  value={profile?.[field] ?? null}
+                  onSave={canManage ? save(field) : async () => true}
+                  rows={2}
+                />
+              ))}
+            </div>
+          </RecordSection>
+        </div>
       </div>
 
       <RecordSection
-        title="Latest prescription & routine"
+        title="Past encounters"
         meta={
-          latestRx && (
-            <Link
-              href={patientDirectoryHref({
-                selectedId: params.selectedId,
-                tab: "derm_rx",
-              })}
-              scroll={false}
-              className="flex items-center gap-0.5 text-[11px] font-medium text-primary hover:underline"
-            >
-              Open prescription
-              <ChevronRight aria-hidden="true" className="size-3" />
-            </Link>
-          )
+          <span className="text-ink-faint text-[11px]">
+            {pastEncounters.length === 0
+              ? "None yet"
+              : `${pastEncounters.length} previous`}
+          </span>
         }
       >
-        {latestRx ? (
-          <RxSummary rx={latestRx} />
+        {pastEncounters.length > 0 ? (
+          <ol className="relative space-y-3 border-l border-hairline pl-4">
+            {pastEncounters.slice(0, 8).map((exam) => (
+              <li key={exam.id} className="relative">
+                <span
+                  aria-hidden="true"
+                  className="absolute -left-[21px] top-1.5 size-2 rounded-full bg-primary/70 ring-4 ring-surface"
+                />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-ink flex items-center gap-1.5 text-[12.5px] font-semibold">
+                      <CalendarDays
+                        aria-hidden="true"
+                        className="text-ink-faint size-3.5"
+                      />
+                      {exam.exam_date} — {exam.diagnosis || "Examination"}
+                    </p>
+                    {exam.chief_complaints.length > 0 && (
+                      <p className="text-ink-faint mt-0.5 truncate text-[11px]">
+                        {exam.chief_complaints.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    asChild
+                    variant="outline"
+                    size="sm"
+                    className="h-7 shrink-0 gap-0.5 px-2 text-[11px]"
+                  >
+                    <Link
+                      href={patientDirectoryHref({
+                        selectedId: params.selectedId,
+                        tab: "derm_exam",
+                      })}
+                      scroll={false}
+                    >
+                      View Record
+                      <ChevronRight aria-hidden="true" className="size-3" />
+                    </Link>
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ol>
         ) : (
           <RecordNote
             label="Status"
-            value="No dermatology prescription recorded yet."
+            value="No previous consultations recorded for this patient."
           />
+        )}
+        {pastEncounters.length > 8 && (
+          <p className="text-ink-faint mt-2 text-[11px]">
+            Showing the most recent 8 of {pastEncounters.length} encounters —
+            open an examination tab for the full list.
+          </p>
         )}
       </RecordSection>
     </div>
@@ -737,12 +1104,23 @@ function DermComplaintCard({
       />
 
       <div>
-        <label
-          htmlFor="derm-hpi"
-          className="text-ink mb-1.5 block text-[12.5px] font-bold"
-        >
-          History of present illness
-        </label>
+        <div className="mb-1.5 flex items-center justify-between gap-2">
+          <label
+            htmlFor="derm-hpi"
+            className="text-ink text-[12.5px] font-bold"
+          >
+            History of present illness
+          </label>
+          <VoiceInputButton
+            disabled={!canManage}
+            label="AI Voice Note"
+            onTranscript={(text) =>
+              persist({
+                hpi: fields.hpi.trim() ? `${fields.hpi} ${text}` : text,
+              })
+            }
+          />
+        </div>
         <Textarea
           id="derm-hpi"
           rows={3}
@@ -767,7 +1145,7 @@ function DermComplaintCard({
             disabled={!canManage}
           >
             <History aria-hidden="true" className="size-3.5" />
-            Copy previous history
+            Copy last visit HPI
           </Button>
           {carriedFrom && (
             <span className="text-[11px] font-medium text-status-warning">
@@ -1244,49 +1622,6 @@ const MORPHOLOGY_LABEL: Record<string, string> = {
   nodule: "Nodule",
   vesicle: "Vesicle",
 };
-
-function ExamSummary({ exam }: { exam: DermExam }) {
-  const complaints = exam.chief_complaints.map(
-    (c) => COMPLAINT_LABEL[c.toLowerCase()] ?? c,
-  );
-  const morphology = exam.morphology.map(
-    (m) => MORPHOLOGY_LABEL[m.toLowerCase()] ?? m,
-  );
-  return (
-    <div className="space-y-2">
-      <p className="text-sm font-medium text-text-primary">
-        {exam.diagnosis || "Examination"}
-      </p>
-      <p className="text-ink-faint flex items-center gap-1 text-[11px]">
-        <CalendarDays aria-hidden="true" className="size-3.5" />
-        {exam.exam_date}
-      </p>
-      <div className="flex flex-wrap items-center gap-1.5">
-        {complaints.map((c) => (
-          <Badge key={c} className="bg-app text-text-secondary">
-            {c}
-          </Badge>
-        ))}
-        {morphology.map((m) => (
-          <Badge key={m} className="bg-primary/10 text-primary">
-            {m}
-          </Badge>
-        ))}
-        {exam.distribution && (
-          <Badge className="bg-status-warning/15 capitalize text-status-warning">
-            {exam.distribution}
-          </Badge>
-        )}
-        {exam.icd_code && (
-          <span className="text-ink-faint font-mono text-[11px]">
-            {exam.icd_code}
-          </span>
-        )}
-      </div>
-      <RecordNote label="Notes" value={exam.notes} />
-    </div>
-  );
-}
 
 function ExamRow({
   exam,
