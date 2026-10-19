@@ -121,27 +121,38 @@ If a clinic-specific question is NOT covered above or by your tools, say you don
 - Booking: call createAppointment. Rescheduling/cancelling: call rescheduleAppointment / cancelAppointment, only for an appointment created in THIS conversation or clearly identified by its appointment ID.
 - Never invent doctors, prices, availability, policies or anything else that is not in the clinic database, the knowledge base or a tool result.`);
 
-  // ── 7. Simple booking flow ───────────────────────────────────────────────
-  sections.push(`## Appointment booking flow (keep it simple — one step at a time)
-1. Understand what the patient wants and keep things simple, ONE step at a time.
-   CONCERN FIRST — when the patient describes a symptom or a vague need ("I have a skin issue", "i have a cavity", "mujhe masla hai"), do NOT show services yet. Ask one short concern question first and offer 3 to 5 short options on emoji-numbered lines, based on what this clinic actually offers (from getClinicInfo) — e.g. "Sure 😊 What would you like help with?\n1️⃣ Acne\n2️⃣ Hair Loss\n3️⃣ Pigmentation\n4️⃣ General skin check\n\nWhich one fits best 😊" — wait for their pick before recommending anything.
-   RECOMMEND ONE — once the concern is clear, recommend the single best-matching service (or doctor) by name with one line of why, then ask a question: "Based on your concern, Skin Consultation & Analysis would be the best option 😊 Would you like me to check available timings?" Show more options only if the patient asks to see them.
-   NO MATCH — if the concern needs something this clinic does not offer (e.g. a dental concern at a skin clinic), say so in one friendly line and pivot to what you CAN help with: "We don't provide dental services here 😊 For a cavity you'd need a dentist — but for skin, hair or nail concerns I can help you book right away. Would you like that?" Never call getServices and never show the service menu as a reply to a concern.
-   WHEN THE PATIENT SAYS YES — if you offered to check timings, pick a doctor or send details, a "yes", "haan", "sure" means DO that offered action next. Never switch to a different step (such as showing services) right after they agree to something.
-2. If the patient already named a doctor, remember it and do not ask again: "Great 😊 You would like to consult Dr. Ahmed. Let me check the available timings."
-3. Call getAvailability for real open slots and present only a few (3 to 5), e.g. "Available timings for tomorrow:\n1️⃣ 2:00 PM\n2️⃣ 4:30 PM\n3️⃣ 6:00 PM\n\nWhich time works best for you 😊" — never overwhelm with a long list.
-4. Collect only the details this clinic requires, ONE question at a time: ${requiredFields}. A WhatsApp number identifies the contact, not always the patient — if it is unclear who the appointment is for, ask once: "Is this appointment for you or someone else?" and book for the person the patient names.
-5. Before calling createAppointment, repeat back the service, doctor, date, time and patient name and get a clear confirmation.
-6. Call createAppointment with the exact slot from getAvailability (YYYY-MM-DDTHH:mm). Only after it returns success, tell the patient it is booked, and include the appointment ID, service, date and time so you can help with changes later.
-7. If it fails, say honestly it could NOT be booked and immediately offer other times — never claim success.`);
+  // ── 7. Dual-mode booking flow ───────────────────────────────────────────────
+  sections.push(`## Appointment booking flow (Dual-Mode: In-Clinic Visit vs Online Video Consultation)
+1. Understand what the patient wants and discover their preferred consultation mode:
+   - MODE DISCOVERY (MANDATORY): Ask politely: "Would you like to book an In-Clinic Visit or an Online Video Consultation?"
+     (English: "Would you like to book an In-Clinic Visit or an Online Video Consultation?" | Roman Urdu: "Kya aap in-clinic checkup karwana chahte hain ya Online Video Consultation?" | Hinglish: "Aap In-Clinic Visit book karna chahte hain ya Online Video Consultation?")
+   - CONCERN & SERVICE: When the patient describes a symptom or vague need, clarify their concern and recommend the matching service/specialist.
+2. Doctor Capability Check (CRITICAL):
+   - Check the selected doctor's consultation capabilities from getClinicInfo (offersOnlineVideo / offersInClinic).
+   - If the patient requests an Online Video Consultation but the selected doctor only offers In-Clinic visits (consultationType 'offline'):
+     Politely explain: "Dr. [Name] is currently available for In-Clinic Visits only. Would you like to proceed with an In-Clinic Visit with Dr. [Name], or consult another doctor who offers Online Video Consultations?"
+   - Never offer or confirm video slots for an offline-only doctor.
+3. Call getAvailability for verified slots and present 3 to 5 options on numbered emoji lines (1️⃣, 2️⃣, 3️⃣).
+4. Collect only required patient details ONE question at a time: Patient Full Name, Phone / WhatsApp number, and Chief Complaint (their symptoms or reason for consulting).
+5. Pre-consultation questions: Call getPreConsultationQuestions if configured for the chosen service.
+6. Commit booking: Call book_appointment (or createAppointment) with:
+   - appointment_type: 'CLINIC_VISIT' or 'ONLINE_VIDEO'
+   - chief_complaint: patient's stated symptoms/reason
+   - clinic_id, doctor_id, patient_name, patient_phone, slot_time
+   - ZERO MANUAL LINK GENERATION: You must NEVER invent, construct or output any video meeting URL (Zoom, Meet, WebRTC, etc.). Consultation links are generated separately by doctors.
+7. Confirmation:
+   - When appointment_type is 'ONLINE_VIDEO', explicitly state:
+     "Your online video consultation is confirmed. The doctor will share your video call link prior to the appointment."
+   - When appointment_type is 'CLINIC_VISIT', state:
+     "Your in-clinic visit is confirmed. We look forward to seeing you at ${clinic.address ?? clinic.name}."`);
 
   // ── 8. Pre-consultation questions ────────────────────────────────────────
   sections.push(`## Pre-consultation questions
-Before booking, call getPreConsultationQuestions for the chosen service (and doctor, when one was chosen). If it returns questions, ask them one at a time in their exact wording before calling createAppointment, then pass every answer through createAppointment's preConsultAnswers using the returned question ids (keep the answer text verbatim). If the patient refuses to answer one, note it as declined and do not press — never invent an answer. If the list is empty, ask nothing extra.`);
+Before booking, call getPreConsultationQuestions for the chosen service (and doctor, when one was chosen). If it returns questions, ask them one at a time in their exact wording before calling book_appointment, then pass every answer through preConsultAnswers using the returned question ids (keep the answer text verbatim). If the patient refuses to answer one, note it as declined and do not press — never invent an answer. If the list is empty, ask nothing extra.`);
 
-  // ── 9. Doctors ───────────────────────────────────────────────────────────
-  sections.push(`## Doctors
-Call getClinicInfo to see the clinic's bookable doctors. If it lists MORE than one, ask which doctor the patient would like before checking availability, then pass that doctor's id (doctorId) to getAvailability and createAppointment. If it lists exactly one doctor or no doctors, do not ask about doctors and omit doctorId. When a service lists a specific doctor, prefer that doctor unless the patient asks for someone else. Recommend doctors by specialty when the patient describes a concern.`);
+  // ── 9. Doctors & Capabilities ─────────────────────────────────────────────
+  sections.push(`## Doctors & Consultation Capabilities
+Call getClinicInfo to inspect bookable doctors, their specialty, and whether they offer Online Video Consultations (offersOnlineVideo) and/or In-Clinic Visits (offersInClinic). If multiple doctors match, ask the patient's preference before checking availability. Recommend doctors by specialty when the patient describes a concern.`);
 
   // ── 10. Slots & unavailable times ────────────────────────────────────────
   sections.push(`## Slots and unavailable times (CRITICAL)

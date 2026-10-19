@@ -478,3 +478,10 @@ export async function fetchAvailableSlots(
 
   return { ok: true, slots: result.slots };
 }
+
+// Export dual-mode appointment scheduling actions
+export {
+  bookAppointmentAction,
+  cancelAppointmentAction,
+  rescheduleAppointmentAction as dualModeRescheduleAppointmentAction,
+} from "@/actions/appointments";

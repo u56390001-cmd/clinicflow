@@ -538,6 +538,8 @@ export type PatientDirectoryRow = Patient & {
  * blocks every doctor in overlap checks (pre-Phase-10 rows and any booking
  * path that does not select a doctor).
  */
+export type DualModeAppointmentType = "CLINIC_VISIT" | "ONLINE_VIDEO";
+
 export type Appointment = {
   id: string;
   clinic_id: string;
@@ -552,6 +554,10 @@ export type Appointment = {
   /** Set once the reminder job dispatched this appointment's reminder. */
   reminder_sent_at: string | null;
   consultation_type: ConsultationType;
+  appointment_type?: DualModeAppointmentType | null;
+  meeting_link?: string | null;
+  is_reminder_enabled?: boolean;
+  chief_complaint?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -3425,6 +3431,10 @@ export type Database = {
           notes?: string | null;
           reminder_sent_at?: string | null;
           consultation_type?: "in_clinic" | "online" | "video";
+          appointment_type?: DualModeAppointmentType | null;
+          meeting_link?: string | null;
+          is_reminder_enabled?: boolean;
+          chief_complaint?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -3441,6 +3451,10 @@ export type Database = {
           notes?: string | null;
           reminder_sent_at?: string | null;
           consultation_type?: "in_clinic" | "online" | "video";
+          appointment_type?: DualModeAppointmentType | null;
+          meeting_link?: string | null;
+          is_reminder_enabled?: boolean;
+          chief_complaint?: string | null;
           created_at?: never;
           updated_at?: string;
         };

@@ -176,6 +176,8 @@ type FlowState = {
   slot?: string;
   patientName?: string;
   patientEmail?: string;
+  appointmentType?: "CLINIC_VISIT" | "ONLINE_VIDEO";
+  chiefComplaint?: string;
   preConsult?: PreConsultTracking;
 };
 
@@ -680,11 +682,17 @@ async function confirmBooking(
       questionId: question.id,
       answerText: flow.preConsult!.answers[question.id],
     }));
+  const apptType = flow.appointmentType ?? "CLINIC_VISIT";
   const baseBooking = {
     serviceId: flow.serviceId,
     doctorId: flow.doctorId ?? undefined,
     start: `${flow.date}T${flow.slot}`,
     bookingSource: "ai_agent",
+    appointmentType: apptType,
+    chiefComplaint: flow.chiefComplaint,
+    meetingLink: null,
+    status: "confirmed" as const,
+    consultationType: apptType === "ONLINE_VIDEO" ? ("video" as const) : ("in_clinic" as const),
     ...(preConsultationAnswers.length > 0
       ? { preConsultationAnswers }
       : {}),
@@ -738,13 +746,17 @@ async function confirmBooking(
     result.appointment.id,
   );
 
+  const isOnline = apptType === "ONLINE_VIDEO";
   const confirmation = [
     "🎉 Your appointment is booked!",
+    `Type: ${isOnline ? "Online Video Consultation" : "In-Clinic Visit"}`,
     `Service: ${flow.serviceName}`,
     `When: ${formatNaive(`${flow.date}T${flow.slot}`)}`,
     flow.doctorName ? `Doctor: ${flow.doctorName}` : "",
     `Clinic: ${input.clinic.name}`,
-    "You can reply here anytime if you need to reschedule or cancel 😊",
+    isOnline
+      ? "Your online video consultation is confirmed. The doctor will share your video call link prior to the appointment."
+      : "You can reply here anytime if you need to reschedule or cancel 😊",
   ]
     .filter(Boolean)
     .join("\n");

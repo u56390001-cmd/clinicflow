@@ -215,6 +215,16 @@ export type CreateAppointmentInput = {
   bookingSource: string;
   /** How the visit is delivered (Phase 15). Defaults to `in_clinic`. */
   consultationType?: ConsultationType;
+  /** Dual-mode appointment classification ('CLINIC_VISIT' | 'ONLINE_VIDEO'). */
+  appointmentType?: "CLINIC_VISIT" | "ONLINE_VIDEO";
+  /** WebRTC / video meeting link (null when created by AI, populated later by doctor). */
+  meetingLink?: string | null;
+  /** Reminder toggle for notifications (default true). */
+  isReminderEnabled?: boolean;
+  /** Patient's stated chief complaint or reason for visit. */
+  chiefComplaint?: string | null;
+  /** Optional status override (e.g. 'confirmed'). Defaults to 'pending'. */
+  status?: AppointmentStatus;
   /**
    * Phase 22 — during-booking answers collected by whoever drove the
    * conversation (AI receptionist or the WhatsApp adapter). Persisted to
@@ -331,7 +341,21 @@ export async function createAppointmentService(
   }
 
   // 4. Commit transactionally (RPC re-verifies overlap under an advisory lock).
-  const { data: appointment, error } = await supabase.rpc("book_appointment", {
+  const effectiveAppointmentType = input.appointmentType ?? (
+    input.consultationType === "online" || input.consultationType === "video"
+      ? "ONLINE_VIDEO"
+      : "CLINIC_VISIT"
+  );
+  const effectiveConsultationType = input.consultationType ?? (
+    effectiveAppointmentType === "ONLINE_VIDEO" ? "video" : "in_clinic"
+  );
+  const effectiveStatus = (input.status ?? "pending") as AppointmentStatus;
+
+  // Try the extended 14-parameter RPC first, then fallback to 10-parameter signature if needed.
+  let appointment: Appointment | null = null;
+  let error: { code?: string; message?: string } | null = null;
+
+  const rpcPayload14 = {
     p_clinic_id: clinic.id,
     p_patient_id: patientId,
     p_service_id: service.id,
@@ -339,10 +363,56 @@ export async function createAppointmentService(
     p_end_time: endIso,
     p_booking_source: input.bookingSource,
     p_notes: input.notes || null,
-    p_status: "pending" as AppointmentStatus,
+    p_status: effectiveStatus,
     p_doctor_id: doctorId,
-    p_consultation_type: (input.consultationType ?? "in_clinic") as ConsultationType,
-  });
+    p_consultation_type: effectiveConsultationType as ConsultationType,
+    p_appointment_type: effectiveAppointmentType,
+    p_meeting_link: input.meetingLink ?? null,
+    p_is_reminder_enabled: input.isReminderEnabled ?? true,
+    p_chief_complaint: input.chiefComplaint ?? null,
+  };
+
+  const attempt14 = await (supabase.rpc as any)("book_appointment", rpcPayload14);
+  if (!attempt14.error && attempt14.data) {
+    appointment = attempt14.data as Appointment;
+  } else {
+    // If 14-param signature doesn't match or failed with parameter count mismatch, fallback to 10-param
+    const rpcPayload10 = {
+      p_clinic_id: clinic.id,
+      p_patient_id: patientId,
+      p_service_id: service.id,
+      p_start_time: startIso,
+      p_end_time: endIso,
+      p_booking_source: input.bookingSource,
+      p_notes: input.notes || null,
+      p_status: effectiveStatus,
+      p_doctor_id: doctorId,
+      p_consultation_type: effectiveConsultationType as ConsultationType,
+    };
+    const attempt10 = await (supabase.rpc as any)("book_appointment", rpcPayload10);
+    if (!attempt10.error && attempt10.data) {
+      appointment = attempt10.data as Appointment;
+      // Directly persist dual-mode columns to ensure fields are updated
+      await supabase
+        .from("appointments")
+        .update({
+          appointment_type: effectiveAppointmentType,
+          meeting_link: input.meetingLink ?? null,
+          is_reminder_enabled: input.isReminderEnabled ?? true,
+          chief_complaint: input.chiefComplaint ?? null,
+          status: effectiveStatus,
+        })
+        .eq("id", appointment.id);
+
+      appointment.appointment_type = effectiveAppointmentType;
+      appointment.meeting_link = input.meetingLink ?? null;
+      appointment.is_reminder_enabled = input.isReminderEnabled ?? true;
+      appointment.chief_complaint = input.chiefComplaint ?? null;
+      appointment.status = effectiveStatus;
+    } else {
+      error = attempt10.error ?? attempt14.error;
+    }
+  }
 
   if (error || !appointment) {
     console.error("[booking-service] book_appointment failed", {
@@ -367,7 +437,10 @@ export async function createAppointmentService(
     });
     return {
       ok: false,
-      message: friendlyDbMessage(error, "We couldn't book this appointment. Please try again."),
+      message: friendlyDbMessage(
+        error?.message ? { message: error.message } : null,
+        "We couldn't book this appointment. Please try again.",
+      ),
     };
   }
 

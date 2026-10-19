@@ -16,6 +16,7 @@ import { activeFaqEntries } from "@/lib/ai/faq";
 import { getActivePreConsultationQuestions } from "@/lib/pre-consultation";
 import type { AIToolDefinition } from "@/lib/ai/types";
 import type { ClinicAiSettings, Database } from "@/types/database";
+import { executeDualModeBooking } from "@/lib/ai/receptionist-agent";
 
 /**
  * The six AI tools. Each tool has:
@@ -117,7 +118,7 @@ const getClinicInfo: Tool = {
         ctx.supabase
           .from("doctors")
           .select(
-            "id, name, specialty, qualification, years_of_experience, consultation_fee, professional_description",
+            "id, name, specialty, qualification, years_of_experience, consultation_fee, professional_description, consultation_type",
           )
           .eq("clinic_id", clinicAccess.clinicId)
           .eq("is_visible", true)
@@ -151,16 +152,22 @@ const getClinicInfo: Tool = {
         email: clinicRow?.email ?? null,
         address: clinicRow?.address ?? null,
       },
-      // Bookable doctors. Empty for single-practitioner clinics.
-      doctors: (doctors ?? []).map((doctor) => ({
-        id: doctor.id,
-        name: doctor.name,
-        specialty: doctor.specialty,
-        qualification: doctor.qualification,
-        yearsOfExperience: doctor.years_of_experience,
-        consultationFee: doctor.consultation_fee,
-        about: doctor.professional_description,
-      })),
+      // Bookable doctors with dual-mode consultation capabilities.
+      doctors: (doctors ?? []).map((doctor) => {
+        const rawType = (doctor.consultation_type ?? "offline") as "offline" | "both" | "online";
+        return {
+          id: doctor.id,
+          name: doctor.name,
+          specialty: doctor.specialty,
+          qualification: doctor.qualification,
+          yearsOfExperience: doctor.years_of_experience,
+          consultationFee: doctor.consultation_fee,
+          about: doctor.professional_description,
+          consultationType: rawType,
+          offersOnlineVideo: rawType === "both" || rawType === "online",
+          offersInClinic: rawType === "both" || rawType === "offline",
+        };
+      }),
       // Compact service list — lets the model recommend a service, quote
       // prices and take a serviceId without calling getServices (whose
       // result is rendered to the patient as the full menu).
@@ -517,12 +524,95 @@ const cancelAppointment: Tool = {
   },
 };
 
+const bookAppointmentSchema = z.object({
+  clinic_id: clinicIdSchema,
+  clinicId: clinicIdSchema,
+  doctor_id: z.string().uuid().optional().nullable(),
+  doctorId: z.string().uuid().optional().nullable(),
+  patient_name: z.string().trim().min(1, "Patient name is required.").max(120),
+  patient_phone: z.string().trim().min(3, "Patient phone is required.").max(32),
+  slot_time: localDateTimeSchema,
+  appointment_type: z.enum(["CLINIC_VISIT", "ONLINE_VIDEO"]),
+  chief_complaint: z.string().trim().min(1, "Chief complaint is required.").max(1000),
+  service_id: z.string().uuid().optional().nullable(),
+  serviceId: z.string().uuid().optional().nullable(),
+});
+
+const bookAppointment: Tool = {
+  name: "book_appointment",
+  description:
+    "Book an appointment in either dual mode: 'CLINIC_VISIT' (in-person clinic visit) or 'ONLINE_VIDEO' (online video consultation). Validates doctor capability, creates the appointment with status 'confirmed', and leaves meeting_link as NULL (the doctor will share the video link prior to the appointment).",
+  parameters: objectSchema(
+    {
+      clinic_id: { type: "string", description: "The clinic ID (UUID)." },
+      doctor_id: { type: "string", description: "Optional doctor ID (UUID)." },
+      patient_name: { type: "string", description: "Patient's full name." },
+      patient_phone: { type: "string", description: "Patient's phone number with country code." },
+      slot_time: { type: "string", description: "Exact clinic-local start YYYY-MM-DDTHH:mm from getAvailability." },
+      appointment_type: {
+        type: "string",
+        enum: ["CLINIC_VISIT", "ONLINE_VIDEO"],
+        description: "Consultation mode: 'CLINIC_VISIT' or 'ONLINE_VIDEO'.",
+      },
+      chief_complaint: { type: "string", description: "Patient's primary symptom, concern or reason for visit." },
+      service_id: { type: "string", description: "Optional service ID (UUID)." },
+    },
+    ["patient_name", "patient_phone", "slot_time", "appointment_type", "chief_complaint"],
+  ),
+  async execute(ctx, rawArgs) {
+    const parsed = bookAppointmentSchema.safeParse(rawArgs);
+    if (!parsed.success) return { ok: false, error: "Invalid arguments: " + firstIssue(parsed.error) };
+
+    const clinicId = parsed.data.clinic_id ?? parsed.data.clinicId ?? ctx.clinic.id;
+    const clinicAccess = resolveClinicId(ctx, clinicId);
+    if (!clinicAccess.ok) return { ok: false, error: clinicAccess.error };
+
+    const result = await executeDualModeBooking(
+      ctx.supabase,
+      { id: clinicAccess.clinicId, timezone: ctx.clinic.timezone },
+      {
+        clinic_id: clinicAccess.clinicId,
+        doctor_id: parsed.data.doctor_id ?? parsed.data.doctorId ?? null,
+        patient_name: parsed.data.patient_name,
+        patient_phone: parsed.data.patient_phone,
+        slot_time: parsed.data.slot_time,
+        appointment_type: parsed.data.appointment_type,
+        chief_complaint: parsed.data.chief_complaint,
+        service_id: parsed.data.service_id ?? parsed.data.serviceId ?? null,
+      },
+      ctx.bookingSource ?? "ai_agent",
+    );
+
+    if (!result.ok) {
+      return { ok: false, error: result.error };
+    }
+
+    const appt = result.appointment!;
+    return {
+      ok: true,
+      appointment: {
+        id: appt.id,
+        patientId: appt.patientId,
+        doctorId: appt.doctorId ?? undefined,
+        serviceId: appt.serviceId,
+        appointmentType: appt.appointmentType,
+        start: appt.startTime,
+        end: appt.endTime,
+        status: appt.status,
+        meetingLink: null,
+      },
+      confirmationMessage: appt.confirmationMessage,
+    };
+  },
+};
+
 export const AI_TOOLS: Tool[] = [
   getClinicInfo,
   getServices,
   getAvailability,
   getPreConsultationQuestions,
   createAppointment,
+  bookAppointment,
   rescheduleAppointment,
   cancelAppointment,
 ];

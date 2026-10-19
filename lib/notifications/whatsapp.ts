@@ -34,24 +34,32 @@ const nameField = nonEmpty(200);
 const serviceField = nonEmpty(200);
 
 const confirmationPayload = z.object({
+  recipientRole: z.enum(["patient", "doctor", "clinic"]).optional().default("patient"),
   patientName: nameField,
   date: dateField,
   time: dateField,
   service: serviceField,
   clinicName: nameField,
+  doctorName: nameField.optional(),
+  appointmentType: z.enum(["CLINIC_VISIT", "ONLINE_VIDEO"]).optional(),
+  chiefComplaint: z.string().max(1000).optional(),
+  phone: z.string().max(40).optional(),
 });
 
 const cancellationPayload = z.object({
-  recipientRole: z.enum(["patient", "clinic"]),
+  recipientRole: z.enum(["patient", "doctor", "clinic"]).default("patient"),
   patientName: nameField,
   clinicName: nameField,
   date: dateField,
   time: dateField,
   service: serviceField,
+  doctorName: nameField.optional(),
+  appointmentType: z.enum(["CLINIC_VISIT", "ONLINE_VIDEO"]).optional(),
+  reason: z.string().max(1000).optional(),
 });
 
 const reschedulePayload = z.object({
-  recipientRole: z.enum(["patient", "clinic"]),
+  recipientRole: z.enum(["patient", "doctor", "clinic"]).default("patient"),
   patientName: nameField,
   clinicName: nameField,
   oldDate: dateField,
@@ -59,6 +67,8 @@ const reschedulePayload = z.object({
   newDate: dateField,
   newTime: dateField,
   service: serviceField,
+  doctorName: nameField.optional(),
+  appointmentType: z.enum(["CLINIC_VISIT", "ONLINE_VIDEO"]).optional(),
 });
 
 const reminderPayload = z.object({
@@ -68,6 +78,7 @@ const reminderPayload = z.object({
   service: serviceField,
   clinicName: nameField,
   doctorName: nameField.optional(),
+  appointmentType: z.enum(["CLINIC_VISIT", "ONLINE_VIDEO"]).optional(),
   /**
    * Clinic-authored reminder copy from the Engagement page
    * (engagement_templates.appointment_reminder). When present it replaces the
@@ -105,15 +116,53 @@ function renderBody(
   switch (type) {
     case "appointment_confirmation": {
       const p = confirmationPayload.parse(payload);
+      if (p.recipientRole === "doctor" || p.recipientRole === "clinic") {
+        const typeLabel =
+          p.appointmentType === "ONLINE_VIDEO"
+            ? "Online Video Consultation"
+            : "In-Clinic Visit";
+        return [
+          `🩺 New Appointment Booked at ${p.clinicName}`,
+          `Doctor: Dr. ${p.doctorName ?? "Doctor"}`,
+          `Patient: ${p.patientName}${p.phone ? ` (${p.phone})` : ""}`,
+          `Type: ${typeLabel}`,
+          `Service: ${p.service} — ${p.date} at ${p.time}`,
+          p.chiefComplaint ? `Chief Complaint: ${p.chiefComplaint}` : null,
+          p.appointmentType === "ONLINE_VIDEO"
+            ? "Note: Please prepare and share the consultation video link with the patient prior to the appointment."
+            : null,
+        ]
+          .filter(Boolean)
+          .join("\n");
+      }
+
+      const isOnline = p.appointmentType === "ONLINE_VIDEO";
       return [
         `Hello ${p.patientName}, your appointment at ${p.clinicName} is confirmed.`,
         `${p.service} — ${p.date} at ${p.time}.`,
-        "Reply here if you need to change it.",
+        isOnline
+          ? "Your online video consultation is confirmed. The doctor will share your video call link prior to the appointment."
+          : "Reply here if you need to change it.",
       ].join("\n");
     }
     case "appointment_cancellation": {
       const p = cancellationPayload.parse(payload);
-      if (p.recipientRole !== "patient") return null;
+      if (p.recipientRole === "doctor" || p.recipientRole === "clinic") {
+        const typeLabel =
+          p.appointmentType === "ONLINE_VIDEO"
+            ? "Online Video Consultation"
+            : "In-Clinic Visit";
+        return [
+          `⚠️ Appointment Cancelled at ${p.clinicName}`,
+          `Doctor: Dr. ${p.doctorName ?? "Doctor"}`,
+          `Patient: ${p.patientName}`,
+          `Type: ${typeLabel}`,
+          `Schedule: ${p.service} (${p.date} at ${p.time}) has been cancelled.`,
+          p.reason ? `Reason: ${p.reason}` : null,
+        ]
+          .filter(Boolean)
+          .join("\n");
+      }
       return [
         `Hello ${p.patientName}, your ${p.service} at ${p.clinicName} (${p.date} at ${p.time}) has been cancelled.`,
         "Reply here if you would like to book another time.",
@@ -121,11 +170,27 @@ function renderBody(
     }
     case "appointment_reschedule": {
       const p = reschedulePayload.parse(payload);
-      if (p.recipientRole !== "patient") return null;
+      if (p.recipientRole === "doctor" || p.recipientRole === "clinic") {
+        const typeLabel =
+          p.appointmentType === "ONLINE_VIDEO"
+            ? "Online Video Consultation"
+            : "In-Clinic Visit";
+        return [
+          `📅 Appointment Rescheduled at ${p.clinicName}`,
+          `Doctor: Dr. ${p.doctorName ?? "Doctor"}`,
+          `Patient: ${p.patientName}`,
+          `Type: ${typeLabel}`,
+          `Service: ${p.service}`,
+          `New Time: ${p.newDate} at ${p.newTime} (was ${p.oldDate} at ${p.oldTime}).`,
+        ].join("\n");
+      }
+      const isOnline = p.appointmentType === "ONLINE_VIDEO";
       return [
         `Hello ${p.patientName}, your ${p.service} at ${p.clinicName} was moved.`,
         `New time: ${p.newDate} at ${p.newTime} (was ${p.oldDate} at ${p.oldTime}).`,
-        "Reply here if this no longer works for you.",
+        isOnline
+          ? "Your online video consultation is confirmed for the new time. The doctor will share your video call link prior to the appointment."
+          : "Reply here if this no longer works for you.",
       ].join("\n");
     }
     case "appointment_reminder": {
@@ -133,10 +198,13 @@ function renderBody(
       if (p.template) {
         return interpolateReminderTemplate(p);
       }
+      const isOnline = p.appointmentType === "ONLINE_VIDEO";
       return [
         `Hi ${p.patientName}! A friendly reminder about your upcoming appointment at ${p.clinicName}:`,
         `${p.service} — ${p.date} at ${p.time}.`,
-        "Reply CONFIRM to let us know you're coming, or reply here if you need to reschedule.",
+        isOnline
+          ? "This is an Online Video Consultation. The doctor will share your video call link prior to the appointment."
+          : "Reply CONFIRM to let us know you're coming, or reply here if you need to reschedule.",
       ].join("\n");
     }
     case "pre_consultation_followup": {
@@ -276,3 +344,94 @@ export async function sendViaWhatsapp(
 
   return { success: true };
 }
+
+// ── WhatsApp Message Template Payload Generators ────────────────────────────
+
+export interface BookingConfirmationPayloadOptions {
+  recipientRole?: "patient" | "doctor" | "clinic";
+  patientName: string;
+  clinicName: string;
+  service: string;
+  date: string;
+  time: string;
+  doctorName?: string;
+  appointmentType?: "CLINIC_VISIT" | "ONLINE_VIDEO";
+  chiefComplaint?: string;
+  phone?: string;
+}
+
+export function generateBookingConfirmationPayload(
+  options: BookingConfirmationPayloadOptions,
+): Record<string, unknown> {
+  return {
+    recipientRole: options.recipientRole ?? "patient",
+    patientName: options.patientName,
+    clinicName: options.clinicName,
+    service: options.service,
+    date: options.date,
+    time: options.time,
+    doctorName: options.doctorName,
+    appointmentType: options.appointmentType ?? "CLINIC_VISIT",
+    chiefComplaint: options.chiefComplaint,
+    phone: options.phone,
+  };
+}
+
+export interface CancellationPayloadOptions {
+  recipientRole?: "patient" | "doctor" | "clinic";
+  patientName: string;
+  clinicName: string;
+  service: string;
+  date: string;
+  time: string;
+  doctorName?: string;
+  appointmentType?: "CLINIC_VISIT" | "ONLINE_VIDEO";
+  reason?: string;
+}
+
+export function generateCancellationPayload(
+  options: CancellationPayloadOptions,
+): Record<string, unknown> {
+  return {
+    recipientRole: options.recipientRole ?? "patient",
+    patientName: options.patientName,
+    clinicName: options.clinicName,
+    service: options.service,
+    date: options.date,
+    time: options.time,
+    doctorName: options.doctorName,
+    appointmentType: options.appointmentType ?? "CLINIC_VISIT",
+    reason: options.reason,
+  };
+}
+
+export interface ReschedulePayloadOptions {
+  recipientRole?: "patient" | "doctor" | "clinic";
+  patientName: string;
+  clinicName: string;
+  service: string;
+  oldDate: string;
+  oldTime: string;
+  newDate: string;
+  newTime: string;
+  doctorName?: string;
+  appointmentType?: "CLINIC_VISIT" | "ONLINE_VIDEO";
+}
+
+export function generateReschedulePayload(
+  options: ReschedulePayloadOptions,
+): Record<string, unknown> {
+  return {
+    recipientRole: options.recipientRole ?? "patient",
+    patientName: options.patientName,
+    clinicName: options.clinicName,
+    service: options.service,
+    oldDate: options.oldDate,
+    oldTime: options.oldTime,
+    newDate: options.newDate,
+    newTime: options.newTime,
+    doctorName: options.doctorName,
+    appointmentType: options.appointmentType ?? "CLINIC_VISIT",
+  };
+}
+
