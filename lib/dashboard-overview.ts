@@ -267,7 +267,7 @@ export async function loadDashboardOverview(
       .gte("checked_in_at", startIso)
       .lt("checked_in_at", endIso)
       .order("queue_position", { ascending: true }),
-    fetchInboxFeed(supabase, clinicId),
+    fetchInboxFeed(supabase, clinicId, timezone),
     supabase
       .from("app_event_logs")
       .select("id, category, event, severity, created_at")

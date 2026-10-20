@@ -66,7 +66,11 @@ export default async function InboxPage({
   }
 
   // Shared feed: conversations + today's queue patients as contacts.
-  const feed = await fetchInboxFeed(supabase, access.clinic.id);
+  const feed = await fetchInboxFeed(
+    supabase,
+    access.clinic.id,
+    access.clinic.timezone,
+  );
   const conversations = feed.conversations;
   const threads = feed.threads;
   const unreadCount = feed.unreadCount;

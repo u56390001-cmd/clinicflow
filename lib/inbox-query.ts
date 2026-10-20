@@ -13,6 +13,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { InboxThread } from "@/lib/header-activity";
+import { clinicDayRangeUtc, clinicToday } from "@/lib/time";
 import type { Database } from "@/types/database";
 
 export type InboxConversationRow = {
@@ -71,18 +72,13 @@ export function hasReachableNumber(contact: QueueContact): boolean {
 export async function fetchQueueContacts(
   supabase: SupabaseClient<Database>,
   clinicId: string,
+  timezone: string,
 ): Promise<QueueContact[]> {
-  const now = new Date();
-  const startOfDay = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-  ).toISOString();
-  const endOfDay = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() + 1,
-  ).toISOString();
+  // "Today" is the clinic's calendar day, not the server's.
+  const { startIso: startOfDay, endIso: endOfDay } = clinicDayRangeUtc(
+    clinicToday(timezone),
+    timezone,
+  );
 
   const [{ data: visits }, { data: patients }] = await Promise.all([
     supabase
@@ -193,6 +189,7 @@ export function mergeThreads(
 export async function fetchInboxFeed(
   supabase: SupabaseClient<Database>,
   clinicId: string,
+  timezone: string,
 ): Promise<InboxFeed> {
   const [conversationResult, queueContacts] = await Promise.all([
     supabase
@@ -205,7 +202,7 @@ export async function fetchInboxFeed(
       .eq("clinic_id", clinicId)
       .order("last_message_at", { ascending: false })
       .limit(50),
-    fetchQueueContacts(supabase, clinicId),
+    fetchQueueContacts(supabase, clinicId, timezone),
   ]);
 
   const conversations: InboxConversationRow[] = (conversationResult.data ?? [])

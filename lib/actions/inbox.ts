@@ -26,6 +26,7 @@ import {
 } from "@/lib/whatsapp/conversation";
 import { createClient } from "@/lib/supabase/server";
 import { createWidgetClient } from "@/lib/supabase/widget";
+import { clinicDayRangeUtc, clinicToday } from "@/lib/time";
 import type { ActionResult } from "@/types";
 
 const MAX_REPLY_LENGTH = 1000;
@@ -114,18 +115,12 @@ export async function openQueueConversationAction(
     };
   }
 
-  // The visit must be part of today's active queue for this clinic.
-  const now = new Date();
-  const startOfDay = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-  ).toISOString();
-  const endOfDay = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() + 1,
-  ).toISOString();
+  // The visit must be part of today's active queue for this clinic. "Today"
+  // is the clinic's calendar day, not the server's.
+  const { startIso: startOfDay, endIso: endOfDay } = clinicDayRangeUtc(
+    clinicToday(access.clinic.timezone),
+    access.clinic.timezone,
+  );
 
   const { data: visit } = await supabase
     .from("visits")

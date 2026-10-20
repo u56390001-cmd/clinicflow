@@ -5,6 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { clinicDayRangeUtc, clinicToday } from "@/lib/time";
 import type { Appointment, Visit, Vitals } from "@/types/database";
 
 export type QueueAppointment = Appointment & {
@@ -24,29 +25,26 @@ export type QueueAppointment = Appointment & {
 /**
  * Fetch today's appointments with visit data for the Queue page.
  * Joins appointments with patients, services, doctors, visits, and vitals.
+ *
+ * "Today" is the CLINIC's calendar day, not the server's: a Karachi clinic
+ * (UTC+5) must not lose the appointments between 00:00 and 05:00 local to a
+ * UTC midnight boundary (or on Vercel, where the server runs on UTC).
  */
 export async function fetchTodayQueue(
   supabase: SupabaseClient,
   clinicId: string,
+  timezone: string,
 ): Promise<QueueAppointment[]> {
-  const now = new Date();
-  const startOfDay = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-  ).toISOString();
-  const endOfDay = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() + 1,
-  ).toISOString();
+  const { startIso: startOfDay, endIso: endOfDay } = clinicDayRangeUtc(
+    clinicToday(timezone),
+    timezone,
+  );
 
   const [
     { data: appointments },
     { data: patients },
     { data: services },
     { data: doctors },
-    { data: visits },
     { data: vitalsList },
   ] = await Promise.all([
     supabase
@@ -69,16 +67,23 @@ export async function fetchTodayQueue(
       .select("*")
       .eq("clinic_id", clinicId),
     supabase
-      .from("visits")
-      .select("*")
-      .eq("clinic_id", clinicId)
-      .gte("checked_in_at", startOfDay)
-      .lt("checked_in_at", endOfDay),
-    supabase
       .from("vitals")
       .select("*")
       .eq("clinic_id", clinicId),
   ]);
+
+  // Visits are joined by appointment id, NOT by the check-in day: a patient
+  // who checked in the night before an early slot still belongs to today's
+  // appointment, and day-scoping the join lost their check-in state (no
+  // token, no queue position, "Not Yet Arrived" in the queue view).
+  const appointmentIds = (appointments ?? []).map((a) => a.id);
+  const { data: visits } = appointmentIds.length
+    ? await supabase
+        .from("visits")
+        .select("*")
+        .eq("clinic_id", clinicId)
+        .in("appointment_id", appointmentIds)
+    : { data: [] as Visit[] | null };
 
   const patientsById = new Map(patients?.map((p) => [p.id, p]) ?? []);
   const servicesById = new Map(services?.map((s) => [s.id, s]) ?? []);
@@ -112,11 +117,12 @@ export async function fetchTodayQueue(
 
 /**
  * Fetch the current waiting queue: all visits in 'waiting' or 'in_consultation'
- * status for today, ordered by queue_position.
+ * status for the clinic's current day, ordered by queue_position.
  */
 export async function fetchWaitingQueue(
   supabase: SupabaseClient,
   clinicId: string,
+  timezone: string,
 ): Promise<
   (Visit & {
     patientName: string;
@@ -126,17 +132,10 @@ export async function fetchWaitingQueue(
     vitals: Vitals | null;
   })[]
 > {
-  const now = new Date();
-  const startOfDay = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-  ).toISOString();
-  const endOfDay = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() + 1,
-  ).toISOString();
+  const { startIso: startOfDay, endIso: endOfDay } = clinicDayRangeUtc(
+    clinicToday(timezone),
+    timezone,
+  );
 
   const [
     { data: queueVisits },

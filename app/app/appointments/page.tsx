@@ -50,8 +50,8 @@ export default async function AppointmentPage({
 
   const [todayAppointments, queue, allAppointments, patients, services, doctors] =
     await Promise.all([
-      fetchTodayQueue(supabase, access.clinic.id),
-      fetchWaitingQueue(supabase, access.clinic.id),
+      fetchTodayQueue(supabase, access.clinic.id, access.clinic.timezone),
+      fetchWaitingQueue(supabase, access.clinic.id, access.clinic.timezone),
       fetchAllAppointments(supabase, access.clinic.id),
       supabase
         .from("patients")

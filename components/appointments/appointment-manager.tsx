@@ -184,6 +184,30 @@ function rowMatchesStatus(
   }
 }
 
+/**
+ * The status badge for a table row.
+ *
+ * Appointment status and visit status are two different dimensions: the
+ * appointment says whether the SLOT is booked and confirmed, the visit says
+ * whether the PATIENT has arrived. A patient who has already checked in was
+ * still "Confirmed" in the old column, which read as if they had not shown up
+ * yet. The live visit state wins; the booking status is the fallback, and a
+ * cancelled / no-show appointment always keeps its own badge.
+ */
+function rowStatusMeta(
+  row: Pick<AppointmentRow, "status" | "visit">,
+): { label: string; badge: string } | undefined {
+  if (row.status === "cancelled" || row.status === "no_show") {
+    return APPOINTMENT_STATUS_META[row.status];
+  }
+  const visitStatus = row.visit?.status;
+  if (visitStatus && visitStatus !== "scheduled") {
+    const meta = VISIT_STATUS_META[visitStatus];
+    if (meta) return meta;
+  }
+  return APPOINTMENT_STATUS_META[row.status];
+}
+
 /** Applies search + all four filters (AND across categories, OR within a
  * category) to a row. Shared by both the table rows and the Today queue. */
 function rowMatchesAll(
@@ -201,6 +225,7 @@ function rowMatchesAll(
   >,
   query: string,
   filters: AppointmentFilters,
+  timezone: string,
 ): boolean {
   if (query.trim()) {
     const q = query.trim().toLowerCase();
@@ -232,7 +257,10 @@ function rowMatchesAll(
   }
 
   if (filters.dateFrom || filters.dateTo) {
-    const day = row.start_time.slice(0, 10);
+    // The day is the CLINIC's calendar day. Slicing the raw timestamptz
+    // string gave the UTC date, so an 02:00 appointment in a Karachi clinic
+    // was filed under the previous day.
+    const day = utcIsoToClinicLocalInput(row.start_time, timezone).slice(0, 10);
     if (filters.dateFrom && day < filters.dateFrom) return false;
     if (filters.dateTo && day > filters.dateTo) return false;
   }
@@ -393,9 +421,9 @@ export function AppointmentManager({
       queue.filter((visit) => {
         const appt = apptByVisitId.get(visit.id);
         if (!appt) return true;
-        return rowMatchesAll(appt, searchQuery, filters);
+        return rowMatchesAll(appt, searchQuery, filters, timezone);
       }),
-    [queue, apptByVisitId, searchQuery, filters],
+    [queue, apptByVisitId, searchQuery, filters, timezone],
   );
 
   const patientsById = useMemo(
@@ -588,8 +616,13 @@ export function AppointmentManager({
   ).length;
 
   // Filtered table data for each sub-tab
-  const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
+  // "Now" ticks every 30s so a slot leaves the Upcoming list the moment it
+  // starts, without waiting for a page refresh.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   const filteredRows = useMemo(() => {
     let rows = allAppointments;
@@ -611,11 +644,19 @@ export function AppointmentManager({
     // Sub-tab filter
     switch (activeTab) {
       case "upcoming":
-        rows = rows.filter(
-          (a) =>
-            (a.status === "pending" || a.status === "confirmed") &&
-            a.start_time >= todayStr,
-        );
+        // "Upcoming" = appointments that have NOT STARTED YET: the rest of
+        // today plus every later day. It used to compare against the start of
+        // today, so slots that had already elapsed stayed listed, and the
+        // boundary was the BROWSER's UTC date — from 19:00 in a Karachi
+        // clinic the browser was already on "tomorrow" and today's remaining
+        // appointments vanished from the list.
+        rows = rows
+          .filter(
+            (a) =>
+              (a.status === "pending" || a.status === "confirmed") &&
+              new Date(a.start_time).getTime() >= nowMs,
+          )
+          .sort((x, y) => x.start_time.localeCompare(y.start_time));
         break;
       case "completed":
         rows = rows.filter((a) => a.status === "completed");
@@ -633,14 +674,14 @@ export function AppointmentManager({
     }
 
     // Search + Filters (combined AND across categories)
-    rows = rows.filter((a) => rowMatchesAll(a, searchQuery, filters));
+    rows = rows.filter((a) => rowMatchesAll(a, searchQuery, filters, timezone));
 
     return rows;
-  }, [allAppointments, activeTab, searchQuery, todayStr, viewMode, services, filters]);
+  }, [allAppointments, activeTab, searchQuery, nowMs, viewMode, services, filters, timezone]);
 
   // Today queue: split by status
   const todayFiltered = todayAppointments.filter((a) =>
-    rowMatchesAll(a, searchQuery, filters),
+    rowMatchesAll(a, searchQuery, filters, timezone),
   );
   const notCheckedIn = todayFiltered.filter(
     (a) => !a.visit && a.status !== "cancelled" && a.status !== "no_show",
@@ -2055,7 +2096,7 @@ function TableView({
 
       <div className="divide-y divide-brand-line">
         {rows.map((row) => {
-          const meta = APPOINTMENT_STATUS_META[row.status];
+          const meta = rowStatusMeta(row);
           const uhid = row.patient_id ? uhids.get(row.patient_id) ?? null : null;
           const token = row.visit?.token_number ?? null;
           const rowActions =
