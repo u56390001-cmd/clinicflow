@@ -23,7 +23,7 @@ const resumeKeyFor = (patientId: string) =>
 /**
  * The trigger, not the workspace.
  *
- * Everything the call *does* — the ZEGO UIKit instance, the floating panel, the
+ * Everything the call *does* — the ZEGO engine instance, the floating panel, the
  * chat, the captured-frame flow — lives in `TelehealthProvider` at the app
  * shell, so it survives navigation between records and tabs. All this button
  * adds is the per-patient knowledge the shell cannot have: which patient is

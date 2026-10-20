@@ -13,8 +13,8 @@ import { createWidgetClient } from "@/lib/supabase/widget";
  *
  * The KitToken is the only credential the browser ever sees; the AppSecret
  * (`ZEGO_SERVER_SECRET`) stays here, on the server, and is used to AES-encrypt
- * the token payload. This reproduces the ZEGO `generateKitTokenForTest` /
- * `generateToken04` layout so the prebuilt UIKit accepts the token unchanged:
+ * the token payload. This reproduces the ZEGO `generateToken04` layout accepted
+ * by both the core WebRTC engine and the (now removed) prebuilt UIKit:
  *
  *   token = "04" + base64(header) + "#" + base64({ userID, roomID, userName, appID })
  *
@@ -127,7 +127,7 @@ function aesAlgFor(keyBytes: number): "aes-128-cbc" | "aes-192-cbc" | "aes-256-c
   return "aes-256-cbc";
 }
 
-/** 16 ASCII characters, matching the IV the UIKit generates client-side. */
+/** 16 ASCII characters — the IV layout ZEGO's HMAC-free Token04 expects. */
 function randomIvString(): string {
   return randomBytes(8).toString("hex");
 }

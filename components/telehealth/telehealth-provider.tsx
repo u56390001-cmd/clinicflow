@@ -52,7 +52,7 @@ import type { TelehealthPatientContext } from "./telehealth-context";
  * The call is mounted by the app shell rather than by the patient record, which
  * is what keeps it alive while the clinician moves around: opening another tab,
  * writing the prescription, or navigating to the dashboard all change the route
- * below the provider without touching the ZEGO UIKit instance. The video
+ * below the provider without touching the live engine instance. The video
  * container therefore is never unmounted, only moved or hidden behind overlays.
  *
  * The same instance carries the conversation and the captured-frame flow, so
