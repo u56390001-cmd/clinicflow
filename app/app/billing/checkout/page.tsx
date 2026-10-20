@@ -14,6 +14,8 @@ import { cn } from "@/lib/utils";
 import { getPlansAction, getCheckoutDataAction, submitPaymentAction } from "@/lib/actions/billing";
 import type { SubscriptionPlan, PaymentMethod } from "@/types/database";
 
+const ALLOWED_FILE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "pdf"];
+
 const STEPS = [
   { label: "Summary", icon: FileCheck, number: 1 },
   { label: "Payment", icon: CreditCard, number: 2 },
@@ -39,6 +41,7 @@ export default function CheckoutPage() {
   const [notes, setNotes] = useState("");
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofPreview, setProofPreview] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -65,26 +68,57 @@ export default function CheckoutPage() {
     toast.success("Copied to clipboard");
   }, []);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
-    if (!allowed.includes(file.type)) {
-      toast.error("File must be JPG, PNG, WebP, or PDF");
+  /**
+   * Accept a receipt. The type check is deliberately forgiving: the browser
+   * reports an empty MIME type for some files, so the extension is used as the
+   * fallback.
+   */
+  const attachProof = (file: File) => {
+    const type = file.type ?? "";
+    const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+    const looksSupported =
+      type.startsWith("image/") ||
+      type === "application/pdf" ||
+      ALLOWED_FILE_EXTENSIONS.includes(extension);
+
+    if (!looksSupported) {
+      toast.error("The receipt must be an image or a PDF file.");
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
-      toast.error("File must be under 10 MB");
+      toast.error("The receipt file must be under 10 MB.");
       return;
     }
+
     setProofFile(file);
-    if (file.type.startsWith("image/")) {
+    if (type.startsWith("image/")) {
       const reader = new FileReader();
       reader.onload = (ev) => setProofPreview(ev.target?.result as string);
       reader.readAsDataURL(file);
     } else {
       setProofPreview(null);
     }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    attachProof(file);
+  };
+
+  /** A dropped file must never reach the browser's default handling. */
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file) attachProof(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
   };
 
   const handleSubmit = async () => {
@@ -323,16 +357,37 @@ export default function CheckoutPage() {
               <CardTitle>Upload Payment Proof</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="rounded-card border border-dashed border-text-muted/40 p-8 text-center">
-                <Upload className="mx-auto h-8 w-8 text-text-muted" />
+              <div
+                onDragOver={handleDragOver}
+                onDragEnter={handleDragOver}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleDrop}
+                className={cn(
+                  "rounded-card border border-dashed p-8 text-center transition-colors",
+                  isDragging ? "border-primary bg-primary/5" : "border-text-muted/40",
+                )}
+              >
+                <Upload
+                  className={cn(
+                    "mx-auto h-8 w-8",
+                    isDragging ? "text-primary" : "text-text-muted",
+                  )}
+                />
                 <p className="mt-2 text-sm text-text-secondary">
-                  Drag and drop or{" "}
-                  <label className="cursor-pointer text-primary hover:underline">
-                    browse
-                    <input type="file" className="hidden" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={handleFileChange} />
+                  Drag &amp; drop the receipt here, or{" "}
+                  <label className="cursor-pointer font-medium text-primary hover:underline">
+                    choose a file
+                    <input
+                      type="file"
+                      className="sr-only"
+                      accept="image/*,application/pdf"
+                      onChange={handleFileChange}
+                    />
                   </label>
                 </p>
-                <p className="mt-1 text-xs text-text-muted">JPG, PNG, WebP, or PDF. Max 10 MB.</p>
+                <p className="mt-1 text-xs text-text-muted">
+                  JPG, PNG, WebP, or PDF. Max 10 MB.
+                </p>
               </div>
 
               {proofFile && (

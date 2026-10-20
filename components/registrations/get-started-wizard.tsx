@@ -33,7 +33,7 @@ const STEPS = [
   { label: "Review", icon: Check, number: 4 },
 ] as const;
 
-const ALLOWED_FILE_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+const ALLOWED_FILE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "pdf"];
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 type GetStartedWizardProps = {
@@ -79,6 +79,7 @@ export function GetStartedWizard({
   const [notes, setNotes] = useState("");
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofPreview, setProofPreview] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Preselect the plan the visitor clicked on the landing page.
   useEffect(() => {
@@ -87,18 +88,30 @@ export function GetStartedWizard({
     if (match) setSelectedPlan(match);
   }, [initialPlanCode, plans]);
 
-  const detailsComplete = useMemo(
-    () =>
-      fullName.trim().length > 0 &&
-      email.includes("@") &&
-      phone.trim().length >= 3 &&
-      clinicName.trim().length > 0 &&
-      senderName.trim().length > 0 &&
-      senderPhone.trim().length >= 3 &&
-      transactionRef.trim().length > 0 &&
-      proofFile !== null,
-    [fullName, email, phone, clinicName, senderName, senderPhone, transactionRef, proofFile],
-  );
+  /** Everything the applicant still has to provide before the form can go. */
+  const missingDetails = useMemo(() => {
+    const missing: string[] = [];
+    if (!fullName.trim()) missing.push("full name");
+    if (!email.includes("@")) missing.push("email address");
+    if (phone.trim().length < 3) missing.push("phone number");
+    if (!clinicName.trim()) missing.push("clinic name");
+    if (!senderName.trim()) missing.push("sender name");
+    if (senderPhone.trim().length < 3) missing.push("sender phone");
+    if (!transactionRef.trim()) missing.push("transaction reference");
+    if (!proofFile) missing.push("payment receipt");
+    return missing;
+  }, [
+    fullName,
+    email,
+    phone,
+    clinicName,
+    senderName,
+    senderPhone,
+    transactionRef,
+    proofFile,
+  ]);
+
+  const detailsComplete = missingDetails.length === 0;
 
   const copyToClipboard = async (text: string, field: string) => {
     await navigator.clipboard.writeText(text);
@@ -107,25 +120,60 @@ export function GetStartedWizard({
     toast.success("Copied to clipboard");
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
-      toast.error("The receipt must be a JPG, PNG, WebP, or PDF file.");
+  /**
+   * Accept a receipt. The type check is deliberately forgiving: the browser
+   * reports an empty MIME type for some files (and screenshots taken on
+   * phones can arrive as HEIC), so the extension is used as the fallback.
+   */
+  const attachProof = (file: File) => {
+    const type = file.type ?? "";
+    const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+    const looksSupported =
+      type.startsWith("image/") ||
+      type === "application/pdf" ||
+      ALLOWED_FILE_EXTENSIONS.includes(extension);
+
+    if (!looksSupported) {
+      toast.error("The receipt must be an image or a PDF file.");
       return;
     }
     if (file.size > MAX_FILE_SIZE) {
       toast.error("The receipt file must be under 10 MB.");
       return;
     }
+
     setProofFile(file);
-    if (file.type.startsWith("image/")) {
+    if (type.startsWith("image/")) {
       const reader = new FileReader();
       reader.onload = (event) => setProofPreview(event.target?.result as string);
       reader.readAsDataURL(file);
     } else {
       setProofPreview(null);
     }
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    attachProof(file);
+  };
+
+  /**
+   * A dropped file must never reach the browser's default handling — that
+   * navigates the page to the file and throws the whole form away.
+   */
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragging(false);
+    const file = event.dataTransfer?.files?.[0];
+    if (file) attachProof(file);
+  };
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragging(true);
   };
 
   const handleSubmit = async () => {
@@ -212,7 +260,14 @@ export function GetStartedWizard({
   /* ------------------------------------------------------------------ */
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6">
+    // The page-level drop guard matters: without it a file dropped anywhere
+    // outside the dropzone makes the browser navigate to that file and the
+    // half-filled form is lost.
+    <div
+      className="mx-auto w-full max-w-5xl space-y-6"
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => event.preventDefault()}
+    >
       <div className="text-center">
         <h1 className="text-2xl font-semibold tracking-tight text-text-primary sm:text-3xl">
           Get started with MedBook AI
@@ -516,16 +571,32 @@ export function GetStartedWizard({
                     receipt screenshot.
                   </p>
 
-                  <div className="mt-3 rounded-card border border-dashed border-text-muted/40 p-8 text-center">
-                    <Upload className="mx-auto h-8 w-8 text-text-muted" />
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragEnter={handleDragOver}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={handleDrop}
+                    className={cn(
+                      "mt-3 rounded-card border border-dashed p-8 text-center transition-colors",
+                      isDragging
+                        ? "border-primary bg-primary/5"
+                        : "border-text-muted/40",
+                    )}
+                  >
+                    <Upload
+                      className={cn(
+                        "mx-auto h-8 w-8",
+                        isDragging ? "text-primary" : "text-text-muted",
+                      )}
+                    />
                     <p className="mt-2 text-sm text-text-secondary">
-                      Drag and drop or{" "}
-                      <label className="cursor-pointer text-primary hover:underline">
-                        browse
+                      Drag &amp; drop the receipt here, or{" "}
+                      <label className="cursor-pointer font-medium text-primary hover:underline">
+                        choose a file
                         <input
                           type="file"
-                          className="hidden"
-                          accept="image/jpeg,image/png,image/webp,application/pdf"
+                          className="sr-only"
+                          accept="image/*,application/pdf"
                           onChange={handleFileChange}
                         />
                       </label>
@@ -616,9 +687,16 @@ export function GetStartedWizard({
                   <Button variant="outline" onClick={() => setStep(2)}>
                     <ArrowLeft className="h-4 w-4" /> Back
                   </Button>
-                  <Button disabled={!detailsComplete} onClick={() => setStep(4)}>
-                    Review <ArrowRight className="h-4 w-4" />
-                  </Button>
+                  <div className="flex flex-col items-end gap-1">
+                    <Button disabled={!detailsComplete} onClick={() => setStep(4)}>
+                      Review <ArrowRight className="h-4 w-4" />
+                    </Button>
+                    {!detailsComplete && (
+                      <p className="text-xs text-text-muted">
+                        Still needed: {missingDetails.join(", ")}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
