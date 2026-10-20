@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -80,6 +80,8 @@ export function GetStartedWizard({
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofPreview, setProofPreview] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [proofError, setProofError] = useState<string | null>(null);
+  const proofInputRef = useRef<HTMLInputElement>(null);
 
   // Preselect the plan the visitor clicked on the landing page.
   useEffect(() => {
@@ -134,14 +136,19 @@ export function GetStartedWizard({
       ALLOWED_FILE_EXTENSIONS.includes(extension);
 
     if (!looksSupported) {
-      toast.error("The receipt must be an image or a PDF file.");
+      const message = "The receipt must be an image or a PDF file.";
+      setProofError(message);
+      toast.error(message);
       return;
     }
     if (file.size > MAX_FILE_SIZE) {
-      toast.error("The receipt file must be under 10 MB.");
+      const message = `The receipt file is ${(file.size / 1024 / 1024).toFixed(1)} MB — it must be under 10 MB. Take a smaller screenshot or export it as a PDF.`;
+      setProofError(message);
+      toast.error(message);
       return;
     }
 
+    setProofError(null);
     setProofFile(file);
     if (type.startsWith("image/")) {
       const reader = new FileReader();
@@ -156,6 +163,11 @@ export function GetStartedWizard({
     const file = event.target.files?.[0];
     if (!file) return;
     attachProof(file);
+  };
+
+  /** Open the native file picker from anywhere on the dropzone. */
+  const openFilePicker = () => {
+    proofInputRef.current?.click();
   };
 
   /**
@@ -176,8 +188,24 @@ export function GetStartedWizard({
     setIsDragging(true);
   };
 
+  /**
+   * Moving to the review step never depends on a disabled button: if
+   * something is missing the applicant is told exactly what, and the server
+   * validates the same list again on submit.
+   */
+  const goToReview = () => {
+    if (missingDetails.length > 0) {
+      toast.error(`Still needed: ${missingDetails.join(", ")}`);
+      return;
+    }
+    setStep(4);
+  };
+
   const handleSubmit = async () => {
-    if (!selectedPlan || !selectedMethod || !proofFile) return;
+    if (!selectedPlan || !selectedMethod || !proofFile) {
+      toast.error("The payment receipt is still missing.");
+      return;
+    }
     setSubmitting(true);
 
     const formData = new FormData();
@@ -573,15 +601,25 @@ export function GetStartedWizard({
 
                   <div
                     data-proof-dropzone
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Upload your payment receipt — click to choose a file, or drag it here"
+                    onClick={openFilePicker}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        openFilePicker();
+                      }
+                    }}
                     onDragOver={handleDragOver}
                     onDragEnter={handleDragOver}
                     onDragLeave={() => setIsDragging(false)}
                     onDrop={handleDrop}
                     className={cn(
-                      "mt-3 rounded-card border border-dashed p-8 text-center transition-colors",
+                      "mt-3 cursor-pointer rounded-card border border-dashed p-8 text-center transition-colors",
                       isDragging
                         ? "border-primary bg-primary/5"
-                        : "border-text-muted/40",
+                        : "border-text-muted/40 hover:border-primary/60 hover:bg-primary/5",
                     )}
                   >
                     <Upload
@@ -591,21 +629,32 @@ export function GetStartedWizard({
                       )}
                     />
                     <p className="mt-2 text-sm text-text-secondary">
-                      Drag &amp; drop the receipt here, or{" "}
-                      <label className="cursor-pointer font-medium text-primary hover:underline">
-                        choose a file
-                        <input
-                          type="file"
-                          className="sr-only"
-                          accept="image/*,application/pdf"
-                          onChange={handleFileChange}
-                        />
-                      </label>
+                      Drag &amp; drop the receipt here, or choose it below
                     </p>
-                    <p className="mt-1 text-xs text-text-muted">
+                    <input
+                      ref={proofInputRef}
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={handleFileChange}
+                      onClick={(event) => event.stopPropagation()}
+                      className="mx-auto mt-3 block w-full max-w-xs cursor-pointer text-sm text-text-secondary
+                                 file:mr-3 file:cursor-pointer file:rounded-control file:border-0 file:bg-primary
+                                 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white
+                                 hover:file:bg-primary/90"
+                    />
+                    <p className="mt-2 text-xs text-text-muted">
                       JPG, PNG, WebP, or PDF. Max 10 MB.
                     </p>
                   </div>
+
+                  {proofError && (
+                    <p
+                      role="alert"
+                      className="mt-2 text-xs font-medium text-status-destructive"
+                    >
+                      {proofError}
+                    </p>
+                  )}
 
                   {proofFile && (
                     <div className="mt-3 flex items-center gap-3 rounded-card border border-text-muted/20 p-3">
@@ -689,7 +738,7 @@ export function GetStartedWizard({
                     <ArrowLeft className="h-4 w-4" /> Back
                   </Button>
                   <div className="flex flex-col items-end gap-1">
-                    <Button disabled={!detailsComplete} onClick={() => setStep(4)}>
+                    <Button onClick={goToReview}>
                       Review <ArrowRight className="h-4 w-4" />
                     </Button>
                     {!detailsComplete && (

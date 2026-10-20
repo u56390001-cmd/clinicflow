@@ -13,7 +13,7 @@ import type { Database, PaymentSubmission, Subscription, SubscriptionPlan, Payme
 
 type TypedClient = SupabaseClient<Database>;
 
-const ALLOWED_FILE_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+const ALLOWED_FILE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "pdf", "heic", "heif"];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 async function isPlatformAdmin(
@@ -121,11 +121,22 @@ export async function submitPaymentAction(
   if (!proofFile || proofFile.size === 0) {
     return { ok: false, message: "Please upload a payment proof." };
   }
-  if (!ALLOWED_FILE_TYPES.includes(proofFile.type)) {
-    return { ok: false, message: "Proof must be a JPG, PNG, WebP, or PDF file." };
+  // Any image or a PDF is accepted; the extension is the fallback for the
+  // files the browser reports without a MIME type.
+  const proofType = proofFile.type ?? "";
+  const proofExtension = proofFile.name.split(".").pop()?.toLowerCase() ?? "";
+  const proofSupported =
+    proofType.startsWith("image/") ||
+    proofType === "application/pdf" ||
+    ALLOWED_FILE_EXTENSIONS.includes(proofExtension);
+  if (!proofSupported) {
+    return { ok: false, message: "The receipt must be an image or a PDF file." };
   }
   if (proofFile.size > MAX_FILE_SIZE) {
-    return { ok: false, message: "Proof file must be under 10 MB." };
+    return {
+      ok: false,
+      message: "The receipt file must be under 10 MB — try a smaller screenshot.",
+    };
   }
 
   const supabase = await createClient();
