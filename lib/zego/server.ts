@@ -11,15 +11,12 @@ import { createWidgetClient } from "@/lib/supabase/widget";
 /**
  * Phase 8 — server-side ZEGOcloud KitToken minting.
  *
- * The KitToken is the only credential the browser ever sees; the AppSecret
+ * The KitToken is the only credential the browser ever sees; the ServerSecret
  * (`ZEGO_SERVER_SECRET`) stays here, on the server, and is used to AES-encrypt
- * the token payload. This reproduces the ZEGO `generateToken04` layout accepted
- * by both the core WebRTC engine and the (now removed) prebuilt UIKit:
- *
- *   token = "04" + base64(header) + "#" + base64({ userID, roomID, userName, appID })
- *
- * The header is: 4 bytes version · 4 bytes expiry (BE) · 2 bytes IV length (BE) ·
- * IV · 2 bytes cipher length (BE) · AES-256-CBC(serverSecret, IV, payload).
+ * the token payload. The wire format is the byte-for-byte official ZEGO
+ * Token04 layout from zego_server_assistant/token/nodejs (see
+ * `generateKitToken` below) — any extra bytes the official layout does not
+ * describe make loginroom reject the token outright.
  *
  * Server-only: uses `node:crypto`. Never import this from a Client Component.
  */
@@ -132,21 +129,37 @@ function randomIvString(): string {
   return randomBytes(8).toString("hex");
 }
 
-function base64(value: string | Buffer): string {
-  return Buffer.from(value).toString("base64");
-}
-
 /**
  * Signs one KitToken for a single room user. Deterministic given its inputs, so
  * both the doctor and the patient get a token scoped to the same room but with
  * distinct identities.
+ *
+ * Byte-for-byte the official ZEGO Token04 layout
+ * (zego_server_assistant → token/nodejs/server/zegoServerAssistant.js):
+ *
+ *   token = "04" + base64(
+ *     expire:     8 bytes BigInt64BE
+ *     iv_len:     2 bytes Uint16BE
+ *     iv:         16 ASCII bytes
+ *     cipher_len: 2 bytes Uint16BE
+ *     cipher:     AES-{128,192,256}-CBC(secret as key, iv, PKCS#5)
+ *   )
+ *
+ * The cipher decrypts to `{"app_id":..,"user_id":"..","nonce":..,"ctime":..,
+ * "expire":..,"payload":""}`. Anything else on the wire — version slots before
+ * the expire field, or a second base64 blob after a `#` — is data the ZEGO
+ * server cannot parse, and loginroom rejects it as an invalid token.
  */
 export function generateKitToken(
   config: ZegoConfig,
   input: ZegoSessionTokenInput,
 ): string {
   const { appId, serverSecret } = config;
-  const { roomId, userId, userName } = input;
+  const { userId } = input;
+  // roomId/userName stay part of ZegoSessionTokenInput (callers pass them and
+  // the UI shows the doctor/patient label), but the official Token04 wire
+  // format carries neither room nor display name — the engine scopes the room
+  // at loginRoom, not the token.
   const expiresInSeconds = input.expiresInSeconds ?? 7200;
 
   if (!userId) throw new Error("ZEGO token: userID is required.");
@@ -166,6 +179,7 @@ export function generateKitToken(
     nonce: randomInt(1, 2147483647),
     ctime,
     expire: ctime + expiresInSeconds,
+    payload: "",
   };
 
   const iv = randomIvString();
@@ -174,28 +188,24 @@ export function generateKitToken(
     Buffer.from(serverSecret, "utf8"),
     Buffer.from(iv, "utf8"),
   );
-  const ciphertext = Buffer.concat([
+  const cipherText = Buffer.concat([
     cipher.update(JSON.stringify(payload), "utf8"),
     cipher.final(),
   ]);
 
-  const header = Buffer.alloc(28 + ciphertext.length);
-  header.writeUInt32BE(payload.expire >>> 0, 4);
-  header.writeUInt16BE(iv.length, 8);
-  header.write(iv, 10);
-  header.writeUInt16BE(ciphertext.length, 26);
-  ciphertext.copy(header, 28);
+  const buf = Buffer.alloc(8 + 2 + iv.length + 2 + cipherText.length);
+  let offset = 0;
+  buf.writeBigInt64BE(BigInt(payload.expire), offset);
+  offset += 8;
+  buf.writeUInt16BE(iv.length, offset);
+  offset += 2;
+  Buffer.from(iv, "utf8").copy(buf, offset);
+  offset += iv.length;
+  buf.writeUInt16BE(cipherText.length, offset);
+  offset += 2;
+  cipherText.copy(buf, offset);
 
-  const envelope = base64(
-    JSON.stringify({
-      userID: userId,
-      roomID: roomId,
-      userName: encodeURIComponent(userName),
-      appID: appId,
-    }),
-  );
-
-  return `04${base64(header)}#${envelope}`;
+  return `04${buf.toString("base64")}`;
 }
 
 /**
@@ -228,43 +238,6 @@ export function patientLinkTokenMatches(
   const provided = Buffer.from(hashPatientLinkToken(presentedToken), "hex");
   if (expected.length !== provided.length) return false;
   return timingSafeEqual(expected, provided);
-}
-
-export type ZegoTokenEnvelope = {
-  userID: string;
-  roomID: string;
-  userName?: string;
-  appID: number;
-};
-
-/**
- * Reads the identity half of a KitToken (the plain base64 envelope after the
- * `#`). Client-visible data only — themetic AES part stays untouched — so the
- * patient join page can hand the core engine the appID and userID the token
- * was minted for without any extra server round-trip.
- */
-export function parseKitTokenEnvelope(token: string): ZegoTokenEnvelope | null {
-  const parts = token.split("#");
-  if (parts.length !== 2) return null;
-  try {
-    const payload = Buffer.from(parts[1] ?? "", "base64").toString("utf8");
-    const parsed = JSON.parse(payload) as Partial<ZegoTokenEnvelope>;
-    if (
-      !parsed.userID ||
-      typeof parsed.userID !== "string" ||
-      typeof parsed.appID !== "number"
-    ) {
-      return null;
-    }
-    return {
-      userID: parsed.userID,
-      roomID: typeof parsed.roomID === "string" ? parsed.roomID : "",
-      userName: parsed.userName,
-      appID: parsed.appID,
-    };
-  } catch {
-    return null;
-  }
 }
 
 /** Deterministic, tenant-namespaced room id (clinic / doctor / patient). */

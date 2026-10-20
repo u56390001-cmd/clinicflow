@@ -206,6 +206,12 @@ export async function startTelehealthSessionAction(
         token_ttl_seconds: TOKEN_TTL_SECONDS,
         // Lets the patient side prove it holds this link's token (0105).
         patient_token_hash: hashPatientLinkToken(patientToken),
+        // Token04 carries no identity on the wire, so the join page sources
+        // the app id and the room identity the token was minted for from
+        // here (both public — the app id is not a secret, the user id is
+        // just the room-scoped publisher identity baked into the token).
+        zego_app_id: config.appId,
+        zego_user_id: `patient_${patientId}`,
       },
     })
     .select("id")

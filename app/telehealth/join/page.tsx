@@ -7,7 +7,7 @@ import {
   TelehealthJoinLoading,
 } from "@/components/telehealth/telehealth-join";
 import { createWidgetClient } from "@/lib/supabase/widget";
-import { parseKitTokenEnvelope, patientLinkTokenMatches } from "@/lib/zego/server";
+import { patientLinkTokenMatches } from "@/lib/zego/server";
 
 export const metadata: Metadata = {
   title: "Video Consultation",
@@ -18,6 +18,9 @@ export const metadata: Metadata = {
 type JoinableSession = {
   patientName: string | null;
   doctorName: string | null;
+  /** Public ZEGO identity the token was minted for (from session metadata). */
+  zegoAppId: number | null;
+  zegoUserId: string | null;
 };
 
 /**
@@ -45,6 +48,9 @@ async function resolveJoinableSession(
   return {
     patientName: typeof meta.patient_name === "string" ? meta.patient_name : null,
     doctorName: typeof meta.doctor_name === "string" ? meta.doctor_name : null,
+    zegoAppId: typeof meta.zego_app_id === "number" ? meta.zego_app_id : null,
+    zegoUserId:
+      typeof meta.zego_user_id === "string" ? meta.zego_user_id : null,
   };
 }
 
@@ -97,15 +103,15 @@ export default async function TelehealthJoinPage({
     );
   }
 
-  // The token's public envelope tells the client which ZEGO app and identity
-  // to start the engine with — an appID is not a secret (it also rides inside
-  // every Token04), and the secret itself never leaves the server.
-  const envelope = parseKitTokenEnvelope(token);
-  if (!envelope) {
+  // Token04 carries no identity on the wire, so the ZEGO app id and the room
+  // identity the token was minted for come from the session record (written by
+  // startTelehealthSessionAction). The app id is not a secret — it also rides
+  // inside the AES payload — and the secret itself never leaves the server.
+  if (!session.zegoAppId || !session.zegoUserId) {
     return (
       <ExpiredCard
         title="Link not valid"
-        body="This consultation link is malformed. Please ask the clinic to send a fresh one."
+        body="This consultation link is outdated. Please ask the clinic to send a fresh one."
       />
     );
   }
@@ -115,8 +121,8 @@ export default async function TelehealthJoinPage({
       <TelehealthJoinClient
         roomId={room}
         token={token}
-        zegoAppId={envelope.appID}
-        zegoUserId={envelope.userID}
+        zegoAppId={session.zegoAppId}
+        zegoUserId={session.zegoUserId}
         patientName={session.patientName}
         doctorName={session.doctorName}
       />
