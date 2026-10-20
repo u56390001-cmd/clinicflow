@@ -17,6 +17,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getClinicAnalytics, type ClinicAnalytics } from "@/lib/analytics";
 import { buildAppointmentViews } from "@/lib/appointments-view";
+import { releaseStaleConsultations } from "@/lib/consultation-queries";
 import type { InboxThread } from "@/lib/header-activity";
 import { fetchInboxFeed } from "@/lib/inbox-query";
 import { clinicDayRangeUtc, clinicToday } from "@/lib/time";
@@ -238,6 +239,12 @@ export async function loadDashboardOverview(
   timezone: string,
 ): Promise<DashboardOverviewData> {
   const { startIso, endIso } = clinicDayRangeUtc(clinicToday(timezone), timezone);
+
+  // Release any consultation left open outside today's queue BEFORE counting
+  // it. A stale consultation used to be invisible in the "today" views while
+  // still blocking the doctor from starting anyone, so the dashboard said
+  // "nobody in consultation" and the doctor could not start a patient.
+  await releaseStaleConsultations(supabase, clinicId);
 
   const [
     analytics,

@@ -6884,6 +6884,18 @@ export type Database = {
         };
         Returns: Appointment;
       };
+      /**
+       * Migration 0108. Releases the consultations this clinic left open
+       * outside today's queue — a consultation is live only while its patient
+       * checked in today AND it started today. Returns how many were
+       * released.
+       */
+      release_stale_consultations: {
+        Args: {
+          p_clinic_id: string;
+        };
+        Returns: number;
+      };
       upsert_availability_rules: {
         Args: {
           p_clinic_id: string;

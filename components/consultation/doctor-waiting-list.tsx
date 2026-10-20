@@ -6,6 +6,7 @@ import {
   Stethoscope,
   Play,
   Activity,
+  CalendarDays,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -152,6 +153,12 @@ export function DoctorWaitingList({
                         {entry.doctorName}
                       </span>
                     )}
+                    {!entry.checkedInToday && (
+                      <span className="flex items-center gap-1 text-text-muted">
+                        <CalendarDays className="h-3 w-3" aria-hidden="true" />
+                        checked in {formatCheckedInDay(entry.checked_in_at)}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -206,4 +213,14 @@ export function DoctorWaitingList({
 
 function cn(...classes: (string | boolean | undefined | null)[]) {
   return classes.filter(Boolean).join(" ");
+}
+
+/** Short "12 Oct" label for a check-in timestamp. */
+function formatCheckedInDay(checkedInAt: string): string {
+  const date = new Date(checkedInAt);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+  }).format(date);
 }

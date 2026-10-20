@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { clinicDayRangeUtc, clinicToday } from "@/lib/time";
 import type {
   Database,
   Visit,
@@ -26,7 +27,43 @@ export type WaitingListEntry = Visit & {
   serviceName: string;
   tokenNumber: number;
   vitals: Vitals | null;
+  /**
+   * True when the patient checked in during the clinic's CURRENT day.
+   * Today's queue is sorted ahead of everything left over from earlier days.
+   */
+  checkedInToday: boolean;
 };
+
+/**
+ * Release any consultation this clinic left open outside today's queue.
+ *
+ * A consultation is "open" while its visit row says `in_consultation`. That
+ * state had no expiry, so a consultation the doctor abandoned — or one that
+ * `complete_and_advance` auto-promoted to a patient who was never opened —
+ * blocked every later start for that doctor with "Another patient is
+ * currently in consultation", while every "today" surface (dashboard, TV,
+ * Appointments) filtered it out and reported that nobody was in
+ * consultation.
+ *
+ * This releases them, so the queue can never be locked by something the
+ * doctor cannot see. Best-effort: a failure here must never break the page.
+ */
+export async function releaseStaleConsultations(
+  supabase: SupabaseClient<Database>,
+  clinicId: string,
+): Promise<number> {
+  const { data, error } = await supabase.rpc("release_stale_consultations", {
+    p_clinic_id: clinicId,
+  });
+  if (error) {
+    console.error(
+      "[consultation] releasing stale consultations failed:",
+      error.message,
+    );
+    return 0;
+  }
+  return typeof data === "number" ? data : 0;
+}
 
 /**
  * A pre-consultation answer joined with its question text, ready for display
@@ -54,11 +91,18 @@ export type ConsultationData = {
 /**
  * Fetch the doctor's waiting list: all checked-in visits that are
  * waiting or in_consultation, enriched with patient/doctor/service/vitals.
+ *
+ * The list is ordered so TODAY's queue comes first (queue order within the
+ * day), then everything left over from earlier days. Without that, the
+ * single "Start" button was offered on the patient with the lowest
+ * `queue_position` of the WHOLE clinic — often somebody who checked in
+ * weeks ago — and today's patient was never reachable.
  */
 export async function fetchDoctorWaitingList(
   supabase: SupabaseClient<Database>,
   clinicId: string,
   doctorId: string | null,
+  timezone: string,
 ): Promise<WaitingListEntry[]> {
   let query = supabase
     .from("visits")
@@ -87,8 +131,14 @@ export async function fetchDoctorWaitingList(
   }
   if (!visits) return [];
 
+  const { startIso: dayStartIso } = clinicDayRangeUtc(
+    clinicToday(timezone),
+    timezone,
+  );
+  const dayStartMs = new Date(dayStartIso).getTime();
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join queries return complex inferred types
-  return (visits as Record<string, any>[]).map((v) => ({
+  const entries = (visits as Record<string, any>[]).map((v) => ({
     ...v,
     patientName: v.patients?.name ?? "Unknown",
     patientPhone: v.patients?.phone ?? null,
@@ -99,7 +149,17 @@ export async function fetchDoctorWaitingList(
     serviceName: v.appointments?.services?.name ?? "Walk-in",
     tokenNumber: v.token_number,
     vitals: v.vitals?.[0] ?? null,
+    checkedInToday: new Date(v.checked_in_at).getTime() >= dayStartMs,
   })) as WaitingListEntry[];
+
+  // Today's queue first, then the leftovers from earlier days; queue order
+  // inside each group.
+  entries.sort((a, b) => {
+    if (a.checkedInToday !== b.checkedInToday) return a.checkedInToday ? -1 : 1;
+    return a.queue_position - b.queue_position;
+  });
+
+  return entries;
 }
 
 /**

@@ -8,6 +8,7 @@ import {
   getCurrentClinic,
 } from "@/lib/clinic-access";
 import { createClient } from "@/lib/supabase/server";
+import { releaseStaleConsultations } from "@/lib/consultation-queries";
 import {
   fetchTodayQueue,
   fetchWaitingQueue,
@@ -47,6 +48,12 @@ export default async function AppointmentPage({
     typeof params.new === "string" && NEW_INTENT_REGEX.test(params.new)
       ? (params.new as "consultation" | "service")
       : null;
+
+  // Release any consultation left open outside today's queue before the page
+  // counts or shows it. A stale consultation used to be invisible here (it
+  // filtered on the appointment day) while still blocking the doctor from
+  // starting anyone.
+  await releaseStaleConsultations(supabase, access.clinic.id);
 
   const [todayAppointments, queue, allAppointments, patients, services, doctors] =
     await Promise.all([

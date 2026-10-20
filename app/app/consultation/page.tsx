@@ -11,6 +11,7 @@ import {
   fetchConsultationData,
   fetchPrescriptionTemplates,
   findDoctorForUser,
+  releaseStaleConsultations,
 } from "@/lib/consultation-queries";
 import {
   fetchVitalsConfigs,
@@ -79,10 +80,19 @@ export default async function ConsultationPage({
   // and the old sequential chain paid for it six times over. The list comes
   // back unscoped and is filtered on the raw `doctor_id` column below, which
   // is exactly what `eq("doctor_id", …)` did server-side.
+  //
+  // Before reading: release any consultation left open outside today's queue.
+  // Such a consultation used to block every start for that doctor with
+  // "Another patient is currently in consultation" while being invisible in
+  // every "today" view — the doctor was told nobody was in consultation and
+  // could not start anyone.
+  await releaseStaleConsultations(supabase, access.clinic.id);
+
   const unscopedWaitingList = await fetchDoctorWaitingList(
     supabase,
     access.clinic.id,
     null,
+    access.clinic.timezone,
   );
 
   const waitingList = effectiveDoctorId
@@ -94,8 +104,14 @@ export default async function ConsultationPage({
   // list. Back returns to the patient's split-pane.
   const deepVisit = deepVisitId ? waitingList.find((e) => e.id === deepVisitId) : null;
 
-  // find the active in_consultation visit
-  const activeVisit = deepVisit ?? waitingList.find((e) => e.status === "in_consultation");
+  // The active consultation: the one already open for this doctor. Today's
+  // queue is sorted first, so a live consultation always wins over leftovers.
+  const activeVisit =
+    deepVisit ??
+    waitingList.find(
+      (e) => e.status === "in_consultation" && e.checkedInToday,
+    ) ??
+    waitingList.find((e) => e.status === "in_consultation");
 
   // if there's an active consultation, fetch full consultation data
   let consultationData = null;

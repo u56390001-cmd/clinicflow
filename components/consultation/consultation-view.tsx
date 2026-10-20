@@ -17,7 +17,11 @@ import { VitalsForm } from "@/components/queue/vitals-form";
 import { PrescriptionForm } from "@/components/consultation/prescription-form";
 import { PrescriptionPreview } from "@/components/consultation/prescription-preview";
 import { useDoctorVitalsConfig } from "@/hooks/use-doctor-vitals-config";
-import { completeAndAdvanceAction } from "@/lib/actions/consultation";
+import { clinicToday, utcIsoToClinicLocalInput } from "@/lib/time";
+import {
+  completeAndAdvanceAction,
+  pauseConsultationAction,
+} from "@/lib/actions/consultation";
 import type { ActionResult } from "@/types";
 import type { ConsultationData } from "@/lib/consultation-queries";
 import type { DoctorVitalsConfigMap } from "@/lib/vitals-config";
@@ -66,12 +70,27 @@ export function ConsultationView({
     FormData
   >(completeAndAdvanceAction, null);
 
+  const [pauseState, pauseFormAction, isPausing] = useActionState<
+    ActionResult<string> | null,
+    FormData
+  >(pauseConsultationAction, null);
+
   useEffect(() => {
     if (advanceState?.ok) {
       router.refresh();
       onAdvanceSuccess?.();
     }
   }, [advanceState?.ok, router, onAdvanceSuccess]);
+
+  // "Return to Queue" releases the visit back to the waiting list. Without
+  // it an open consultation could only be left by completing it, so a doctor
+  // who wanted to hand the patient over had no way out — and the visit
+  // stayed `in_consultation`, blocking the doctor from starting anyone else.
+  useEffect(() => {
+    if (pauseState?.ok) {
+      router.refresh();
+    }
+  }, [pauseState?.ok, router]);
 
   const handlePrint = useCallback(() => {
     window.print();
@@ -83,6 +102,13 @@ export function ConsultationView({
     day: "numeric",
     timeZone: timezone,
   }).format(new Date(visit.checked_in_at));
+
+  // A consultation whose patient is not part of today's queue is a leftover:
+  // it used to hide from every "today" view while still blocking this doctor
+  // from starting anyone. Say so plainly instead of leaving the doctor to
+  // wonder why the queue looks empty.
+  const checkedInDay = utcIsoToClinicLocalInput(visit.checked_in_at, timezone).slice(0, 10);
+  const isLeftover = checkedInDay !== clinicToday(timezone);
 
   return (
     <div className="space-y-6">
@@ -120,6 +146,20 @@ export function ConsultationView({
           <Button variant="outline" size="sm" onClick={handlePrint}>
             Print Preview
           </Button>
+          {visit.status === "in_consultation" && (
+            <form action={pauseFormAction}>
+              <input type="hidden" name="visitId" value={visit.id} />
+              <Button
+                type="submit"
+                size="sm"
+                variant="outline"
+                disabled={isPausing}
+                title="Save your work and put this patient back in the waiting queue"
+              >
+                {isPausing ? "Returning…" : "Return to Queue"}
+              </Button>
+            </form>
+          )}
           {allowAdvance && (
             <form action={advanceFormAction}>
               <input type="hidden" name="visitId" value={visit.id} />
@@ -147,6 +187,22 @@ export function ConsultationView({
         <p className="text-xs text-status-destructive">
           {advanceState.message}
         </p>
+      )}
+
+      {pauseState && !pauseState.ok && (
+        <p className="text-xs text-status-destructive">
+          {pauseState.message}
+        </p>
+      )}
+
+      {isLeftover && (
+        <div className="rounded-control border border-status-warning/40 bg-status-warning/10 px-4 py-3 text-sm text-text-secondary">
+          <span className="font-semibold text-text-primary">
+            This patient is not in today&apos;s queue
+          </span>{" "}
+          — they checked in on {visitDate}. Complete the consultation, or use
+          &ldquo;Return to Queue&rdquo; to hand them back to the waiting list.
+        </div>
       )}
 
       <div className="grid grid-cols-[300px_1fr] gap-6">
