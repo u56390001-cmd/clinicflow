@@ -376,7 +376,14 @@ export async function createAppointmentService(
     data: Appointment | null;
     error: { code?: string; message: string } | null;
   }>;
-  const invokeRpc = supabase.rpc as unknown as RpcCaller;
+
+  // Bind through an arrow so `this` stays the client. Calling `supabase.rpc`
+  // directly (or through a detached reference) is required: the client
+  // delegates to `this.rest.rpc(...)`, so extracting the method first
+  // (`const rpc = supabase.rpc`) drops `this` and throws
+  // "Cannot read properties of undefined (reading 'rest')".
+  const invokeRpc: RpcCaller = (fn, args) =>
+    supabase.rpc(fn as never, args as never) as unknown as ReturnType<RpcCaller>;
 
   const attempt14 = await invokeRpc("book_appointment", rpcPayload14);
   if (!attempt14.error && attempt14.data) {
