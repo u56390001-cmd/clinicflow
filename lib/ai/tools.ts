@@ -175,6 +175,7 @@ const getClinicInfo: Tool = {
     const s = ctx.settings;
     return {
       clinic: {
+        id: clinicAccess.clinicId,
         name: clinicRow?.name ?? null,
         doctorName: clinicRow?.doctor_name ?? null,
         phone: clinicRow?.phone ?? null,
@@ -683,6 +684,9 @@ const cancelAppointment: Tool = {
 };
 
 const bookAppointmentSchema = z.object({
+  // The clinic is pinned server-side from the session (ctx.clinic.id). Older
+  // model prompts/tool defs may still send clinic_id — accept it for
+  // compatibility but never trust it (see execute below).
   clinic_id: clinicIdSchema,
   clinicId: clinicIdSchema,
   doctor_id: z
@@ -725,7 +729,6 @@ const bookAppointment: Tool = {
     "Book an appointment in either dual mode: 'CLINIC_VISIT' (in-person clinic visit) or 'ONLINE_VIDEO' (online video consultation). Validates doctor capability, creates the appointment with status 'confirmed', and leaves meeting_link as NULL (the doctor will share the video link prior to the appointment).",
   parameters: objectSchema(
     {
-      clinic_id: { type: "string", description: "The clinic ID (UUID)." },
       doctor_id: { type: "string", description: "Optional doctor ID (UUID)." },
       patient_name: { type: "string", description: "Patient's full name." },
       patient_phone: {
@@ -767,16 +770,24 @@ const bookAppointment: Tool = {
         error: "Invalid arguments: " + firstIssue(parsed.error),
       };
 
-    const clinicId =
-      parsed.data.clinic_id ?? parsed.data.clinicId ?? ctx.clinic.id;
-    const clinicAccess = resolveClinicId(ctx, clinicId);
-    if (!clinicAccess.ok) return { ok: false, error: clinicAccess.error };
+    // The clinic is ALWAYS the session clinic. A model-supplied clinic_id is
+    // ignored rather than rejected: the model never receives the clinic UUID
+    // (getClinicInfo is clinic-pinned and need not expose it), so a stray or
+    // hallucinated value must not turn a valid booking into an "unauthorized"
+    // dead-end. Tenant isolation still holds — the model cannot target another
+    // clinic because the value is discarded, not honoured.
+    const requestedClinicId = parsed.data.clinic_id ?? parsed.data.clinicId;
+    if (requestedClinicId && requestedClinicId !== ctx.clinic.id) {
+      console.warn(
+        "[ai/tools] book_appointment ignored a non-session clinic_id",
+      );
+    }
 
     const result = await executeDualModeBooking(
       ctx.supabase,
-      { id: clinicAccess.clinicId, timezone: ctx.clinic.timezone },
+      { id: ctx.clinic.id, timezone: ctx.clinic.timezone },
       {
-        clinic_id: clinicAccess.clinicId,
+        clinic_id: ctx.clinic.id,
         doctor_id: parsed.data.doctor_id ?? parsed.data.doctorId ?? null,
         patient_name: parsed.data.patient_name,
         patient_phone: parsed.data.patient_phone,
