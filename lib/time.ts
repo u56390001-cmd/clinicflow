@@ -75,21 +75,62 @@ function offsetMinutesForDate(tz: string, date: Date): number {
 }
 
 /**
+ * Resolve the UTC offset (in minutes, local = UTC + offset) that applies to a
+ * naive wall-clock reading in `tz`.
+ *
+ * The offset is read at the wall clock read as an instant, then verified at
+ * the instant that offset produces. When they disagree the wall clock sits on
+ * the far side of a DST transition, so the candidate is recomputed with the
+ * offset that applies there. A wall clock that falls inside the skipped "hole"
+ * of a spring-forward transition does not exist at all; the pre-transition
+ * offset is kept so the result still maps back to a real local time.
+ *
+ * This mirrors `date-fns-tz`'s `fixOffset`, which is the reference this
+ * project already depends on.
+ */
+function resolveLocalOffsetMinutes(tz: string, wallClockMs: number): number {
+  const offset = offsetMinutesForDate(tz, new Date(wallClockMs));
+  const candidate = wallClockMs - offset * 60_000;
+
+  const offsetAtCandidate = offsetMinutesForDate(tz, new Date(candidate));
+  if (offsetAtCandidate === offset) return offset;
+
+  const adjusted = wallClockMs - offsetAtCandidate * 60_000;
+  const offsetAtAdjusted = offsetMinutesForDate(tz, new Date(adjusted));
+  if (offsetAtAdjusted === offsetAtCandidate) return offsetAtCandidate;
+
+  // Inside a DST hole — the wall clock does not exist. Keep the earlier
+  // (pre-transition) offset so the result still lands on a real local time.
+  return Math.max(offsetAtCandidate, offsetAtAdjusted);
+}
+
+/**
  * Convert a naive clinic-local datetime (`YYYY-MM-DDTHH:mm` from a
  * `datetime-local` input) to a UTC ISO string for `timestamptz` storage.
+ *
+ * The offset is applied EXACTLY once. A second unconditional subtraction
+ * double-counted it, which shifted every stored appointment by one full
+ * timezone offset (5 hours for Asia/Karachi): the patient was promised
+ * 14:00 and the row landed at 09:00, and the slot-availability check ran
+ * against the shifted clock — so a slot the patient had actually booked
+ * came back as "outside the doctor's booked slots".
  */
 export function clinicLocalToUtcIso(naive: string, tz: string): string {
   const match = naive.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
   if (!match) throw new Error("Expected a YYYY-MM-DDTHH:mm value.");
   const [, y, mo, d, h, mi] = match;
 
-  // Provisional instant assuming the wall clock is UTC, then correct by the
-  // clinic's offset. Recompute once more to land on the correct side of any
-  // DST transition.
-  let ms = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi));
-  ms = ms - offsetMinutesForDate(tz, new Date(ms)) * 60_000;
-  ms = ms - offsetMinutesForDate(tz, new Date(ms)) * 60_000;
-  return new Date(ms).toISOString();
+  // Provisional instant assuming the wall clock is UTC.
+  const wallClockMs = Date.UTC(
+    Number(y),
+    Number(mo) - 1,
+    Number(d),
+    Number(h),
+    Number(mi),
+  );
+
+  const offset = resolveLocalOffsetMinutes(tz, wallClockMs);
+  return new Date(wallClockMs - offset * 60_000).toISOString();
 }
 
 /**

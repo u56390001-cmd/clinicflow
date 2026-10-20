@@ -721,12 +721,32 @@ const bookAppointmentSchema = z.object({
     .uuid("service_id must be a UUID from getClinicInfo.")
     .optional()
     .nullable(),
+  /**
+   * The patient's answers to the during-booking pre-consultation questions,
+   * keyed by the question id returned by getPreConsultationQuestions. The
+   * system prompt instructs the model to pass these to `book_appointment`;
+   * without this field Zod would strip them and the answers would be lost.
+   */
+  preConsultAnswers: z
+    .array(
+      z.object({
+        questionId: z.string().uuid("A valid question id is required."),
+        answerText: z
+          .string()
+          .trim()
+          .min(1, "An answer text is required.")
+          .max(2000),
+      }),
+    )
+    .max(3, "At most 3 answers.")
+    .optional()
+    .nullable(),
 });
 
 const bookAppointment: Tool = {
   name: "book_appointment",
   description:
-    "Book an appointment in either dual mode: 'CLINIC_VISIT' (in-person clinic visit) or 'ONLINE_VIDEO' (online video consultation). Validates doctor capability, creates the appointment with status 'confirmed', and leaves meeting_link as NULL (the doctor will share the video link prior to the appointment).",
+    "Book an appointment in either dual mode: 'CLINIC_VISIT' (in-person clinic visit) or 'ONLINE_VIDEO' (online video consultation). Validates doctor capability, creates the appointment with status 'confirmed', and leaves meeting_link as NULL (the doctor will share the video link prior to the appointment). Pass preConsultAnswers (matching getPreConsultationQuestions ids) with the patient's answers when those questions were asked.",
   parameters: objectSchema(
     {
       doctor_id: { type: "string", description: "Optional doctor ID (UUID)." },
@@ -752,6 +772,25 @@ const bookAppointment: Tool = {
       service_id: {
         type: "string",
         description: "Optional service ID (UUID).",
+      },
+      preConsultAnswers: {
+        type: "array",
+        description:
+          "The patient's answers to the clinic's pre-consultation questions, one object per question asked.",
+        items: {
+          type: "object",
+          properties: {
+            questionId: {
+              type: "string",
+              description: "The question id from getPreConsultationQuestions.",
+            },
+            answerText: {
+              type: "string",
+              description: "The patient's answer text, verbatim.",
+            },
+          },
+          required: ["questionId", "answerText"],
+        },
       },
     },
     [
@@ -795,6 +834,7 @@ const bookAppointment: Tool = {
         appointment_type: parsed.data.appointment_type,
         chief_complaint: parsed.data.chief_complaint,
         service_id: parsed.data.service_id ?? parsed.data.serviceId ?? null,
+        preConsultAnswers: parsed.data.preConsultAnswers ?? null,
       },
       ctx.bookingSource ?? "ai_agent",
     );

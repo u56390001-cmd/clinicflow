@@ -423,7 +423,12 @@ export async function createAppointmentService(
       appointment.chief_complaint = input.chiefComplaint ?? null;
       appointment.status = effectiveStatus;
     } else {
-      error = attempt10.error ?? attempt14.error;
+      // Both signatures failed. Report the CANONICAL call's error: it is the
+      // one whose domain failures (SLOT_OVERLAP / SHARED_WINDOW_FULL /
+      // DOCTOR_NOT_FOUND) the patient-facing message is built from. Preferring
+      // the fallback's error here masked a real slot conflict behind a
+      // generic "we couldn't book this appointment".
+      error = attempt14.error ?? attempt10.error;
     }
   }
 

@@ -179,6 +179,9 @@ export async function runReceptionistTurn(
   };
   let bookingAttempted = false;
   let firstFailureMessage: string | undefined;
+  /** Raw internal error from a thrown tool. Never shown to the patient —
+   *  only written to the server-side conversation log. */
+  let rawToolError: string | undefined;
   let reply = "";
   const toolData: {
     slots?: Array<{ startTime: string; endTime: string }>;
@@ -250,10 +253,23 @@ export async function runReceptionistTurn(
         try {
           outcome = await tool.execute(toolContext, call.args);
         } catch (error) {
+          // A thrown tool is an INTERNAL fault (a bug, a dropped DB
+          // connection, a detached client method). Its message is written to
+          // the server log only — the model must never repeat a stack-level
+          // string like "Cannot read properties of undefined (reading
+          // 'rest')" to the patient, which is what produced the "there's a
+          // system issue" replies.
+          const raw = error instanceof Error ? error.message : String(error);
+          rawToolError = raw;
+          console.error("[ai/orchestrator] tool execution threw", {
+            tool: tool.name,
+            message: raw,
+            stack: error instanceof Error ? error.stack : undefined,
+          });
           outcome = {
             ok: false,
             error:
-              error instanceof Error ? error.message : "Tool execution failed.",
+              "The booking service is temporarily unavailable. Please try again in a moment.",
           };
         }
         if (
@@ -403,11 +419,18 @@ export async function runReceptionistTurn(
   const escalated = reply
     .toLowerCase()
     .includes(MEDICAL_ESCALATION_MARKER.toLowerCase());
+  // A turn that actually created the appointment is a SUCCESS even if an
+  // earlier, incidental tool call failed (a malformed id the model retried
+  // with, a slot lookup that came back empty). Reporting `failed` for a
+  // booking that landed made the AI analytics say "failed" while the
+  // appointment sat in the calendar.
   const outcome: AiConversationOutcome = escalated
     ? ESCALATION_OUTCOME
-    : flags.failed
-      ? FAILED_OUTCOME
-      : SUCCESS_OUTCOME;
+    : flags.created
+      ? SUCCESS_OUTCOME
+      : flags.failed
+        ? FAILED_OUTCOME
+        : SUCCESS_OUTCOME;
 
   await logAiConversationTurn(supabase, {
     clinicId: clinic.id,
@@ -418,7 +441,7 @@ export async function runReceptionistTurn(
     error: escalated
       ? null
       : flags.failed
-        ? (firstFailureMessage ?? "A tool step failed.")
+        ? (rawToolError ?? firstFailureMessage ?? "A tool step failed.")
         : null,
   });
 
@@ -451,7 +474,7 @@ export async function runReceptionistTurn(
     reply,
     outcome,
     bookingAttempted,
-    error: firstFailureMessage,
+    error: rawToolError ?? firstFailureMessage,
     caption,
     component,
     sessionContext,

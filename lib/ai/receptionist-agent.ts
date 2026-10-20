@@ -71,6 +71,22 @@ export const bookAppointmentArgsSchema = z.object({
   appointment_type: dualModeAppointmentTypeSchema,
   chief_complaint: z.string().trim().min(1, "Chief complaint / reason for visit is required.").max(1000),
   service_id: z.string().uuid("service_id must be a UUID.").optional().nullable(),
+  /**
+   * The patient's answers to the during-booking pre-consultation questions,
+   * keyed by the question id returned by getPreConsultationQuestions. Without
+   * this the answers the agent collected would be silently dropped, because
+   * `book_appointment` is the tool the system prompt tells the model to use.
+   */
+  preConsultAnswers: z
+    .array(
+      z.object({
+        questionId: z.string().uuid("A valid question id is required."),
+        answerText: z.string().trim().min(1).max(2000),
+      }),
+    )
+    .max(3)
+    .optional()
+    .nullable(),
 });
 
 export type BookAppointmentArgs = z.infer<typeof bookAppointmentArgsSchema>;
@@ -227,6 +243,7 @@ export async function executeDualModeBooking(
       status: "confirmed", // Set status: CONFIRMED
       notes: `Chief complaint: ${args.chief_complaint} | Mode: ${args.appointment_type}`,
       consultationType: args.appointment_type === "ONLINE_VIDEO" ? "video" : "in_clinic",
+      preConsultationAnswers: args.preConsultAnswers ?? undefined,
     },
   );
 
