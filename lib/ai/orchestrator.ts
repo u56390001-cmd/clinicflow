@@ -1,7 +1,4 @@
-import type {
-  AIChatMessage,
-  AIProvider,
-} from "@/lib/ai/types";
+import type { AIChatMessage, AIProvider } from "@/lib/ai/types";
 import { AI_TOOLS, type ToolContext } from "@/lib/ai/tools";
 import {
   MEDICAL_ESCALATION_MARKER,
@@ -127,7 +124,16 @@ const RESCHEDULE_OVERRIDE =
 const CANCEL_OVERRIDE =
   "Sorry 😊 I couldn't cancel that appointment. Please contact the clinic directly and they will help you.";
 
-/** Block message when createAppointment is called but user intent is reschedule/cancel. */
+/** The two tools that create a booking. Both return the same
+ *  `appointment` shape and must feed the same guardrails/flags — the
+ *  dual-mode `book_appointment` is what the system prompt tells the model
+ *  to use, so treating only `createAppointment` as "the booking tool" made
+ *  real bookings invisible (no confirmation card, guardClaim overriding a
+ *  truthful confirmation, logs showing booked=false). */
+const BOOKING_TOOL_NAMES = new Set(["createAppointment", "book_appointment"]);
+
+/** Block message when a booking tool is called but user intent is
+ * reschedule/cancel. */
 const RESCHEDULE_CANCEL_BLOCK =
   "Sure 😊 it looks like you want to change an existing appointment rather than book a new one. Could you tell me the date and time of the booking you'd like to change?";
 
@@ -139,13 +145,13 @@ const RESCHEDULE_CANCEL_BLOCK =
 function hasRescheduleOrCancelIntent(
   history: Array<{ role: "user" | "assistant"; content: string }>,
 ): boolean {
-  const recentUserMessages = history
-    .filter((m) => m.role === "user")
-    .slice(-3);
+  const recentUserMessages = history.filter((m) => m.role === "user").slice(-3);
   const combined = recentUserMessages
     .map((m) => m.content.toLowerCase())
     .join(" ");
-  return /\b(cancel|reschedul|change\s+(my\s+)?appoint|move\s+(my\s+)?appoint|replace\s+(my\s+)?appoint|modify\s+(my\s+)?appoint)\b/.test(combined);
+  return /\b(cancel|reschedul|change\s+(my\s+)?appoint|move\s+(my\s+)?appoint|replace\s+(my\s+)?appoint|modify\s+(my\s+)?appoint)\b/.test(
+    combined,
+  );
 }
 
 /**
@@ -158,7 +164,8 @@ function hasRescheduleOrCancelIntent(
 export async function runReceptionistTurn(
   input: ReceptionistTurnInput,
 ): Promise<ReceptionistTurnResult> {
-  const { supabase, context, toolContext, history, sessionId, provider } = input;
+  const { supabase, context, toolContext, history, sessionId, provider } =
+    input;
   const { clinic } = toolContext;
 
   const contents = normalizeHistory(history);
@@ -176,6 +183,9 @@ export async function runReceptionistTurn(
   const toolData: {
     slots?: Array<{ startTime: string; endTime: string }>;
     booking?: WidgetConfirmationData;
+    /** Tool-provided confirmation text (book_appointment), used as a
+     *  deterministic fallback when the model itself produced no reply. */
+    bookingMessage?: string;
     services?: WidgetServiceListData;
     availability?: {
       serviceId: string;
@@ -213,14 +223,20 @@ export async function runReceptionistTurn(
       response.functionCalls.map(async (call) => {
         const tool = AI_TOOLS.find((candidate) => candidate.name === call.name);
         if (!tool) {
-          return { id: call.id, name: call.name, response: { ok: false, error: "Unknown tool." } };
+          return {
+            id: call.id,
+            name: call.name,
+            response: { ok: false, error: "Unknown tool." },
+          };
         }
 
-        // CODE-LEVEL GUARD: Block createAppointment when user intent is
+        // CODE-LEVEL GUARD: Block booking tools when user intent is
         // reschedule/cancel. This prevents the AI from silently creating a
         // duplicate booking instead of rescheduling or cancelling an existing one.
-        if (tool.name === "createAppointment" && rescheduleCancelIntent) {
-          console.warn("[ai/orchestrator] BLOCKED createAppointment — reschedule/cancel intent detected");
+        if (BOOKING_TOOL_NAMES.has(tool.name) && rescheduleCancelIntent) {
+          console.warn(
+            `[ai/orchestrator] BLOCKED ${tool.name} — reschedule/cancel intent detected`,
+          );
           bookingAttempted = true;
           return {
             id: call.id,
@@ -229,23 +245,37 @@ export async function runReceptionistTurn(
           };
         }
 
-        if (tool.name === "createAppointment") bookingAttempted = true;
+        if (BOOKING_TOOL_NAMES.has(tool.name)) bookingAttempted = true;
         let outcome;
         try {
           outcome = await tool.execute(toolContext, call.args);
         } catch (error) {
           outcome = {
             ok: false,
-            error: error instanceof Error ? error.message : "Tool execution failed.",
+            error:
+              error instanceof Error ? error.message : "Tool execution failed.",
           };
         }
-        if (outcome && typeof outcome === "object" && "ok" in outcome && (outcome as { ok: boolean }).ok === false) {
+        if (
+          outcome &&
+          typeof outcome === "object" &&
+          "ok" in outcome &&
+          (outcome as { ok: boolean }).ok === false
+        ) {
           flags.failed = true;
           const message = (outcome as { error?: string }).error;
           if (!firstFailureMessage && message) firstFailureMessage = message;
-        } else if (tool.name === "createAppointment") {
+        } else if (BOOKING_TOOL_NAMES.has(tool.name)) {
           flags.created = true;
           const out = outcome as Record<string, unknown>;
+          // Deterministic fallback text (from executeDualModeBooking) used
+          // only when the model produced no text of its own this turn.
+          if (
+            typeof out.confirmationMessage === "string" &&
+            out.confirmationMessage
+          ) {
+            toolData.bookingMessage = out.confirmationMessage;
+          }
           if (out.ok === true && out.appointment) {
             const appt = out.appointment as Record<string, unknown>;
             toolData.booking = {
@@ -269,13 +299,18 @@ export async function runReceptionistTurn(
             });
             contents.push({
               role: "model",
-              parts: [{ text: "Understood. I have noted the appointment details." }],
+              parts: [
+                { text: "Understood. I have noted the appointment details." },
+              ],
             });
           }
         } else if (tool.name === "getAvailability") {
           const out = outcome as Record<string, unknown>;
           if (out.ok === true && Array.isArray(out.slots)) {
-            const duration = typeof out.durationMinutes === "number" ? out.durationMinutes : 30;
+            const duration =
+              typeof out.durationMinutes === "number"
+                ? out.durationMinutes
+                : 30;
             toolData.slots = (out.slots as string[]).map((start) => ({
               startTime: start,
               endTime: addMinutesToNaiveLocal(start, duration),
@@ -291,19 +326,24 @@ export async function runReceptionistTurn(
                 typeof call.args.doctorId === "string" && call.args.doctorId
                   ? call.args.doctorId
                   : null,
-              date: typeof out.date === "string" ? out.date : String(call.args.date ?? ""),
+              date:
+                typeof out.date === "string"
+                  ? out.date
+                  : String(call.args.date ?? ""),
             };
           }
         } else if (tool.name === "getServices") {
           const out = outcome as Record<string, unknown>;
           if (Array.isArray(out.services)) {
-            toolData.services = (out.services as Record<string, unknown>[]).map((s) => ({
-              id: s.id as string,
-              name: s.name as string,
-              description: (s.description as string) ?? null,
-              durationMinutes: (s.durationMinutes as number) ?? 30,
-              price: (s.price as number) ?? 0,
-            }));
+            toolData.services = (out.services as Record<string, unknown>[]).map(
+              (s) => ({
+                id: s.id as string,
+                name: s.name as string,
+                description: (s.description as string) ?? null,
+                durationMinutes: (s.durationMinutes as number) ?? 30,
+                price: (s.price as number) ?? 0,
+              }),
+            );
           }
         } else if (tool.name === "rescheduleAppointment") {
           flags.rescheduled = true;
@@ -334,6 +374,27 @@ export async function runReceptionistTurn(
   }
 
   reply = guardClaim(reply, flags);
+  // Deterministic fallbacks when the model produced no text at all (it
+  // burned every tool round without emitting a reply):
+  // 1) the booked appointment's own confirmation message,
+  // 2) one tool-free generation forced to write the next patient-facing text
+  //    using only the facts already gathered,
+  // 3) the generic apology.
+  if (!reply && toolData.bookingMessage) {
+    reply = toolData.bookingMessage;
+  }
+  if (!reply) {
+    try {
+      reply = (
+        await provider.complete({
+          systemInstruction,
+          prompt: buildForcedReplyPrompt(contents, toolData),
+        })
+      ).trim();
+    } catch (error) {
+      console.error("[ai/orchestrator] forced-reply generation failed", error);
+    }
+  }
   if (!reply) {
     reply =
       "Sorry 😊 I wasn't able to answer that just now. Please try again, or contact the clinic directly.";
@@ -357,7 +418,7 @@ export async function runReceptionistTurn(
     error: escalated
       ? null
       : flags.failed
-        ? firstFailureMessage ?? "A tool step failed."
+        ? (firstFailureMessage ?? "A tool step failed.")
         : null,
   });
 
@@ -401,7 +462,8 @@ export async function runReceptionistTurn(
 /** Guard the final text against claiming work the tools did not actually do. */
 function guardClaim(text: string, flags: ToolOutcomeFlags): string {
   if (!flags.created && CLAIM_BOOKING.test(text)) return BOOKING_OVERRIDE;
-  if (!flags.rescheduled && CLAIM_RESCHEDULE.test(text)) return RESCHEDULE_OVERRIDE;
+  if (!flags.rescheduled && CLAIM_RESCHEDULE.test(text))
+    return RESCHEDULE_OVERRIDE;
   if (!flags.cancelled && CLAIM_CANCEL.test(text)) return CANCEL_OVERRIDE;
   return text;
 }
@@ -411,7 +473,10 @@ function guardClaim(text: string, flags: ToolOutcomeFlags): string {
  * compute slot end times from the start time + service duration. The input
  * and output are both naive wall-clock values — no timezone conversion needed.
  */
-function addMinutesToNaiveLocal(naive: string, durationMinutes: number): string {
+function addMinutesToNaiveLocal(
+  naive: string,
+  durationMinutes: number,
+): string {
   const match = naive.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/);
   if (!match) return naive;
   const [, datePart, h, m] = match;
@@ -419,6 +484,48 @@ function addMinutesToNaiveLocal(naive: string, durationMinutes: number): string 
   const newH = Math.floor(totalMinutes / 60);
   const newM = totalMinutes % 60;
   return `${datePart}T${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`;
+}
+
+/**
+ * Build a tool-free prompt that forces the model to finally write the next
+ * patient-facing message from the facts already gathered this turn. Used only
+ * when the tool loop ran out of rounds (or ended) without any text.
+ */
+function buildForcedReplyPrompt(
+  contents: AIChatMessage[],
+  toolData: {
+    slots?: Array<{ startTime: string; endTime: string }>;
+    services?: WidgetServiceListData;
+    booking?: WidgetConfirmationData;
+  },
+): string {
+  const lines: string[] = [];
+  for (const message of contents) {
+    const text = message.parts
+      .map((part) => ("text" in part ? part.text : ""))
+      .filter(Boolean)
+      .join(" ");
+    if (!text) continue;
+    lines.push(`${message.role === "user" ? "Patient" : "You"}: ${text}`);
+  }
+  if (toolData.booking) {
+    lines.push(
+      `Appointment booked: ${toolData.booking.startTime} (${toolData.booking.status}, ID ${toolData.booking.id}).`,
+    );
+  } else if (toolData.slots && toolData.slots.length > 0) {
+    lines.push(
+      `Verified available slots (clinic-local): ${toolData.slots.map((s) => s.startTime).join(", ")}`,
+    );
+  } else if (toolData.services && toolData.services.length > 0) {
+    lines.push(
+      `Services offered: ${toolData.services.map((s) => s.name).join(", ")}`,
+    );
+  }
+  lines.push(
+    "",
+    "Write your next reply to the patient now. Do NOT call any tools and do NOT repeat the transcript. Use only the facts above — never invent times, prices or bookings. Keep it short and warm, and end with a question that moves the conversation forward (in the patient's language style).",
+  );
+  return lines.join("\n");
 }
 
 /** Map client history onto Gemini contents, enforcing a user-first start. */

@@ -44,18 +44,26 @@ export type ToolContext = {
 };
 
 type Tool = AIToolDefinition & {
-  execute: (ctx: ToolContext, args: unknown) => Promise<Record<string, unknown>>;
+  execute: (
+    ctx: ToolContext,
+    args: unknown,
+  ) => Promise<Record<string, unknown>>;
 };
 
 const clinicIdSchema = z.string().uuid().optional();
 
 const localDateTimeSchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "Use YYYY-MM-DDTHH:mm clinic-local time.");
+  .regex(
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/,
+    "Use YYYY-MM-DDTHH:mm clinic-local time.",
+  );
 const localDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD clinic-local date.");
-const timeOfDaySchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM.");
+const timeOfDaySchema = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM.");
 
 const timezoneSchema = z
   .string()
@@ -65,8 +73,20 @@ const timezoneSchema = z
 
 const patientSchema = z.object({
   name: z.string().trim().min(1, "Patient name is required.").max(120),
-  email: z.string().trim().email("Enter a valid email.").max(254).optional().or(z.literal("")),
-  phone: z.string().trim().min(3, "Phone must be at least 3 characters.").max(32).optional().or(z.literal("")),
+  email: z
+    .string()
+    .trim()
+    .email("Enter a valid email.")
+    .max(254)
+    .optional()
+    .or(z.literal("")),
+  phone: z
+    .string()
+    .trim()
+    .min(3, "Phone must be at least 3 characters.")
+    .max(32)
+    .optional()
+    .or(z.literal("")),
 });
 
 /** Refuse a clinicId the model passed unless it matches the session clinic. */
@@ -82,7 +102,10 @@ function resolveClinicId(
 
 type JsonSchema = Record<string, unknown>;
 
-const objectSchema = (properties: Record<string, JsonSchema>, required: string[] = []): JsonSchema => ({
+const objectSchema = (
+  properties: Record<string, JsonSchema>,
+  required: string[] = [],
+): JsonSchema => ({
   type: "object",
   properties,
   required,
@@ -93,48 +116,54 @@ const getClinicInfo: Tool = {
   name: "getClinicInfo",
   description:
     "Return the clinic's name, doctor, address, phone, email, working hours, its configured FAQs, booking rules and cancellation policy, every bookable doctor's profile (specialty, qualification, experience, consultation fee, short bio), and the compact service list (id, name, description, duration, price). Use this to answer questions about clinic policies, hours, contact details, FAQs, doctor fees and doctor profiles — and to recommend the right service for a concern, check whether the clinic offers something, answer service/price questions, and take the serviceId needed for booking, WITHOUT displaying the full service menu.",
-  parameters: objectSchema(
-    {
-      clinicId: { type: "string", description: "The clinic id (optional)." },
-    },
-  ),
+  parameters: objectSchema({
+    clinicId: { type: "string", description: "The clinic id (optional)." },
+  }),
   async execute(ctx, rawArgs) {
     const parsed = getClinicInfoSchema.safeParse(rawArgs);
-    if (!parsed.success) return { ok: false, error: "Invalid arguments: " + firstIssue(parsed.error) };
+    if (!parsed.success)
+      return {
+        ok: false,
+        error: "Invalid arguments: " + firstIssue(parsed.error),
+      };
 
     const clinicAccess = resolveClinicId(ctx, parsed.data.clinicId);
     if (!clinicAccess.ok) return { ok: false, error: clinicAccess.error };
 
-    const [{ data: rules }, { data: doctors }, { data: clinicRow }, { data: services }] =
-      await Promise.all([
-        ctx.supabase
-          .from("availability_rules")
-          .select("day_of_week, start_time, end_time, enabled")
-          // Clinic-wide defaults only — per-doctor overrides are not general
-          // opening hours.
-          .eq("clinic_id", clinicAccess.clinicId)
-          .is("doctor_id", null)
-          .order("day_of_week", { ascending: true }),
-        ctx.supabase
-          .from("doctors")
-          .select(
-            "id, name, specialty, qualification, years_of_experience, consultation_fee, professional_description, consultation_type",
-          )
-          .eq("clinic_id", clinicAccess.clinicId)
-          .eq("is_visible", true)
-          .order("created_at", { ascending: true }),
-        ctx.supabase
-          .from("clinics")
-          .select("name, doctor_name, phone, email, address")
-          .eq("id", clinicAccess.clinicId)
-          .maybeSingle(),
-        ctx.supabase
-          .from("services")
-          .select("id, name, description, duration_minutes, price")
-          .eq("clinic_id", clinicAccess.clinicId)
-          .eq("status", "active")
-          .order("name", { ascending: true }),
-      ]);
+    const [
+      { data: rules },
+      { data: doctors },
+      { data: clinicRow },
+      { data: services },
+    ] = await Promise.all([
+      ctx.supabase
+        .from("availability_rules")
+        .select("day_of_week, start_time, end_time, enabled")
+        // Clinic-wide defaults only — per-doctor overrides are not general
+        // opening hours.
+        .eq("clinic_id", clinicAccess.clinicId)
+        .is("doctor_id", null)
+        .order("day_of_week", { ascending: true }),
+      ctx.supabase
+        .from("doctors")
+        .select(
+          "id, name, specialty, qualification, years_of_experience, consultation_fee, professional_description, consultation_type",
+        )
+        .eq("clinic_id", clinicAccess.clinicId)
+        .eq("is_visible", true)
+        .order("created_at", { ascending: true }),
+      ctx.supabase
+        .from("clinics")
+        .select("name, doctor_name, phone, email, address")
+        .eq("id", clinicAccess.clinicId)
+        .maybeSingle(),
+      ctx.supabase
+        .from("services")
+        .select("id, name, description, duration_minutes, price, doctor_id")
+        .eq("clinic_id", clinicAccess.clinicId)
+        .eq("status", "active")
+        .order("name", { ascending: true }),
+    ]);
 
     const ruleViews: RuleView[] = (rules ?? []).map((rule) => ({
       dayOfWeek: rule.day_of_week,
@@ -154,7 +183,8 @@ const getClinicInfo: Tool = {
       },
       // Bookable doctors with dual-mode consultation capabilities.
       doctors: (doctors ?? []).map((doctor) => {
-        const rawType = (doctor.consultation_type ?? "offline") as "offline" | "both" | "online";
+        const rawType = (doctor.consultation_type ?? "offline") as
+          "offline" | "both" | "online";
         return {
           id: doctor.id,
           name: doctor.name,
@@ -177,6 +207,9 @@ const getClinicInfo: Tool = {
         description: service.description,
         durationMinutes: service.duration_minutes,
         price: service.price,
+        // Present only when the service is tied to one specific doctor — the
+        // model must never pair such a service with a different doctor.
+        doctorId: service.doctor_id ?? undefined,
       })),
       workingHours: buildWorkingHoursSummary(ruleViews),
       agentName: s?.agent_name ?? null,
@@ -196,12 +229,16 @@ const getServices: Tool = {
   name: "getServices",
   description:
     "Return the clinic's active (bookable) services with name, description, duration, price and the doctor tied to the service when one is. IMPORTANT: this result is rendered to the patient as the FULL service menu in one message — only call it when the patient explicitly asks to browse all services. For recommendations, price checks or serviceIds, use getClinicInfo instead.",
-  parameters: objectSchema(
-    { clinicId: { type: "string", description: "The clinic id (optional)." } },
-  ),
+  parameters: objectSchema({
+    clinicId: { type: "string", description: "The clinic id (optional)." },
+  }),
   async execute(ctx, rawArgs) {
     const parsed = getServicesSchema.safeParse(rawArgs);
-    if (!parsed.success) return { ok: false, error: "Invalid arguments: " + firstIssue(parsed.error) };
+    if (!parsed.success)
+      return {
+        ok: false,
+        error: "Invalid arguments: " + firstIssue(parsed.error),
+      };
 
     const clinicAccess = resolveClinicId(ctx, parsed.data.clinicId);
     if (!clinicAccess.ok) return { ok: false, error: clinicAccess.error };
@@ -241,20 +278,60 @@ const getAvailability: Tool = {
   parameters: objectSchema(
     {
       clinicId: { type: "string", description: "The clinic id (optional)." },
-      serviceId: { type: "string", description: "The service id from getClinicInfo (services) or getServices." },
+      serviceId: {
+        type: "string",
+        description:
+          "The service id from getClinicInfo (services) or getServices.",
+      },
       date: { type: "string", description: "Clinic-local date YYYY-MM-DD." },
-      preferredTime: { type: "string", description: "Optional preferred start time HH:MM (clinic-local)." },
-      doctorId: { type: "string", description: "Optional doctor id from getClinicInfo when the patient chose one." },
-      timezone: { type: "string", description: "The clinic's IANA timezone (optional)." },
+      preferredTime: {
+        type: "string",
+        description: "Optional preferred start time HH:MM (clinic-local).",
+      },
+      doctorId: {
+        type: "string",
+        description:
+          "Optional doctor id from getClinicInfo when the patient chose one.",
+      },
+      timezone: {
+        type: "string",
+        description: "The clinic's IANA timezone (optional).",
+      },
     },
     ["serviceId", "date"],
   ),
   async execute(ctx, rawArgs) {
     const parsed = getAvailabilitySchema.safeParse(rawArgs);
-    if (!parsed.success) return { ok: false, error: "Invalid arguments: " + firstIssue(parsed.error) };
+    if (!parsed.success)
+      return {
+        ok: false,
+        error: "Invalid arguments: " + firstIssue(parsed.error),
+      };
 
     const clinicAccess = resolveClinicId(ctx, parsed.data.clinicId);
     if (!clinicAccess.ok) return { ok: false, error: clinicAccess.error };
+
+    // Early refusal when the chosen doctor doesn't match a doctor-tied
+    // service. Without this we'd list bookable-looking slots that
+    // createAppointmentService later refuses ("This service is only offered
+    // by a specific doctor"), which reads to the patient as "booking is
+    // broken".
+    if (parsed.data.doctorId) {
+      const { data: serviceRow } = await ctx.supabase
+        .from("services")
+        .select("id, doctor_id, doctor:doctors(name)")
+        .eq("clinic_id", clinicAccess.clinicId)
+        .eq("id", parsed.data.serviceId)
+        .maybeSingle();
+      const tiedDoctorId = serviceRow?.doctor_id as string | null | undefined;
+      if (tiedDoctorId && tiedDoctorId !== parsed.data.doctorId) {
+        const tiedName = (serviceRow?.doctor as { name?: string } | null)?.name;
+        return {
+          ok: false,
+          error: `That service is only offered by ${tiedName ?? "a specific doctor"}. Call getAvailability for that doctor with this service, or check another service for the chosen doctor.`,
+        };
+      }
+    }
 
     const result = await listAvailableSlots(
       ctx.supabase,
@@ -293,14 +370,26 @@ const getPreConsultationQuestions: Tool = {
   parameters: objectSchema(
     {
       clinicId: { type: "string", description: "The clinic id (optional)." },
-      serviceId: { type: "string", description: "The service id from getClinicInfo (services) or getServices." },
-      doctorId: { type: "string", description: "Optional doctor id from getClinicInfo when the patient chose one." },
+      serviceId: {
+        type: "string",
+        description:
+          "The service id from getClinicInfo (services) or getServices.",
+      },
+      doctorId: {
+        type: "string",
+        description:
+          "Optional doctor id from getClinicInfo when the patient chose one.",
+      },
     },
     ["serviceId"],
   ),
   async execute(ctx, rawArgs) {
     const parsed = getPreConsultationQuestionsSchema.safeParse(rawArgs);
-    if (!parsed.success) return { ok: false, error: "Invalid arguments: " + firstIssue(parsed.error) };
+    if (!parsed.success)
+      return {
+        ok: false,
+        error: "Invalid arguments: " + firstIssue(parsed.error),
+      };
 
     const clinicAccess = resolveClinicId(ctx, parsed.data.clinicId);
     if (!clinicAccess.ok) return { ok: false, error: clinicAccess.error };
@@ -341,7 +430,11 @@ const createAppointmentSchema = z.object({
     .array(
       z.object({
         questionId: z.string().uuid("A valid question id is required."),
-        answerText: z.string().trim().min(1, "An answer text is required.").max(2000),
+        answerText: z
+          .string()
+          .trim()
+          .min(1, "An answer text is required.")
+          .max(2000),
       }),
     )
     .max(3, "At most 3 answers.")
@@ -363,18 +456,40 @@ const createAppointment: Tool = {
         },
         required: ["name"],
       },
-      serviceId: { type: "string", description: "The service id from getClinicInfo (services) or getServices." },
-      doctorId: { type: "string", description: "Optional doctor id from getClinicInfo when the patient chose one." },
-      startTime: { type: "string", description: "Exact clinic-local start YYYY-MM-DDTHH:mm from getAvailability." },
-      timezone: { type: "string", description: "The clinic's IANA timezone (optional)." },
+      serviceId: {
+        type: "string",
+        description:
+          "The service id from getClinicInfo (services) or getServices.",
+      },
+      doctorId: {
+        type: "string",
+        description:
+          "Optional doctor id from getClinicInfo when the patient chose one.",
+      },
+      startTime: {
+        type: "string",
+        description:
+          "Exact clinic-local start YYYY-MM-DDTHH:mm from getAvailability.",
+      },
+      timezone: {
+        type: "string",
+        description: "The clinic's IANA timezone (optional).",
+      },
       preConsultAnswers: {
         type: "array",
-        description: "The patient's answers to the clinic's pre-consultation questions, one object per question asked.",
+        description:
+          "The patient's answers to the clinic's pre-consultation questions, one object per question asked.",
         items: {
           type: "object",
           properties: {
-            questionId: { type: "string", description: "The question id from getPreConsultationQuestions." },
-            answerText: { type: "string", description: "The patient's answer text, verbatim." },
+            questionId: {
+              type: "string",
+              description: "The question id from getPreConsultationQuestions.",
+            },
+            answerText: {
+              type: "string",
+              description: "The patient's answer text, verbatim.",
+            },
           },
           required: ["questionId", "answerText"],
         },
@@ -384,7 +499,11 @@ const createAppointment: Tool = {
   ),
   async execute(ctx, rawArgs) {
     const parsed = createAppointmentSchema.safeParse(rawArgs);
-    if (!parsed.success) return { ok: false, error: "Invalid arguments: " + firstIssue(parsed.error) };
+    if (!parsed.success)
+      return {
+        ok: false,
+        error: "Invalid arguments: " + firstIssue(parsed.error),
+      };
 
     const clinicAccess = resolveClinicId(ctx, parsed.data.clinicId);
     if (!clinicAccess.ok) return { ok: false, error: clinicAccess.error };
@@ -431,8 +550,14 @@ const createAppointment: Tool = {
         patientId: appointment.patient_id,
         serviceId: appointment.service_id,
         doctorId: appointment.doctor_id ?? undefined,
-        start: utcIsoToClinicLocalInput(appointment.start_time, ctx.clinic.timezone),
-        end: utcIsoToClinicLocalInput(appointment.end_time, ctx.clinic.timezone),
+        start: utcIsoToClinicLocalInput(
+          appointment.start_time,
+          ctx.clinic.timezone,
+        ),
+        end: utcIsoToClinicLocalInput(
+          appointment.end_time,
+          ctx.clinic.timezone,
+        ),
         status: appointment.status,
       },
     };
@@ -452,15 +577,29 @@ const rescheduleAppointment: Tool = {
   parameters: objectSchema(
     {
       clinicId: { type: "string", description: "The clinic id (optional)." },
-      appointmentId: { type: "string", description: "The appointment id returned by createAppointment." },
-      startTime: { type: "string", description: "New clinic-local start YYYY-MM-DDTHH:mm (from getAvailability)." },
-      timezone: { type: "string", description: "The clinic's IANA timezone (optional)." },
+      appointmentId: {
+        type: "string",
+        description: "The appointment id returned by createAppointment.",
+      },
+      startTime: {
+        type: "string",
+        description:
+          "New clinic-local start YYYY-MM-DDTHH:mm (from getAvailability).",
+      },
+      timezone: {
+        type: "string",
+        description: "The clinic's IANA timezone (optional).",
+      },
     },
     ["appointmentId", "startTime"],
   ),
   async execute(ctx, rawArgs) {
     const parsed = rescheduleAppointmentSchema.safeParse(rawArgs);
-    if (!parsed.success) return { ok: false, error: "Invalid arguments: " + firstIssue(parsed.error) };
+    if (!parsed.success)
+      return {
+        ok: false,
+        error: "Invalid arguments: " + firstIssue(parsed.error),
+      };
 
     const clinicAccess = resolveClinicId(ctx, parsed.data.clinicId);
     if (!clinicAccess.ok) return { ok: false, error: clinicAccess.error };
@@ -477,8 +616,14 @@ const rescheduleAppointment: Tool = {
       ok: true,
       appointment: {
         id: result.appointment.id,
-        start: utcIsoToClinicLocalInput(result.appointment.start_time, ctx.clinic.timezone),
-        end: utcIsoToClinicLocalInput(result.appointment.end_time, ctx.clinic.timezone),
+        start: utcIsoToClinicLocalInput(
+          result.appointment.start_time,
+          ctx.clinic.timezone,
+        ),
+        end: utcIsoToClinicLocalInput(
+          result.appointment.end_time,
+          ctx.clinic.timezone,
+        ),
         status: result.appointment.status,
       },
     };
@@ -497,14 +642,24 @@ const cancelAppointment: Tool = {
   parameters: objectSchema(
     {
       clinicId: { type: "string", description: "The clinic id (optional)." },
-      appointmentId: { type: "string", description: "The appointment id returned by createAppointment." },
-      timezone: { type: "string", description: "The clinic's IANA timezone (optional)." },
+      appointmentId: {
+        type: "string",
+        description: "The appointment id returned by createAppointment.",
+      },
+      timezone: {
+        type: "string",
+        description: "The clinic's IANA timezone (optional).",
+      },
     },
     ["appointmentId"],
   ),
   async execute(ctx, rawArgs) {
     const parsed = cancelAppointmentSchema.safeParse(rawArgs);
-    if (!parsed.success) return { ok: false, error: "Invalid arguments: " + firstIssue(parsed.error) };
+    if (!parsed.success)
+      return {
+        ok: false,
+        error: "Invalid arguments: " + firstIssue(parsed.error),
+      };
 
     const clinicAccess = resolveClinicId(ctx, parsed.data.clinicId);
     if (!clinicAccess.ok) return { ok: false, error: clinicAccess.error };
@@ -519,7 +674,10 @@ const cancelAppointment: Tool = {
 
     return {
       ok: true,
-      appointment: { id: result.appointment.id, status: result.appointment.status },
+      appointment: {
+        id: result.appointment.id,
+        status: result.appointment.status,
+      },
     };
   },
 };
@@ -527,15 +685,38 @@ const cancelAppointment: Tool = {
 const bookAppointmentSchema = z.object({
   clinic_id: clinicIdSchema,
   clinicId: clinicIdSchema,
-  doctor_id: z.string().uuid().optional().nullable(),
-  doctorId: z.string().uuid().optional().nullable(),
+  doctor_id: z
+    .string()
+    .uuid("doctor_id must be a UUID from getClinicInfo.")
+    .optional()
+    .nullable(),
+  doctorId: z
+    .string()
+    .uuid("doctor_id must be a UUID from getClinicInfo.")
+    .optional()
+    .nullable(),
   patient_name: z.string().trim().min(1, "Patient name is required.").max(120),
   patient_phone: z.string().trim().min(3, "Patient phone is required.").max(32),
   slot_time: localDateTimeSchema,
-  appointment_type: z.enum(["CLINIC_VISIT", "ONLINE_VIDEO"]),
-  chief_complaint: z.string().trim().min(1, "Chief complaint is required.").max(1000),
-  service_id: z.string().uuid().optional().nullable(),
-  serviceId: z.string().uuid().optional().nullable(),
+  appointment_type: z.enum(
+    ["CLINIC_VISIT", "ONLINE_VIDEO"],
+    "appointment_type must be exactly 'CLINIC_VISIT' or 'ONLINE_VIDEO'.",
+  ),
+  chief_complaint: z
+    .string()
+    .trim()
+    .min(1, "Chief complaint is required.")
+    .max(1000),
+  service_id: z
+    .string()
+    .uuid("service_id must be a UUID from getClinicInfo.")
+    .optional()
+    .nullable(),
+  serviceId: z
+    .string()
+    .uuid("service_id must be a UUID from getClinicInfo.")
+    .optional()
+    .nullable(),
 });
 
 const bookAppointment: Tool = {
@@ -547,23 +728,47 @@ const bookAppointment: Tool = {
       clinic_id: { type: "string", description: "The clinic ID (UUID)." },
       doctor_id: { type: "string", description: "Optional doctor ID (UUID)." },
       patient_name: { type: "string", description: "Patient's full name." },
-      patient_phone: { type: "string", description: "Patient's phone number with country code." },
-      slot_time: { type: "string", description: "Exact clinic-local start YYYY-MM-DDTHH:mm from getAvailability." },
+      patient_phone: {
+        type: "string",
+        description: "Patient's phone number with country code.",
+      },
+      slot_time: {
+        type: "string",
+        description:
+          "Exact clinic-local start YYYY-MM-DDTHH:mm from getAvailability.",
+      },
       appointment_type: {
         type: "string",
         enum: ["CLINIC_VISIT", "ONLINE_VIDEO"],
         description: "Consultation mode: 'CLINIC_VISIT' or 'ONLINE_VIDEO'.",
       },
-      chief_complaint: { type: "string", description: "Patient's primary symptom, concern or reason for visit." },
-      service_id: { type: "string", description: "Optional service ID (UUID)." },
+      chief_complaint: {
+        type: "string",
+        description: "Patient's primary symptom, concern or reason for visit.",
+      },
+      service_id: {
+        type: "string",
+        description: "Optional service ID (UUID).",
+      },
     },
-    ["patient_name", "patient_phone", "slot_time", "appointment_type", "chief_complaint"],
+    [
+      "patient_name",
+      "patient_phone",
+      "slot_time",
+      "appointment_type",
+      "chief_complaint",
+    ],
   ),
   async execute(ctx, rawArgs) {
     const parsed = bookAppointmentSchema.safeParse(rawArgs);
-    if (!parsed.success) return { ok: false, error: "Invalid arguments: " + firstIssue(parsed.error) };
+    if (!parsed.success)
+      return {
+        ok: false,
+        error: "Invalid arguments: " + firstIssue(parsed.error),
+      };
 
-    const clinicId = parsed.data.clinic_id ?? parsed.data.clinicId ?? ctx.clinic.id;
+    const clinicId =
+      parsed.data.clinic_id ?? parsed.data.clinicId ?? ctx.clinic.id;
     const clinicAccess = resolveClinicId(ctx, clinicId);
     if (!clinicAccess.ok) return { ok: false, error: clinicAccess.error };
 
@@ -584,7 +789,10 @@ const bookAppointment: Tool = {
     );
 
     if (!result.ok) {
-      return { ok: false, error: result.error };
+      const hint = result.capabilityIssue
+        ? " Tell the patient this mode isn't available for that doctor and offer the other mode or another doctor."
+        : " Apologise briefly and offer a nearby slot from getAvailability or ask the patient to pick another time.";
+      return { ok: false, error: result.error + hint };
     }
 
     const appt = result.appointment!;

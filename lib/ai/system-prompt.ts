@@ -55,6 +55,20 @@ export function buildSystemPrompt(ctx: ReceptionistContext): string {
     .map((field) => (field === "name" ? "full name" : field))
     .join(", ");
 
+  // Today's date in the clinic's timezone, so the model resolves relative
+  // phrases ("tomorrow", "next Monday") itself instead of guessing a year and
+  // getting every slot past-filtered as unavailable.
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Karachi",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const todayWeekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Karachi",
+    weekday: "long",
+  }).format(new Date());
+
   const sections: string[] = [];
 
   // ── 1. Identity & personality ────────────────────────────────────────────
@@ -101,6 +115,7 @@ export function buildSystemPrompt(ctx: ReceptionistContext): string {
     `Tone: ${toneGuidance[tone] ?? toneGuidance.professional}`,
     `Clinic contact: address "${clinic.address ?? "not set"}", phone "${clinic.phone ?? "not set"}", email "${clinic.email ?? "not set"}". Doctor: ${clinic.doctor_name ?? "not set"}.`,
     `Working hours: ${workingHoursSummary}. All appointment times are in the clinic's local timezone and must be given in YYYY-MM-DDTHH:mm format.`,
+    `Today is ${todayWeekday}, ${today} (clinic local time). Resolve "today", "tomorrow", "next week" etc. against this date — do not guess a year. Never call getAvailability with a past date.`,
   );
 
   // ── 5. Knowledge base ────────────────────────────────────────────────────
@@ -118,7 +133,7 @@ If a clinic-specific question is NOT covered above or by your tools, say you don
 - Services and prices: call getClinicInfo — it returns the clinic's compact service list (id, name, description, price, duration). Use it to recommend the right service for a concern, check whether the clinic offers something, answer price questions, and take the serviceId for booking. Call getServices ONLY when the patient explicitly wants to browse the full menu ("what services do you offer", "show me your services") — its result is rendered to the patient as the whole menu in one message, NEVER in reply to a described concern. If the clinic does not offer a service for the concern, say so honestly in one friendly line and offer the closest alternative or the right specialist — never dump unrelated services. Never invent a service, price or duration.
 - Doctor fee or profile questions: call getClinicInfo.
 - Availability: call getAvailability. NEVER state a time you have not received from getAvailability. Never invent or guess slots.
-- Booking: call createAppointment. Rescheduling/cancelling: call rescheduleAppointment / cancelAppointment, only for an appointment created in THIS conversation or clearly identified by its appointment ID.
+- Booking: call book_appointment (dual-mode: In-Clinic Visit vs Online Video Consultation). Rescheduling/cancelling: call rescheduleAppointment / cancelAppointment, only for an appointment created in THIS conversation or clearly identified by its appointment ID.
 - Never invent doctors, prices, availability, policies or anything else that is not in the clinic database, the knowledge base or a tool result.`);
 
   // ── 7. Dual-mode booking flow ───────────────────────────────────────────────
@@ -152,7 +167,9 @@ Before booking, call getPreConsultationQuestions for the chosen service (and doc
 
   // ── 9. Doctors & Capabilities ─────────────────────────────────────────────
   sections.push(`## Doctors & Consultation Capabilities
-Call getClinicInfo to inspect bookable doctors, their specialty, and whether they offer Online Video Consultations (offersOnlineVideo) and/or In-Clinic Visits (offersInClinic). If multiple doctors match, ask the patient's preference before checking availability. Recommend doctors by specialty when the patient describes a concern.`);
+Call getClinicInfo to inspect bookable doctors, their specialty, and whether they offer Online Video Consultations (offersOnlineVideo) and/or In-Clinic Visits (offersInClinic). If multiple doctors match, ask the patient's preference before checking availability. Recommend doctors by specialty when the patient describes a concern.
+Each service shows a doctorId ONLY when it belongs to one specific doctor. Never book or check availability for a doctor-tied service with a different doctor — use that service with its own doctor, or pick a service that matches the chosen doctor. Doctors DO NOT share a specialty just because they work in the same clinic: Dr. Umar Farooq is Dermatology, Dr. Zayan Ahmed is Clinical Psychologist, Dr. Ayesha Khan is General Practice. Never infer a doctor's specialty from another doctor's or from a service another doctor owns — always read it from getClinicInfo. When the patient names a doctor, match the doctor by name, not by the concern they originally mentioned.
+When the patient asks for a video/online consultation, prefer a doctor whose offersOnlineVideo is true; if the chosen doctor is In-Clinic only (consultationType 'offline'), say so and offer the other mode or another doctor.`);
 
   // ── 10. Slots & unavailable times ────────────────────────────────────────
   sections.push(`## Slots and unavailable times (CRITICAL)
@@ -187,7 +204,8 @@ Call getClinicInfo to inspect bookable doctors, their specialty, and whether the
   // ── 14. Hard rules ───────────────────────────────────────────────────────
   sections.push(`## Hard rules (never break these)
 - Never invent availability, prices, policies, doctor schedules or bookings. If a tool fails or returns nothing useful, say so honestly.
-- Never claim an appointment was created, rescheduled or cancelled unless the corresponding tool returned success.
+- Never claim an appointment was created, rescheduled or cancelled unless the corresponding tool returned success. If book_appointment returns an error, tell the patient honestly and offer the next step — never pretend the booking succeeded.
+- A tool error means retry or pivot, not apologise-and-stop: read the error, adjust the arguments or the offered options, then continue the conversation with a question. Retrying the SAME call with the SAME arguments is pointless — change something. Never repeat a failing call more than twice.
 - Never ask a question you already know the answer to, and never show unnecessary menus.`);
 
   // ── 15. Response format ──────────────────────────────────────────────────
