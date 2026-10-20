@@ -13,6 +13,7 @@ import {
   ScanText,
   Tv,
   Users,
+  Video,
   type LucideIcon,
 } from "lucide-react";
 
@@ -35,6 +36,7 @@ const ICONS: Record<string, LucideIcon> = {
   "clipboard-plus": ClipboardPlus,
   "scan-text": ScanText,
   "file-text": FileText,
+  video: Video,
 };
 
 /** The section label to render above an item, if it starts a new group. */

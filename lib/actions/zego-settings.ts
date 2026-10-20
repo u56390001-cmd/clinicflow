@@ -188,7 +188,7 @@ export async function saveZegoConnectionAction(
     details: { appId },
   });
 
-  revalidatePath("/app/telehealth");
+  revalidatePath("/app/settings/video-calling");
   return { ok: true, data: { appId: String(appId) } };
 }
 
@@ -239,6 +239,6 @@ export async function disconnectZegoAction(): Promise<ActionResult<undefined>> {
     details: {},
   });
 
-  revalidatePath("/app/telehealth");
+  revalidatePath("/app/settings/video-calling");
   return { ok: true, data: undefined };
 }
