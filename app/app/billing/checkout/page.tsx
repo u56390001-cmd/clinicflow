@@ -358,6 +358,7 @@ export default function CheckoutPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div
+                data-proof-dropzone
                 onDragOver={handleDragOver}
                 onDragEnter={handleDragOver}
                 onDragLeave={() => setIsDragging(false)}

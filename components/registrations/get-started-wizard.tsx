@@ -572,6 +572,7 @@ export function GetStartedWizard({
                   </p>
 
                   <div
+                    data-proof-dropzone
                     onDragOver={handleDragOver}
                     onDragEnter={handleDragOver}
                     onDragLeave={() => setIsDragging(false)}
