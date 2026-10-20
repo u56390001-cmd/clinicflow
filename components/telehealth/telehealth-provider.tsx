@@ -526,6 +526,10 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
   const [pipSlot, setPipSlot] = useState<PipSlot>("bottom-right");
   const [elapsed, setElapsed] = useState(0);
   const [joinError, setJoinError] = useState<string | null>(null);
+  // Bumped to force the engine effect to tear the old TelehealthCall down and
+  // build a fresh one on the same token — the Retry affordance on the error
+  // card lives off this.
+  const [joinEpoch, setJoinEpoch] = useState(0);
   const [screenShareSupported, setScreenShareSupported] = useState(false);
 
   const [capture, setCapture] = useState<CapturedFrame | null>(null);
@@ -667,6 +671,7 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
     setPipSlot("bottom-right");
     setElapsed(0);
     setJoinError(null);
+    setJoinEpoch(0);
     // Persist across a reload: the panel lives in the shell, but the record
     // that knows *who* was being called only lives in the launcher's markup.
     try {
@@ -822,10 +827,28 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
         setPhase((current) => (current === "joining" ? "waiting" : current));
       } catch (error) {
         if (cancelled) return;
-        console.error("[telehealth] join failed", error);
-        setJoinError(
-          error instanceof Error ? error.message : "Couldn't start the call.",
-        );
+        // Zego rejects assorted pitfalls with plain {code,msg} objects rather
+        // than Error instances — surface those verbatim instead of a dead-end
+        // generic line the clinician can't act on.
+        console.error("[telehealth] join failed", {
+          error,
+          isError: error instanceof Error,
+          name: (error as { name?: string } | null)?.name ?? null,
+          code: (error as { code?: unknown } | null)?.code ?? null,
+          msg: (error as { msg?: unknown } | null)?.msg ?? null,
+          phase: "join",
+        });
+        const detail =
+          error instanceof Error
+            ? error.message.trim()
+            : error !== null && typeof error === "object"
+              ? String(
+                  (error as { msg?: string }).msg ??
+                    (error as { code?: unknown }).code ??
+                    "",
+                ).trim()
+              : String(error).trim();
+        setJoinError(detail || "Couldn't start the call.");
         setPhase("ended");
       }
     })();
@@ -842,7 +865,16 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
     activeUserId,
     activeRoomId,
     activeDoctorName,
+    joinEpoch,
   ]);
+
+  const retryJoin = useCallback(() => {
+    teardown();
+    setJoinError(null);
+    setRemoteStream(null);
+    setPhase("joining");
+    setJoinEpoch((epoch) => epoch + 1);
+  }, [teardown]);
 
   const closePanel = useCallback(() => {
     teardown();
@@ -1315,7 +1347,16 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
                               className="size-7 text-status-destructive"
                               aria-hidden="true"
                             />
-                            <p className="text-[12.5px] text-white">{joinError}</p>
+                            <p className="text-[12.5px] text-white">
+                              {joinError}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={retryJoin}
+                              className="mt-1 rounded-pill border border-white/25 px-3.5 py-1.5 text-[12px] font-semibold tracking-[-0.01em] text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                            >
+                              Try again
+                            </button>
                           </div>
                         )}
                         {(phase !== "connected" || !patientPresent) && (

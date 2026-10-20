@@ -267,7 +267,8 @@ export function parseKitTokenEnvelope(token: string): ZegoTokenEnvelope | null {
   }
 }
 
-/** Deterministic, tenant-namespaced room id (clinic → doctor → patient). */export function buildTelehealthRoomId(params: {
+/** Deterministic, tenant-namespaced room id (clinic / doctor / patient). */
+export function buildTelehealthRoomId(params: {
   clinicId: string;
   doctorId: string | null;
   patientId: string;
@@ -276,5 +277,11 @@ export function parseKitTokenEnvelope(token: string): ZegoTokenEnvelope | null {
 }): string {
   const stamp = params.timestamp ?? Date.now();
   const doctor = params.doctorId ?? "none";
-  return `clinic_${params.clinicId}_doc_${doctor}_pat_${params.patientId}_${stamp}`;
+  // The Zego core SDK hard-rejects room IDs longer than 128 chars at login, so
+  // the tenant context lives in a hash instead of the raw UUIDs (the old
+  // spelled-out format was 139 chars and every connect tripped that check).
+  const digest = createHash("sha256")
+    .update(`${params.clinicId}|${doctor}|${params.patientId}|${stamp}`)
+    .digest("hex");
+  return `tel_${digest.slice(0, 24)}`;
 }
