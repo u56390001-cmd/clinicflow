@@ -18,8 +18,16 @@ create table if not exists public.clinical_notes (
   created_at timestamptz not null default now()
 );
 
-alter table public.clinical_notes
-  add constraint clinical_notes_patient_fk foreign key (clinic_id, patient_id) references public.patients (clinic_id, id) on delete cascade;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'clinical_notes_patient_fk'
+  ) then
+    alter table public.clinical_notes
+      add constraint clinical_notes_patient_fk foreign key (clinic_id, patient_id) references public.patients (clinic_id, id) on delete cascade;
+  end if;
+end
+$$;
 
 create index if not exists clinical_notes_clinic_patient_idx
   on public.clinical_notes (clinic_id, patient_id, created_at desc);
