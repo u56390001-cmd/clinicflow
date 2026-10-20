@@ -100,8 +100,19 @@ export class TelehealthCall {
         this.zg = null;
         throw new Error("Call was closed before it could start.");
       }
+      // HD publish: the SDK default is videoQuality 2 (640×480 @ 15fps,
+      // 800 kbps), which reads as visibly soft on a consultation. Level 3 is
+      // 720p @ 20fps / 1.5 Mbps; startBitrate 'target' climbs to the target
+      // bitrate immediately instead of ramping up from the WebRTC default
+      // 300 kbps, so the first seconds of the call are not a preview of a
+      // blocky stream.
       const stream = await zg.createStream({
-        camera: { audio: true, video: true },
+        camera: {
+          audio: true,
+          video: true,
+          videoQuality: 3,
+          startBitrate: "target",
+        },
       });
       if (this.destroyed) {
         try {
