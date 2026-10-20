@@ -45,6 +45,20 @@ type NavSection = {
   items: ReadonlyArray<{ label: string; href: string }>;
 };
 
+/**
+ * Platform-admin section. These routes are not part of `APP_NAV_SECTIONS`
+ * because they are only meaningful to a platform admin — a clinic member must
+ * never see them.
+ */
+const ADMIN_NAV_SECTION: NavSection = {
+  label: "Administration",
+  items: [
+    { label: "Registrations", href: APP_ROUTES.app.adminRegistrations },
+    { label: "Payment submissions", href: APP_ROUTES.app.adminBilling },
+    { label: "Payment methods", href: APP_ROUTES.app.adminPaymentMethods },
+  ],
+};
+
 function filterSectionsForRole(role: ClinicRole | null): readonly NavSection[] {
   if (!role || FULL_NAV_ROLES.includes(role)) {
     return APP_NAV_SECTIONS.map((section) => ({
@@ -70,12 +84,32 @@ export async function AppSidebar() {
   // Role drives nav visibility. `getCurrentClinic` is React-`cache`d, so the
   // header/page have already paid for this query in the same request.
   let role: ClinicRole | null = null;
+  let isPlatformAdmin = false;
   try {
     const supabase = await createClient();
     role = (await getCurrentClinic(supabase))?.role ?? null;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      const { data: admin } = await supabase
+        .from("platform_admins")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      isPlatformAdmin = !!admin;
+    }
   } catch {
     role = null;
   }
 
-  return <AppSidebarShell sections={filterSectionsForRole(role)} />;
+  const sections = filterSectionsForRole(role);
+
+  return (
+    <AppSidebarShell
+      sections={
+        isPlatformAdmin ? [...sections, ADMIN_NAV_SECTION] : sections
+      }
+    />
+  );
 }

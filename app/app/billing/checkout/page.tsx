@@ -93,6 +93,7 @@ export default function CheckoutPage() {
 
     const formData = new FormData();
     formData.set("amount", String(selectedPlan.price));
+    formData.set("planId", selectedPlan.id);
     formData.set("senderName", senderName);
     formData.set("senderPhone", senderPhone);
     formData.set("transactionReference", transactionRef);

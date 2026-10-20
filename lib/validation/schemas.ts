@@ -1656,6 +1656,7 @@ export const paymentSubmissionSchema = z.object({
     .number({ message: "Amount must be a number." })
     .positive("Amount must be greater than zero.")
     .max(10_000_000, "Amount is too large."),
+  planId: uuid("Select a plan."),
   senderName: z
     .string()
     .trim()
@@ -1736,6 +1737,81 @@ export const submissionStatusFilterSchema = z.object({
     })
     .optional()
     .or(z.literal("")),
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Registration requests (pre-signup plan + payment)                         */
+/* -------------------------------------------------------------------------- */
+
+export const registrationRequestSchema = z.object({
+  fullName: z
+    .string()
+    .trim()
+    .min(1, "Your name is required.")
+    .max(120, "Your name must be 120 characters or fewer."),
+  email: z
+    .string()
+    .trim()
+    .min(1, "Email is required.")
+    .email("Enter a valid email address.")
+    .max(254, "Email must be 254 characters or fewer.")
+    .transform((value) => value.toLowerCase()),
+  phone: z
+    .string()
+    .trim()
+    .min(3, "Phone number is required.")
+    .max(32, "Phone number must be 32 characters or fewer."),
+  clinicName: z
+    .string()
+    .trim()
+    .min(1, "Clinic name is required.")
+    .max(120, "Clinic name must be 120 characters or fewer."),
+  clinicAddress: z
+    .string()
+    .trim()
+    .max(240, "Address must be 240 characters or fewer.")
+    .optional()
+    .or(z.literal("")),
+  planId: uuid("Select a plan."),
+  paymentMethodId: uuid("Select a payment method."),
+  senderName: z
+    .string()
+    .trim()
+    .min(1, "Sender name is required.")
+    .max(120, "Sender name must be 120 characters or fewer."),
+  senderPhone: z
+    .string()
+    .trim()
+    .min(3, "Sender phone must be at least 3 characters.")
+    .max(32, "Sender phone must be 32 characters or fewer."),
+  transactionReference: z
+    .string()
+    .trim()
+    .min(1, "Transaction reference is required.")
+    .max(120, "Reference must be 120 characters or fewer."),
+  notes: z
+    .string()
+    .trim()
+    .max(4000, "Notes must be 4000 characters or fewer.")
+    .optional()
+    .or(z.literal("")),
+});
+
+export const registrationRejectionSchema = z.object({
+  registrationId: uuid("Missing registration id."),
+  reason: z
+    .string()
+    .trim()
+    .min(1, "Rejection reason is required.")
+    .max(2000, "Reason must be 2000 characters or fewer."),
+});
+
+export const registrationReferenceSchema = z.object({
+  referenceCode: z
+    .string()
+    .trim()
+    .min(4, "Enter the reference code from your request.")
+    .max(24, "Reference code must be 24 characters or fewer."),
 });
 
 /* -------------------------------------------------------------------------- */

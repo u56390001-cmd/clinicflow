@@ -45,6 +45,9 @@ export const APP_ROUTES = {
     forgotPassword: "/forgot-password",
     resetPassword: "/reset-password",
   },
+  /** Public registration funnel (plan -> payment -> details -> admin approval). */
+  getStarted: "/get-started",
+  getStartedStatus: "/get-started/status",
   app: {
     dashboard: "/app/dashboard",
     clinicNew: "/app/clinic/new",
@@ -79,6 +82,7 @@ export const APP_ROUTES = {
     billingCheckout: "/app/billing/checkout",
     adminBilling: "/app/admin/billing",
     adminPaymentMethods: "/app/admin/billing/payment-methods",
+    adminRegistrations: "/app/admin/registrations",
   },
   callback: "/auth/callback",
 } as const;
@@ -378,6 +382,27 @@ export const PAYMENT_STATUS_META: Record<
   expired: {
     label: "Expired",
     badge: "bg-slate-100 text-slate-700 ring-slate-500/20",
+  },
+} as const;
+
+/**
+ * Registration request status display metadata (pre-signup approval queue).
+ */
+export const REGISTRATION_STATUS_META: Record<
+  string,
+  { label: string; badge: string }
+> = {
+  pending: {
+    label: "Awaiting Approval",
+    badge: "bg-amber-50 text-amber-700 ring-amber-600/20",
+  },
+  approved: {
+    label: "Approved",
+    badge: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
+  },
+  rejected: {
+    label: "Rejected",
+    badge: "bg-red-50 text-red-700 ring-red-600/20",
   },
 } as const;
 

@@ -19,7 +19,7 @@ export function SiteHeader({ signedIn }: SiteHeaderProps) {
   const [open, setOpen] = useState(false);
 
   const appUrl = APP_ROUTES.app.dashboard;
-  const primaryUrl = signedIn ? appUrl : APP_ROUTES.auth.signup;
+  const primaryUrl = signedIn ? appUrl : APP_ROUTES.getStarted;
 
   return (
     <header className="landing-header">

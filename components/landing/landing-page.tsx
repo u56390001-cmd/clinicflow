@@ -56,7 +56,7 @@ export function LandingPage({ signedIn, plans }: LandingPageProps) {
               <div className="hero-actions">
                 <a
                   className="btn btn-primary"
-                  href={signedIn ? APP_ROUTES.app.dashboard : APP_ROUTES.auth.signup}
+                  href={signedIn ? APP_ROUTES.app.dashboard : APP_ROUTES.getStarted}
                 >
                   Get Started <span>↗</span>
                 </a>

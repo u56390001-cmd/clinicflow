@@ -32,7 +32,6 @@ export function PricingSection({ plans, signedIn }: PricingSectionProps) {
   );
   const currency = plans[0]?.currency?.toUpperCase() ?? "PKR";
   const interval = plans[0]?.billing_interval ?? "month";
-  const ctaUrl = signedIn ? APP_ROUTES.app.billingCheckout : APP_ROUTES.auth.signup;
 
   return (
     <section className="section pricing" id="pricing">
@@ -41,8 +40,8 @@ export function PricingSection({ plans, signedIn }: PricingSectionProps) {
           <span className="eyebrow">Simple, transparent pricing</span>
           <h2 className="section-title">Choose a plan for your clinic.</h2>
           <p className="section-sub">
-            Explore the existing subscription options. Your selected plan will
-            connect to the current billing checkout.
+            Pick a plan, pay by transfer or mobile wallet, and we email your
+            account credentials once the payment is verified.
           </p>
         </div>
 
@@ -51,6 +50,11 @@ export function PricingSection({ plans, signedIn }: PricingSectionProps) {
             const price = priceByCode.has(meta.code)
               ? priceByCode.get(meta.code)!
               : FALLBACK_PLAN_PRICES[meta.code];
+            // New clinics go through the registration funnel (plan -> payment ->
+            // details -> admin approval), carrying the chosen plan with them.
+            const ctaUrl = signedIn
+              ? APP_ROUTES.app.billingCheckout
+              : `${APP_ROUTES.getStarted}?plan=${meta.code}`;
 
             return (
               <article className={`plan${meta.popular ? " popular" : ""}`} key={meta.code}>

@@ -2554,6 +2554,8 @@ export type PaymentSubmission = {
   clinic_id: string;
   subscription_id: string;
   payment_method_id: string;
+  /** Plan the payment was made for (migration 0111). */
+  plan_id: string | null;
   amount: number;
   currency: string;
   sender_name: string;
@@ -2578,6 +2580,41 @@ export type BillingEvent = {
   actor_user_id: string | null;
   metadata: Record<string, unknown>;
   created_at: string;
+};
+
+/* -------------------------------------------------------------------------- */
+/*  Registration requests (pre-signup plan + payment -> admin approval)       */
+/* -------------------------------------------------------------------------- */
+
+export type RegistrationStatus = "pending" | "approved" | "rejected";
+
+export type RegistrationRequest = {
+  id: string;
+  reference_code: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  clinic_name: string;
+  clinic_address: string | null;
+  plan_id: string;
+  payment_method_id: string;
+  amount: number;
+  currency: string;
+  sender_name: string;
+  sender_phone: string;
+  transaction_reference: string;
+  notes: string | null;
+  proof_file_path: string | null;
+  status: RegistrationStatus;
+  rejection_reason: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  user_id: string | null;
+  clinic_id: string | null;
+  subscription_id: string | null;
+  provisioned_at: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -4217,6 +4254,7 @@ export type Database = {
           clinic_id: string;
           subscription_id: string;
           payment_method_id: string;
+          plan_id?: string | null;
           amount: number;
           currency?: string;
           sender_name: string;
@@ -4237,6 +4275,7 @@ export type Database = {
           clinic_id?: never;
           subscription_id?: string;
           payment_method_id?: string;
+          plan_id?: string | null;
           amount?: number;
           currency?: string;
           sender_name?: string;
@@ -4269,6 +4308,81 @@ export type Database = {
           },
           {
             foreignKeyName: "payment_submissions_payment_method_id_fkey";
+            columns: ["payment_method_id"];
+            isOneToOne: false;
+            referencedRelation: "payment_methods";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      registration_requests: {
+        Row: RegistrationRequest;
+        Insert: {
+          id?: string;
+          reference_code: string;
+          full_name: string;
+          email: string;
+          phone: string;
+          clinic_name: string;
+          clinic_address?: string | null;
+          plan_id: string;
+          payment_method_id: string;
+          amount: number;
+          currency?: string;
+          sender_name: string;
+          sender_phone: string;
+          transaction_reference: string;
+          notes?: string | null;
+          proof_file_path?: string | null;
+          status?: RegistrationStatus;
+          rejection_reason?: string | null;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          user_id?: string | null;
+          clinic_id?: string | null;
+          subscription_id?: string | null;
+          provisioned_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          reference_code?: never;
+          full_name?: string;
+          email?: string;
+          phone?: string;
+          clinic_name?: string;
+          clinic_address?: string | null;
+          plan_id?: string;
+          payment_method_id?: string;
+          amount?: number;
+          currency?: string;
+          sender_name?: string;
+          sender_phone?: string;
+          transaction_reference?: string;
+          notes?: string | null;
+          proof_file_path?: string | null;
+          status?: RegistrationStatus;
+          rejection_reason?: string | null;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          user_id?: string | null;
+          clinic_id?: string | null;
+          subscription_id?: string | null;
+          provisioned_at?: string | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "registration_requests_plan_id_fkey";
+            columns: ["plan_id"];
+            isOneToOne: false;
+            referencedRelation: "subscription_plans";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "registration_requests_payment_method_id_fkey";
             columns: ["payment_method_id"];
             isOneToOne: false;
             referencedRelation: "payment_methods";
@@ -6952,6 +7066,28 @@ export type Database = {
           p_clinic_id: string;
         };
         Returns: boolean;
+      };
+      /**
+       * Migration 0109. Public status lookup for a registration request, by
+       * reference code. SECURITY DEFINER so the applicant can read their own
+       * request without a session — the function returns a deliberately small
+       * projection.
+       */
+      get_registration_status: {
+        Args: {
+          p_reference_code: string;
+        };
+        Returns: {
+          reference_code: string;
+          status: RegistrationStatus;
+          clinic_name: string;
+          plan_name: string;
+          amount: number;
+          currency: string;
+          created_at: string;
+          reviewed_at: string | null;
+          rejection_reason: string | null;
+        }[];
       };
       /**
        * Migration 0060. Feature gate for the add-ons marketplace. SECURITY

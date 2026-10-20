@@ -11,6 +11,7 @@ import {
   type BillingExpiringParams,
   type BillingRejectedParams,
   type BillingSubmittedParams,
+  accountCredentials,
   appointmentCancellation,
   appointmentConfirmation,
   appointmentNotification,
@@ -20,6 +21,7 @@ import {
   billingExpiring,
   billingRejected,
   billingSubmitted,
+  registrationRejected,
   teamInvite,
 } from "@/lib/email/templates";
 import { createClient } from "@/lib/supabase/server";
@@ -314,6 +316,71 @@ export async function sendBillingRejectedEmail(
     },
     clinic.email,
   );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Registration emails                                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Deliver the freshly provisioned account credentials to the applicant. The
+ * temporary password is only ever sent here — it is never stored.
+ */
+export async function sendAccountCredentialsEmail(params: {
+  to: string;
+  fullName: string;
+  clinicName: string;
+  temporaryPassword: string;
+  planName: string;
+  amount: number;
+  currency: string;
+  periodEnd: Date;
+}): Promise<SendEmailResult> {
+  try {
+    const { subject, html } = accountCredentials({
+      fullName: params.fullName,
+      clinicName: params.clinicName,
+      email: params.to,
+      temporaryPassword: params.temporaryPassword,
+      planName: params.planName,
+      amount: `${params.currency} ${params.amount.toLocaleString()}`,
+      periodEnd: params.periodEnd.toLocaleDateString(),
+      loginUrl: `${SITE_URL}/login`,
+    });
+    await getResend().emails.send({ from: FROM_EMAIL, to: params.to, subject, html });
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[email] sendAccountCredentialsEmail failed:", message);
+    await logEmailFailure({ event: "account_credentials_send_failed", error: message });
+    return { ok: false, error: message };
+  }
+}
+
+/** Tell an applicant that their payment could not be verified. */
+export async function sendRegistrationRejectedEmail(params: {
+  to: string;
+  fullName: string;
+  clinicName: string;
+  planName: string;
+  reason: string;
+}): Promise<SendEmailResult> {
+  try {
+    const { subject, html } = registrationRejected({
+      fullName: params.fullName,
+      clinicName: params.clinicName,
+      planName: params.planName,
+      reason: params.reason,
+      retryUrl: `${SITE_URL}/get-started`,
+    });
+    await getResend().emails.send({ from: FROM_EMAIL, to: params.to, subject, html });
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[email] sendRegistrationRejectedEmail failed:", message);
+    await logEmailFailure({ event: "registration_rejected_send_failed", error: message });
+    return { ok: false, error: message };
+  }
 }
 
 /* -------------------------------------------------------------------------- */

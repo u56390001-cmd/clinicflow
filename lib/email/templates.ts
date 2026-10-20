@@ -419,6 +419,103 @@ export function billingExpiring(
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Registration templates                                                    */
+/* -------------------------------------------------------------------------- */
+
+export type AccountCredentialsParams = {
+  fullName: string;
+  clinicName: string;
+  email: string;
+  temporaryPassword: string;
+  planName: string;
+  amount: string;
+  periodEnd: string;
+  loginUrl: string;
+};
+
+export function accountCredentials(
+  p: AccountCredentialsParams,
+): { subject: string; html: string } {
+  return {
+    subject: `Your MedBook AI account is ready — ${p.clinicName}`,
+    html: wrapper(
+      "Your account is ready",
+      `
+        <h2 style="margin:0 0 8px;font-size:20px;color:#111827;">Your account is ready</h2>
+        <p style="margin:0 0 24px;font-size:14px;color:#6b7280;">
+          Hi ${p.fullName}, your payment has been verified and your
+          <strong>${p.planName}</strong> plan is now active for
+          <strong>${p.clinicName}</strong>.
+        </p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0fdf4;border-radius:6px;padding:16px;">
+          <tr>
+            <td style="padding:16px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                ${fieldRow("Login email", p.email)}
+                ${fieldRow("Temporary password", `<span style="font-family:Menlo,Consolas,monospace;letter-spacing:0.5px;">${p.temporaryPassword}</span>`)}
+                ${fieldRow("Plan", p.planName)}
+                ${fieldRow("Amount paid", p.amount)}
+                ${fieldRow("Valid until", p.periodEnd)}
+              </table>
+            </td>
+          </tr>
+        </table>
+        <p style="margin:16px 0 0;font-size:14px;color:#6b7280;">
+          Sign in with the credentials above and change your password from
+          Settings the first time you log in.
+        </p>
+        <div style="margin-top:24px;text-align:center;">
+          ${ctaButton(p.loginUrl, "Sign in to MedBook AI")}
+        </div>
+      `,
+    ),
+  };
+}
+
+export type RegistrationRejectedParams = {
+  fullName: string;
+  clinicName: string;
+  planName: string;
+  reason: string;
+  retryUrl: string;
+};
+
+export function registrationRejected(
+  p: RegistrationRejectedParams,
+): { subject: string; html: string } {
+  return {
+    subject: `We couldn't verify your payment — ${p.clinicName}`,
+    html: wrapper(
+      "Payment could not be verified",
+      `
+        <h2 style="margin:0 0 8px;font-size:20px;color:#111827;">We couldn't verify your payment</h2>
+        <p style="margin:0 0 24px;font-size:14px;color:#6b7280;">
+          Hi ${p.fullName}, we reviewed your payment for the
+          <strong>${p.planName}</strong> plan but could not confirm it.
+        </p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#fef2f2;border-radius:6px;padding:16px;">
+          <tr>
+            <td style="padding:16px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                ${fieldRow("Clinic", p.clinicName)}
+                ${fieldRow("Reason", p.reason)}
+              </table>
+            </td>
+          </tr>
+        </table>
+        <p style="margin:16px 0 0;font-size:14px;color:#6b7280;">
+          Please submit the payment again with a clear screenshot of the
+          transaction receipt, or contact our support team if you need a hand.
+        </p>
+        <div style="margin-top:24px;text-align:center;">
+          ${ctaButton(p.retryUrl, "Submit payment again")}
+        </div>
+      `,
+    ),
+  };
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Team invite template                                                      */
 /* -------------------------------------------------------------------------- */
 

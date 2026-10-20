@@ -103,6 +103,7 @@ export async function submitPaymentAction(
 
   const parsed = paymentSubmissionSchema.safeParse({
     amount: formData.get("amount") !== null ? Number(formData.get("amount")) : NaN,
+    planId: formData.get("planId") ?? "",
     senderName: formData.get("senderName") ?? "",
     senderPhone: formData.get("senderPhone") ?? "",
     transactionReference: formData.get("transactionReference") ?? "",
@@ -139,6 +140,19 @@ export async function submitPaymentAction(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, message: "You must be signed in." };
 
+  // Resolve the plan the clinic is paying for. It is the source of truth for
+  // the amount — the DB guard re-derives it from the same plan.
+  const { data: requestedPlan } = await supabase
+    .from("subscription_plans")
+    .select("id")
+    .eq("id", parsed.data.planId)
+    .eq("active", true)
+    .maybeSingle();
+
+  if (!requestedPlan) {
+    return { ok: false, message: "That plan is no longer available." };
+  }
+
   // Get or create subscription
   const { data: existingSub } = await supabase
     .from("subscriptions")
@@ -150,24 +164,11 @@ export async function submitPaymentAction(
 
   let subscriptionId = existingSub?.id;
   if (!subscriptionId) {
-    // Get the cheapest plan as default
-    const { data: defaultPlan } = await supabase
-      .from("subscription_plans")
-      .select("id")
-      .eq("active", true)
-      .order("price", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (!defaultPlan) {
-      return { ok: false, message: "No subscription plans available." };
-    }
-
     const { data: newSub, error: subError } = await supabase
       .from("subscriptions")
       .insert({
         clinic_id: access.clinic.id,
-        plan_id: defaultPlan.id,
+        plan_id: requestedPlan.id,
         status: "pending_payment",
       })
       .select("id")
@@ -199,6 +200,7 @@ export async function submitPaymentAction(
       clinic_id: access.clinic.id,
       subscription_id: subscriptionId,
       payment_method_id: parsed.data.paymentMethodId,
+      plan_id: requestedPlan.id,
       amount: parsed.data.amount,
       sender_name: parsed.data.senderName,
       sender_phone: parsed.data.senderPhone,
@@ -390,8 +392,24 @@ export async function approvePaymentAction(
     return { ok: false, message: "Failed to update submission status." };
   }
 
-  // Activate subscription
+  // Activate subscription. The plan is applied here too: a clinic paying for a
+  // different plan has it switched when the payment is approved.
   try {
+    if (submission.plan_id) {
+      const { data: current } = await supabase
+        .from("subscriptions")
+        .select("plan_id")
+        .eq("id", submission.subscription_id)
+        .maybeSingle();
+
+      if (current && current.plan_id !== submission.plan_id) {
+        await supabase
+          .from("subscriptions")
+          .update({ plan_id: submission.plan_id })
+          .eq("id", submission.subscription_id);
+      }
+    }
+
     await supabase.rpc("activate_subscription", {
       p_subscription_id: submission.subscription_id,
       p_duration_days: 30,
