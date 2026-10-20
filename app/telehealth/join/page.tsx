@@ -7,7 +7,7 @@ import {
   TelehealthJoinLoading,
 } from "@/components/telehealth/telehealth-join";
 import { createWidgetClient } from "@/lib/supabase/widget";
-import { patientLinkTokenMatches } from "@/lib/zego/server";
+import { parseKitTokenEnvelope, patientLinkTokenMatches } from "@/lib/zego/server";
 
 export const metadata: Metadata = {
   title: "Video Consultation",
@@ -97,11 +97,26 @@ export default async function TelehealthJoinPage({
     );
   }
 
+  // The token's public envelope tells the client which ZEGO app and identity
+  // to start the engine with — an appID is not a secret (it also rides inside
+  // every Token04), and the secret itself never leaves the server.
+  const envelope = parseKitTokenEnvelope(token);
+  if (!envelope) {
+    return (
+      <ExpiredCard
+        title="Link not valid"
+        body="This consultation link is malformed. Please ask the clinic to send a fresh one."
+      />
+    );
+  }
+
   return (
     <Suspense fallback={<TelehealthJoinLoading />}>
       <TelehealthJoinClient
         roomId={room}
         token={token}
+        zegoAppId={envelope.appID}
+        zegoUserId={envelope.userID}
         patientName={session.patientName}
         doctorName={session.doctorName}
       />

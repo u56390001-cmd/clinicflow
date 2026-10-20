@@ -22,6 +22,7 @@ import {
   Mic,
   MicOff,
   Minimize2,
+  Monitor,
   PanelRight,
   PhoneOff,
   RefreshCw,
@@ -37,6 +38,9 @@ import {
   resumeTelehealthSessionAction,
   startTelehealthSessionAction,
 } from "@/lib/actions/telehealth";
+import {
+  TelehealthCall,
+} from "@/lib/zego/engine";
 import { cn } from "@/lib/utils";
 import { TelehealthChat } from "./telehealth-chat";
 import { TelehealthContextPanel } from "./telehealth-context-panel";
@@ -75,6 +79,8 @@ type ActiveCall = TelehealthStartArgs & {
   roomId: string;
   doctorToken: string;
   doctorName: string;
+  zegoAppId: number;
+  zegoUserId: string;
   joinUrl: string;
 };
 
@@ -105,13 +111,8 @@ type Phase = "joining" | "waiting" | "connected" | "ended";
 type PhotoType = "baseline" | "follow_up" | "post_treatment";
 type CapturedFrame = { blob: Blob; url: string };
 type PanelTab = "context" | "chat";
-
-type ZegoKit = {
-  destroy: () => void;
-  getRoomID?: () => string;
-  localStream?: MediaStream;
-  autoLeaveRoomWhenOnlySelfInRoom?: boolean;
-};
+/** PiP drawer: local camera card parked inside the video stage. */
+type PipSlot = "bottom-right" | "top-right" | "top-left" | "bottom-left";
 
 const PHASE_COPY: Record<Phase, { label: string; className: string }> = {
   joining: {
@@ -238,6 +239,266 @@ function IconAction({
   );
 }
 
+function formatCallTimer(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.floor(totalSeconds));
+  const mins = Math.floor(seconds / 60) % 60;
+  const hours = Math.floor(seconds / 3600);
+  const padded = (value: number) => String(value).padStart(2, "0");
+  return hours > 0
+    ? `${hours}:${padded(mins)}:${padded(seconds % 60)}`
+    : `${mins}:${padded(seconds % 60)}`;
+}
+
+/** Elapsed-call chip, top-left of the video stage (the kit's room timer). */
+function TimingChip({ elapsed }: { elapsed: number }) {
+  return (
+    <span
+      title="Call duration"
+      className="absolute left-2 top-2 z-10 inline-flex items-center gap-1.5 rounded-pill border-[0.5px] border-white/20 bg-black/55 px-2 py-[3px] text-[11px] font-semibold tabular-nums text-white"
+    >
+      <span className="size-1.5 rounded-full bg-status-success" aria-hidden="true" />
+      {formatCallTimer(elapsed)}
+    </span>
+  );
+}
+
+/** Fill crops the picture to the panel frame; Fit letterboxes the full feed. */
+function FitToggle({
+  fill,
+  onToggle,
+}: {
+  fill: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      title={fill ? "Fit whole frame" : "Fill panel (crop edges)"}
+      className="absolute right-2 top-2 z-10 rounded-pill border-[0.5px] border-white/20 bg-black/55 px-2 py-[3px] text-[11px] font-semibold text-white transition hover:bg-black/70"
+    >
+      {fill ? "Fit" : "Fill"}
+    </button>
+  );
+}
+
+/** One circular control on the video stage. */
+function StageButton({
+  label,
+  active,
+  tone = "neutral",
+  onClick,
+  children,
+}: {
+  label: string;
+  active?: boolean;
+  tone?: "neutral" | "danger";
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      aria-pressed={active}
+      className={cn(
+        "inline-flex size-8 items-center justify-center rounded-full border-[0.5px] text-white transition",
+        active
+          ? "border-white/20 bg-white/20 hover:bg-white/30"
+          : "border-white/20 bg-black/50 hover:bg-black/70",
+        tone === "danger" && "border-transparent bg-status-destructive hover:bg-status-destructive/85",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Mic / camera / screen-share cluster, bottom-centre of the stage. */
+function StageControls({
+  micOn,
+  cameraOn,
+  screenSharing,
+  screenSharingSupported,
+  onToggleMic,
+  onToggleCamera,
+  onToggleScreenShare,
+}: {
+  micOn: boolean;
+  cameraOn: boolean;
+  screenSharing: boolean;
+  screenSharingSupported: boolean;
+  onToggleMic: () => void;
+  onToggleCamera: () => void;
+  onToggleScreenShare: () => void;
+}) {
+  return (
+    <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2">
+      <StageButton
+        label={micOn ? "Mute microphone" : "Unmute microphone"}
+        onClick={onToggleMic}
+      >
+        {micOn ? (
+          <Mic className="size-4" aria-hidden="true" />
+        ) : (
+          <MicOff className="size-4 text-status-destructive" aria-hidden="true" />
+        )}
+      </StageButton>
+      <StageButton
+        label={cameraOn ? "Turn camera off" : "Turn camera on"}
+        onClick={onToggleCamera}
+      >
+        {cameraOn ? (
+          <Video className="size-4" aria-hidden="true" />
+        ) : (
+          <VideoOff className="size-4 text-status-destructive" aria-hidden="true" />
+        )}
+      </StageButton>
+      {screenSharingSupported && (
+        <StageButton
+          label={screenSharing ? "Stop sharing your screen" : "Share your screen"}
+          active={screenSharing}
+          onClick={onToggleScreenShare}
+        >
+          <Monitor className="size-4" aria-hidden="true" />
+        </StageButton>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The clinician's own camera as a draggable picture-in-picture card over the
+ * patient's feed. Pointer events handle fingers and mice alike; the card
+ * snaps to the nearest corner of the stage when dropped.
+ */
+function LocalPip({
+  cameraOn,
+  stream,
+  slot,
+  onSlotChange,
+}: {
+  cameraOn: boolean;
+  stream: MediaStream | null;
+  slot: PipSlot;
+  onSlotChange: (slot: PipSlot) => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const dragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originLeft: number;
+    originTop: number;
+    frame: HTMLElement | null;
+  } | null>(null);
+
+  useEffect(() => {
+    const node = videoRef.current;
+    if (!node || !stream) return;
+    node.srcObject = stream;
+    void node.play().catch(() => undefined);
+  }, [stream]);
+
+  const slotClass: Record<PipSlot, string> = {
+    "bottom-right": "bottom-14 right-2",
+    "top-right": "top-8 right-2",
+    "top-left": "top-8 left-2",
+    "bottom-left": "bottom-14 left-2",
+  };
+
+  function onDragStart(event: React.PointerEvent<HTMLDivElement>) {
+    const target = event.target as HTMLElement;
+    if (target.closest("button")) return;
+    const frame = event.currentTarget;
+    const rect = frame.getBoundingClientRect();
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originLeft: rect.left,
+      originTop: rect.top,
+      frame: frame,
+    };
+    frame.setPointerCapture(event.pointerId);
+    // Free-drag away from the four-slot anchors while holding the pointer.
+    frame.style.position = "fixed";
+    frame.style.left = `${rect.left}px`;
+    frame.style.top = `${rect.top}px`;
+    frame.style.right = "auto";
+    frame.style.bottom = "auto";
+  }
+
+  function onDragMove(event: React.PointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const nextLeft = drag.originLeft + (event.clientX - drag.startX);
+    const nextTop = drag.originTop + (event.clientY - drag.startY);
+    drag.frame!.style.left = `${nextLeft}px`;
+    drag.frame!.style.top = `${nextTop}px`;
+  }
+
+  function onDragEnd(event: React.PointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    const frame = event.currentTarget;
+    const parent = frame.parentElement?.getBoundingClientRect();
+    if (parent) {
+      const [dx, dy] = [
+        event.clientX - (parent.left + parent.width / 2),
+        event.clientY - (parent.top + parent.height / 2),
+      ];
+      onSlotChange(
+        dx < 0
+          ? dy < 0
+            ? "top-left"
+            : "bottom-left"
+          : dy < 0
+            ? "top-right"
+            : "bottom-right",
+      );
+    }
+    frame.style.position = "";
+    frame.style.left = "";
+    frame.style.top = "";
+    frame.style.right = "";
+    frame.style.bottom = "";
+  }
+
+  return (
+    <div
+      onPointerDown={onDragStart}
+      onPointerMove={onDragMove}
+      onPointerUp={onDragEnd}
+      onPointerCancel={onDragEnd}
+      role="group"
+      aria-label="Your camera preview — drag to move"
+      className={cn(
+        "absolute z-20 h-28 w-[84px] cursor-move touch-none overflow-hidden rounded-control border-[0.5px] border-white/25 bg-black shadow-dropdown",
+        "top-8 right-2",
+        slotClass[slot],
+      )}
+    >
+      {cameraOn ? (
+        <video
+          autoPlay
+          muted
+          playsInline
+          ref={videoRef}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <div className="flex size-full items-center justify-center">
+          <VideoOff className="size-4 text-white/60" aria-hidden="true" />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TelehealthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -256,6 +517,17 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
   const [isNarrow, setIsNarrow] = useState(false);
   const [geometry, setGeometry] = useState<Geometry | null>(null);
 
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteCameraOn, setRemoteCameraOn] = useState(true);
+  const [remoteMicOn, setRemoteMicOn] = useState(true);
+  const [screenSharing, setScreenSharing] = useState(false);
+  const [videoFill, setVideoFill] = useState(false);
+  const [pipSlot, setPipSlot] = useState<PipSlot>("bottom-right");
+  const [elapsed, setElapsed] = useState(0);
+  const [joinError, setJoinError] = useState<string | null>(null);
+  const [screenShareSupported, setScreenShareSupported] = useState(false);
+
   const [capture, setCapture] = useState<CapturedFrame | null>(null);
   const [savingCapture, setSavingCapture] = useState(false);
   const [tagDermPhoto, setTagDermPhoto] = useState(false);
@@ -264,7 +536,9 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
   const [lesionNotes, setLesionNotes] = useState("");
 
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const zgRef = useRef<ZegoKit | null>(null);
+  const zgRef = useRef<TelehealthCall | null>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const geometryRef = useRef<Geometry | null>(null);
   const dragRef = useRef<{
     pointerId: number;
@@ -351,12 +625,13 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const teardown = useCallback(() => {
-    try {
-      zgRef.current?.destroy();
-    } catch {
-      /* the kit may already be torn down */
-    }
+    const instance = zgRef.current;
     zgRef.current = null;
+    if (instance) {
+      void instance.destroy().catch(() => {
+        /* the engine may already be torn down */
+      });
+    }
   }, []);
 
   useEffect(() => () => teardown(), [teardown]);
@@ -385,6 +660,13 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
     setExpanded(false);
     setChatOpen(false);
     setTab("context");
+    setRemoteStream(null);
+    setRemoteCameraOn(true);
+    setRemoteMicOn(true);
+    setScreenSharing(false);
+    setPipSlot("bottom-right");
+    setElapsed(0);
+    setJoinError(null);
     // Persist across a reload: the panel lives in the shell, but the record
     // that knows *who* was being called only lives in the launcher's markup.
     try {
@@ -421,6 +703,8 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
         roomId: result.data.roomId,
         doctorToken: result.data.doctorToken,
         doctorName: result.data.doctorName,
+        zegoAppId: result.data.zegoAppId,
+        zegoUserId: result.data.zegoUserId,
         joinUrl: result.data.joinUrl,
       });
 
@@ -458,83 +742,107 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
         roomId: result.data.roomId,
         doctorToken: result.data.doctorToken,
         doctorName: result.data.doctorName,
+        zegoAppId: result.data.zegoAppId,
+        zegoUserId: result.data.zegoUserId,
         joinUrl: result.data.joinUrl || record.joinUrl,
       });
     },
     [pending, teardown, beginJoin],
   );
 
-  // Mount the prebuilt kit once a token exists. This runs only on a new call,
+  // Wire the core engine once a token exists. This runs only on a new call,
   // never on layout changes — which is what makes the call outlive navigation.
+  // Every video element is ours (plain <video> tags in the stage below), so
+  // aspect ratio, drag and frame capture are all under our control.
+  const {
+    doctorToken: activeToken,
+    sessionId: activeSessionId,
+    zegoAppId: activeAppId,
+    zegoUserId: activeUserId,
+    roomId: activeRoomId,
+    doctorName: activeDoctorName,
+  } = call ?? {};
   useEffect(() => {
-    if (!call?.doctorToken) return;
+    if (
+      !activeToken ||
+      activeAppId === undefined ||
+      activeUserId === undefined ||
+      activeRoomId === undefined ||
+      activeDoctorName === undefined
+    ) {
+      return;
+    }
     let cancelled = false;
-    (async () => {
-      const element = containerRef.current;
-      if (!element) return;
-      const { ZegoUIKitPrebuilt } =
-        await import("@zegocloud/zego-uikit-prebuilt");
-      if (cancelled) return;
-      const zp = ZegoUIKitPrebuilt.create(call.doctorToken);
-      // A clinician often joins before the patient; without this the kit can
-      // treat the empty room as "everyone left" and hang up.
-      zp.autoLeaveRoomWhenOnlySelfInRoom = false;
-      zgRef.current = zp;
-      zp.joinRoom({
-        container: element,
-        scenario: { mode: ZegoUIKitPrebuilt.OneONoneCall },
-        showPreJoinView: false,
-        turnOnMicrophoneWhenJoining: true,
-        turnOnCameraWhenJoining: true,
-        showUserList: false,
-        showTextChat: false,
-        showLeavingView: false,
-        showScreenSharingButton: true,
-        showRoomTimer: true,
-        showLeaveRoomConfirmDialog: true,
-        leaveRoomDialogConfig: {
-          titleText: "End this consultation?",
-          descriptionText:
-            "The patient will be disconnected. You can rejoin from the record if it was a mistake.",
+    const callInstance = new TelehealthCall({
+      appId: activeAppId,
+      roomId: activeRoomId,
+      token: activeToken,
+      userId: activeUserId,
+      userName: activeDoctorName,
+      events: {
+        onRoomConnected: () => {
+          setPhase((current) => (current === "joining" ? "waiting" : current));
         },
-        lowerLeftNotification: {
-          showUserJoinAndLeave: true,
-          showTextChat: false,
+        onRoomDisconnected: () => {
+          setPatientPresent(false);
+          setPhase((current) => (current === "ended" ? current : "joining"));
         },
-        screenSharingConfig: {
-          onError: () => {
-            toast.error(
-              "Screen sharing couldn't start on this device. Check the browser's screen-recording permission.",
-            );
-            return "";
-          },
-        },
-        onJoinRoom: () => setPhase("waiting"),
-        onUserJoin: () => {
+        onPeerJoined: () => {
           setPatientPresent(true);
-          setPhase("connected");
+          setPhase((current) => (current === "ended" ? current : "connected"));
         },
-        onStreamUpdate: () => {
-          setPatientPresent(true);
-          setPhase("connected");
-        },
-        onUserLeave: () => {
+        onPeerLeft: () => {
           setPatientPresent(false);
           setPhase((current) => (current === "ended" ? current : "waiting"));
+          toast("The patient left the call.", {
+            description: "They can rejoin with the same link for 2 hours.",
+          });
         },
-        onLeaveRoom: () => setPhase("ended"),
-        onYouRemovedFromRoom: () => {
-          setPhase("ended");
-          toast.error("You were removed from the room.");
+        onRemoteStream: (stream) => {
+          setRemoteStream(stream);
+          if (stream) {
+            setPatientPresent(true);
+            setPhase((current) => (current === "ended" ? current : "connected"));
+          }
         },
-        onCameraStateUpdated: (state) => setCameraOn(state === "ON"),
-        onMicrophoneStateUpdated: (state) => setMicOn(state === "ON"),
-      });
+        onRemoteCamera: (on) => setRemoteCameraOn(on),
+        onRemoteMic: (on) => setRemoteMicOn(on),
+        onScreenShareEnded: () => setScreenSharing(false),
+        onError: (message) => toast.error(message),
+      },
+    });
+    zgRef.current = callInstance;
+    (async () => {
+      try {
+        const stream = await callInstance.prepare();
+        if (cancelled) return;
+        setLocalStream(stream);
+        await callInstance.join();
+        if (cancelled) return;
+        setPhase((current) => (current === "joining" ? "waiting" : current));
+      } catch (error) {
+        if (cancelled) return;
+        console.error("[telehealth] join failed", error);
+        setJoinError(
+          error instanceof Error ? error.message : "Couldn't start the call.",
+        );
+        setPhase("ended");
+      }
     })();
     return () => {
       cancelled = true;
+      if (zgRef.current === callInstance) zgRef.current = null;
+      setLocalStream(null);
+      void callInstance.destroy();
     };
-  }, [call?.doctorToken, call?.sessionId]);
+  }, [
+    activeToken,
+    activeSessionId,
+    activeAppId,
+    activeUserId,
+    activeRoomId,
+    activeDoctorName,
+  ]);
 
   const closePanel = useCallback(() => {
     teardown();
@@ -563,26 +871,88 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
     else toast.success("Call ended");
   }, [call, ending, teardown, closePanel]);
 
+  const toggleMic = useCallback(() => {
+    const instance = zgRef.current;
+    if (!instance) return;
+    const next = !micOn;
+    instance.toggleMic(!next);
+    setMicOn(next);
+  }, [micOn]);
+
+  const toggleCamera = useCallback(() => {
+    const instance = zgRef.current;
+    if (!instance) return;
+    const next = !cameraOn;
+    instance.toggleCamera(!next);
+    setCameraOn(next);
+  }, [cameraOn]);
+
+  const toggleScreenShare = useCallback(async () => {
+    const instance = zgRef.current;
+    if (!instance) return;
+    if (!screenSharing) {
+      try {
+        await instance.startScreenShare();
+        setScreenSharing(true);
+      } catch {
+        toast.error(
+          "Screen sharing couldn't start on this device. Check the browser's screen-recording permission.",
+        );
+      }
+    } else {
+      await instance.stopScreenShare();
+      setScreenSharing(false);
+      setCameraOn(true);
+    }
+  }, [screenSharing]);
+
+  // Attach the patient's stream to the stage's video element directly — the
+  // video is ours, so no kit DOM or mutation was ever needed.
+  useEffect(() => {
+    const node = remoteVideoRef.current;
+    if (!node) return;
+    node.srcObject = remoteStream;
+    if (remoteStream) {
+      void node.play().catch(() => undefined);
+    }
+  }, [remoteStream]);
+
+  const endedRef = useRef(false);
+  useEffect(() => {
+    endedRef.current = phase === "ended";
+  }, [phase]);
+
+  // The kit used to render its own room timer; ours ticks from the moment the
+  // engine login was attempted, pausing once the room is closed.
+  useEffect(() => {
+    if (!call?.doctorToken) return;
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      if (!endedRef.current) {
+        setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+      }
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [call?.doctorToken]);
+
+  useEffect(() => {
+    if (
+      typeof navigator !== "undefined" &&
+      typeof navigator.mediaDevices?.getDisplayMedia === "function"
+    ) {
+      setScreenShareSupported(true);
+    }
+  }, []);
+
   /**
-   * Compose a still from the live video. The kit publishes no snapshot API, so
-   * the frame is drawn from the remote `<video>` element (never the local
-   * preview) and held for explicit confirmation before anything is saved.
+   * Compose a still from the live video. The frame is drawn from the patient's
+   * own `<video>` element (never the local preview) and held for explicit
+   * confirmation before anything is saved — the stage renders our elements, so
+   * the pixels in this frame are exactly what the clinician is seeing.
    */
   function grabFrame() {
-    const container = containerRef.current;
-    if (!container) return;
-    const local = zgRef.current?.localStream;
-    const videos = Array.from(container.querySelectorAll("video"));
-    const remote =
-      videos.find((video) => {
-        const source = video.srcObject;
-        return (
-          source instanceof MediaStream &&
-          source !== local &&
-          video.videoWidth > 0
-        );
-      }) ?? videos.find((video) => video.videoWidth > 0);
-    if (!remote) {
+    const remote = remoteVideoRef.current;
+    if (!remote || !remote.videoWidth) {
       toast.error("No video frame to capture yet.");
       return;
     }
@@ -650,7 +1020,9 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
   // ---- Floating panel drag & resize -------------------------------------
 
   function onDragPointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    if (isNarrow || !geometry) return;
+    // Mobile screens keep the free-floating panel too — pointer events make
+    // the drag work for fingers just as for a mouse.
+    if (!geometry) return;
     const target = event.target as HTMLElement;
     if (target.closest("button, a, input, textarea, select")) return;
     dragRef.current = {
@@ -690,7 +1062,7 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
   }
 
   function onResizePointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    if (isNarrow || !geometry) return;
+    if (!geometry) return;
     resizeRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -738,7 +1110,7 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
     [start, rejoin, pending, call],
   );
 
-  const floating = !expanded && !isNarrow;
+  const floating = !expanded && !collapsed;
   const resolvedGeometry = floating ? (geometry ?? null) : null;
   const phaseCopy = PHASE_COPY[phase];
 
@@ -905,22 +1277,107 @@ export function TelehealthProvider({ children }: { children: ReactNode }) {
                   <>
                     {/*
                       Video viewport. Header and action bar are `shrink-0`, so
-                      this is the only region that flexes. The kit mounts into
-                      a strict 16:9 `aspect-video` box centred on black — the
-                      panel may be phone-shaped, the picture never is — and
-                      `.telehealth-video-viewport` (globals.css) makes the kit
-                      fill that box without stretching it.
+                      this is the only region that flexes. The `<video>`
+                      elements are ours: the patient's feed flexes to the
+                      panel's whole frame (portrait or widescreen), with Fill
+                      cropping or Fit letterboxing, and frame capture reads
+                      the exact pixels on screen.
                     */}
                     <div className="flex min-h-0 flex-1 gap-4">
-                      <div className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden bg-black">
-                        <div className="relative aspect-video max-h-full w-full overflow-hidden">
-                          {/* Never unmounted: overlays cover it instead. */}
-                          <div
-                            ref={containerRef}
-                            className="telehealth-video-viewport absolute inset-0"
-                            data-room={call.roomId}
-                          />
-                        </div>
+                      <div
+                        ref={containerRef}
+                        data-room={call.roomId}
+                        className="relative flex min-h-0 w-full flex-1 overflow-hidden bg-black"
+                      >
+                        {/*
+                          Never unmounted: overlays cover it instead. The
+                          video elementowns the whole stage and flexes to the
+                          panel's frame — portrait, landscape, anything — so
+                          the picture is never a cropped 16:9 box again. Fill
+                          crops to the panel; Fit letterboxes the full frame.
+                        */}
+                        <video
+                          ref={remoteVideoRef}
+                          autoPlay
+                          playsInline
+                          className={cn(
+                            "absolute inset-0 h-full w-full",
+                            videoFill ? "object-cover" : "object-contain",
+                          )}
+                          data-telehealth="remote"
+                          onLoadedMetadata={(event) => {
+                            void event.currentTarget.play().catch(() => undefined);
+                          }}
+                        />
+                        {joinError && (
+                          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-2 bg-black/85 px-6 text-center">
+                            <PhoneOff
+                              className="size-7 text-status-destructive"
+                              aria-hidden="true"
+                            />
+                            <p className="text-[12.5px] text-white">{joinError}</p>
+                          </div>
+                        )}
+                        {(phase !== "connected" || !patientPresent) && (
+                          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black text-center">
+                            <video
+                              autoPlay
+                              muted
+                              playsInline
+                              ref={(node) => {
+                                localVideoRef.current = node;
+                                if (!node) return;
+                                node.srcObject = localStream;
+                                void node.play().catch(() => undefined);
+                              }}
+                              className="absolute inset-0 h-full w-full object-cover opacity-60 grayscale"
+                            />
+                            <div className="relative z-10 inline-flex items-center gap-2 rounded-pill border-[0.5px] border-white/20 bg-black/60 px-3 py-1.5 text-[12px] font-medium text-white">
+                              {phase === "joining" ? (
+                                <Loader2 className="size-3.5 animate-spin" />
+                              ) : (
+                                <Video className="size-3.5" />
+                              )}
+                              {phaseCopy.label}
+                            </div>
+                          </div>
+                        )}
+                        <TimingChip elapsed={elapsed} />
+                        {patientPresent && (!remoteCameraOn || !remoteMicOn) && (
+                          <div className="absolute left-2 top-8 z-10 flex flex-col items-start gap-1">
+                            {!remoteCameraOn && (
+                              <span className="inline-flex items-center gap-1.5 rounded-pill border-[0.5px] border-white/20 bg-black/60 px-2 py-[3px] text-[11px] font-medium text-white">
+                                <VideoOff className="size-3" aria-hidden="true" />
+                                Patient camera off
+                              </span>
+                            )}
+                            {!remoteMicOn && (
+                              <span className="inline-flex items-center gap-1.5 rounded-pill border-[0.5px] border-white/20 bg-black/60 px-2 py-[3px] text-[11px] font-medium text-white">
+                                <MicOff className="size-3" aria-hidden="true" />
+                                Patient mic muted
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        <FitToggle
+                          fill={videoFill}
+                          onToggle={() => setVideoFill((value) => !value)}
+                        />
+                        <LocalPip
+                          cameraOn={cameraOn && !screenSharing}
+                          stream={localStream}
+                          slot={pipSlot}
+                          onSlotChange={setPipSlot}
+                        />
+                        <StageControls
+                          micOn={micOn}
+                          cameraOn={cameraOn && !screenSharing}
+                          screenSharingSupported={screenShareSupported}
+                          screenSharing={screenSharing}
+                          onToggleMic={toggleMic}
+                          onToggleCamera={toggleCamera}
+                          onToggleScreenShare={toggleScreenShare}
+                        />
                         {chatOpen && !expanded && (
                           <div className="absolute inset-0 z-10 flex flex-col bg-surface">
                             <div className="flex items-center justify-between border-b-[0.5px] border-hairline px-3 py-1.5">

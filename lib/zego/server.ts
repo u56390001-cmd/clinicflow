@@ -6,6 +6,8 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 
+import { createWidgetClient } from "@/lib/supabase/widget";
+
 /**
  * Phase 8 — server-side ZEGOcloud KitToken minting.
  *
@@ -27,6 +29,28 @@ export type ZegoConfig = {
   serverSecret: string;
 };
 
+/** Format validation shared by the settings screen and the token signer. */
+export function validateZegoCredentials(
+  appId: string,
+  serverSecret: string,
+): { ok: true; config: ZegoConfig } | { ok: false; message: string } {
+  if (!/^[0-9]{1,15}$/.test(appId.trim())) {
+    return {
+      ok: false,
+      message: "App ID must be the numeric ZEGOcloud App ID (digits only).",
+    };
+  }
+  const secret = serverSecret.trim();
+  if (![16, 24, 32].includes(secret.length)) {
+    return {
+      ok: false,
+      message:
+        "Server Secret must be exactly 16, 24 or 32 characters (it is AES-encrypted into every token).",
+    };
+  }
+  return { ok: true, config: { appId: Number(appId.trim()), serverSecret: secret } };
+}
+
 export type ZegoSessionTokenInput = {
   roomId: string;
   userId: string;
@@ -47,6 +71,51 @@ export function getZegoConfig(): ZegoConfig | null {
 
 export function isTelehealthConfigured(): boolean {
   return getZegoConfig() !== null;
+}
+
+/** Where the credentials that minted a token came from. */
+export type ZegoCredentialsSource = "clinic" | "platform";
+
+/**
+ * Resolves the ZEGOcloud credentials for one clinic: the clinic's own
+ * connected App ID + Server Secret when set (per-clinic accounts, migration
+ * 0107), otherwise the platform-wide env pair as the shared fallback.
+ *
+ * The secret row is service-role-only (RLS-enabled, zero policies), so this
+ * lookup is the ONLY way it is ever read — by server-side token minting.
+ */
+export async function resolveZegoConfigForClinic(
+  clinicId: string,
+): Promise<{ config: ZegoConfig | null; source: ZegoCredentialsSource }> {
+  const widget = createWidgetClient();
+  const { data, error } = await widget
+    .from("clinic_zego_config")
+    .select("app_id, connection_status, clinic_zego_secrets(server_secret)")
+    .eq("clinic_id", clinicId)
+    .eq("connection_status", "connected")
+    .maybeSingle();
+
+  if (error) {
+    console.error("[zego] clinic config lookup failed", {
+      clinicId,
+      message: error.message,
+    });
+  }
+
+  const appId = typeof data?.app_id === "string" ? data.app_id : null;
+  const secretRow = Array.isArray(data?.clinic_zego_secrets)
+    ? data?.clinic_zego_secrets[0]
+    : data?.clinic_zego_secrets;
+  const serverSecret =
+    secretRow && typeof secretRow === "object" && "server_secret" in secretRow
+      ? ((secretRow as { server_secret?: string }).server_secret ?? null)
+      : null;
+
+  if (appId && serverSecret) {
+    const config = validateZegoCredentials(appId, serverSecret);
+    if (config.ok) return { config: config.config, source: "clinic" };
+  }
+  return { config: getZegoConfig(), source: "platform" };
 }
 
 /** AES key sizes CryptoJS will accept for a UTF-8 server secret. */
@@ -159,6 +228,43 @@ export function patientLinkTokenMatches(
   const provided = Buffer.from(hashPatientLinkToken(presentedToken), "hex");
   if (expected.length !== provided.length) return false;
   return timingSafeEqual(expected, provided);
+}
+
+export type ZegoTokenEnvelope = {
+  userID: string;
+  roomID: string;
+  userName?: string;
+  appID: number;
+};
+
+/**
+ * Reads the identity half of a KitToken (the plain base64 envelope after the
+ * `#`). Client-visible data only — themetic AES part stays untouched — so the
+ * patient join page can hand the core engine the appID and userID the token
+ * was minted for without any extra server round-trip.
+ */
+export function parseKitTokenEnvelope(token: string): ZegoTokenEnvelope | null {
+  const parts = token.split("#");
+  if (parts.length !== 2) return null;
+  try {
+    const payload = Buffer.from(parts[1] ?? "", "base64").toString("utf8");
+    const parsed = JSON.parse(payload) as Partial<ZegoTokenEnvelope>;
+    if (
+      !parsed.userID ||
+      typeof parsed.userID !== "string" ||
+      typeof parsed.appID !== "number"
+    ) {
+      return null;
+    }
+    return {
+      userID: parsed.userID,
+      roomID: typeof parsed.roomID === "string" ? parsed.roomID : "",
+      userName: parsed.userName,
+      appID: parsed.appID,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /** Deterministic, tenant-namespaced room id (clinic → doctor → patient). */export function buildTelehealthRoomId(params: {

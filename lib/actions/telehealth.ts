@@ -15,7 +15,7 @@ import { createWidgetClient } from "@/lib/supabase/widget";
 import {
   buildTelehealthRoomId,
   generateKitToken,
-  getZegoConfig,
+  resolveZegoConfigForClinic,
   hashPatientLinkToken,
 } from "@/lib/zego/server";
 import {
@@ -46,6 +46,10 @@ export type StartTelehealthResult = {
   /** Doctor-facing KitToken (kept in memory only — never persisted). */
   doctorToken: string;
   doctorName: string;
+  /** The ZEGO app the room runs on — not a secret (it rides inside the token). */
+  zegoAppId: number;
+  /** The publisher identity baked into the token, used as the stream id. */
+  zegoUserId: string;
   joinUrl: string;
   whatsappSent: boolean;
   hasWhatsappNumber: boolean;
@@ -103,12 +107,13 @@ export async function startTelehealthSessionAction(
   }
   const clinicId = access.clinic.id;
 
-  const config = getZegoConfig();
+  // Per-clinic ZEGO project when connected, otherwise the platform env pair.
+  const { config, source } = await resolveZegoConfigForClinic(clinicId);
   if (!config) {
     return {
       ok: false,
       message:
-        "Video calling isn't configured. Add ZEGO_APP_ID and ZEGO_SERVER_SECRET.",
+        "Video calling isn't configured for this clinic yet. Connect a ZEGOcloud App ID under Telehealth settings.",
     };
   }
 
@@ -274,7 +279,7 @@ export async function startTelehealthSessionAction(
     action: "TELEHEALTH_START",
     resourceType: "telehealth_session",
     resourceId: session.id,
-    details: { patientId, roomId, whatsappSent, visitId: options?.visitId ?? null, appointmentId },
+    details: { patientId, roomId, whatsappSent, visitId: options?.visitId ?? null, appointmentId, zegoCredentials: source },
   });
 
   revalidatePath("/app/patients");
@@ -286,6 +291,8 @@ export async function startTelehealthSessionAction(
       roomId,
       doctorToken,
       doctorName,
+      zegoAppId: config.appId,
+      zegoUserId: user.id,
       joinUrl,
       whatsappSent,
       hasWhatsappNumber: waNumber.length > 0,
@@ -383,12 +390,12 @@ export async function resumeTelehealthSessionAction(
   }
   const clinicId = access.clinic.id;
 
-  const config = getZegoConfig();
+  const { config } = await resolveZegoConfigForClinic(clinicId);
   if (!config) {
     return {
       ok: false,
       message:
-        "Video calling isn't configured. Add ZEGO_APP_ID and ZEGO_SERVER_SECRET.",
+        "Video calling isn't configured for this clinic yet. Connect a ZEGOcloud App ID under Telehealth settings.",
     };
   }
 
@@ -461,6 +468,8 @@ export async function resumeTelehealthSessionAction(
       roomId: session.room_id,
       doctorToken,
       doctorName,
+      zegoAppId: config.appId,
+      zegoUserId: user.id,
       joinUrl: session.patient_join_url,
       whatsappSent: false,
       hasWhatsappNumber: false,

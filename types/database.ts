@@ -2009,6 +2009,34 @@ export type ClinicWhatsappSecret = {
   updated_at: string;
 };
 
+/** Non-secret state of a clinic's own ZEGOcloud connection (migration 0107). */
+export type ZegoConnectionStatus = "not_connected" | "connected" | "error";
+
+export type ClinicZegoConfig = {
+  id: string;
+  clinic_id: string;
+  app_id: string;
+  connection_status: ZegoConnectionStatus;
+  status_message: string | null;
+  connected_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * Service-role-only storage for a clinic's ZEGOcloud Server Secret
+ * (migration 0107). RLS-enabled with ZERO policies — same isolation rule as
+ * `clinic_whatsapp_secrets` above; only server actions using the service-role
+ * key do.
+ */
+export type ClinicZegoSecret = {
+  id: string;
+  config_id: string;
+  server_secret: string;
+  created_at: string;
+  updated_at: string;
+};
+
 /**
  * One row per AI chat turn (observability). Only session id / outcome /
  * counts are stored — never patient content.
@@ -3193,6 +3221,64 @@ export type Database = {
             columns: ["config_id"];
             isOneToOne: true;
             referencedRelation: "clinic_whatsapp_config";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      clinic_zego_config: {
+        Row: ClinicZegoConfig;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          app_id: string;
+          connection_status?: ZegoConnectionStatus;
+          status_message?: string | null;
+          connected_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          app_id?: string;
+          connection_status?: ZegoConnectionStatus;
+          status_message?: string | null;
+          connected_at?: string | null;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "clinic_zego_config_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: true;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      clinic_zego_secrets: {
+        Row: ClinicZegoSecret;
+        Insert: {
+          id?: string;
+          config_id: string;
+          server_secret: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          config_id?: never;
+          server_secret?: string;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "clinic_zego_secrets_config_id_fkey";
+            columns: ["config_id"];
+            isOneToOne: true;
+            referencedRelation: "clinic_zego_config";
             referencedColumns: ["id"];
           },
         ];
