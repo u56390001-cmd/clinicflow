@@ -56,6 +56,58 @@ async function logEmailFailure(params: {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Delivery                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Hand a message to Resend and report what actually happened.
+ *
+ * Resend does NOT throw on a rejected send - it resolves with `{ error }` (a
+ * 403 for an unverified sender, a 422 for a bad payload, ...). Only checking
+ * the thrown error made a failed send look like a successful one, so the
+ * registration flow reported "credentials emailed" for a mail that was never
+ * delivered. The returned `error` is now inspected as well.
+ */
+async function deliver(params: {
+  to: string | string[];
+  subject: string;
+  html: string;
+  event: string;
+  clinicId?: string | null;
+}): Promise<SendEmailResult> {
+  try {
+    const { error } = await getResend().emails.send({
+      from: FROM_EMAIL,
+      to: params.to,
+      subject: params.subject,
+      html: params.html,
+    });
+
+    if (error) {
+      const message = error.message || "Resend rejected the message.";
+      console.error(`[email] ${params.event} failed:`, message);
+      await logEmailFailure({
+        event: params.event,
+        error: message,
+        clinicId: params.clinicId ?? null,
+      });
+      return { ok: false, error: message };
+    }
+
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[email] ${params.event} failed:`, message);
+    await logEmailFailure({
+      event: params.event,
+      error: message,
+      clinicId: params.clinicId ?? null,
+    });
+    return { ok: false, error: message };
+  }
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Appointment emails                                                        */
 /* -------------------------------------------------------------------------- */
 
@@ -63,64 +115,32 @@ export async function sendAppointmentConfirmation(
   params: AppointmentConfirmationParams,
   to: string,
 ): Promise<SendEmailResult> {
-  try {
-    const { subject, html } = appointmentConfirmation(params);
-    await getResend().emails.send({ from: FROM_EMAIL, to, subject, html });
-    return { ok: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[email] sendAppointmentConfirmation failed:", message);
-    await logEmailFailure({ event: "appointment_confirmation_send_failed", error: message });
-    return { ok: false, error: message };
-  }
+  const { subject, html } = appointmentConfirmation(params);
+  return deliver({ to, subject, html, event: "appointment_confirmation_send_failed" });
 }
 
 export async function sendAppointmentNotification(
   params: AppointmentNotificationParams,
   to: string,
 ): Promise<SendEmailResult> {
-  try {
-    const { subject, html } = appointmentNotification(params);
-    await getResend().emails.send({ from: FROM_EMAIL, to, subject, html });
-    return { ok: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[email] sendAppointmentNotification failed:", message);
-    await logEmailFailure({ event: "appointment_notification_send_failed", error: message });
-    return { ok: false, error: message };
-  }
+  const { subject, html } = appointmentNotification(params);
+  return deliver({ to, subject, html, event: "appointment_notification_send_failed" });
 }
 
 export async function sendAppointmentCancellation(
   params: AppointmentCancellationParams,
   to: string,
 ): Promise<SendEmailResult> {
-  try {
-    const { subject, html } = appointmentCancellation(params);
-    await getResend().emails.send({ from: FROM_EMAIL, to, subject, html });
-    return { ok: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[email] sendAppointmentCancellation failed:", message);
-    await logEmailFailure({ event: "appointment_cancellation_send_failed", error: message });
-    return { ok: false, error: message };
-  }
+  const { subject, html } = appointmentCancellation(params);
+  return deliver({ to, subject, html, event: "appointment_cancellation_send_failed" });
 }
 
 export async function sendAppointmentReschedule(
   params: AppointmentRescheduleParams,
   to: string,
 ): Promise<SendEmailResult> {
-  try {
-    const { subject, html } = appointmentReschedule(params);
-    await getResend().emails.send({ from: FROM_EMAIL, to, subject, html });
-    return { ok: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[email] sendAppointmentReschedule failed:", message);
-    await logEmailFailure({ event: "appointment_reschedule_send_failed", error: message });
-    return { ok: false, error: message };
-  }
+  const { subject, html } = appointmentReschedule(params);
+  return deliver({ to, subject, html, event: "appointment_reschedule_send_failed" });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -131,64 +151,32 @@ export async function sendBillingSubmitted(
   params: BillingSubmittedParams,
   to: string,
 ): Promise<SendEmailResult> {
-  try {
-    const { subject, html } = billingSubmitted(params);
-    await getResend().emails.send({ from: FROM_EMAIL, to, subject, html });
-    return { ok: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[email] sendBillingSubmitted failed:", message);
-    await logEmailFailure({ event: "billing_submitted_send_failed", error: message });
-    return { ok: false, error: message };
-  }
+  const { subject, html } = billingSubmitted(params);
+  return deliver({ to, subject, html, event: "billing_submitted_send_failed" });
 }
 
 export async function sendBillingApproved(
   params: BillingApprovedParams,
   to: string,
 ): Promise<SendEmailResult> {
-  try {
-    const { subject, html } = billingApproved(params);
-    await getResend().emails.send({ from: FROM_EMAIL, to, subject, html });
-    return { ok: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[email] sendBillingApproved failed:", message);
-    await logEmailFailure({ event: "billing_approved_send_failed", error: message });
-    return { ok: false, error: message };
-  }
+  const { subject, html } = billingApproved(params);
+  return deliver({ to, subject, html, event: "billing_approved_send_failed" });
 }
 
 export async function sendBillingRejected(
   params: BillingRejectedParams,
   to: string,
 ): Promise<SendEmailResult> {
-  try {
-    const { subject, html } = billingRejected(params);
-    await getResend().emails.send({ from: FROM_EMAIL, to, subject, html });
-    return { ok: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[email] sendBillingRejected failed:", message);
-    await logEmailFailure({ event: "billing_rejected_send_failed", error: message });
-    return { ok: false, error: message };
-  }
+  const { subject, html } = billingRejected(params);
+  return deliver({ to, subject, html, event: "billing_rejected_send_failed" });
 }
 
 export async function sendBillingExpiring(
   params: BillingExpiringParams,
   to: string,
 ): Promise<SendEmailResult> {
-  try {
-    const { subject, html } = billingExpiring(params);
-    await getResend().emails.send({ from: FROM_EMAIL, to, subject, html });
-    return { ok: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[email] sendBillingExpiring failed:", message);
-    await logEmailFailure({ event: "billing_expiring_send_failed", error: message });
-    return { ok: false, error: message };
-  }
+  const { subject, html } = billingExpiring(params);
+  return deliver({ to, subject, html, event: "billing_expiring_send_failed" });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -208,16 +196,17 @@ export async function sendAssessmentSafetyAlert(
   if (unique.length === 0) return { ok: false, delivered: [] };
 
   const { subject, html } = assessmentSafetyAlert(params);
-  const delivered: string[] = [];
-  try {
-    await getResend().emails.send({ from: FROM_EMAIL, to: unique, subject, html });
-    return { ok: true, delivered: unique };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[email] sendAssessmentSafetyAlert failed:", message);
-    await logEmailFailure({ event: "assessment_safety_alert_send_failed", error: message });
-    return { ok: false, delivered, error: message };
-  }
+  const result = await deliver({
+    to: unique,
+    subject,
+    html,
+    event: "assessment_safety_alert_send_failed",
+  });
+  return {
+    ok: result.ok,
+    delivered: result.ok ? unique : [],
+    error: result.error,
+  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -336,25 +325,17 @@ export async function sendAccountCredentialsEmail(params: {
   currency: string;
   periodEnd: Date;
 }): Promise<SendEmailResult> {
-  try {
-    const { subject, html } = accountCredentials({
-      fullName: params.fullName,
-      clinicName: params.clinicName,
-      email: params.to,
-      temporaryPassword: params.temporaryPassword,
-      planName: params.planName,
-      amount: `${params.currency} ${params.amount.toLocaleString()}`,
-      periodEnd: params.periodEnd.toLocaleDateString(),
-      loginUrl: `${SITE_URL}/login`,
-    });
-    await getResend().emails.send({ from: FROM_EMAIL, to: params.to, subject, html });
-    return { ok: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[email] sendAccountCredentialsEmail failed:", message);
-    await logEmailFailure({ event: "account_credentials_send_failed", error: message });
-    return { ok: false, error: message };
-  }
+  const { subject, html } = accountCredentials({
+    fullName: params.fullName,
+    clinicName: params.clinicName,
+    email: params.to,
+    temporaryPassword: params.temporaryPassword,
+    planName: params.planName,
+    amount: `${params.currency} ${params.amount.toLocaleString()}`,
+    periodEnd: params.periodEnd.toLocaleDateString(),
+    loginUrl: `${SITE_URL}/login`,
+  });
+  return deliver({ to: params.to, subject, html, event: "account_credentials_send_failed" });
 }
 
 /** Tell an applicant that their payment could not be verified. */
@@ -365,22 +346,14 @@ export async function sendRegistrationRejectedEmail(params: {
   planName: string;
   reason: string;
 }): Promise<SendEmailResult> {
-  try {
-    const { subject, html } = registrationRejected({
-      fullName: params.fullName,
-      clinicName: params.clinicName,
-      planName: params.planName,
-      reason: params.reason,
-      retryUrl: `${SITE_URL}/get-started`,
-    });
-    await getResend().emails.send({ from: FROM_EMAIL, to: params.to, subject, html });
-    return { ok: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[email] sendRegistrationRejectedEmail failed:", message);
-    await logEmailFailure({ event: "registration_rejected_send_failed", error: message });
-    return { ok: false, error: message };
-  }
+  const { subject, html } = registrationRejected({
+    fullName: params.fullName,
+    clinicName: params.clinicName,
+    planName: params.planName,
+    reason: params.reason,
+    retryUrl: `${SITE_URL}/get-started`,
+  });
+  return deliver({ to: params.to, subject, html, event: "registration_rejected_send_failed" });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -395,23 +368,17 @@ export async function sendTeamInviteEmail(params: {
   to: string;
   acceptUrl: string;
 }): Promise<SendEmailResult> {
-  try {
-    const { subject, html } = teamInvite({
-      clinicName: params.clinicName,
-      inviterName: params.inviterName,
-      role: params.role,
-      acceptUrl: params.acceptUrl,
-    });
-    await getResend().emails.send({ from: FROM_EMAIL, to: params.to, subject, html });
-    return { ok: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[email] sendTeamInviteEmail failed:", message);
-    await logEmailFailure({
-      event: "team_invite_send_failed",
-      error: message,
-      clinicId: params.clinicId ?? null,
-    });
-    return { ok: false, error: message };
-  }
+  const { subject, html } = teamInvite({
+    clinicName: params.clinicName,
+    inviterName: params.inviterName,
+    role: params.role,
+    acceptUrl: params.acceptUrl,
+  });
+  return deliver({
+    to: params.to,
+    subject,
+    html,
+    event: "team_invite_send_failed",
+    clinicId: params.clinicId ?? null,
+  });
 }
