@@ -15,8 +15,8 @@
  * one prompt serving two products with different data-sensitivity classes.
  */
 
-import { getGeminiProvider } from "@/lib/ai/gemini-provider";
-import { resolveProviderForClinic } from "@/lib/ai/provider";
+
+import { resolvePlatformProvider, resolveProviderForClinic } from "@/lib/ai/provider";
 import type {
   PatientPrescriptionRow,
   PatientPsychBundle,
@@ -355,7 +355,7 @@ export async function generatePatientSummary(
   try {
     const provider = clinicId
       ? await resolveProviderForClinic(clinicId)
-      : getGeminiProvider();
+      : resolvePlatformProvider();
     const text = await provider.complete({
       systemInstruction: PATIENT_SUMMARY_SYSTEM_INSTRUCTION,
       prompt: digest,

@@ -4,8 +4,12 @@ import { revalidatePath } from "next/cache";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
-import { getGeminiProvider } from "@/lib/ai/gemini-provider";
 import { interpretationForScore } from "@/lib/assessment-library";
+import {
+  ClinicAiKeyMissingError,
+  resolveProviderForClinic,
+} from "@/lib/ai/provider";
+import type { AIProvider } from "@/lib/ai/types";
 import { logAuditEvent } from "@/lib/auth/role-guard";
 import { canManageClinical, getCurrentClinic } from "@/lib/clinic-access";
 import { findDoctorForUser } from "@/lib/consultation-queries";
@@ -613,6 +617,35 @@ const intakeAssistSchema = z.object({
   text: z.string().max(8000).optional().default(""),
 });
 
+/**
+ * The provider for a clinic-scoped AI call.
+ *
+ * Every clinic runs on its own key (`lib/ai/provider.ts`), so a clinic that
+ * has not added one gets a message that tells its owner what to do — "the AI
+ * assistant is not configured on this server yet" points at the wrong place
+ * and reads like the clinic is broken.
+ */
+async function resolveClinicProvider(
+  clinicId: string,
+): Promise<
+  { ok: true; provider: AIProvider } | { ok: false; result: ActionResult<never> }
+> {
+  try {
+    return { ok: true, provider: await resolveProviderForClinic(clinicId) };
+  } catch (error) {
+    return {
+      ok: false,
+      result: {
+        ok: false,
+        message:
+          error instanceof ClinicAiKeyMissingError
+            ? "This clinic has not added an AI API key yet. Add your own Gemini key in AI Agent settings to switch the assistant on."
+            : "The AI assistant is not configured on this server yet.",
+      },
+    };
+  }
+}
+
 const INTAKE_ASSIST_INSTRUCTION: Record<IntakeAssistKind, string> = {
   draft:
     "You are a clinical documentation assistant for a psychology intake. Using the psychologist's rough notes below, write a concise, professional history narrative in neutral clinical prose. Third person, past tense, 3 to 6 sentences. Never invent facts, never state a diagnosis and never suggest treatment. Output the narrative only, plain text, no headings, no preamble.",
@@ -647,15 +680,11 @@ export async function assistPsychIntakeAction(
   const g = await guard();
   if (!g.ok) return g.result;
 
-  if (!process.env.GEMINI_API_KEY) {
-    return {
-      ok: false,
-      message: "The AI assistant is not configured on this server yet.",
-    };
-  }
+  const provider = await resolveClinicProvider(g.clinicId);
+  if (!provider.ok) return provider.result;
 
   try {
-    const output = await getGeminiProvider().complete({
+    const output = await provider.provider.complete({
       systemInstruction: INTAKE_ASSIST_INSTRUCTION[kind],
       prompt: `Field: ${fieldLabel}\n\nNote:\n${text || "(empty — the psychologist has not written anything yet)"}`,
       temperature: kind === "draft" ? 0.4 : 0.2,
@@ -840,12 +869,8 @@ export async function generatePsychIntakeSuggestionsAction(
   const g = await guard();
   if (!g.ok) return g.result;
 
-  if (!process.env.GEMINI_API_KEY) {
-    return {
-      ok: false,
-      message: "The AI assistant is not configured on this server yet.",
-    };
-  }
+  const provider = await resolveClinicProvider(g.clinicId);
+  if (!provider.ok) return provider.result;
 
   const [intakeRes, sessionsRes, assessmentsRes] = await Promise.all([
     g.supabase
@@ -943,7 +968,7 @@ export async function generatePsychIntakeSuggestionsAction(
 
   let parsedOutput: z.infer<typeof generateSuggestionsSchema>;
   try {
-    const raw = await getGeminiProvider().completeJson({
+    const raw = await provider.provider.completeJson({
       systemInstruction: PSYCH_INTAKE_SUGGESTION_PROMPT,
       prompt: digest,
       schema: PSYCH_INTAKE_SUGGESTION_SCHEMA,
@@ -1381,19 +1406,15 @@ export async function assistPsychMseAction(
   const g = await guard();
   if (!g.ok) return g.result;
 
-  if (!process.env.GEMINI_API_KEY) {
-    return {
-      ok: false,
-      message: "The AI assistant is not configured on this server yet.",
-    };
-  }
+  const provider = await resolveClinicProvider(g.clinicId);
+  if (!provider.ok) return provider.result;
 
   try {
     const prompt =
       kind === "summary"
         ? `Structured mental status examination findings:\n${findingsDigest}`
         : `Field: ${fieldLabel}\n\nNote:\n${text}`;
-    const output = await getGeminiProvider().complete({
+    const output = await provider.provider.complete({
       systemInstruction: MSE_ASSIST_INSTRUCTION[kind],
       prompt,
       temperature: kind === "summary" ? 0.25 : 0.2,
@@ -1595,12 +1616,8 @@ export async function assistPsychSessionAction(
 
   const g = await guard();
   if (!g.ok) return g.result;
-  if (!process.env.GEMINI_API_KEY) {
-    return {
-      ok: false,
-      message: "The AI assistant is not configured on this server yet.",
-    };
-  }
+  const provider = await resolveClinicProvider(g.clinicId);
+  if (!provider.ok) return provider.result;
 
   const source =
     kind === "draft"
@@ -1608,7 +1625,7 @@ export async function assistPsychSessionAction(
       : `CURRENT TEXT:\n${text || "(empty — write something first, then improve or summarise it)"}`;
 
   try {
-    const output = await getGeminiProvider().complete({
+    const output = await provider.provider.complete({
       systemInstruction: assistSessionSystemPrompt(
         format,
         section,
@@ -1717,12 +1734,8 @@ export async function generatePsychSessionNoteAction(
       message: "You must have a clinic to perform this action.",
     };
   }
-  if (!process.env.GEMINI_API_KEY) {
-    return {
-      ok: false,
-      message: "The AI assistant is not configured on this server yet.",
-    };
-  }
+  const provider = await resolveClinicProvider(g.clinicId);
+  if (!provider.ok) return provider.result;
 
   // Continuity context: the latest intake concern and the most recent session
   // help the writer, but must never be repeated into the new note.
@@ -1771,7 +1784,7 @@ export async function generatePsychSessionNoteAction(
 
   const sections: Record<string, string> = {};
   try {
-    const rawJson = await getGeminiProvider().completeJson({
+    const rawJson = await provider.provider.completeJson({
       systemInstruction: SESSION_NOTE_GENERATION_PROMPT,
       prompt,
       schema: sessionNoteJsonSchema(format),
@@ -2079,13 +2092,11 @@ export async function generateAssessmentInterpretationAction(
   }
 
   const fallbackRule = ruleText?.trim() || null;
-  if (!process.env.GEMINI_API_KEY) {
+  const provider = await resolveClinicProvider(g.clinicId);
+  if (!provider.ok) {
     return fallbackRule
       ? { ok: true, data: { interpretation: fallbackRule, source: "rule" } }
-      : {
-          ok: false,
-          message: "The AI assistant is not configured on this server yet.",
-        };
+      : provider.result;
   }
 
   const prompt = [
@@ -2106,7 +2117,7 @@ export async function generateAssessmentInterpretationAction(
 
   try {
     const interpretation = (
-      await getGeminiProvider().complete({
+      await provider.provider.complete({
         systemInstruction: ASSESSMENT_INTERPRETATION_PROMPT,
         prompt,
         temperature: 0.3,

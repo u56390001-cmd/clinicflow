@@ -226,51 +226,54 @@ export type PlanMeta = {
 export const PLAN_META: PlanMeta[] = [
   {
     code: "starter",
-    name: "Starter",
+    name: "Solo",
     description: "For independent doctors and small clinics.",
     bullets: [
       "Appointment management",
-      "Patient CRM (up to 100)",
-      "Clinic management dashboard",
-      "Digital patient records",
+      "Patient records (unlimited)",
+      "Consultations & prescriptions",
+      "Patient billing & receipts",
+      "Public online booking page",
     ],
     popular: false,
-    ctaLabel: "Choose Starter",
+    ctaLabel: "Choose Solo",
   },
   {
     code: "professional",
-    name: "Professional",
+    name: "Clinic",
     description: "For growing clinics that want more connected tools.",
     bullets: [
-      "Appointment management",
-      "Patient CRM (up to 500)",
-      "Website builder & custom domain*",
-      "AI receptionist integration*",
-      "Smart TV queue*",
+      "Everything in Solo",
+      "Website builder & custom domain",
+      "AI receptionist (your own API key)",
+      "WhatsApp Business & AI replies",
+      "Google Calendar, Meet & video calls",
+      "Smart TV waiting-room display",
     ],
     popular: true,
-    ctaLabel: "Choose Professional →",
+    ctaLabel: "Choose Clinic →",
   },
   {
     code: "enterprise",
-    name: "Enterprise",
-    description: "For larger practices with expanded requirements.",
+    name: "Practice",
+    description: "For hospitals and multi-branch groups.",
     bullets: [
-      "Patient CRM (unlimited)",
-      "Expanded clinic management",
-      "Website and integrations*",
-      "Additional capabilities subject to plan setup",
+      "Everything in Clinic",
+      "Multi-branch organisation",
+      "Assessment library & psychometrics",
+      "Unlimited doctors",
+      "Priority support & guided setup",
     ],
     popular: false,
-    ctaLabel: "Choose Enterprise",
+    ctaLabel: "Choose Practice",
   },
 ];
 
 export const FALLBACK_PLAN_PRICES: Record<string, number> = {
-  starter: 2999,
-  professional: 7999,
-  enterprise: 19999,
+  starter: 2499,
+  professional: 6999,
+  enterprise: 16999,
 };
 
 export const PRICING_NOTE =
-  "*Professional and Enterprise features marked with * are add-on modules available on those plans. Prices reflect your active billing plans — choose a plan to continue to signup and the billing checkout.";
+  "Prices are per clinic, per month. Every plan includes the core clinical workspace — appointments, patients, prescriptions and billing. The Clinic plan adds the website, the AI receptionist, WhatsApp and the TV queue; the Practice plan adds multi-branch, assessments and priority support. Extra doctor seats, displays and WhatsApp numbers are sold as add-ons, and every payment is verified manually before your account is activated.";

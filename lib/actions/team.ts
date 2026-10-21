@@ -13,6 +13,12 @@ import { revalidatePath } from "next/cache";
 
 import { getCurrentClinic } from "@/lib/clinic-access";
 import { APP_ROUTES } from "@/lib/constants";
+import {
+  countTeamSeats,
+  getEntitlements,
+  seatLimitMessage,
+  teamSeatAllowance,
+} from "@/lib/entitlements";
 import { notifyPatient } from "@/lib/notifications";
 import { logAuditEvent } from "@/lib/auth/role-guard";
 import { createClient } from "@/lib/supabase/server";
@@ -166,6 +172,26 @@ export async function inviteTeamMemberAction(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, message: "You must be signed in." };
+
+  // Seat limit: a plan carries a number of team logins. A pending invitation
+  // holds a seat too — otherwise a clinic could hand out unlimited
+  // invitations past its allowance.
+  const entitlements = await getEntitlements(supabase, access.clinic.id);
+  const allowance = teamSeatAllowance(entitlements);
+  if (allowance !== null) {
+    const used = await countTeamSeats(supabase, access.clinic.id);
+    if (used >= allowance) {
+      return {
+        ok: false,
+        message: seatLimitMessage({
+          kind: "team",
+          allowance,
+          used,
+          planName: entitlements.plan?.name ?? "current",
+        }),
+      };
+    }
+  }
 
   const token = generateInviteToken();
   const tokenHash = await sha256Hex(token);

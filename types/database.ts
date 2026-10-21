@@ -74,6 +74,12 @@ export type Clinic = {
    */
   organization_type: OrganizationType;
   facility_size: FacilitySize;
+  /**
+   * When the clinic finished its first-run setup (migration 0113). NULL means
+   * it still has to be set up — the app sends it to the setup wizard on first
+   * login. A clinic created through the registration funnel starts NULL.
+   */
+  onboarding_completed_at: string | null;
   /** Parent clinic for multi-branch organizations (migration 0074). */
   parent_organization_id: string | null;
   doctor_name: string | null;
@@ -2514,6 +2520,11 @@ export type SubscriptionPlan = {
   currency: string;
   billing_interval: string;
   features: { key: string; label: string; included: boolean }[];
+  /**
+   * Numeric entitlements (migration 0113): `{ doctor_seats, team_seats }`.
+   * A null seat count means unlimited.
+   */
+  limits: { doctor_seats?: number | null; team_seats?: number | null };
   active: boolean;
   created_at: string;
   updated_at: string;
@@ -2687,6 +2698,8 @@ export type Database = {
           slug: string;
           organization_type?: OrganizationType;
           facility_size?: FacilitySize;
+          /** First-run setup marker (migration 0113). */
+          onboarding_completed_at?: string | null;
           parent_organization_id?: string | null;
           doctor_name?: string | null;
           timezone?: string;
@@ -2740,6 +2753,8 @@ export type Database = {
           slug?: string;
           organization_type?: OrganizationType;
           facility_size?: FacilitySize;
+          /** First-run setup marker (migration 0113). */
+          onboarding_completed_at?: string | null;
           parent_organization_id?: string | null;
           doctor_name?: string | null;
           timezone?: string;

@@ -2,13 +2,19 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 
 import { BillingDashboard } from "@/components/billing/billing-dashboard";
+import { UpgradePanel } from "@/components/billing/upgrade-panel";
 import { ClinicEmptyState } from "@/components/app/clinic-empty-state";
 import { getCurrentClinic } from "@/lib/clinic-access";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Billing" };
 
-export default async function BillingPage() {
+export default async function BillingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ upgrade?: string }>;
+}) {
+  const { upgrade } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -46,6 +52,8 @@ export default async function BillingPage() {
           {access.clinic.name} · Subscription &amp; payment management
         </p>
       </div>
+
+      {upgrade ? <UpgradePanel requestKey={upgrade} /> : null}
 
       <BillingDashboard />
     </div>

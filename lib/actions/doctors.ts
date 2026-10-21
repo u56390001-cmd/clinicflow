@@ -4,6 +4,12 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 
 import { getCurrentClinic, canWriteClinic } from "@/lib/clinic-access";
+import {
+  countDoctors,
+  doctorSeatAllowance,
+  getEntitlements,
+  seatLimitMessage,
+} from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
 import { replacePreConsultationQuestions } from "@/lib/actions/pre-consultation";
 import {
@@ -297,6 +303,25 @@ export async function createDoctorAction(
 
   const credentials = await resolveCredentials(parsed.data.credentialsText || undefined);
   if (!credentials.ok) return credentials.error;
+
+  // Seat limit: a plan carries a number of doctors. The check lives here, at
+  // the write, not in the form — a hidden button is not access control.
+  const entitlements = await getEntitlements(supabase, access.clinic.id);
+  const allowance = doctorSeatAllowance(entitlements);
+  if (allowance !== null) {
+    const used = await countDoctors(supabase, access.clinic.id);
+    if (used >= allowance) {
+      return {
+        ok: false,
+        message: seatLimitMessage({
+          kind: "doctor",
+          allowance,
+          used,
+          planName: entitlements.plan?.name ?? "current",
+        }),
+      };
+    }
+  }
 
   const payload = doctorRowPayload(parsed.data);
   payload.credentials = credentials.value;

@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { buildWorkingHoursSummary, type RuleView } from "@/lib/appointments-view";
 import { canWriteClinic, getCurrentClinic } from "@/lib/clinic-access";
-import { resolveProviderForClinic } from "@/lib/ai/provider";
+import { resolveProviderForClinic, ClinicAiKeyMissingError } from "@/lib/ai/provider";
 import {
   ReceptionistProviderError,
   runReceptionistTurn,
@@ -142,7 +142,21 @@ export async function POST(req: NextRequest) {
   let provider;
   try {
     provider = await resolveProviderForClinic(access.clinic.id);
-  } catch {
+  } catch (error) {
+    // A clinic without its own key is a setup step, not a server fault: say so
+    // instead of "the AI receptionist isn't configured on this server yet",
+    // which points the owner at the wrong place.
+    if (error instanceof ClinicAiKeyMissingError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "This clinic has not added an AI API key yet. Add your own Gemini key in AI Agent settings to switch the assistant on.",
+          code: "ai_key_missing",
+        },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(
       { ok: false, error: "The AI receptionist isn't configured on this server yet." },
       { status: 500 },

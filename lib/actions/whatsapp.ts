@@ -1,6 +1,7 @@
 "use server";
 
 import { canWriteClinic, getCurrentClinic } from "@/lib/clinic-access";
+import { requireFeature } from "@/lib/entitlements";
 import { createWidgetClient } from "@/lib/supabase/widget";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult } from "@/types";
@@ -51,6 +52,13 @@ export async function getWhatsappSignupConfig(): Promise<
   if (!access || !canWriteClinic(access.role)) {
     return { ok: false, message: "Only owners and admins can manage WhatsApp." };
   }
+  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "whatsapp",
+    "WhatsApp Business",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
 
   const appId = process.env.NEXT_PUBLIC_META_APP_ID;
   const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID;
@@ -133,6 +141,13 @@ export async function completeWhatsappSignupAction(
   if (!access) {
     return { ok: false, message: "You must have a clinic to connect WhatsApp." };
   }
+  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "whatsapp",
+    "WhatsApp Business",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
   if (!canWriteClinic(access.role)) {
     return { ok: false, message: "Only owners and admins can connect WhatsApp." };
   }
@@ -260,6 +275,13 @@ export async function disconnectWhatsappAction(): Promise<ActionResult> {
   if (!canWriteClinic(access.role)) {
     return { ok: false, message: "Only owners and admins can disconnect WhatsApp." };
   }
+  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "whatsapp",
+    "WhatsApp Business",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
 
   const serviceRole = createWidgetClient();
 
@@ -344,6 +366,13 @@ export async function connectWhatsappManualAction(
   if (!access) {
     return { ok: false, message: "You must have a clinic to connect WhatsApp." };
   }
+  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "whatsapp",
+    "WhatsApp Business",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
   if (!canWriteClinic(access.role)) {
     return { ok: false, message: "Only owners and admins can connect WhatsApp." };
   }

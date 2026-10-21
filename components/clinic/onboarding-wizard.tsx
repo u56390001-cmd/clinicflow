@@ -4,10 +4,16 @@
  * Fast-track clinic onboarding wizard (migration 0074).
  *
  * Three steps — facility shape, clinic details, first staff invites — sharing
- * one mobile-first surface. The whole flow is a single validated server action
- * (`createClinicOnboardingAction`), so nothing can be half-applied. All visual
- * language uses the system teal tokens; the only signature element is the
- * facility-type selection cards.
+ * one mobile-first surface. Two modes:
+ *
+ *   * `create`  — the user has no clinic yet; the wizard creates one.
+ *   * `complete` — the clinic was already provisioned (registration funnel);
+ *     the wizard completes the setup on that clinic instead of creating a
+ *     second one.
+ *
+ * The whole flow is a single validated server action, so nothing can be
+ * half-applied. All visual language uses the system teal tokens; the only
+ * signature element is the facility-type selection cards.
  */
 
 import { useRouter } from "next/navigation";
@@ -27,7 +33,10 @@ import {
 import { useState, useTransition } from "react";
 
 import { ROLE_LABELS } from "@/lib/auth/rbac-config";
-import { createClinicOnboardingAction } from "@/lib/actions/onboarding";
+import {
+  completeClinicSetupAction,
+  createClinicOnboardingAction,
+} from "@/lib/actions/onboarding";
 import {
   COMMON_TIMEZONES,
   FACILITY_SIZE_LABELS,
@@ -99,7 +108,27 @@ type InviteRow = { email: string; role: ClinicRole };
 
 const emptyInvite = (): InviteRow => ({ email: "", role: "receptionist" });
 
-export function OnboardingWizard() {
+export type OnboardingWizardProps = {
+  /**
+   * `create` — the user has no clinic yet, so the wizard creates one.
+   * `complete` — the clinic already exists (it was provisioned through the
+   * registration funnel) and the wizard completes the setup on it.
+   */
+  mode?: "create" | "complete";
+  /** The existing clinic's details, prefilled in `complete` mode. */
+  clinic?: {
+    name: string;
+    timezone: string;
+    phone: string | null;
+    email: string | null;
+    address: string | null;
+  };
+};
+
+export function OnboardingWizard({
+  mode = "create",
+  clinic,
+}: OnboardingWizardProps = {}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -110,12 +139,16 @@ export function OnboardingWizard() {
 
   const [organizationType, setOrganizationType] = useState<OrganizationType | null>(null);
   const [facilitySize, setFacilitySize] = useState<FacilitySize | null>(null);
-  const [name, setName] = useState("");
-  const [timezone, setTimezone] = useState("UTC");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [address, setAddress] = useState("");
-  const [city, setCity] = useState("");
+  const [name, setName] = useState(clinic?.name ?? "");
+  const [timezone, setTimezone] = useState(clinic?.timezone || "UTC");
+  const [phone, setPhone] = useState(clinic?.phone ?? "");
+  const [email, setEmail] = useState(clinic?.email ?? "");
+  const [address, setAddress] = useState(
+    clinic?.address ? clinic.address.split(",")[0]?.trim() ?? "" : "",
+  );
+  const [city, setCity] = useState(
+    clinic?.address ? clinic.address.split(",")[1]?.trim() ?? "" : "",
+  );
   const [invites, setInvites] = useState<InviteRow[]>([emptyInvite()]);
 
   const stepReady = [
@@ -138,7 +171,7 @@ export function OnboardingWizard() {
     setError(null);
     setNotice(null);
     startTransition(async () => {
-      const result = await createClinicOnboardingAction({
+      const payload = {
         name: name.trim(),
         organizationType,
         facilitySize,
@@ -148,7 +181,13 @@ export function OnboardingWizard() {
         address: address.trim(),
         city: city.trim(),
         invites: invites.filter((invite) => invite.email.trim().length > 0),
-      });
+      };
+
+      const result =
+        mode === "complete"
+          ? await completeClinicSetupAction(payload)
+          : await createClinicOnboardingAction(payload);
+
       if (result.ok) {
         const failed = result.invites.filter((invite) => !invite.sent);
         if (failed.length > 0) {
@@ -171,12 +210,16 @@ export function OnboardingWizard() {
       {/* Left rail — vertical stepper on desktop */}
       <aside className="hidden lg:flex flex-col gap-6">
         <div>
-          <p className="text-sm font-medium text-primary">Set up your clinic</p>
+          <p className="text-sm font-medium text-primary">
+            {mode === "complete" ? "Finish setting up" : "Set up your clinic"}
+          </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-text-primary">
             {name.trim() ? name.trim() : "Welcome"}
           </h1>
           <p className="mt-2 text-sm text-text-secondary">
-            Two minutes to a working clinic — you can fill in the rest later.
+            {mode === "complete"
+              ? "Two minutes to a working clinic — you can fill in the rest later."
+              : "Two minutes to a working clinic — you can fill in the rest later."}
           </p>
         </div>
 
@@ -226,8 +269,9 @@ export function OnboardingWizard() {
         <div className="mt-auto rounded-card border border-primary-tint-border bg-primary-tint p-4">
           <ShieldCheck className="h-4 w-4 text-primary" aria-hidden="true" />
           <p className="mt-2 text-sm text-text-secondary">
-            You become the owner of {firstNameWord}. You can add more clinics
-            and teammates whenever you like.
+            {mode === "complete"
+              ? `You are the owner of ${firstNameWord}. Your subscription is already active — this step just tells us how your clinic works.`
+              : `You become the owner of ${firstNameWord}. You can add more clinics and teammates whenever you like.`}
           </p>
         </div>
       </aside>
@@ -587,7 +631,13 @@ export function OnboardingWizard() {
               </Button>
             ) : (
               <Button type="button" onClick={submit} disabled={pending}>
-                {pending ? "Setting up…" : "Create clinic"}
+                {pending
+                  ? mode === "complete"
+                    ? "Finishing…"
+                    : "Setting up…"
+                  : mode === "complete"
+                    ? "Finish setup"
+                    : "Create clinic"}
                 {!pending ? <ArrowRight className="h-4 w-4" aria-hidden="true" /> : null}
               </Button>
             )}

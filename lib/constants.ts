@@ -51,6 +51,8 @@ export const APP_ROUTES = {
   app: {
     dashboard: "/app/dashboard",
     clinicNew: "/app/clinic/new",
+    /** First-run setup for a clinic that was provisioned but not set up yet. */
+    clinicSetup: "/app/clinic/setup",
     appointments: "/app/appointments",
     consultation: "/app/consultation",
     calendar: "/app/calendar",

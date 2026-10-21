@@ -9,6 +9,7 @@ import {
   catalogEntryByKey,
 } from "@/lib/assessment-library";
 import { canWriteClinic, getCurrentClinic } from "@/lib/clinic-access";
+import { requireFeature } from "@/lib/entitlements";
 import { APP_ROUTES } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult } from "@/types";
@@ -93,6 +94,15 @@ async function requireAdmin(): Promise<
   if (!access) {
     return { ok: false, message: "You must have a clinic to manage the Assessment Library." };
   }
+  // The assessment library is a Practice-plan module: the route guard stops
+  // the clinic opening the page, this stops the actions being called directly.
+  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "assessments",
+    "Assessment library",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
   if (!canWriteClinic(access.role)) {
     return { ok: false, message: "Only owners and admins can change the Assessment Library." };
   }

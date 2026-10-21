@@ -20,8 +20,8 @@
  * sensitivity classes, three prompts.
  */
 
-import { getGeminiProvider } from "@/lib/ai/gemini-provider";
-import { resolveProviderForClinic } from "@/lib/ai/provider";
+
+import { resolvePlatformProvider, resolveProviderForClinic } from "@/lib/ai/provider";
 import type { AIProvider } from "@/lib/ai/types";
 
 /** Google's own post field caps at 1500 characters; the DB CHECK matches. */
@@ -216,7 +216,7 @@ export async function generateGrowthPost(input: {
   try {
     const provider: AIProvider = input.clinicId
       ? await resolveProviderForClinic(input.clinicId)
-      : getGeminiProvider();
+      : resolvePlatformProvider();
     text = await provider.complete({
       systemInstruction: GROWTH_POST_SYSTEM_INSTRUCTION,
       prompt: brief,

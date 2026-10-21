@@ -24,11 +24,18 @@ export function MetricsRibbon({
   aiBookingRate,
   websiteBookingRate,
   cancellationRate,
+  showAiBooking = true,
 }: {
   newPatientsThisWeek: number;
   aiBookingRate: number | null;
   websiteBookingRate: number | null;
   cancellationRate: number | null;
+  /**
+   * The AI-assisted booking rate only makes sense for a clinic that has the
+   * AI receptionist — on any other plan it would be a permanent 0% and read
+   * as a broken metric.
+   */
+  showAiBooking?: boolean;
 }) {
   const items: MiniMetric[] = [
     {
@@ -36,12 +43,16 @@ export function MetricsRibbon({
       label: "New patients this week",
       value: newPatientsThisWeek,
     },
-    {
-      icon: Bot,
-      label: "AI-assisted bookings",
-      value: aiBookingRate,
-      suffix: "%",
-    },
+    ...(showAiBooking
+      ? [
+          {
+            icon: Bot,
+            label: "AI-assisted bookings",
+            value: aiBookingRate,
+            suffix: "%",
+          },
+        ]
+      : []),
     {
       icon: Globe,
       label: "Website bookings",

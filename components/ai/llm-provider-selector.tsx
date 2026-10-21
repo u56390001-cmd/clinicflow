@@ -112,7 +112,8 @@ export function LlmProviderSelector({
           AI Model Provider
         </h3>
         <p className="mt-1 text-sm text-text-secondary">
-          Connect your own API key for the AI agent, or use the platform default.
+          Your clinic runs on its own API key — one key, one bill, and no shared
+          quota with anyone else.
         </p>
       </div>
 
@@ -244,6 +245,21 @@ export function LlmProviderSelector({
                 <p className="font-medium">Verify your API key</p>
                 <p className="text-yellow-700 mt-0.5">
                   Click &quot;Verify&quot; to test the key and enable it for your clinic.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {!apiKey && (
+            <div className="flex items-start gap-2 rounded-control bg-primary/5 p-3 border border-primary-tint-border">
+              <AlertCircle className="size-4 text-primary shrink-0 mt-0.5" />
+              <div className="text-xs text-text-secondary">
+                <p className="font-medium text-text-primary">
+                  No API key saved yet
+                </p>
+                <p className="mt-0.5">
+                  The assistant stays switched off until you add a key. Paste it
+                  below, press Verify, and it becomes active for this clinic only.
                 </p>
               </div>
             </div>

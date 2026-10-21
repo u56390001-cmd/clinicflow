@@ -1,6 +1,7 @@
 "use server";
 
 import { getCurrentClinic, canWriteClinic } from "@/lib/clinic-access";
+import { requireFeature } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
 import {
   websiteSaveSchema,
@@ -84,6 +85,13 @@ export async function getOrCreateWebsite(): Promise<
   if (!access) {
     return { ok: false, message: "You must have a clinic to manage a website." };
   }
+  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "website",
+    "Website builder",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
   if (!canWriteClinic(access.role)) {
     return {
       ok: false,
@@ -186,6 +194,13 @@ export async function saveWebsite(
   if (!access) {
     return { ok: false, message: "You must have a clinic to save a website." };
   }
+  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "website",
+    "Website builder",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
   if (!canWriteClinic(access.role)) {
     return { ok: false, message: "Only owners and admins can edit the website." };
   }
@@ -324,7 +339,13 @@ export async function publishWebsite(
   }
   if (!canWriteClinic(access.role)) {
     return { ok: false, message: "Only owners and admins can publish." };
-  }
+  }  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "website",
+    "Website builder",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
 
   const { data: website } = await supabase
     .from("websites")
@@ -451,7 +472,13 @@ export async function addWebsiteImage(
   }
   if (!canWriteClinic(access.role)) {
     return { ok: false, message: "Only owners and admins can manage images." };
-  }
+  }  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "website",
+    "Website builder",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
 
   // Get website
   const { data: website } = await supabase
@@ -507,7 +534,13 @@ export async function deleteWebsiteImage(
   }
   if (!canWriteClinic(access.role)) {
     return { ok: false, message: "Only owners and admins can delete images." };
-  }
+  }  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "website",
+    "Website builder",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
 
   // Fetch the image to get the storage path
   const { data: image } = await supabase
@@ -566,7 +599,13 @@ export async function reorderWebsiteImages(
   }
   if (!canWriteClinic(access.role)) {
     return { ok: false, message: "Only owners and admins can reorder images." };
-  }
+  }  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "website",
+    "Website builder",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
 
   // Update positions in a batch
   const updates = parsed.data.imageIds.map((id, index) =>
@@ -650,7 +689,13 @@ export async function connectWebsiteDomain(
   }
   if (!canWriteClinic(access.role)) {
     return { ok: false, message: "Only owners and admins can connect a domain." };
-  }
+  }  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "website",
+    "Website builder",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
 
   const domain = parsed.data.domain;
 
@@ -708,7 +753,13 @@ export async function disconnectWebsiteDomain(): Promise<ActionResult> {
   }
   if (!canWriteClinic(access.role)) {
     return { ok: false, message: "Only owners and admins can disconnect a domain." };
-  }
+  }  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "website",
+    "Website builder",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
 
   const { error } = await supabase
     .from("websites")
@@ -744,7 +795,13 @@ export async function verifyWebsiteDomain(): Promise<
   }
   if (!canWriteClinic(access.role)) {
     return { ok: false, message: "Only owners and admins can verify a domain." };
-  }
+  }  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "website",
+    "Website builder",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
 
   const { data: website } = await supabase
     .from("websites")
@@ -819,6 +876,13 @@ export async function readWebsiteDomain(): Promise<
   if (!access) {
     return { ok: false, message: "You must have a clinic." };
   }
+  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "website",
+    "Website builder",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
 
   const { data, error } = await supabase
     .from("websites")

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import { canManageClinical, getCurrentClinic } from "@/lib/clinic-access";
 import { createClient } from "@/lib/supabase/server";
-import { resolveProviderForClinic } from "@/lib/ai/provider";
+import { resolveProviderForClinic, ClinicAiKeyMissingError } from "@/lib/ai/provider";
 import { checkRateLimit, envInt } from "@/lib/ai/rate-limit";
 import { MAX_SUMMARY_CHARS } from "@/lib/ai/patient-summary";
 import { historyInsertFromIntakeEntry, parseOnsetDate } from "@/lib/medical-history-mapping";
@@ -572,6 +572,13 @@ if (insertError) {
       message: error instanceof Error ? error.message : String(error),
     });
     await cleanup();
+    if (error instanceof ClinicAiKeyMissingError) {
+      return {
+        ok: false,
+        message:
+          "This clinic has not added an AI API key yet. Add your own Gemini key in AI Agent settings to use the AI document reader.",
+      };
+    }
     return {
       ok: false,
       message:

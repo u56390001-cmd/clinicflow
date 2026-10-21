@@ -8,6 +8,7 @@ import { RecentActivity } from "@/components/app/overview/recent-activity";
 import { Reveal } from "@/components/app/overview/motion";
 import { type CurrentClinicAccess } from "@/lib/clinic-access";
 import { loadDashboardOverview } from "@/lib/dashboard-overview";
+import { getEntitlements } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
 
 const WORK_GRID =
@@ -25,11 +26,10 @@ export async function DashboardOverview({
   access: CurrentClinicAccess;
 }) {
   const supabase = await createClient();
-  const data = await loadDashboardOverview(
-    supabase,
-    access.clinic.id,
-    access.clinic.timezone,
-  );
+  const [data, entitlements] = await Promise.all([
+    loadDashboardOverview(supabase, access.clinic.id, access.clinic.timezone),
+    getEntitlements(supabase, access.clinic.id),
+  ]);
 
   return (
     <div className="medbook-dashboard-overview">
@@ -50,6 +50,7 @@ export async function DashboardOverview({
         aiBookingRate={data.analytics.aiBookingRate}
         websiteBookingRate={data.analytics.websiteBookingRate}
         cancellationRate={data.analytics.cancellationRate}
+        showAiBooking={entitlements.features.includes("ai_receptionist")}
       />
 
       <Reveal delay={0.48} className={`${WORK_GRID} mb-5`}>

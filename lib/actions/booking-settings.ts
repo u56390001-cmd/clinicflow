@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { canWriteClinic, getCurrentClinic } from "@/lib/clinic-access";
+import { requireFeature } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
 import {
   bookingSettingsSchema,
@@ -135,6 +136,15 @@ export async function updateBookingSettingsAction(
       message: "Only clinic owners and admins can change these settings.",
     };
   }
+  // The public booking page is a plan module: the route guard stops the page
+  // opening, this stops the settings being changed behind its back.
+  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "online_booking",
+    "Public booking page",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
 
   const { bookingSlug, slotDurationMinutes, maxAdvanceDays } = parsed.data;
 

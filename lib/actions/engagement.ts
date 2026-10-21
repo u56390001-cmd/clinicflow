@@ -37,6 +37,7 @@ import {
 } from "@/lib/clinic-access";
 import { APP_ROUTES } from "@/lib/constants";
 import { DEFAULT_SAFETY_ALERT_TEMPLATE } from "@/lib/engagement-safety";
+import { requireFeature } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult } from "@/types";
 import type { Database } from "@/types/database";
@@ -74,6 +75,16 @@ async function requireEngagementRead(): Promise<EngagementAuth> {
       message: "You need a clinic before you can view engagement settings.",
     };
   }
+  // Engagement rides on WhatsApp, so it is part of the Clinic plan. The route
+  // guard stops the page opening; this stops the actions being called
+  // directly.
+  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "whatsapp",
+    "Patient Engagement",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
   return { ok: true, supabase, access };
 }
 
@@ -93,6 +104,13 @@ async function requireEngagementWrite(): Promise<EngagementAuth> {
       message: "Only owners and admins can change engagement settings.",
     };
   }
+  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "whatsapp",
+    "Patient Engagement",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
   return { ok: true, supabase, access };
 }
 

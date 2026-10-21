@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { logAuditEvent } from "@/lib/auth/role-guard";
 import { canWriteClinic, getCurrentClinic } from "@/lib/clinic-access";
+import { requireFeature } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
 import { createWidgetClient } from "@/lib/supabase/widget";
 import {
@@ -46,6 +47,13 @@ export async function getZegoConnectionStateAction(): Promise<
   if (!access) {
     return { ok: false, message: "You must have a clinic to see these settings." };
   }
+  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "telehealth",
+    "Video consultations",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
 
   const { data: config } = await supabase
     .from("clinic_zego_config")
@@ -78,6 +86,13 @@ export async function verifyZegoCredentialsAction(
   if (!access) {
     return { ok: false, message: "You must have a clinic to verify credentials." };
   }
+  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "telehealth",
+    "Video consultations",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
   if (!canWriteClinic(access.role)) {
     return {
       ok: false,
@@ -105,6 +120,13 @@ export async function saveZegoConnectionAction(
   if (!access) {
     return { ok: false, message: "You must have a clinic to integrate calling." };
   }
+  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "telehealth",
+    "Video consultations",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
   if (!canWriteClinic(access.role)) {
     return {
       ok: false,

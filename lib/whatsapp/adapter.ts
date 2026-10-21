@@ -4,7 +4,7 @@ import {
   ReceptionistProviderError,
   runReceptionistTurn,
 } from "@/lib/ai/orchestrator";
-import { resolveProviderForClinic } from "@/lib/ai/provider";
+import { resolveProviderForClinic, ClinicAiKeyMissingError } from "@/lib/ai/provider";
 import type { ReceptionistContext } from "@/lib/ai/system-prompt";
 import type { ToolContext } from "@/lib/ai/tools";
 import { buildWorkingHoursSummary, type RuleView } from "@/lib/appointments-view";
@@ -853,10 +853,15 @@ async function runAiTurn(
   let provider;
   try {
     provider = await resolveProviderForClinic(clinic.id);
-  } catch {
-    await sendDeterministicReplies(credentials, inbound.fromWaId, [
-      "I'm sorry, the assistant isn't available right now 😊 Please try again in a little while.",
-    ]);
+  } catch (error) {
+    // A clinic without its own key still has to answer its patients. The
+    // deterministic reply keeps the conversation alive until the owner adds
+    // the key in AI Agent settings.
+    const setupHint =
+      error instanceof ClinicAiKeyMissingError
+        ? "Our AI assistant is being set up. Please call the clinic directly and we'll confirm your appointment."
+        : "I'm sorry, the assistant isn't available right now. Please try again in a little while.";
+    await sendDeterministicReplies(credentials, inbound.fromWaId, [setupHint]);
     return;
   }
 

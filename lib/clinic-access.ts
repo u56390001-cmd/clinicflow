@@ -37,6 +37,13 @@ export type CurrentClinicAccess = {
      * ID settings page reads it through its own tolerant query instead.
      */
     patient_code_prefix: string;
+    /**
+     * False while the clinic has not finished its first-run setup (migration
+     * 0113). A clinic provisioned through the registration funnel starts here:
+     * the account, the clinic and the subscription exist, but the owner still
+     * has to tell us what kind of facility it is and invite their team.
+     */
+    onboardingCompleted: boolean;
   };
 };
 
@@ -58,7 +65,7 @@ export const getCurrentClinic = cache(
     const { data: memberships } = await supabase
       .from("clinic_members")
       .select(
-        "role, clinics(id, name, slug, timezone, doctor_name, phone, email, address, google_review_url, appointments_view_mode, patient_code_prefix)",
+        "role, clinics(id, name, slug, timezone, doctor_name, phone, email, address, google_review_url, appointments_view_mode, patient_code_prefix, onboarding_completed_at)",
       )
       .order("created_at", { ascending: false })
       .limit(1);
@@ -81,6 +88,7 @@ export const getCurrentClinic = cache(
         google_review_url: clinic.google_review_url,
         appointments_view_mode: clinic.appointments_view_mode,
         patient_code_prefix: clinic.patient_code_prefix,
+        onboardingCompleted: !!clinic.onboarding_completed_at,
       },
     };
   },

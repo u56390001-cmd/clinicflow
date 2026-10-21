@@ -38,6 +38,7 @@ import {
   type CurrentClinicAccess,
 } from "@/lib/clinic-access";
 import { APP_ROUTES } from "@/lib/constants";
+import { addonIncludedInPlan, getEntitlements } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult } from "@/types";
 import type {
@@ -104,6 +105,8 @@ export type AddonView = Addon & {
     status: AddonSubscriptionStatus | null;
     quantity: number;
   } | null;
+  /** True when the clinic's plan already includes this add-on. */
+  includedInPlan: boolean;
 };
 
 export type AddonsSnapshot = {
@@ -122,7 +125,7 @@ export async function getAddonsSnapshotAction(): Promise<
   const { supabase, access } = auth;
   const clinicId = access.clinic.id;
 
-  const [catalogResult, subsResult] = await Promise.all([
+  const [catalogResult, subsResult, entitlements] = await Promise.all([
     supabase
       .from("addons")
       .select(
@@ -133,6 +136,7 @@ export async function getAddonsSnapshotAction(): Promise<
       .from("clinic_addons")
       .select("id, addon_id, status, quantity")
       .eq("clinic_id", clinicId),
+    getEntitlements(supabase, clinicId),
   ]);
 
   if (catalogResult.error || subsResult.error) {
@@ -154,7 +158,11 @@ export async function getAddonsSnapshotAction(): Promise<
       activeCount += 1;
       monthlySpendPkr += addon.price_pkr * sub.quantity;
     }
-    return { ...addon, subscription: sub ?? null };
+    return {
+      ...addon,
+      subscription: sub ?? null,
+      includedInPlan: addonIncludedInPlan(entitlements, addon.slug),
+    };
   });
 
   return {

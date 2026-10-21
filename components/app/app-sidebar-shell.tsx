@@ -14,6 +14,7 @@ import {
   Globe,
   Inbox,
   LayoutDashboard,
+  Lock,
   Megaphone,
   MessageCircle,
   PanelLeftClose,
@@ -37,10 +38,10 @@ import { cn } from "@/lib/utils";
 
 export type NavSection = {
   label: string;
-  items: ReadonlyArray<{ label: string; href: string }>;
+  items: ReadonlyArray<{ label: string; href: string; locked?: boolean }>;
 };
 
-type NavItem = { label: string; href: string };
+type NavItem = { label: string; href: string; locked?: boolean };
 
 /** Remembered across sessions — see `usePersistedBoolean`. */
 const SIDEBAR_COLLAPSED_KEY = "medbook-app-sidebar-collapsed";
@@ -91,6 +92,8 @@ function NavLink({
 }) {
   const Icon = NAV_ICONS[item.href];
   const active = isActive(pathname, item.href);
+  // A locked module points at the upgrade screen, so it is never "active".
+  const locked = item.locked === true;
 
   return (
     <li>
@@ -98,20 +101,28 @@ function NavLink({
         href={item.href}
         aria-current={active ? "page" : undefined}
         aria-label={collapsed ? item.label : undefined}
-        {...tipProps(item.label, collapsed)}
+        {...tipProps(locked ? `${item.label} — not in your plan` : item.label, collapsed)}
         className={cn(
           "relative flex items-center rounded-control text-sm font-medium transition-colors duration-150",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-sage focus-visible:ring-offset-1",
           collapsed ? "h-10 justify-center px-0" : "gap-3 px-3 py-2.5",
           active
             ? "bg-brand-wash font-semibold text-brand-cta-hover before:absolute before:left-0 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-full before:bg-brand-cta"
-            : "text-brand-muted hover:bg-brand-canvas hover:text-brand-ink",
+            : locked
+              ? "text-brand-faint hover:bg-brand-canvas hover:text-brand-muted"
+              : "text-brand-muted hover:bg-brand-canvas hover:text-brand-ink",
         )}
       >
         {Icon ? (
           <Icon className="size-[18px] shrink-0" aria-hidden="true" />
         ) : null}
         {!collapsed && item.label}
+        {locked && !collapsed ? (
+          <Lock
+            className="ml-auto size-3.5 shrink-0 text-brand-faint"
+            aria-hidden="true"
+          />
+        ) : null}
       </Link>
     </li>
   );

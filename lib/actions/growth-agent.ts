@@ -27,6 +27,7 @@ import {
   type GrowthTone,
 } from "@/lib/ai/growth-post";
 import { canWriteClinic, getCurrentClinic, type CurrentClinicAccess } from "@/lib/clinic-access";
+import { requireAddon } from "@/lib/entitlements";
 import {
   countByStatus,
   fetchGrowthMetricSummaries,
@@ -71,6 +72,16 @@ async function requireGrowthWriteAccess(): Promise<GrowthAuth> {
       message: "Only owners and admins can change Growth Agent settings and posts.",
     };
   }
+  // The Growth Agent is an add-on, not a plan module: the route guard stops
+  // the clinic opening the page, and this stops it writing through a direct
+  // action call.
+  const entitled = await requireAddon(
+    supabase,
+    access.clinic.id,
+    "growth-agent",
+    "Growth Agent",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
   return { ok: true, supabase, access };
 }
 
@@ -81,6 +92,13 @@ async function requireGrowthReadAccess(): Promise<GrowthAuth> {
   if (!access) {
     return { ok: false, message: "You need a clinic before you can use the Growth Agent." };
   }
+  const entitled = await requireAddon(
+    supabase,
+    access.clinic.id,
+    "growth-agent",
+    "Growth Agent",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
   return { ok: true, supabase, access };
 }
 

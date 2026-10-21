@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-import { getGeminiProvider } from "@/lib/ai/gemini-provider";
-import { resolveProviderForClinic } from "@/lib/ai/provider";
+
+import { resolvePlatformProvider, resolveProviderForClinic } from "@/lib/ai/provider";
 import type { PsychAssessment } from "@/types/database";
 
 const trajectoryEnum = z.enum([
@@ -96,7 +96,7 @@ export async function generateLongitudinalSummary(
   const digest = buildDigest(input);
   const provider = input.clinicId
     ? await resolveProviderForClinic(input.clinicId)
-    : getGeminiProvider();
+    : resolvePlatformProvider();
 
   const raw = await provider.completeJson({
     systemInstruction: LONGITUDINAL_SYSTEM,

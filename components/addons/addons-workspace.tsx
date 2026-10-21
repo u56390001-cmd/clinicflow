@@ -387,6 +387,8 @@ function AddonCard({
       <div className="absolute right-3 top-3">
         {active ? (
           <Badge variant="success">Active</Badge>
+        ) : addon.includedInPlan ? (
+          <Badge variant="default">In plan</Badge>
         ) : addon.badge_text ? (
           <Badge variant="warning">{addon.badge_text}</Badge>
         ) : null}
@@ -410,8 +412,25 @@ function AddonCard({
 
       <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-hairline pt-3">
         <p className="text-[15px] font-semibold text-ink">
-          {formatCurrency(active && addon.is_quantity_based ? addon.price_pkr * quantity : addon.price_pkr)}
-          <span className="ml-1 text-xs font-normal text-text-muted">/ month</span>
+          {addon.includedInPlan ? (
+            <>
+              Included
+              <span className="ml-1 text-xs font-normal text-text-muted">
+                in your plan
+              </span>
+            </>
+          ) : (
+            <>
+              {formatCurrency(
+                active && addon.is_quantity_based
+                  ? addon.price_pkr * quantity
+                  : addon.price_pkr,
+              )}
+              <span className="ml-1 text-xs font-normal text-text-muted">
+                / month
+              </span>
+            </>
+          )}
         </p>
 
         {active && addon.is_quantity_based ? (
@@ -429,6 +448,10 @@ function AddonCard({
         ) : active ? (
           <Button variant="outline" size="sm" disabled={!canControl} onClick={onCancel}>
             Cancel
+          </Button>
+        ) : addon.includedInPlan ? (
+          <Button size="sm" variant="outline" disabled>
+            Included in your plan
           </Button>
         ) : addon.badge_text ? (
           <Button size="sm" disabled>

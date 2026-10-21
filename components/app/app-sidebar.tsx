@@ -2,6 +2,11 @@ import { AppSidebarShell } from "@/components/app/app-sidebar-shell";
 import { getCurrentClinic } from "@/lib/clinic-access";
 import { DEFAULT_ROLE_PERMISSIONS, type Permission } from "@/lib/auth/rbac-config";
 import { APP_NAV_SECTIONS, APP_ROUTES } from "@/lib/constants";
+import {
+  entitlementForPath,
+  getEntitlements,
+  isRouteAllowed,
+} from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
 import type { ClinicRole } from "@/types/database";
 
@@ -85,9 +90,14 @@ export async function AppSidebar() {
   // header/page have already paid for this query in the same request.
   let role: ClinicRole | null = null;
   let isPlatformAdmin = false;
+  let entitlements = null;
   try {
     const supabase = await createClient();
-    role = (await getCurrentClinic(supabase))?.role ?? null;
+    const access = await getCurrentClinic(supabase);
+    role = access?.role ?? null;
+    if (access) {
+      entitlements = await getEntitlements(supabase, access.clinic.id);
+    }
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -105,10 +115,34 @@ export async function AppSidebar() {
 
   const sections = filterSectionsForRole(role);
 
+  // A module the clinic's plan does not include stays visible but locked:
+  // hiding it would hide the upgrade. The link goes to the upgrade screen
+  // rather than the module, so the two can never disagree.
+  const withLocks = sections.map((section) => ({
+    ...section,
+    items: section.items.map((item) => {
+      const requirement = entitlementForPath(item.href);
+      const locked =
+        !!requirement &&
+        !!entitlements &&
+        !isRouteAllowed(entitlements, item.href);
+
+      return {
+        label: item.label,
+        href: locked
+          ? `${APP_ROUTES.app.billing}?upgrade=${encodeURIComponent(
+              requirement?.feature ?? requirement?.addon ?? item.label,
+            )}`
+          : item.href,
+        locked,
+      };
+    }),
+  }));
+
   return (
     <AppSidebarShell
       sections={
-        isPlatformAdmin ? [...sections, ADMIN_NAV_SECTION] : sections
+        isPlatformAdmin ? [...withLocks, ADMIN_NAV_SECTION] : withLocks
       }
     />
   );

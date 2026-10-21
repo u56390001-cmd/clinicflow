@@ -185,14 +185,19 @@ time, and every price is a "just under" number the market uses.
 
 | slug | Price | Purpose |
 |---|---|---|
-| `extra-doctor-seat` | 199 /mo | each doctor beyond the plan's seats |
-| `extra-tv-display` | 299 /mo | each additional waiting-room display |
-| `extra-whatsapp-number` | 499 /mo | a second WhatsApp Business number (new) |
+| `extra-doctor-seat` | 1,199 /mo | each doctor beyond the plan's seats |
+| `extra-tv-display` | 1,299 /mo | each additional waiting-room display |
+| `extra-whatsapp-number` | 1,499 /mo | a second WhatsApp Business number (new) |
 | `growth-agent` | 1,500 /mo | Google Business Profile posts + campaigns |
 | `ai-review-assistant` | 1,500 /mo | Coming Soon (keep as is) |
 | `priority-setup` | 2,500 one-time | data migration + setup session (new) |
 | `whatsapp-ai-receptionist` (legacy) | — | **now included in Clinic+**; keep the row so existing purchases stay valid, relabel it "Included in Clinic plan" |
 | `queue-management-system` (legacy) | — | **now included in Clinic+**; same treatment |
+
+> **Price change (2026-10-21):** the three scale add-ons were priced at
+> 199 / 299 / 499 — too low to be worth selling against a PKR 2,499 plan.
+> They are now **1,199 / 1,299 / 1,499** (inside the 1,000–1,500 band), which
+> keeps them below a plan upgrade and in line with the rest of the catalogue.
 
 **Change from the earlier decision (flagged for you):** WhatsApp + Engagement
 + the TV queue move from *add-ons* to *plan features* of the Clinic tier. In

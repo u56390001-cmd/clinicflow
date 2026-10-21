@@ -3,25 +3,42 @@ import type { AIProvider } from "@/lib/ai/types";
 import { createWidgetClient } from "@/lib/supabase/widget";
 
 /**
- * Resolve the AI provider for a clinic, preferring the clinic's own LLM
- * credentials saved in Phase 8 (`clinic_ai_secrets` + `clinic_ai_settings`).
+ * Resolve the AI provider for a clinic.
  *
- * Why a service-role read: `clinic_ai_secrets` has ZERO RLS policies, so the
- * stored API key is only ever readable server-side with the service role. A
- * shared singleton provider is impossible here too — each clinic may carry its
- * own key + model — so a fresh provider is built per clinic. Inference is
- * expensive; the extra client construction is not.
+ * The clinic's own LLM credentials (Phase 8: `clinic_ai_settings` +
+ * `clinic_ai_secrets`) are the only thing a clinic-facing AI call may use.
+ * There is deliberately **no fallback to the platform key** for a clinic: a
+ * deployment used to quietly run every clinic on the platform's
+ * `GEMINI_API_KEY`, which made one clinic's key another clinic's bill and
+ * left the owner with no idea whose quota they were spending.
  *
- * Falls back to the environment-backed Gemini provider when a clinic has no
- * saved key (or a non-google provider / missing service-role env), so a
- * deployment that never configured per-clinic keys keeps working unchanged.
+ * A clinic without a key is not an error state to hide — it is a setup step.
+ * `ClinicAiKeyMissingError` is thrown so the caller can show the "add your
+ * API key" panel instead of a failed request, and the caller can decide
+ * whether that panel is a dead end or a form.
+ *
+ * The only case that still uses the environment provider is a call with **no
+ * clinic at all** (a platform-level job). A clinic always pays for its own
+ * inference.
  */
+export class ClinicAiKeyMissingError extends Error {
+  readonly clinicId: string | undefined;
+
+  constructor(clinicId?: string) {
+    super(
+      "This clinic has not added an AI API key yet. Add your key in AI Agent settings to switch the assistant on.",
+    );
+    this.name = "ClinicAiKeyMissingError";
+    this.clinicId = clinicId;
+  }
+}
+
 export async function resolveProviderForClinic(
   clinicId: string,
 ): Promise<AIProvider> {
   let provider: string | null = null;
   let model: string | null = null;
-  let apiKey: string | undefined;
+  let apiKey: string | null = null;
 
   try {
     const client = createWidgetClient();
@@ -42,18 +59,29 @@ export async function resolveProviderForClinic(
         .eq("settings_id", settings.id)
         .maybeSingle();
 
-      if (secret) {
+      if (secret?.api_key) {
         apiKey = secret.api_key;
       }
     }
   } catch {
-    // Missing service-role env or a query failure: don't let a credentials
-    // lookup take the whole assistant down; fall through to the env provider.
+    // Missing service-role env or a query failure: fall through to the
+    // "no key" branch, which tells the clinic what to do.
   }
 
-  if (apiKey && provider === "google") {
-    return new GeminiProvider({ apiKey, model: model ?? undefined });
+  if (!apiKey || provider !== "google") {
+    throw new ClinicAiKeyMissingError(clinicId);
   }
 
+  return new GeminiProvider({ apiKey, model: model ?? undefined });
+}
+
+/**
+ * The provider for a call that has no clinic behind it (a platform job).
+ *
+ * Kept separate from {@link resolveProviderForClinic} on purpose: the moment
+ * a call belongs to a clinic, the clinic's key is the only one that may be
+ * used.
+ */
+export function resolvePlatformProvider(): AIProvider {
   return getGeminiProvider();
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { buildWorkingHoursSummary, type RuleView } from "@/lib/appointments-view";
-import { resolveProviderForClinic } from "@/lib/ai/provider";
+import { resolveProviderForClinic, ClinicAiKeyMissingError } from "@/lib/ai/provider";
 import {
   ReceptionistProviderError,
   runReceptionistTurn,
@@ -193,7 +193,21 @@ export async function POST(req: NextRequest) {
   let provider;
   try {
     provider = await resolveProviderForClinic(clinic.id);
-  } catch {
+  } catch (error) {
+    // Each clinic runs on its own key. A clinic that has not added one yet
+    // gets a plain, honest answer instead of an error - the visitor is a
+    // patient, not an operator.
+    if (error instanceof ClinicAiKeyMissingError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "This clinic has not switched on the AI assistant yet. Please call the clinic or use the booking form below.",
+          code: "ai_key_missing",
+        },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(
       { ok: false, error: "The AI assistant isn't configured on this server yet." },
       { status: 500 },
