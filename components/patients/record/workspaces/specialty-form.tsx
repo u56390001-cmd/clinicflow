@@ -228,7 +228,7 @@ export function serializeList(tokens: string[]): string {
 }
 
 /** Shared autosave state for the selection primitives below. */
-function useFieldSave(onSave: (next: string) => Promise<boolean>) {
+export function useFieldSave(onSave: (next: string) => Promise<boolean>) {
   const [state, setState] = useState<NoteState>("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [, startTransition] = useTransition();
