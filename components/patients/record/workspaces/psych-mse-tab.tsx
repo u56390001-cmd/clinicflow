@@ -3,26 +3,16 @@
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
-  Accessibility,
-  Activity,
   AlignLeft,
   Brain,
   Check,
-  ChevronDown,
-  Compass,
-  Ear,
-  Eye,
   Gauge,
-  Lightbulb,
   Loader2,
   MessageSquare,
-  PenLine,
-  Pill,
-  Scale,
   ShieldAlert,
-  Smile,
   Sparkles,
   TriangleAlert,
+  User,
   Wand2,
   type LucideIcon,
 } from "lucide-react";
@@ -40,45 +30,85 @@ import {
   type MseAssistKind,
 } from "@/lib/actions/specialty-workspaces";
 import {
+  MSE_CARD_GROUPS,
+  MSE_FIELD_LABELS,
   MSE_FIELD_SHORT_LABELS,
+  MSE_NORMAL_BASELINE,
   MSE_OPTIONS,
-  MSE_SECTIONS,
+  MSE_SECTIONS_BY_ID,
   buildMseOverview,
   hasMseFindings,
   mseSummarySentence,
   readMseFindings,
-  sectionFindingCount,
+  type MseCardGroupDef,
   type MseFieldKey,
   type MseFindings,
-  type MseSectionDef,
 } from "@/lib/psych-mse";
 import { utcIsoToClinicLocalInput } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { formatShortDate } from "@/lib/utils/datetime";
 import type { PatientPsychBundle } from "@/lib/patient-record";
 
-const SECTION_ICONS: Record<string, LucideIcon> = {
-  appearance: Eye,
-  behavior: Activity,
-  consciousness: Gauge,
-  orientation: Compass,
-  speech: MessageSquare,
-  mood: Smile,
-  affect: Smile,
-  thought_process: Brain,
-  thought_content: Brain,
-  perception: Ear,
-  cognition: Brain,
-  insight: Lightbulb,
-  judgment: Scale,
-  risk: ShieldAlert,
-  functioning: Accessibility,
-  substance: Pill,
-  notes: PenLine,
+const CARD_ICONS: Record<NonNullable<MseCardGroupDef["icon"]>, LucideIcon> = {
+  user: User,
+  message: MessageSquare,
+  brain: Brain,
+  gauge: Gauge,
 };
 
-function MseSectionCard({
-  section,
+const NARROW_NOTE_ROWS: ReadonlySet<string> = new Set(["risk", "substance", "mood"]);
+
+/** MMSE / MoCA entry with 0–30 validation; commits only a valid score (or a clean clear). */
+function ScoreInput({
+  label,
+  value,
+  canManage,
+  onCommit,
+}: {
+  label: string;
+  value: string;
+  canManage: boolean;
+  onCommit: (value: string) => void;
+}) {
+  const [text, setText] = useState(value);
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <label className="block">
+      <span className="text-ink mb-1.5 block text-[12.5px] font-bold">{label}</span>
+      <Input
+        type="text"
+        inputMode="numeric"
+        value={text}
+        disabled={!canManage}
+        placeholder="0–30"
+        aria-label={`${label} total score`}
+        aria-invalid={error ? true : undefined}
+        onChange={(event) => {
+          setText(event.target.value);
+          setError(null);
+        }}
+        onBlur={() => {
+          const raw = text.trim();
+          if (!raw) {
+            onCommit("");
+            return;
+          }
+          if (!/^\d+$/.test(raw) || Number(raw) > 30) {
+            setError("Score must be a number from 0 to 30");
+            return;
+          }
+          onCommit(raw);
+        }}
+        className={cn("h-9", error && "border-status-destructive focus:border-status-destructive")}
+      />
+      {error && <span className="mt-1 block text-[10.5px] font-medium text-status-destructive">{error}</span>}
+    </label>
+  );
+}
+
+function MsePanel({
+  group,
   findings,
   canManage,
   onToggle,
@@ -86,7 +116,7 @@ function MseSectionCard({
   onCommitAdditional,
   onCommitScore,
 }: {
-  section: MseSectionDef;
+  group: MseCardGroupDef;
   findings: MseFindings;
   canManage: boolean;
   onToggle: (field: MseFieldKey, options: string[]) => void;
@@ -94,175 +124,166 @@ function MseSectionCard({
   onCommitAdditional: (text: string) => Promise<boolean>;
   onCommitScore: (key: "mmse" | "moca", value: string) => void;
 }) {
-  const [open, setOpen] = useState(() =>
-    section.kind === "notes"
-      ? Boolean(findings.additional_notes?.trim())
-      : sectionFindingCount(findings, section) > 0 || (section.fields[0] ?? "") === "appearance",
-  );
-  const Icon = SECTION_ICONS[section.id] ?? Brain;
-  const count = sectionFindingCount(findings, section);
-
-  if (section.kind === "notes") {
-    return (
-      <div className="rounded-card border border-hairline bg-surface">
-        <button
-          type="button"
-          onClick={() => setOpen((value) => !value)}
-          aria-expanded={open}
-          className="flex w-full items-center gap-2.5 rounded-card px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-        >
-          <span
-            className={cn(
-              "flex size-6 shrink-0 items-center justify-center rounded-pill",
-              open ? "bg-primary/10 text-primary" : "bg-app text-text-secondary",
-            )}
-          >
-            <Icon aria-hidden="true" className="size-3.5" />
-          </span>
-          <span className="min-w-0 flex-1 text-[13px] font-bold text-ink">{section.title}</span>
-          {count > 0 && (
-            <span className="rounded-pill bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-              {count}
-            </span>
-          )}
-          <ChevronDown
-            aria-hidden="true"
-            className={cn("size-4 transition-transform text-text-muted", open && "rotate-180")}
-          />
-        </button>
-        {open && (
-          <div className="space-y-3.5 border-t border-hairline px-4 pb-4 pt-3">
-            <NarrativeAssistNote
-              label="Additional notes"
-              name="psych-mse-additional-notes"
-              value={findings.additional_notes ?? ""}
-              onSave={onCommitAdditional}
-              fieldLabel="Additional mental status notes"
-              rows={5}
-              placeholder="Anything else relevant to the examination…"
-              disabled={!canManage}
-            />
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  const noteField = section.fields[0] ?? "appearance";
+  const Icon = CARD_ICONS[group.icon ?? "brain"];
 
   return (
     <div className="rounded-card border border-hairline bg-surface">
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-2.5 rounded-card px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-      >
-        <span
-          className={cn(
-            "flex size-6 shrink-0 items-center justify-center rounded-pill",
-            open ? "bg-primary/10 text-primary" : "bg-app text-text-secondary",
-          )}
-        >
+      <div className="flex items-center gap-2.5 border-b border-hairline px-4 py-3">
+        <span className="flex size-6 shrink-0 items-center justify-center rounded-pill bg-primary/10 text-primary">
           <Icon aria-hidden="true" className="size-3.5" />
         </span>
-        <span className="min-w-0 flex-1 text-[13px] font-bold text-ink">{section.title}</span>
-        {count > 0 && (
-          <span className="rounded-pill bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-            {count}
-          </span>
-        )}
-        <ChevronDown
-          aria-hidden="true"
-          className={cn("size-4 transition-transform text-text-muted", open && "rotate-180")}
-        />
-      </button>
+        <span className="min-w-0 flex-1 text-[13px] font-bold text-ink">{group.title}</span>
+      </div>
 
-      {open && (
-        <div className="space-y-3.5 border-t border-hairline px-4 pb-4 pt-3">
-          {section.description && (
-            <p className="text-[11.5px] leading-relaxed text-ink-faint">{section.description}</p>
-          )}
+      <div className="divide-y divide-hairline px-4">
+        {group.sections.map((sectionId) => {
+          const section = MSE_SECTIONS_BY_ID[sectionId];
+          if (!section) return null;
 
-          <div className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-2">
-            {section.fields.map((field) => {
-              const state = findings[field];
-              const short = MSE_FIELD_SHORT_LABELS[field];
-              return (
-                <div key={field}>
-                  {short && (
-                    <p className="text-ink mb-1.5 text-[12.5px] font-bold">{short}</p>
-                  )}
-                  {canManage ? (
-                    <ChipPicker
-                      options={MSE_OPTIONS[field]}
-                      value={state?.options ?? []}
-                      onChange={(options) => onToggle(field, options)}
-                    />
-                  ) : (state?.options.length ?? 0) > 0 ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {(state?.options ?? []).map((option) => (
-                        <span
-                          key={option}
-                          className="rounded-pill border border-hairline bg-app px-2.5 py-1 text-[11.5px] font-medium capitalize leading-none text-text-primary"
-                        >
-                          {option.replace(/_/g, " ")}
-                        </span>
-                      ))}
+          if (section.kind === "notes") {
+            return (
+              <div key={sectionId} className="py-3.5">
+                <NarrativeAssistNote
+                  label="Additional notes"
+                  name="psych-mse-additional-notes"
+                  value={findings.additional_notes ?? ""}
+                  onSave={onCommitAdditional}
+                  fieldLabel="Additional mental status notes"
+                  rows={4}
+                  placeholder="Anything else relevant to the examination…"
+                  disabled={!canManage}
+                />
+              </div>
+            );
+          }
+
+          const noteField = section.fields[0];
+          const isRisk = section.id === "risk";
+
+          return (
+            <div key={sectionId} className="py-3.5">
+              <p className="mb-2 text-[12px] font-bold text-ink">{section.title}</p>
+              {section.description && (
+                <p className="mb-2 text-[11.5px] leading-relaxed text-ink-faint">{section.description}</p>
+              )}
+
+              {isRisk ? (
+                <div className="rounded-control border border-status-destructive/30 bg-status-destructive/5 p-3">
+                  <p className="mb-2 flex items-center gap-1.5 text-[11.5px] font-bold text-status-destructive">
+                    <ShieldAlert aria-hidden="true" className="size-3.5" />
+                    Safety risk assessment
+                  </p>
+                  <MseFields
+                    section={section}
+                    findings={findings}
+                    canManage={canManage}
+                    onToggle={onToggle}
+                  />
+                  {section.noteLabel && noteField && (
+                    <div className="mt-2.5">
+                      <NarrativeAssistNote
+                        label={section.noteLabel}
+                        name={`psych-mse-note-${section.id}`}
+                        value={findings[noteField]?.note ?? ""}
+                        onSave={(text) => onCommitNote(noteField, text)}
+                        fieldLabel={`${section.title} observation`}
+                        rows={3}
+                        placeholder="Intent, plan, means, protective factors…"
+                        disabled={!canManage}
+                      />
                     </div>
-                  ) : (
-                    <span className="text-[11.5px] text-ink-faint">Not recorded</span>
                   )}
                 </div>
-              );
-            })}
+              ) : (
+                <>
+                  <MseFields section={section} findings={findings} canManage={canManage} onToggle={onToggle} />
+                  {section.scores && (
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <ScoreInput
+                        key="mmse"
+                        label="MMSE"
+                        value={findings.mmse ?? ""}
+                        canManage={canManage}
+                        onCommit={(value) => onCommitScore("mmse", value)}
+                      />
+                      <ScoreInput
+                        key="moca"
+                        label="MoCA"
+                        value={findings.moca ?? ""}
+                        canManage={canManage}
+                        onCommit={(value) => onCommitScore("moca", value)}
+                      />
+                    </div>
+                  )}
+                  {section.noteLabel && noteField && (
+                    <div className="mt-2.5">
+                      <NarrativeAssistNote
+                        label={section.noteLabel}
+                        name={`psych-mse-note-${section.id}`}
+                        value={findings[noteField]?.note ?? ""}
+                        onSave={(text) => onCommitNote(noteField, text)}
+                        fieldLabel={`${section.title} observation`}
+                        rows={NARROW_NOTE_ROWS.has(section.id) ? 3 : 2}
+                        placeholder="Observation…"
+                        disabled={!canManage}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
-            {section.scores && (
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="text-ink mb-1.5 block text-[12.5px] font-bold">MMSE</span>
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    defaultValue={findings.mmse ?? ""}
-                    disabled={!canManage}
-                    placeholder="0–30"
-                    aria-label="MMSE total score"
-                    className="h-9"
-                    onBlur={(event) => onCommitScore("mmse", event.target.value)}
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-ink mb-1.5 block text-[12.5px] font-bold">MoCA</span>
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    defaultValue={findings.moca ?? ""}
-                    disabled={!canManage}
-                    placeholder="0–30"
-                    aria-label="MoCA total score"
-                    className="h-9"
-                    onBlur={(event) => onCommitScore("moca", event.target.value)}
-                  />
-                </label>
+function MseFields({
+  section,
+  findings,
+  canManage,
+  onToggle,
+}: {
+  section: { fields: MseFieldKey[] };
+  findings: MseFindings;
+  canManage: boolean;
+  onToggle: (field: MseFieldKey, options: string[]) => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-2">
+      {section.fields.map((field) => {
+        const state = findings[field];
+        const short = MSE_FIELD_SHORT_LABELS[field];
+        return (
+          <div key={field}>
+            <p className="mb-1.5 flex items-center justify-between gap-2 text-[12.5px] font-bold text-ink">
+              <span>{short ?? MSE_FIELD_LABELS[field]}</span>
+              {!canManage && (state?.options.length ?? 0) === 0 && (
+                <span className="text-[10.5px] font-medium text-ink-faint">Not recorded</span>
+              )}
+            </p>
+            {canManage ? (
+              <ChipPicker
+                options={MSE_OPTIONS[field]}
+                value={state?.options ?? []}
+                onChange={(options) => onToggle(field, options)}
+              />
+            ) : (state?.options.length ?? 0) > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {(state?.options ?? []).map((option) => (
+                  <span
+                    key={option}
+                    className="rounded-pill border border-hairline bg-app px-2.5 py-1 text-[11.5px] font-medium capitalize leading-none text-text-primary"
+                  >
+                    {option.replace(/_/g, " ")}
+                  </span>
+                ))}
               </div>
-            )}
+            ) : null}
           </div>
-
-          {section.noteLabel && (
-            <NarrativeAssistNote
-              label={section.noteLabel}
-              name={`psych-mse-note-${section.id}`}
-              value={findings[noteField]?.note ?? ""}
-              onSave={(text) => onCommitNote(noteField, text)}
-              fieldLabel={`${section.title} observation`}
-              rows={section.id === "risk" || section.id === "substance" || section.id === "mood" ? 3 : 2}
-              placeholder="Observation…"
-              disabled={!canManage}
-            />
-          )}
-        </div>
-      )}
+        );
+      })}
     </div>
   );
 }
@@ -272,9 +293,7 @@ function EmptyState() {
     <div className="rounded-card border border-hairline bg-surface p-6 text-center">
       <Brain aria-hidden="true" className="mx-auto mb-2 size-5 text-text-muted" />
       <p className="text-[12.5px] font-semibold text-ink">No mental status examination recorded</p>
-      <p className="mt-0.5 text-[11.5px] text-ink-faint">
-        Open the sections below to record the findings.
-      </p>
+      <p className="mt-0.5 text-[11.5px] text-ink-faint">Record the examination with your clinician account.</p>
     </div>
   );
 }
@@ -341,6 +360,18 @@ export function MseTab({
     void commit(next);
   }
 
+  /** One click fills the standard unremarkable exam; observation notes stay untouched. */
+  function setNormalBaseline() {
+    if (!canManage) return;
+    const previous = findingsRef.current;
+    const next: MseFindings = { ...previous };
+    for (const [key, options] of Object.entries(MSE_NORMAL_BASELINE)) {
+      const field = key as MseFieldKey;
+      next[field] = { options, note: previous[field]?.note ?? "" };
+    }
+    void commit(next);
+  }
+
   async function generateSummary() {
     if (!canManage || summaryBusy) return;
     setSummaryBusy("summary");
@@ -396,37 +427,51 @@ export function MseTab({
             Mental Status Examination
           </h3>
           <p className="mt-0.5 text-[11px] text-ink-faint">
-            Record the examination, then let the assistant draft the clinical summary.
+            One-click normal baseline, then adjust the abnormal findings.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          {canManage && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 border-primary/40 px-3 text-[12px] text-primary hover:border-primary hover:bg-primary/5"
+              disabled={saveState === "saving"}
+              onClick={setNormalBaseline}
+            >
+              <Sparkles aria-hidden="true" className="size-3.5" />
+              Set normal baseline
+            </Button>
+          )}
           <NoteStatus state={saveState} />
           {mse?.assessed_at && (
             <span className="text-[11px] text-ink-faint">
-              Assessed{" "}
-              {formatShortDate(utcIsoToClinicLocalInput(mse.assessed_at, timezone))}
+              Assessed {formatShortDate(utcIsoToClinicLocalInput(mse.assessed_at, timezone))}
               {mse.updated_by ? ` by ${mse.updated_by}` : ""}
             </span>
           )}
         </div>
       </div>
 
-      {!canManage && !anyFindings && <EmptyState />}
-
-      <div className="space-y-2.5">
-        {MSE_SECTIONS.map((section) => (
-          <MseSectionCard
-            key={section.id}
-            section={section}
-            findings={findings}
-            canManage={canManage}
-            onToggle={toggleOptions}
-            onCommitNote={commitNote}
-            onCommitAdditional={commitAdditional}
-            onCommitScore={commitScore}
-          />
-        ))}
-      </div>
+      {!canManage && !anyFindings ? (
+        <EmptyState />
+      ) : (
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+          {MSE_CARD_GROUPS.map((group) => (
+            <MsePanel
+              key={group.id}
+              group={group}
+              findings={findings}
+              canManage={canManage}
+              onToggle={toggleOptions}
+              onCommitNote={commitNote}
+              onCommitAdditional={commitAdditional}
+              onCommitScore={commitScore}
+            />
+          ))}
+        </div>
+      )}
 
       {anyFindings && (
         <div className="rounded-card border border-hairline bg-surface p-4">
@@ -437,12 +482,8 @@ export function MseTab({
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
             {overview.map((row) => (
               <div key={row.label}>
-                <dt className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
-                  {row.label}
-                </dt>
-                <dd className="text-[12.5px] font-semibold leading-snug text-text-primary">
-                  {row.value}
-                </dd>
+                <dt className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{row.label}</dt>
+                <dd className="text-[12.5px] font-semibold leading-snug text-text-primary">{row.value}</dd>
               </div>
             ))}
             {overview.length === 0 && (

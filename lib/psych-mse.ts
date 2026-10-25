@@ -213,6 +213,78 @@ export const MSE_SECTIONS: MseSectionDef[] = [
   { id: "notes", title: "Additional Notes", kind: "notes", fields: [] },
 ];
 
+/** Section lookup so card groupings can reference sections by id. */
+export const MSE_SECTIONS_BY_ID: Record<string, MseSectionDef> = Object.fromEntries(
+  MSE_SECTIONS.map((section) => [section.id, section]),
+);
+
+/** One permanently-open exam panel in the 2-column grid. */
+export type MseCardGroupDef = {
+  id: string;
+  title: string;
+  /** Icon hint, resolved by the workspace tab. */
+  icon?: "user" | "message" | "brain" | "gauge";
+  /** Section ids from `MSE_SECTIONS`, in render order. */
+  sections: string[];
+};
+
+/** The four exam panels, visual order (left→right, row by row). */
+export const MSE_CARD_GROUPS: MseCardGroupDef[] = [
+  {
+    id: "general",
+    icon: "user",
+    title: "General appearance, attitude & consciousness",
+    sections: ["appearance", "behavior", "consciousness", "orientation", "functioning"],
+  },
+  {
+    id: "speech",
+    icon: "message",
+    title: "Speech, mood & affect",
+    sections: ["speech", "mood", "affect"],
+  },
+  {
+    id: "thought",
+    icon: "brain",
+    title: "Thought, perception & notes",
+    sections: ["thought_process", "thought_content", "perception", "notes"],
+  },
+  {
+    id: "cognition",
+    icon: "gauge",
+    title: "Cognition, insight & safety risk",
+    sections: ["cognition", "insight", "judgment", "risk", "substance"],
+  },
+];
+
+/**
+ * Standard unremarkable exam for the "Set normal baseline" quick action.
+ * Tokens match `MSE_OPTIONS` exactly so chips render as selected. The baseline
+ * only replaces chip selections — notes and score values are preserved by the
+ * caller.
+ */
+export const MSE_NORMAL_BASELINE: Record<MseFieldKey, string[]> = {
+  appearance: ["Neat", "Appropriate dress"],
+  behavior: ["Calm", "Cooperative"],
+  consciousness: ["Alert"],
+  orientation: ["Person", "Place", "Time", "Situation"],
+  speech_rate: ["Normal"],
+  speech_tone: ["Normal"],
+  speech_quality: ["Clear"],
+  mood: ["Euthymic"],
+  affect: ["Appropriate"],
+  thought_process: ["Logical"],
+  thought_content: ["Normal"],
+  perception: ["Normal"],
+  cognition_orientation: ["Fully oriented"],
+  cognition_memory: ["Intact"],
+  cognition_attention: ["Intact"],
+  insight: ["Good"],
+  judgment: ["Intact"],
+  risk: ["No current risk"],
+  functioning: ["Independent"],
+  substance: ["None"],
+};
+
 export function emptyMseFinding(): MseFieldState {
   return { options: [], note: "" };
 }
