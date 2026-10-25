@@ -491,6 +491,18 @@ export function PatientRecord({
                   ...params,
                   tab: "psy_documents",
                 })}
+                sessionsHref={patientDirectoryHref({
+                  ...params,
+                  tab: "psy_sessions",
+                })}
+                intakeHref={patientDirectoryHref({
+                  ...params,
+                  tab: "psy_intake",
+                })}
+                carePlanHref={patientDirectoryHref({
+                  ...params,
+                  tab: "psy_care_plan",
+                })}
               />
             ) : (
               <DermWorkspace

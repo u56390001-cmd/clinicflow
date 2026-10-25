@@ -96,9 +96,15 @@ type Props = {
   assessmentsHref: string;
   /** `?tab=psy_documents` Ã¢â‚¬â€ the Overview's "View" documents target. */
   documentsHref: string;
+  /** `?tab=psy_sessions` — the Overview timeline's session-event target. */
+  sessionsHref: string;
+  /** `?tab=psy_intake` — the Overview timeline/intake-context target. */
+  intakeHref: string;
+  /** `?tab=psy_care_plan` — the Overview care-plan snapshot target. */
+  carePlanHref: string;
 };
 
-export function PsychWorkspace({ patient, psych, documents, activeTab, canManage, timezone, aiSummaryEnabled, assessmentsHref, documentsHref }: Props) {
+export function PsychWorkspace({ patient, psych, documents, activeTab, canManage, timezone, aiSummaryEnabled, assessmentsHref, documentsHref, sessionsHref, intakeHref, carePlanHref }: Props) {
   const [seed, setSeed] = useState<PsychDraft | null>(null);
   const [library, setLibrary] = useState<AssessmentTemplate[]>([]);
 
@@ -156,6 +162,9 @@ export function PsychWorkspace({ patient, psych, documents, activeTab, canManage
               aiSummaryEnabled={aiSummaryEnabled}
               assessmentsHref={assessmentsHref}
               documentsHref={documentsHref}
+              sessionsHref={sessionsHref}
+              intakeHref={intakeHref}
+              carePlanHref={carePlanHref}
             />
           )}
           {activeTab === "psy_intake" && (
@@ -429,6 +438,9 @@ function OverviewSafetyTab({
   aiSummaryEnabled,
   assessmentsHref,
   documentsHref,
+  sessionsHref,
+  intakeHref,
+  carePlanHref,
 }: {
   patient: PatientDirectoryRow;
   psych: PatientPsychBundle;
@@ -438,6 +450,9 @@ function OverviewSafetyTab({
   aiSummaryEnabled: boolean;
   assessmentsHref: string;
   documentsHref: string;
+  sessionsHref: string;
+  intakeHref: string;
+  carePlanHref: string;
 }) {
   const safety = buildSafetySnapshot(psych, timezone);
   const concerns = mergeTags(
@@ -470,7 +485,7 @@ function OverviewSafetyTab({
         </div>
 
         <div className="flex flex-col gap-4">
-          <ClinicalContextCard patient={patient} psych={psych} />
+          <ClinicalContextCard patient={patient} psych={psych} href={intakeHref} />
           <LatestAssessmentsCard assessments={psych.assessments} href={assessmentsHref} />
         </div>
       </div>
@@ -480,11 +495,17 @@ function OverviewSafetyTab({
           psych={psych}
           documents={documents}
           timezone={timezone}
+          hrefs={{
+            assessment: assessmentsHref,
+            session: sessionsHref,
+            document: documentsHref,
+            intake: intakeHref,
+          }}
           className="lg:col-span-2"
         />
         <div className="flex flex-col gap-4">
           <DocumentsSummaryCard documents={documents} href={documentsHref} />
-          <CarePlanSnapshotCard carePlan={psych.carePlan} />
+          <CarePlanSnapshotCard carePlan={psych.carePlan} href={carePlanHref} />
         </div>
       </div>
     </div>
@@ -635,15 +656,28 @@ function CurrentConcernsCard({ concerns }: { concerns: string[] }) {
 function ClinicalContextCard({
   patient,
   psych,
+  href,
 }: {
   patient: PatientDirectoryRow;
   psych: PatientPsychBundle;
+  href: string;
 }) {
   const previousDiagnosis = mergeTags(psych.intake?.previous_diagnosis).join(", ");
   const previousTherapy = mergeTags(psych.intake?.previous_therapy_history).join(", ");
 
   return (
-    <OverviewCard icon={Stethoscope} title="Clinical context">
+    <OverviewCard
+      icon={Stethoscope}
+      title="Clinical context"
+      action={
+        <Button asChild variant="ghost" size="sm" className="h-7 gap-1 px-2 text-[12px]">
+          <Link href={href}>
+            View intake
+            <ChevronRight aria-hidden="true" className="size-3.5" />
+          </Link>
+        </Button>
+      }
+    >
       <dl className="grid grid-cols-1 gap-3">
         <RecordFact label="Previous diagnosis">
           {previousDiagnosis || undefined}
@@ -756,7 +790,13 @@ function DocumentsSummaryCard({
   );
 }
 
-function CarePlanSnapshotCard({ carePlan }: { carePlan: PsychCarePlan | null }) {
+function CarePlanSnapshotCard({
+  carePlan,
+  href,
+}: {
+  carePlan: PsychCarePlan | null;
+  href: string;
+}) {
   const therapy = parseList(carePlan?.intervention_plan)[0] ?? null;
   const goal = carePlan?.therapy_goals?.split("\n")[0]?.trim() || null;
 
@@ -765,9 +805,12 @@ function CarePlanSnapshotCard({ carePlan }: { carePlan: PsychCarePlan | null }) 
       icon={Target}
       title="Care plan"
       action={
-        carePlan?.psychiatrist_referral ? (
-          <Badge className="bg-primary/10 text-primary">Referral</Badge>
-        ) : null
+        <Button asChild variant="ghost" size="sm" className="h-7 gap-1 px-2 text-[12px]">
+          <Link href={href}>
+            Open
+            <ChevronRight aria-hidden="true" className="size-3.5" />
+          </Link>
+        </Button>
       }
     >
       <dl className="grid grid-cols-1 gap-3">
@@ -775,6 +818,11 @@ function CarePlanSnapshotCard({ carePlan }: { carePlan: PsychCarePlan | null }) 
         <RecordFact label="Active goal">{goal}</RecordFact>
         <RecordFact label="Follow-up">{carePlan?.follow_up_frequency}</RecordFact>
       </dl>
+      {carePlan?.psychiatrist_referral && (
+        <div className="mt-3">
+          <Badge className="bg-primary/10 text-primary">Referral</Badge>
+        </div>
+      )}
     </OverviewCard>
   );
 }
@@ -868,11 +916,14 @@ function ClinicalTimelineCard({
   psych,
   documents,
   timezone,
+  hrefs,
   className,
 }: {
   psych: PatientPsychBundle;
   documents: PatientDocumentView[];
   timezone: string;
+  /** Per-kind tab target: clicking an event opens the tab that owns it. */
+  hrefs: Record<TimelineEventKind, string>;
   className?: string;
 }) {
   const events = buildTimeline(psych, documents, timezone);
@@ -880,27 +931,36 @@ function ClinicalTimelineCard({
   return (
     <OverviewCard icon={History} title="Clinical timeline" className={className}>
       {events.length > 0 ? (
-        <ol className="space-y-3.5">
+        <ol className="space-y-1">
           {events.map((event) => {
             const Icon = TIMELINE_ICON[event.kind];
             return (
-              <li key={event.id} className="flex items-start gap-3">
-                <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-pill bg-app text-text-secondary">
-                  <Icon aria-hidden="true" className="size-3" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[12.5px] font-medium text-text-primary">
-                    {event.label}
-                  </p>
-                  {event.detail && (
-                    <p className="truncate text-[11.5px] text-text-muted">
-                      {event.detail}
-                    </p>
-                  )}
-                </div>
-                <time className="shrink-0 text-[11px] text-ink-faint">
-                  {event.dateLabel}
-                </time>
+              <li key={event.id}>
+                <Link
+                  href={hrefs[event.kind]}
+                  className="group -mx-2 flex items-start gap-3 rounded-control px-2 py-1.5 transition-colors hover:bg-app"
+                >
+                  <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-pill bg-app text-text-secondary group-hover:bg-surface">
+                    <Icon aria-hidden="true" className="size-3" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[12.5px] font-medium text-text-primary">
+                      {event.label}
+                    </span>
+                    {event.detail && (
+                      <span className="block truncate text-[11.5px] text-text-muted">
+                        {event.detail}
+                      </span>
+                    )}
+                  </span>
+                  <ChevronRight
+                    aria-hidden="true"
+                    className="mt-2 size-3.5 shrink-0 text-text-muted/40 transition-colors group-hover:text-primary"
+                  />
+                  <time className="mt-1 shrink-0 text-[11px] text-ink-faint">
+                    {event.dateLabel}
+                  </time>
+                </Link>
               </li>
             );
           })}
