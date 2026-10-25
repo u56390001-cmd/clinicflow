@@ -363,6 +363,8 @@ export function OverviewTab({
           timezone={timezone}
           canManage={canManage}
           enabled={aiSummaryEnabled}
+          scanSummary={patient.ai_scan_summary}
+          scanGeneratedAt={patient.ai_scan_summary_generated_at}
         />
 
         <RecordSection

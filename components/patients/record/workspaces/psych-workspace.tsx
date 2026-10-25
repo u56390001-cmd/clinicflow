@@ -459,6 +459,8 @@ function OverviewSafetyTab({
         timezone={timezone}
         canManage={canManage}
         enabled={aiSummaryEnabled}
+        scanSummary={patient.ai_scan_summary}
+        scanGeneratedAt={patient.ai_scan_summary_generated_at}
       />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

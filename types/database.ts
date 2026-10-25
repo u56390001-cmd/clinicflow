@@ -507,6 +507,14 @@ export type Patient = {
   /** Visit count the cached summary was generated from — used to detect staleness. */
   ai_summary_visit_count: number | null;
   /**
+   * Summary extracted from a scanned document (AI OCR, migration 0115). Kept
+   * separate from the record-generated `ai_summary` so an outside lab report
+   * never overwrites the clinic's own consultation summary — the card renders
+   * them in two distinct sections.
+   */
+  ai_scan_summary: string | null;
+  ai_scan_summary_generated_at: string | null;
+  /**
    * Soft-archive markers set by `merge_patient_profiles` (0041). A duplicate that
    * was merged into another profile keeps its row (and all still-pointing data is
    * moved away first) but is hidden from `patient_directory`. `merged_at` and

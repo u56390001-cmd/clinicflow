@@ -122,8 +122,9 @@ function withoutDateColumns<
  * tab.
  *
  * The model returns a concise clinical summary alongside the items, which is
- * written to `patients.ai_summary` so the Overview tab's AI Patient Summary card
- * reflects this document (`summaryUpdated: true`).
+ * written to `patients.ai_scan_summary` (migration 0115) so the Overview tab's
+ * AI Patient Summary card shows it in its own "document scan" section — it
+ * never overwrites the clinic's own consultation summary (`summaryUpdated: true`).
  *
  * On success the original scan is kept in the patient's Documents tab as well
  * (a permanent `patient_documents` record), so the clinic retains an audit copy
@@ -335,23 +336,17 @@ if (insertError) {
 
     // Feed the Overview tab's AI Patient Summary card from this document. The
     // summary rides in the same structured response as the items (no second
-    // model call) and overwrites the cached column; stamping it with the current
-    // visit count keeps the card's staleness logic consistent.
+    // model call) and is written to its own `ai_scan_summary` column
+    // (migration 0115), so it never overwrites the record-generated
+    // consultation summary the card shows above it.
     const summary = extracted.data.summary?.trim();
     let summaryUpdated = false;
     if (summary) {
-      const { data: directory } = await supabase
-        .from("patient_directory")
-        .select("visit_count")
-        .eq("clinic_id", clinicId)
-        .eq("id", patientId)
-        .maybeSingle();
       const { error: summaryError } = await supabase
         .from("patients")
         .update({
-          ai_summary: summary.slice(0, MAX_SUMMARY_CHARS),
-          ai_summary_generated_at: new Date().toISOString(),
-          ai_summary_visit_count: directory?.visit_count ?? 0,
+          ai_scan_summary: summary.slice(0, MAX_SUMMARY_CHARS),
+          ai_scan_summary_generated_at: new Date().toISOString(),
         })
         .eq("clinic_id", clinicId)
         .eq("id", patientId);
