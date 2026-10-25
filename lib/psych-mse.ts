@@ -501,3 +501,71 @@ export function mseFindingsDigest(findings: MseFindings): string {
   }
   return lines.join("\n");
 }
+
+/** Minimal shape of the copilot's psychology extraction (lib/copilot/types.ts). */
+export type CopilotPsychNote = {
+  mood_affect?: string;
+  behavior?: string;
+  risk_level?: "low" | "moderate" | "high" | "crisis";
+  risk_notes?: string;
+};
+
+/**
+ * Maps the copilot's free-text session extraction onto MSE option tokens
+ * (`Push to Today's MSE`). Every mapping is keyword-matched against the real
+ * `MSE_OPTIONS` vocabulary, so the chips render as selected; anything that
+ * cannot be matched is dropped rather than guessed. Existing findings are kept
+ * — the note only fills the domains it clearly speaks about.
+ */
+export function mseFindingsFromCopilotNote(
+  note: CopilotPsychNote,
+  existing?: MseFindings,
+): MseFindings {
+  const next: MseFindings = { ...(existing ?? {}) };
+
+  const matched = (field: MseFieldKey, text: string): string[] => {
+    const haystack = text.toLowerCase();
+    const hits = MSE_OPTIONS[field]
+      .filter((option) =>
+        option
+          .toLowerCase()
+          .split(/\s+/)
+          .filter((word) => word.length >= 4)
+          .every((word) => haystack.includes(word)),
+      )
+      .slice(0, 4);
+    return hits;
+  };
+
+  const assign = (field: MseFieldKey, text: string, noteText?: string) => {
+    const options = matched(field, text);
+    if (options.length === 0 && !noteText?.trim()) return;
+    next[field] = {
+      options: options.length > 0 ? options : (next[field]?.options ?? []),
+      note: noteText?.trim() || (next[field]?.note ?? ""),
+    };
+  };
+
+  assign("mood", note.mood_affect ?? "", note.mood_affect);
+  assign("affect", note.mood_affect ?? "", undefined);
+  assign("behavior", note.behavior ?? "", note.behavior);
+
+  if (note.risk_level && note.risk_level !== "low") {
+    const riskText = `${note.risk_notes ?? ""}`.toLowerCase();
+    const riskTokens: string[] = [];
+    for (const option of MSE_OPTIONS.risk) {
+      const words = option.toLowerCase().split(/\s+/).filter((w) => w.length >= 4);
+      if (words.length > 0 && words.every((word) => riskText.includes(word))) {
+        riskTokens.push(option);
+      }
+    }
+    next.risk = {
+      options: riskTokens,
+      note: note.risk_notes?.trim() || (next.risk?.note ?? ""),
+    };
+  } else if (note.risk_level === "low") {
+    next.risk = { options: ["No current risk"], note: next.risk?.note ?? "" };
+  }
+
+  return next;
+}

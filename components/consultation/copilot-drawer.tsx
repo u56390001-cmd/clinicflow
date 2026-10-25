@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Mic, Square, Sparkles, ChevronRight, ChevronLeft, AlertTriangle, Send, X, Undo2, Zap, Check } from 'lucide-react';
-import { useAmbientRecorder } from '@/lib/copilot/hooks/useAmbientRecorder';
+import { Mic, Square, Sparkles, ChevronRight, ChevronLeft, AlertTriangle, Send, X, Undo2, Zap, Check, ClipboardList } from 'lucide-react';
+import { useAmbientRecorder, type AmbientRecorder } from '@/lib/copilot/hooks/useAmbientRecorder';
 import {
   COPILOT_MODE_LABELS,
   CopilotExtraction,
@@ -29,6 +29,19 @@ interface CopilotDrawerProps {
   onUndo?: () => boolean;
   /** True while an AI-written draft is still unreviewed — drives the Undo button. */
   canUndo?: boolean;
+  /**
+   * A recorder owned outside the drawer (workspace-lifted), shared with other
+   * surfaces of the same workspace so there is exactly one audio engine. When
+   * omitted the drawer boots its own hook as before.
+   */
+  recorder?: AmbientRecorder;
+  /** Fires once per extraction with HIGH/CRISIS risk so the workspace can triage. */
+  onRiskFlag?: (notes: string) => void;
+  /**
+   * Psychology only: writes the extraction's observable findings to the MSE
+   * (via the workspace's own handler).
+   */
+  onPushToMse?: (note: PsychNoteExtraction) => void;
 }
 
 /**
@@ -59,7 +72,10 @@ export function CopilotDrawer({
   patientProfile,
   onPopulateForm,
   onUndo,
-  canUndo = false
+  canUndo = false,
+  recorder,
+  onRiskFlag,
+  onPushToMse
 }: CopilotDrawerProps) {
   const [isOpen, setIsOpen] = useState<boolean>(true);
   const [commandInput, setCommandInput] = useState<string>('');
@@ -74,6 +90,10 @@ export function CopilotDrawer({
         ? "the examination form"
         : "the prescription form";
 
+  const ownRecorder = useAmbientRecorder({ patientProfile, workspaceKind: mode, workspaceContext });
+  // The workspace-lifted engine wins; the hook above stays only so the drawer
+  // keep working standalone when no engine is injected.
+  const engine = recorder ?? ownRecorder;
   const {
     isRecording,
     recordingTime,
@@ -85,7 +105,7 @@ export function CopilotDrawer({
     startRecording,
     stopRecording,
     setExtractedData
-  } = useAmbientRecorder({ patientProfile, workspaceKind: mode, workspaceContext });
+  } = engine;
 
   // Command failures are shown in the drawer too, not alerted: the recording
   // path and the command path fail for the same reasons (no API key, no
@@ -121,6 +141,16 @@ export function CopilotDrawer({
   useEffect(() => {
     if (isRecording) appliedRef.current = null;
   }, [isRecording]);
+
+  // Workspace triage: an extraction that carries HIGH/CRISIS risk raises the
+  // alert outside the drawer, exactly once per extraction object.
+  useEffect(() => {
+    if (!onRiskFlag || !extractedData || mode !== "psychology") return;
+    const note = extractedData as PsychNoteExtraction;
+    if ((note.risk_level === "high" || note.risk_level === "crisis") && note.risk_notes?.trim()) {
+      onRiskFlag(note.risk_notes.trim());
+    }
+  }, [extractedData, mode, onRiskFlag]);
 
   /** Undo, then forget the mark so the same extraction is not silently re-applied. */
   const handleUndo = useCallback(() => {
@@ -269,6 +299,16 @@ export function CopilotDrawer({
               </span>
               {note.risk_notes && <span className="text-slate-500">— {note.risk_notes}</span>}
             </div>
+            {onPushToMse && (
+              <button
+                type="button"
+                onClick={() => onPushToMse(note)}
+                className="mt-0.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-[11px] font-medium text-slate-700 transition hover:border-brand-sage hover:text-brand-ink"
+              >
+                <ClipboardList className="size-3.5" aria-hidden="true" />
+                Push to Today&apos;s MSE
+              </button>
+            )}
           </div>
           {populate}
         </div>

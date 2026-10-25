@@ -31,6 +31,8 @@ import {
   Target,
   Trash2,
   TrendingUp,
+  TriangleAlert,
+  X,
   type LucideIcon,
 } from "lucide-react";
 
@@ -54,6 +56,7 @@ import {
   generateAssessmentInterpretationAction,
   savePsychAssessmentAction,
   savePsychCarePlanAction,
+  savePsychMseFindingsAction,
 } from "@/lib/actions/specialty-workspaces";
 import { canSendOnline, severityFromBands, templateMaxScore } from "@/lib/assessment-library";
 import {
@@ -64,8 +67,10 @@ import {
 } from "@/lib/actions/assessment-schedules";
 import { getInstrument } from "@/lib/scoring";
 import { ASSESSMENT_RATERS, raterLabel } from "@/lib/assessments/raters";
-import { useSessionRecorder } from "@/lib/copilot/hooks/useSessionRecorder";
+import { useAmbientRecorder } from "@/lib/copilot/hooks/useAmbientRecorder";
 import type { PsychNoteExtraction, WorkspaceExtraction } from "@/lib/copilot/types";
+import { mseFindingsFromCopilotNote, readMseFindings } from "@/lib/psych-mse";
+import { setPsychCopilotReady } from "@/components/patients/record/workspaces/psych-copilot-ready";
 import { utcIsoToClinicLocalInput } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { formatShortDate } from "@/lib/utils/datetime";
@@ -107,6 +112,8 @@ type Props = {
 export function PsychWorkspace({ patient, psych, documents, activeTab, canManage, timezone, aiSummaryEnabled, assessmentsHref, documentsHref, sessionsHref, intakeHref, carePlanHref }: Props) {
   const [seed, setSeed] = useState<PsychDraft | null>(null);
   const [library, setLibrary] = useState<AssessmentTemplate[]>([]);
+  /** A copilot extraction that triaged HIGH/CRISIS — banner until dismissed. */
+  const [riskAlert, setRiskAlert] = useState<string | null>(null);
 
   /**
    * Active assessment-library templates (migration 0085), loaded once for the
@@ -120,15 +127,19 @@ export function PsychWorkspace({ patient, psych, documents, activeTab, canManage
   }, []);
 
   /**
-   * The session recorder lives here, at the workspace level, so recording
-   * survives tab switches Ã¢â‚¬â€ the psychologist can open the MSE or Psychometrics
-   * mid-session while the microphone keeps capturing.
+   * One master audio engine, lifted here so recording survives tab switches —
+   * the psychologist can open the MSE or Psychometrics mid-session while the
+   * microphone keeps capturing. Both the CopilotDrawer and the Session Notes
+   * tab receive this same instance, so there are never two record buttons.
    */
-  const recorder = useSessionRecorder();
+  const ambient = useAmbientRecorder({
+    workspaceKind: "psychology",
+    workspaceContext: PSYCHOLOGY_WORKSPACE.copilotContext,
+  });
 
   /**
    * One AI surface for the whole workspace: the existing psychology
-   * CopilotDrawer, mounted once and visible on every tab Ã¢â‚¬â€ no second copilot,
+   * CopilotDrawer, mounted once and visible on every tab — no second copilot,
    * no new route. Its extraction is a session note, so it seeds the Session
    * Notes form. The draft is held here and handed to that tab when it mounts,
    * so a note captured on the MSE tab still lands when the psychologist
@@ -144,13 +155,69 @@ export function PsychWorkspace({ patient, psych, documents, activeTab, canManage
     if (note.assessment) fields.assessment = note.assessment;
     if (note.plan) fields.plan = note.plan;
     if (Object.keys(fields).length === 0) return;
-    setSeed({ format: note.format === "DAP" ? "DAP" : "BIRP", fields });
+    setSeed({
+      format: note.format === "DAP" ? "DAP" : "BIRP",
+      fields,
+      riskLevel: note.risk_level,
+      riskNotes: note.risk_notes?.trim() || null,
+    });
   }, []);
+
+  /** The 🚨 workspace alert from the drawer's HIGH/CRISIS extraction. */
+  const handleRiskFlag = useCallback((notes: string) => {
+    setRiskAlert(notes);
+    toast.error(`High-risk content detected in the session — review the safety plan.`);
+  }, []);
+
+  /**
+   * 📋 Push to Today's MSE: keyword-map the copilot's observables onto real MSE
+   * tokens and merge with the stored exam, then commit through the same server
+   * action the MSE tab uses.
+   */
+  const handlePushToMse = useCallback(
+    async (note: PsychNoteExtraction) => {
+      const merged = mseFindingsFromCopilotNote(note, readMseFindings(psych.mse?.findings));
+      const result = await savePsychMseFindingsAction(patient.id, { findings: merged });
+      if (result.ok) {
+        toast.success("Observations pushed to today's MSE.");
+      } else {
+        toast.error(result.message);
+      }
+    },
+    [patient.id, psych.mse?.findings],
+  );
+
+  /** ✨ Sessions "Draft Ready" badge — visible while a seeded draft waits. */
+  useEffect(() => {
+    setPsychCopilotReady(seed !== null);
+    return () => setPsychCopilotReady(false);
+  }, [seed]);
 
   return (
     <div className="tab-fade-in">
       <div className={cn("flex flex-col gap-4", canManage && "xl:flex-row xl:items-start")}>
         <div className="min-w-0 flex-1 space-y-4">
+          {riskAlert && (
+            <div className="flex flex-col gap-1.5 rounded-card border border-status-destructive/40 bg-status-destructive/10 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <TriangleAlert aria-hidden="true" className="size-4 shrink-0 text-status-destructive" />
+                <p className="flex-1 text-[12.5px] font-bold text-status-destructive">
+                  High Risk Ideation Detected in Session — Review Safety Plan
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setRiskAlert(null)}
+                  aria-label="Dismiss risk alert"
+                  className="rounded-pill p-1 text-status-destructive/70 hover:bg-status-destructive/10 hover:text-status-destructive"
+                >
+                  <X aria-hidden="true" className="size-3.5" />
+                </button>
+              </div>
+              {riskAlert.trim() && (
+                <p className="text-[12px] leading-relaxed text-text-primary">{riskAlert}</p>
+              )}
+            </div>
+          )}
           <AssessmentSafetyBanner assessments={psych.assessments} canManage={canManage} />
           {activeTab === "psy_overview" && (
             <OverviewSafetyTab
@@ -186,7 +253,7 @@ export function PsychWorkspace({ patient, psych, documents, activeTab, canManage
               canManage={canManage}
               seed={seed}
               onSeedApplied={() => setSeed(null)}
-              recorder={recorder}
+              ambient={ambient}
             />
           )}
           {activeTab === "psy_psychometrics" && (
@@ -217,6 +284,9 @@ export function PsychWorkspace({ patient, psych, documents, activeTab, canManage
               allergies: patient.known_allergies || undefined,
               current_meds: patient.current_medications || undefined,
             }}
+            recorder={ambient}
+            onRiskFlag={handleRiskFlag}
+            onPushToMse={(note) => void handlePushToMse(note)}
             onPopulateForm={handleCopilotPopulate}
           />
         )}

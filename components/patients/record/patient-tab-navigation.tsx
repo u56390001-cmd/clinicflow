@@ -15,6 +15,7 @@ import {
   type SpecialtyTabId,
   type WorkspaceConfig,
 } from "@/lib/specialty-workspaces";
+import { usePsychCopilotReady } from "@/components/patients/record/workspaces/psych-copilot-ready";
 import { cn } from "@/lib/utils";
 
 const EASE = "left 0.28s cubic-bezier(0.4, 0, 0.2, 1), width 0.28s cubic-bezier(0.4, 0, 0.2, 1)";
@@ -77,6 +78,8 @@ export function PatientTabNavigation({
     isGeneral
       ? PATIENT_TAB_LABELS[tab as PatientTab]
       : SPECIALTY_TAB_LABELS[tab as SpecialtyTabId];
+  // A copilot-drafted session note is waiting — advertise it on the tab.
+  const copilotReady = usePsychCopilotReady();
 
   return (
     <div className="border-b-[0.5px] border-hairline bg-surface sm:px-[26px]">
@@ -114,6 +117,14 @@ export function PatientTabNavigation({
               )}
             >
               {labelOf(tab)}
+              {tab === "psy_sessions" && copilotReady && (
+                <span
+                  className="ml-1.5 inline-block rounded-full bg-primary/10 px-1.5 py-0.5 align-[1px] text-[10px] font-semibold text-primary"
+                  title="An AI-copilot session draft is waiting"
+                >
+                  ✨ Draft Ready
+                </span>
+              )}
             </Link>
           );
         })}

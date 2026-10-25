@@ -47,6 +47,8 @@ async function readApiError(res: Response, fallback: string): Promise<string> {
   return fallback;
 }
 
+export type AmbientRecorder = ReturnType<typeof useAmbientRecorder>;
+
 export function useAmbientRecorder({ patientProfile, workspaceKind, workspaceContext }: UseAmbientRecorderProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState('00:00');

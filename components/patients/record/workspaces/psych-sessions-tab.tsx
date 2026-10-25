@@ -8,13 +8,11 @@ import {
   Check,
   ClipboardList,
   Loader2,
-  Mic,
   Pencil,
   Printer,
   Sparkles,
-  Square,
-  TriangleAlert,
   Trash2,
+  TriangleAlert,
 } from "lucide-react";
 
 import { RecordEmpty, RecordNote, RecordSection } from "@/components/patients/record/record-primitives";
@@ -33,7 +31,7 @@ import {
   getCurrentClinicianNameAction,
   savePsychSessionAction,
 } from "@/lib/actions/specialty-workspaces";
-import type { SessionRecorder } from "@/lib/copilot/hooks/useSessionRecorder";
+import type { AmbientRecorder } from "@/lib/copilot/hooks/useAmbientRecorder";
 import {
   NOTE_FORMAT_META,
   SESSION_DEFAULT_FORMAT,
@@ -53,6 +51,9 @@ import type { PatientDirectoryRow, PsychSession } from "@/types/database";
 export type PsychDraft = {
   format: SessionNoteFormat;
   fields: Record<string, string>;
+  /** Risk triage attached by the copilot (drives the red draft banner). */
+  riskLevel?: "low" | "moderate" | "high" | "crisis";
+  riskNotes?: string | null;
 };
 
 const SECTION_PLACEHOLDERS: Record<SessionSectionKey, string> = {
@@ -66,6 +67,60 @@ const SECTION_PLACEHOLDERS: Record<SessionSectionKey, string> = {
   plan: "Next steps, homework, referrals and follow-up…",
 };
 
+/** 1-click intervention tags (BIRP "I") — click-appended into the draft. */
+const INTERVENTION_TAGS = [
+  "CBT Thought Record",
+  "DBT TIPP / Distress Tolerance",
+  "Socratic Questioning",
+  "Exposure",
+  "Behavioral Activation",
+];
+
+type SafetyKey = "safe" | "passive" | "crisis" | null;
+
+/** Safety pill → the exact sentence stamped at the top of the assessment. */
+const SAFETY_PILLS: {
+  key: Exclude<SafetyKey, null>;
+  label: string;
+  dot: string;
+  baseClass: string;
+  activeClass: string;
+  stamp: string;
+}[] = [
+  {
+    key: "safe",
+    label: "Denies SI/HI (Safe)",
+    dot: "🟢",
+    baseClass: "border-primary/40 text-primary hover:bg-primary/5",
+    activeClass: "border-primary/50 bg-primary/10 text-primary",
+    stamp: "Safety assessment: Denies suicidal or homicidal ideation. Safe for outpatient care.",
+  },
+  {
+    key: "passive",
+    label: "Passive Ideation",
+    dot: "🟡",
+    baseClass: "border-status-warning/50 text-status-warning hover:bg-status-warning/5",
+    activeClass: "border-status-warning/60 bg-status-warning/10 text-status-warning",
+    stamp: "Safety assessment: Passive suicidal ideation reported. Safety plan reviewed with the client.",
+  },
+  {
+    key: "crisis",
+    label: "Active Crisis Protocol",
+    dot: "🔴",
+    baseClass: "border-status-destructive/50 text-status-destructive hover:bg-status-destructive/5",
+    activeClass: "border-status-destructive/60 bg-status-destructive/10 text-status-destructive",
+    stamp: "Safety assessment: Active ideation — crisis protocol initiated.",
+  },
+];
+
+/** m:ss (or h:mm:ss) → whole seconds, for `duration_seconds`. */
+function recordingSeconds(timeLabel: string): number | null {
+  const parts = timeLabel.split(":").map((part) => Number(part));
+  if (parts.length < 2 || parts.some((part) => Number.isNaN(part))) return null;
+  const [mins, secs] = parts.slice(-2);
+  return mins * 60 + secs;
+}
+
 function formatPrintDate(dateLabel: string): string {
   return dateLabel.replace(/-/g, "/");
 }
@@ -76,14 +131,14 @@ export function SessionsTab({
   canManage,
   seed,
   onSeedApplied,
-  recorder,
+  ambient,
 }: {
   patient: PatientDirectoryRow;
   psych: PatientPsychBundle;
   canManage: boolean;
   seed: PsychDraft | null;
   onSeedApplied: () => void;
-  recorder: SessionRecorder;
+  ambient: AmbientRecorder;
 }) {
   const router = useRouter();
   const editorRef = useRef<HTMLDivElement>(null);
@@ -96,6 +151,10 @@ export function SessionsTab({
   const [doctorName, setDoctorName] = useState("");
   const [busy, setBusy] = useState<"saving" | "generating" | "approving" | null>(null);
   const [printSession, setPrintSession] = useState<PsychSession | null>(null);
+  /** The "AI Drafted from Copilot" banner text (with risk severity when triaged). */
+  const [seedBanner, setSeedBanner] = useState<{ text: string; risk: boolean } | null>(null);
+  /** Which safety pill is stamped into the assessment (mirrors its first line). */
+  const [safety, setSafety] = useState<SafetyKey>(null);
 
   useEffect(() => {
     void getCurrentClinicianNameAction().then((result) => {
@@ -110,8 +169,55 @@ export function SessionsTab({
     if (!seed) return;
     setFormat(seed.format);
     setDraft((current) => ({ ...current, ...seed.fields }));
+    if (seed.riskLevel === "high" || seed.riskLevel === "crisis") {
+      setSeedBanner({
+        text: `AI Drafted from Copilot — Review & Approve. ${seed.riskNotes ?? "High-risk content flagged in this note."}`,
+        risk: true,
+      });
+    } else {
+      setSeedBanner({ text: "AI Drafted from Copilot — Review & Approve", risk: false });
+    }
     onSeedApplied();
   }, [seed, onSeedApplied]);
+
+  // Debounced localStorage autosave — a closed tab or crashed browser never
+  // costs a clinician more than one second of typing.
+  const draftKey = `psych-session-draft:${patient.id}`;
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(draftKey);
+      if (raw) {
+        const saved = JSON.parse(raw) as {
+          format?: SessionNoteFormat;
+          sessionDate?: string;
+          sessionType?: SessionType;
+          draft?: Partial<Record<SessionSectionKey, string>>;
+        };
+        if (saved.format) setFormat(saved.format);
+        if (saved.sessionDate) setSessionDate(saved.sessionDate);
+        if (saved.sessionType && saved.sessionType in SESSION_TYPE_META) setSessionType(saved.sessionType);
+        if (saved.draft && Object.keys(saved.draft).length > 0) setDraft(saved.draft);
+      }
+    } catch {
+      // Corrupt cache — ignore, the form starts empty.
+    }
+    // The restore is mount-only; `patient.id` identifies the bucket.
+  }, [draftKey]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (!draft || Object.values(draft).every((value) => !value?.trim())) return;
+      try {
+        window.localStorage.setItem(
+          draftKey,
+          JSON.stringify({ format, sessionDate, sessionType, draft }),
+        );
+      } catch {
+        // Quota errors are non-fatal — autosave is a convenience.
+      }
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [draft, format, sessionDate, sessionType, draftKey]);
 
   // The print surface mounts, then window.print() fires after it paints.
   useEffect(() => {
@@ -149,9 +255,9 @@ export function SessionsTab({
           section,
           fieldLabel,
           text,
-          transcript: recorder.transcript,
+          transcript: ambient.transcript,
         }),
-    [format, recorder.transcript],
+    [format, ambient.transcript],
   );
 
   function buildPayload(status: "draft" | "approved") {
@@ -169,20 +275,20 @@ export function SessionsTab({
       observation_data: draft.observation_data?.trim(),
       assessment: draft.assessment?.trim(),
       plan: draft.plan?.trim(),
-      transcript: recorder.transcript.trim().slice(0, 20000),
-      duration_seconds: recorder.elapsedSeconds || null,
+      transcript: ambient.transcript.trim().slice(0, 20000),
+      duration_seconds: recordingSeconds(ambient.recordingTime),
     };
   }
 
   async function generateNote() {
-    if (!recorder.transcript.trim()) {
-      toast.error("Record the session first — the AI needs the transcript to write the note.");
+    if (!ambient.transcript.trim()) {
+      toast.error("Record the session in the side panel first — the AI needs the transcript to write the note.");
       return;
     }
     setBusy("generating");
     const result = await generatePsychSessionNoteAction(patient.id, {
       format,
-      transcript: recorder.transcript,
+      transcript: ambient.transcript,
     });
     setBusy(null);
     if (!result.ok) {
@@ -202,6 +308,23 @@ export function SessionsTab({
     return result.data;
   }
 
+  /** 1-click safety pill — replaces the stamped "Safety assessment:" line in the assessment. */
+  function applySafety(key: Exclude<SafetyKey, null>) {
+    const pill = SAFETY_PILLS.find((option) => option.key === key);
+    if (!pill) return;
+    setSafety(key);
+    const body = (draft.assessment ?? "")
+      .replace(/^Safety assessment:[^\n]*\n?/m, "")
+      .trim();
+    setSection("assessment", pill.stamp + (body ? "\n\n" + body : ""));
+  }
+
+  /** BIRP "I" quick-insert: appends the tag into the intervention draft. */
+  function insertInterventionTag(tag: string) {
+    const current = draft.intervention ?? "";
+    setSection("intervention", current.trim() ? `${current.trimEnd()} ${tag}` : tag);
+  }
+
   async function saveDraft() {
     if (!canManage) return;
     setBusy("saving");
@@ -217,7 +340,7 @@ export function SessionsTab({
     if (!canManage) return;
     const hasContent =
       Object.values(draft).some((value) => value?.trim()) ||
-      recorder.transcript.trim() !== "";
+      ambient.transcript.trim() !== "";
     if (!hasContent) {
       toast.error("Add a note section or record the session before approving.");
       return;
@@ -238,7 +361,13 @@ export function SessionsTab({
     setDraft({});
     setSessionDate("");
     setSessionType("individual");
-    recorder.clear();
+    setSafety(null);
+    setSeedBanner(null);
+    try {
+      window.localStorage.removeItem(draftKey);
+    } catch {
+      // Non-fatal.
+    }
     toast.success("Session note approved and added to the record.");
     router.refresh();
   }
@@ -352,124 +481,173 @@ export function SessionsTab({
               </div>
             </div>
 
-            {/* Recording + AI note generation. */}
-            <div className="rounded-control border border-hairline bg-app p-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-2.5">
-                  {recorder.isRecording ? (
-                    <>
-                      <span className="flex items-center gap-2 rounded-pill bg-status-danger/10 px-2.5 py-1 text-[12px] font-semibold text-status-danger">
-                        <span className="relative flex size-2">
-                          <span className="absolute inline-flex size-full animate-ping rounded-full bg-status-danger opacity-60" />
-                          <span className="relative inline-flex size-2 rounded-full bg-status-danger" />
-                        </span>
-                        REC · {recorder.elapsedLabel}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={recorder.stop}
-                        className="gap-1.5"
-                      >
-                        <Square aria-hidden="true" className="size-3.5" />
-                        Stop recording
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => void recorder.start()}
-                      className="gap-1.5"
-                    >
-                      <Mic aria-hidden="true" className="size-3.5" />
-                      Start recording
-                    </Button>
+            {/* 1-Copilot handoff banner. */}
+            {seedBanner && (
+              <div
+                className={cn(
+                  "flex items-start gap-2 rounded-control border p-3",
+                  seedBanner.risk
+                    ? "border-status-destructive/40 bg-status-destructive/10"
+                    : "border-primary/25 bg-primary/5",
+                )}
+              >
+                <TriangleAlert
+                  aria-hidden="true"
+                  className={cn(
+                    "mt-0.5 size-3.5 shrink-0",
+                    seedBanner.risk ? "text-status-destructive" : "text-primary",
                   )}
-                  <span className="text-[11.5px] text-ink-faint">
-                    {recorder.isRecording
-                      ? "Recording keeps running while you switch tabs."
-                      : "A secure recording is transcribed when you stop it."}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {recorder.isFinalizing && (
+                />
+                <p
+                  className={cn(
+                    "text-[12.5px] font-semibold leading-relaxed",
+                    seedBanner.risk ? "text-status-destructive" : "text-primary",
+                  )}
+                >
+                  {seedBanner.text}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setSeedBanner(null)}
+                  aria-label="Dismiss banner"
+                  className="ml-auto text-[11px] font-medium text-ink-faint hover:text-ink"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
+            {/* Synced copilot status — the single audio engine lives in the side panel. */}
+            <div className="rounded-control border border-hairline bg-app p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                {ambient.isRecording ? (
+                  <>
+                    <span className="flex items-center gap-2 rounded-pill bg-status-danger/10 px-2.5 py-1 text-[12px] font-semibold text-status-danger">
+                      <span className="relative flex size-2">
+                        <span className="absolute inline-flex size-full animate-ping rounded-full bg-status-danger opacity-60" />
+                        <span className="relative inline-flex size-2 rounded-full bg-status-danger" />
+                      </span>
+                      Co-Pilot Recording Active · {ambient.recordingTime}
+                    </span>
+                    <span className="text-[11.5px] text-ink-faint">
+                      Stop &amp; Process Note in Side Panel
+                    </span>
+                  </>
+                ) : ambient.isProcessing ? (
+                  <>
                     <span className="flex items-center gap-1.5 text-[12px] font-medium text-text-secondary">
                       <Loader2 aria-hidden="true" className="size-3.5 animate-spin text-primary" />
                       Transcribing…
                     </span>
+                    <span className="text-[11.5px] text-ink-faint">Working in the side panel</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-[11.5px] text-ink-faint">
+                      Recording controls live in the Copilot side panel — start there.
+                    </span>
+                  </>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={busy === "generating" || ambient.isRecording || !ambient.transcript.trim()}
+                  onClick={() => void generateNote()}
+                  className="ml-auto gap-1.5"
+                >
+                  {busy === "generating" ? (
+                    <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles aria-hidden="true" className="size-3.5 text-primary" />
                   )}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={busy === "generating" || recorder.isRecording || !recorder.transcript.trim()}
-                    onClick={() => void generateNote()}
-                    className="gap-1.5"
-                  >
-                    {busy === "generating" ? (
-                      <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
-                    ) : (
-                      <Sparkles aria-hidden="true" className="size-3.5 text-primary" />
-                    )}
-                    Generate AI note
-                  </Button>
-                </div>
+                  Generate AI note
+                </Button>
               </div>
-
-              {recorder.error && (
-                <p className="mt-2 flex items-start gap-1.5 text-[12px] font-medium text-status-destructive">
-                  <TriangleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-                  {recorder.error}
-                </p>
-              )}
-
-              {!recorder.liveCaptionsSupported && (
-                <p className="mt-2 text-[11.5px] text-ink-faint">
-                  Live captions are not supported in this browser. Keep recording — the full
-                  transcript appears once you stop.
-                </p>
-              )}
 
               <div className="mt-3 rounded-control border border-text-muted/20 bg-surface/70">
                 <p className="flex items-center justify-between gap-2 border-b border-text-muted/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-text-muted">
                   <span>Session transcript</span>
-                  {recorder.transcript.trim() && (
+                  {ambient.transcript.trim() && (
                     <span className="font-medium normal-case tracking-normal">
-                      {recorder.transcript.trim().split(/\s+/).length} words
+                      {ambient.transcript.trim().split(/\s+/).length} words
                     </span>
                   )}
                 </p>
                 <p
                   className={cn(
                     "max-h-44 overflow-y-auto whitespace-pre-wrap px-3 py-2 text-[12.5px] leading-relaxed",
-                    recorder.transcript.trim()
+                    ambient.transcript.trim()
                       ? "text-text-primary"
                       : "text-ink-faint italic",
                   )}
                 >
-                  {recorder.transcript.trim() ||
-                    "Press record and speak — live captions will appear here, and the accurate transcript lands when you stop."}
+                  {ambient.transcript.trim() ||
+                    "The transcript from the side panel's capture appears here once the recording is processed."}
                 </p>
               </div>
             </div>
 
             {/* Per-format sections. */}
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:items-start">
               {sections.map(({ key, label }) => (
-                <NarrativeAssistNote
-                  key={key}
-                  name={`session-${sessionType}-${key}`}
-                  label={label}
-                  fieldLabel={label}
-                  value={draft[key] ?? ""}
-                  placeholder={SECTION_PLACEHOLDERS[key]}
-                  rows={4}
-                  disabled={!canManage}
-                  onSave={onSaveSection(key)}
-                  assist={assistFor(key)}
-                />
+                <div key={key} className={cn("min-w-0", key === "plan" && "lg:row-span-2")}>
+                  {key === "intervention" && (
+                    <div className="mb-2">
+                      <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-text-muted">
+                        Quick tags
+                      </p>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {INTERVENTION_TAGS.map((tag) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            disabled={!canManage}
+                            onClick={() => insertInterventionTag(tag)}
+                            className="rounded-pill border border-hairline bg-surface px-2.5 py-1 text-[11px] font-medium leading-none text-text-secondary transition-colors hover:border-primary/40 hover:text-primary disabled:cursor-default disabled:opacity-80"
+                          >
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {key === "plan" && (
+                    <div className="mb-2.5 rounded-control border border-hairline bg-app p-2.5">
+                      <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-text-muted">
+                        Safety assessment
+                      </p>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {SAFETY_PILLS.map((pill) => (
+                          <button
+                            key={pill.key}
+                            type="button"
+                            disabled={!canManage}
+                            aria-pressed={safety === pill.key}
+                            onClick={() => applySafety(pill.key)}
+                            className={cn(
+                              "rounded-pill border bg-surface px-2.5 py-1 text-[11px] font-semibold leading-none transition-colors disabled:cursor-default disabled:opacity-80",
+                              safety === pill.key ? pill.activeClass : pill.baseClass,
+                            )}
+                          >
+                            {pill.dot} {pill.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <NarrativeAssistNote
+                    name={`session-${sessionType}-${key}`}
+                    label={label}
+                    fieldLabel={label}
+                    value={draft[key] ?? ""}
+                    placeholder={SECTION_PLACEHOLDERS[key]}
+                    rows={4}
+                    disabled={!canManage}
+                    onSave={onSaveSection(key)}
+                    assist={assistFor(key)}
+                  />
+                </div>
               ))}
             </div>
 
