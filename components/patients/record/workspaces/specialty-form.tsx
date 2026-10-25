@@ -11,7 +11,7 @@
 
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { Check, Loader2, TriangleAlert } from "lucide-react";
 
 import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
@@ -311,6 +311,7 @@ export function ChipNote({
   allowCustom = true,
   helper,
   disabled = false,
+  badge,
 }: {
   label: string;
   value?: string | null;
@@ -320,6 +321,7 @@ export function ChipNote({
   allowCustom?: boolean;
   helper?: string;
   disabled?: boolean;
+  badge?: ReactNode;
 }) {
   const { state, message, run } = useFieldSave(onSave);
   const [selected, setSelected] = useState<string[]>(() => parseList(value));
@@ -381,7 +383,10 @@ export function ChipNote({
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between gap-2">
-        <p className="text-ink text-[12.5px] font-bold">{label}</p>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <p className={cn("text-ink text-[12.5px] font-bold", !label && "hidden")}>{label}</p>
+          {badge}
+        </div>
         <NoteStatus state={state} message={message} />
       </div>
       <div className="flex flex-wrap gap-1.5">

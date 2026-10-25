@@ -3462,6 +3462,9 @@ export type Database = {
           ai_summary?: string | null;
           ai_summary_generated_at?: string | null;
           ai_summary_visit_count?: number | null;
+          /** Summary extracted from a scanned document (AI OCR, migration 0115). */
+          ai_scan_summary?: string | null;
+          ai_scan_summary_generated_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -3496,6 +3499,9 @@ export type Database = {
           ai_summary?: string | null;
           ai_summary_generated_at?: string | null;
           ai_summary_visit_count?: number | null;
+          /** Summary extracted from a scanned document (AI OCR, migration 0115). */
+          ai_scan_summary?: string | null;
+          ai_scan_summary_generated_at?: string | null;
           created_at?: never;
           updated_at?: string;
         };
