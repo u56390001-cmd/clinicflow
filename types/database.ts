@@ -1099,15 +1099,19 @@ export type PsychSafety = {
   updated_at: string;
 };
 
-/** The `psych_intake` columns a clinician can record against (0083). */
+/** The `psych_intake` columns a clinician can record against (0083, 0116). */
 export type IntakeFieldKey =
   | "presenting_concern"
   | "presenting_concern_duration"
   | "presenting_concern_severity"
   | "presenting_concern_words"
+  | "sleep_quality"
+  | "appetite_energy"
+  | "personal_crisis_history"
   | "previous_therapy_history"
   | "previous_diagnosis"
   | "family_mental_health_history"
+  | "trauma_history"
   | "psychosocial_background"
   | "stressors"
   | "substance_use_history"
@@ -1144,9 +1148,16 @@ export type PsychIntake = {
   presenting_concern_duration: string | null;
   presenting_concern_severity: string | null;
   presenting_concern_words: string | null;
+  /** Vegetative baseline markers (0116). */
+  sleep_quality: string | null;
+  appetite_energy: string | null;
+  /** The patient's own crisis / hospitalization record (0116). */
+  personal_crisis_history: string | null;
   previous_therapy_history: string | null;
   previous_diagnosis: string | null;
   family_mental_health_history: string | null;
+  /** Adverse / traumatic events, separated from `stressors` (0116). */
+  trauma_history: string | null;
   psychosocial_background: string | null;
   stressors: string | null;
   substance_use_history: string | null;

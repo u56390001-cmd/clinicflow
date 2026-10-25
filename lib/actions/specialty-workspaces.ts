@@ -115,9 +115,13 @@ const savePsychIntakeSchema = z.object({
     .optional()
     .nullable(),
   presenting_concern_words: note,
+  sleep_quality: note,
+  appetite_energy: note,
+  personal_crisis_history: note,
   previous_therapy_history: note,
   previous_diagnosis: note,
   family_mental_health_history: note,
+  trauma_history: note,
   psychosocial_background: note,
   stressors: note,
   substance_use_history: note,
@@ -570,7 +574,7 @@ export async function savePsychIntakeAction(
   const { data: existing, error: loadError } = await g.supabase
     .from("psych_intake")
     .select(
-      "field_provenance, presenting_concern, presenting_concern_duration, presenting_concern_severity, presenting_concern_words, previous_therapy_history, previous_diagnosis, family_mental_health_history, psychosocial_background, stressors, substance_use_history, additional_clinical_notes",
+      "field_provenance, presenting_concern, presenting_concern_duration, presenting_concern_severity, presenting_concern_words, sleep_quality, appetite_energy, personal_crisis_history, previous_therapy_history, previous_diagnosis, family_mental_health_history, trauma_history, psychosocial_background, stressors, substance_use_history, additional_clinical_notes",
     )
     .eq("clinic_id", g.clinicId)
     .eq("patient_id", patientId)

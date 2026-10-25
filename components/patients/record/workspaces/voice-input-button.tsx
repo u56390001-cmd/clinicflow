@@ -36,11 +36,14 @@ export function VoiceInputButton({
   disabled,
   label = "Dictate",
   className,
+  compact = false,
 }: {
   onTranscript: (text: string) => void;
   disabled?: boolean;
   label?: string;
   className?: string;
+  /** Icon-only idle state, for inline toolbars (label appears while active). */
+  compact?: boolean;
 }) {
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -165,6 +168,7 @@ export function VoiceInputButton({
       onClick={recording ? stop : start}
       className={cn(
         "h-7 gap-1.5 px-2 text-[11.5px]",
+        compact && "size-7 px-0",
         recording && "border-status-destructive text-status-destructive",
         className,
       )}
@@ -176,11 +180,20 @@ export function VoiceInputButton({
       ) : (
         <Mic aria-hidden="true" className="size-3.5" />
       )}
-      {busy
-        ? "Transcribing…"
-        : recording
-          ? `Stop ${formatClock(seconds)}`
-          : label}
+      {!compact && (
+        <>
+          {busy
+            ? "Transcribing…"
+            : recording
+              ? `Stop ${formatClock(seconds)}`
+              : label}
+        </>
+      )}
+      {compact && (busy || recording) && (
+        <span className="sr-only">
+          {busy ? "Transcribing…" : `Stop ${formatClock(seconds)}`}
+        </span>
+      )}
     </Button>
   );
 }

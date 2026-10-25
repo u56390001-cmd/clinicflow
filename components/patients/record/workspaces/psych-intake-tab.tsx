@@ -1,26 +1,36 @@
+/**
+ * Psychology — Intake & History tab (`psy_intake`).
+ *
+ * The owning clinician surface for the intake history (0083, 0116). Refactored
+ * from eleven stacked accordions into a two-column layout of four always-open
+ * cards: the presenting problem column and the history column sit side by side
+ * on desktop. The schema, hybrid chip storage, provenance pills, autosave
+ * contracts and AI suggestion queue are unchanged.
+ */
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
-  Activity,
   BriefcaseMedical,
-  ChevronDown,
   ClipboardList,
   FileText,
   Loader2,
-  MessageCircle,
-  Pill,
   Send,
   Stethoscope,
+  TriangleAlert,
   Users,
   type LucideIcon,
 } from "lucide-react";
 
+import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { NoteStatus } from "@/components/patients/record/workspaces/specialty-form";
 import { NarrativeAssistNote } from "@/components/patients/record/workspaces/narrative-assist-note";
 import { PsychIntakeSuggestionsCard } from "@/components/patients/record/workspaces/psych-intake-suggestions-card";
-import { ChipNote, ChipPicker } from "@/components/patients/record/workspaces/specialty-form";
+import { ChipNote, ChipPicker, useFieldSave, parseList } from "@/components/patients/record/workspaces/specialty-form";
 import { SearchTagSelect } from "@/components/patients/record/workspaces/search-tag-select";
 import { RecordSection } from "@/components/patients/record/record-primitives";
 import { savePsychIntakeAction } from "@/lib/actions/specialty-workspaces";
@@ -40,6 +50,7 @@ const THERAPY_HISTORY_OPTIONS = [
   "Group therapy",
   "Counselling",
   "Psychodynamic",
+  "EMDR",
   "Medication therapy",
 ] as const;
 
@@ -68,21 +79,73 @@ const FAMILY_HISTORY_OPTIONS = [
   "Psychiatric illness",
 ] as const;
 
+const CRISIS_OPTIONS = [
+  "None known",
+  "Past suicide attempt",
+  "Past self-harm / NSSI",
+  "Inpatient psychiatric admission",
+  "Emergency crisis contact",
+] as const;
+
+const SLEEP_OPTIONS = [
+  "Normal",
+  "Initial insomnia",
+  "Broken / restless sleep",
+  "Early morning awakening",
+  "Hypersomnia",
+] as const;
+
+const APPETITE_OPTIONS = [
+  "Normal",
+  "Reduced / low energy",
+  "Increased / binge",
+] as const;
+
+const TRAUMA_OPTIONS = [
+  "No trauma reported",
+  "Childhood abuse / neglect",
+  "PTSD / single event trauma",
+  "Domestic violence",
+  "Loss / bereavement",
+] as const;
+
 const STRESSOR_OPTIONS = [
   "Work",
   "Academic",
-  "Family",
-  "Relationship",
   "Financial",
-  "Health",
-  "Trauma",
+  "Relationship",
   "Housing",
-  "Isolation",
+  "Health",
+  "Family",
 ] as const;
 
 const SEVERITY_OPTIONS = ["Mild", "Moderate", "Severe", "Very severe"] as const;
 
 const SUBSTANCE_OPTIONS = ["None", "Alcohol", "Tobacco", "Drugs", "Other"] as const;
+
+/**
+ * Duration is stored as a plain string ("3 Months") in
+ * `presenting_concern_duration`; the editor renders a number + unit pair.
+ * Legacy free-text values that do not re-parse keep a plain text input.
+ */
+const DURATION_UNITS = ["Days", "Weeks", "Months", "Years"] as const;
+
+function parseDuration(value?: string | null): {
+  count: string;
+  unit: string;
+  parseable: boolean;
+} {
+  const raw = (value ?? "").trim();
+  const match = raw.match(/^(\d+)\s*(day|week|month|year)s?$/i);
+  if (match) {
+    const unit =
+      match[2].charAt(0).toUpperCase() +
+      match[2].slice(1).toLowerCase().replace(/s$/, "");
+    return { count: match[1], unit, parseable: true };
+  }
+  if (/^\d+$/.test(raw)) return { count: raw, unit: "Months", parseable: true };
+  return { count: "", unit: "Months", parseable: raw.length === 0 };
+}
 
 /** Hybrid column storage: comma-joined chips on the first line, then a note. */
 function splitHybrid(value?: string | null): { tokens: string[]; details: string } {
@@ -145,139 +208,79 @@ function ProvenancePill({ entry }: { entry?: IntakeProvenanceEntry }) {
   );
 }
 
-/** Accordion card, same interaction as the MSE sections. */
-function IntakeSection({
+/**
+ * An always-open bordered card — the input-surface that replaces the old
+ * collapsible `IntakeSection`. Every card is visible at once, so reviewing and
+ * editing intake costs zero clicks.
+ */
+function IntakePanel({
   icon: Icon,
   title,
-  badge,
-  defaultOpen,
   children,
 }: {
   icon: LucideIcon;
   title: string;
-  badge?: React.ReactNode;
-  defaultOpen: boolean;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="rounded-card border border-hairline bg-surface">
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-2.5 rounded-card px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-      >
-        <span
-          className={cn(
-            "flex size-6 shrink-0 items-center justify-center rounded-pill",
-            open ? "bg-primary/10 text-primary" : "bg-app text-text-secondary",
-          )}
-        >
+    <section
+      aria-label={title}
+      className="rounded-card border border-hairline bg-surface p-4"
+    >
+      <div className="mb-3 flex items-center gap-2.5">
+        <span className="flex size-6 shrink-0 items-center justify-center rounded-pill bg-primary/10 text-primary">
           <Icon aria-hidden="true" className="size-3.5" />
         </span>
-        <span className="min-w-0 flex-1 text-[13px] font-bold text-ink">{title}</span>
-        {badge}
-        <ChevronDown
-          aria-hidden="true"
-          className={cn("size-4 shrink-0 text-text-muted transition-transform", open && "rotate-180")}
-        />
-      </button>
-      {open && (
-        <div className="space-y-3.5 border-t border-hairline px-4 pb-4 pt-3">{children}</div>
-      )}
-    </div>
-  );
-}
-
-function SubstanceUseCard({
-  value,
-  onSave,
-  badge,
-  disabled,
-}: {
-  value?: string | null;
-  onSave: (next: string) => Promise<boolean>;
-  badge?: React.ReactNode;
-  disabled: boolean;
-}) {
-  const [types, setTypes] = useState(() => splitHybrid(value).tokens);
-  const detailsRef = useRef(splitHybrid(value).details);
-  const emittedRef = useRef(value ?? "");
-
-  useEffect(() => {
-    if ((value ?? "") === emittedRef.current) return;
-    const next = splitHybrid(value);
-    setTypes(next.tokens);
-    detailsRef.current = next.details;
-    emittedRef.current = value ?? "";
-  }, [value]);
-
-  async function commit(next: string) {
-    emittedRef.current = next;
-    return onSave(next);
-  }
-
-  async function commitTypes(next: string[]) {
-    setTypes(next);
-    await commit(joinHybrid(next, detailsRef.current));
-  }
-
-  async function commitDetails(next: string) {
-    detailsRef.current = next.trim();
-    return commit(joinHybrid(types, next));
-  }
-
-  return (
-    <div className="space-y-3">
-      <div>
-        <p className="text-ink mb-1.5 text-[12.5px] font-bold">Substances</p>
-        {disabled ? (
-          types.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {types.map((token) => (
-                <span
-                  key={token}
-                  className="rounded-pill border border-hairline bg-app px-2.5 py-1 text-[11.5px] font-medium leading-none text-text-primary"
-                >
-                  {token}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <span className="text-[11.5px] text-ink-faint">Not recorded</span>
-          )
-        ) : (
-          <ChipPicker
-            options={SUBSTANCE_OPTIONS}
-            value={types}
-            onChange={(next) => void commitTypes(next)}
-          />
-        )}
+        <span className="text-[13px] font-bold text-ink">{title}</span>
       </div>
-      <NarrativeAssistNote
-        label="Details"
-        name="psych-intake-substance-details"
-        value={splitHybrid(value).details}
-        onSave={commitDetails}
-        fieldLabel="Substance use details (frequency, duration, last use, treatment)"
-        rows={3}
-        placeholder="Frequency, duration, last use, treatment history…"
-        disabled={disabled}
-        badge={badge}
-      />
+      <div className="space-y-3.5">{children}</div>
+    </section>
+  );
+}
+
+function SectionLabel({
+  text,
+  badge,
+}: {
+  text: string;
+  badge?: React.ReactNode;
+}) {
+  return (
+    <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+      <p className="text-ink text-[12.5px] font-bold">{text}</p>
+      {badge}
     </div>
   );
 }
 
-function FamilyHistoryCard({
+/**
+ * A combined chip + note field for one hybrid column: chips commit on
+ * selection, the narrative note saves on blur. The blank value is unified
+ * first (chips joined on line one, narrative on the lines after) — used for
+ * family history, substance use, personal crisis and trauma (0116).
+ */
+function HybridChipsCard({
+  chipsLabel,
+  options,
   value,
   onSave,
   disabled,
+  badge,
+  detailsLabel,
+  detailsFieldLabel,
+  detailsPlaceholder,
+  detailsRows = 3,
 }: {
+  chipsLabel: string;
+  options: readonly string[];
   value?: string | null;
   onSave: (next: string) => Promise<boolean>;
   disabled: boolean;
+  badge?: React.ReactNode;
+  detailsLabel: string;
+  detailsFieldLabel: string;
+  detailsPlaceholder: string;
+  detailsRows?: number;
 }) {
   const [tokens, setTokens] = useState(() => splitHybrid(value).tokens);
   const detailsRef = useRef(splitHybrid(value).details);
@@ -296,6 +299,11 @@ function FamilyHistoryCard({
     return onSave(next);
   }
 
+  async function commitTokens(next: string[]) {
+    setTokens(next);
+    await commit(joinHybrid(next, detailsRef.current));
+  }
+
   async function commitDetails(next: string) {
     detailsRef.current = next.trim();
     return commit(joinHybrid(tokens, next));
@@ -304,7 +312,7 @@ function FamilyHistoryCard({
   return (
     <div className="space-y-3">
       <div>
-        <p className="text-ink mb-1.5 text-[12.5px] font-bold">Known history</p>
+        <SectionLabel text={chipsLabel} />
         {disabled ? (
           tokens.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
@@ -322,25 +330,167 @@ function FamilyHistoryCard({
           )
         ) : (
           <ChipPicker
-            options={FAMILY_HISTORY_OPTIONS}
+            options={options}
             value={tokens}
-            onChange={(next) => {
-              setTokens(next);
-              void commit(joinHybrid(next, detailsRef.current));
-            }}
+            onChange={(next) => void commitTokens(next)}
           />
         )}
       </div>
       <NarrativeAssistNote
-        label="Relationship / details"
-        name="psych-intake-family-details"
+        label={detailsLabel}
+        name={`psych-intake-${detailsFieldLabel.toLowerCase().replace(/\W+/g, "-")}`}
         value={splitHybrid(value).details}
         onSave={commitDetails}
-        fieldLabel="Family mental health history — who had what, and how it relates to the patient"
-        rows={3}
-        placeholder="e.g. Mother had depression, treated from 2004…"
+        fieldLabel={detailsFieldLabel}
+        rows={detailsRows}
+        placeholder={detailsPlaceholder}
         disabled={disabled}
+        badge={badge}
       />
+    </div>
+  );
+}
+
+/** Single-select chip row that writes straight through (severity · 0116). */
+function SingleSelectChips({
+  options,
+  value,
+  onSave,
+}: {
+  options: readonly string[];
+  value?: string | null;
+  onSave: (next: string) => Promise<boolean>;
+}) {
+  const { run } = useFieldSave(onSave);
+  const active = parseList(value)[0] ?? null;
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {options.map((option) => {
+        const isActive = active === option;
+        return (
+          <button
+            key={option}
+            type="button"
+            onClick={() => run(isActive ? "" : option)}
+            aria-pressed={isActive}
+            className={cn(
+              "rounded-pill border px-2.5 py-1 text-[11.5px] font-medium leading-none transition-colors",
+              isActive
+                ? "border-primary bg-primary/10 font-semibold text-primary"
+                : "border-hairline bg-surface text-text-secondary hover:border-primary/40 hover:text-primary",
+            )}
+          >
+            {option}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Numeric duration: `[ 3 ] [ Months ▾ ]` — one string upsert per edit. */
+function DurationField({
+  value,
+  onSave,
+  disabled,
+  badge,
+}: {
+  value?: string | null;
+  onSave: (next: string) => Promise<boolean>;
+  disabled: boolean;
+  badge?: React.ReactNode;
+}) {
+  const initial = parseDuration(value);
+  const [state, setState] = useState<"idle" | "saving" | "saved" | "error">(
+    "idle",
+  );
+  const persisted = useRef(value ?? "");
+  const [count, setCount] = useState(initial.count);
+  const [unit, setUnit] = useState(initial.unit);
+  const [legacy, setLegacy] = useState(
+    initial.parseable ? "" : (value ?? "").trim(),
+  );
+
+  useEffect(() => {
+    if ((value ?? "") === persisted.current) return;
+    const next = parseDuration(value);
+    persisted.current = value ?? "";
+    setCount(next.count);
+    setUnit(next.unit);
+    setLegacy(next.parseable ? "" : (value ?? "").trim());
+  }, [value]);
+
+  async function commit(nextCount: string, nextUnit: string) {
+    const formatted = nextCount.trim() ? `${nextCount.trim()} ${nextUnit}` : "";
+    if (persisted.current === formatted) return;
+    setState("saving");
+    const ok = await onSave(formatted);
+    if (ok) {
+      persisted.current = formatted;
+      setState("saved");
+    } else {
+      setState("error");
+    }
+  }
+
+  return (
+    <div>
+      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-ink text-[12.5px] font-bold">Duration</p>
+        <NoteStatus state={state} />
+        {badge}
+      </div>
+      {legacy ? (
+        <>
+          <Input
+            type="text"
+            disabled={disabled}
+            value={legacy}
+            onChange={(event) => setLegacy(event.target.value)}
+            onBlur={() => {
+              persisted.current = legacy;
+              void onSave(legacy.trim()).then((ok) =>
+                setState(ok ? "saved" : "error"),
+              );
+            }}
+            placeholder="e.g. about a year…"
+          />
+          <p className="mt-1 text-[11px] text-ink-faint">
+            This entry was written as free text, so it stays editable as text.
+          </p>
+        </>
+      ) : (
+        <div className="flex gap-1.5">
+          <Input
+            type="number"
+            min={0}
+            disabled={disabled}
+            value={count}
+            onChange={(event) => setCount(event.target.value)}
+            onBlur={() => void commit(count, unit)}
+            placeholder="e.g. 3"
+            className="w-20"
+            aria-label="Duration count"
+          />
+          <NativeSelect
+            value={unit}
+            disabled={disabled}
+            onChange={(event) => {
+              setUnit(event.target.value);
+              void commit(count, event.target.value);
+            }}
+            className="w-32"
+            aria-label="Duration unit"
+          >
+            {DURATION_UNITS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </NativeSelect>
+        </div>
+      )}
     </div>
   );
 }
@@ -382,16 +532,18 @@ export function IntakeHistoryTab({
     intake?.presenting_concern_duration,
     intake?.presenting_concern_severity,
     intake?.presenting_concern_words,
+    intake?.sleep_quality,
+    intake?.appetite_energy,
+    intake?.personal_crisis_history,
     intake?.previous_therapy_history,
     intake?.previous_diagnosis,
     intake?.family_mental_health_history,
+    intake?.trauma_history,
     intake?.psychosocial_background,
     intake?.stressors,
     intake?.substance_use_history,
     intake?.additional_clinical_notes,
   ].every((entry) => !entry?.trim());
-
-  const severity = intake?.presenting_concern_severity;
 
   async function sendIntakeForm() {
     if (!canManage || sending || !hasWhatsapp) return;
@@ -422,8 +574,7 @@ export function IntakeHistoryTab({
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="max-w-2xl text-[12px] leading-relaxed text-text-muted">
-            A clinician workspace, not the patient-facing form. Review the AI
-            extracted history first, then fill the sections below — structured
+            A clinician workspace, not the patient-facing form. Structured
             fields save as you select, narrative fields save on blur.
           </p>
           <div className="flex flex-wrap items-center gap-2">
@@ -483,11 +634,6 @@ export function IntakeHistoryTab({
                 className="h-8 gap-1.5 px-2.5 text-[12px]"
                 onClick={() => void sendIntakeForm()}
                 disabled={sending || !hasWhatsapp}
-                title={
-                  hasWhatsapp
-                    ? "Send the patient intake form via WhatsApp"
-                    : "Add a WhatsApp number to send the intake form"
-                }
               >
                 {sending ? (
                   <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
@@ -500,13 +646,13 @@ export function IntakeHistoryTab({
           </div>
         )}
 
-        <div className="space-y-2.5">
-          <IntakeSection
-            icon={Stethoscope}
-            title="Presenting concern"
-            defaultOpen
-          >
-            <div className="space-y-3.5">
+        {/* Two-column clinical layout — every card always open (0116 UX). */}
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 xl:gap-5">
+          {/* ------------------------------------------------------------ */}
+          {/* Column 1 — presenting problem & axis                          */}
+          {/* ------------------------------------------------------------ */}
+          <div className="space-y-4">
+            <IntakePanel icon={Stethoscope} title="Presenting problem & biological signs">
               <NarrativeAssistNote
                 label="Main concern"
                 name="psych-intake-presenting-concern"
@@ -518,37 +664,64 @@ export function IntakeHistoryTab({
                 disabled={!canManage}
                 badge={<ProvenancePill entry={provenance.presenting_concern} />}
               />
-              <NarrativeAssistNote
-                label="Duration"
-                name="psych-intake-presenting-duration"
+
+              <DurationField
                 value={intake?.presenting_concern_duration}
                 onSave={onSave("presenting_concern_duration")}
-                fieldLabel="How long the presenting concern has been present"
-                rows={2}
-                placeholder="e.g. 3 months…"
                 disabled={!canManage}
                 badge={<ProvenancePill entry={provenance.presenting_concern_duration} />}
               />
+
               <div>
-                <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-ink text-[12.5px] font-bold">Severity</p>
-                  <ProvenancePill entry={provenance.presenting_concern_severity} />
-                </div>
+                <SectionLabel
+                  text="Severity"
+                  badge={
+                    <ProvenancePill entry={provenance.presenting_concern_severity} />
+                  }
+                />
                 {canManage ? (
-                  <ChipPicker
+                  <SingleSelectChips
                     options={SEVERITY_OPTIONS}
-                    value={severity ? [severity] : []}
-                    onChange={(next) => void onSave("presenting_concern_severity")(next[0] ?? "")}
-                    single
+                    value={intake?.presenting_concern_severity}
+                    onSave={onSave("presenting_concern_severity")}
                   />
-                ) : severity ? (
+                ) : intake?.presenting_concern_severity ? (
                   <span className="rounded-pill border border-hairline bg-app px-2.5 py-1 text-[11.5px] font-medium text-text-primary">
-                    {severity}
+                    {intake.presenting_concern_severity}
                   </span>
                 ) : (
                   <span className="text-[11.5px] text-ink-faint">Not recorded</span>
                 )}
               </div>
+
+              <div>
+                <SectionLabel
+                  text="Sleep — vegetative baseline"
+                  badge={<ProvenancePill entry={provenance.sleep_quality} />}
+                />
+                <ChipNote
+                  label=""
+                  value={intake?.sleep_quality}
+                  options={SLEEP_OPTIONS}
+                  onSave={onSave("sleep_quality")}
+                  disabled={!canManage}
+                />
+              </div>
+
+              <div>
+                <SectionLabel
+                  text="Appetite & energy — vegetative baseline"
+                  badge={<ProvenancePill entry={provenance.appetite_energy} />}
+                />
+                <ChipNote
+                  label=""
+                  value={intake?.appetite_energy}
+                  options={APPETITE_OPTIONS}
+                  onSave={onSave("appetite_energy")}
+                  disabled={!canManage}
+                />
+              </div>
+
               <NarrativeAssistNote
                 label="Patient's own words"
                 name="psych-intake-presenting-words"
@@ -560,119 +733,125 @@ export function IntakeHistoryTab({
                 disabled={!canManage}
                 badge={<ProvenancePill entry={provenance.presenting_concern_words} />}
               />
-            </div>
-          </IntakeSection>
+            </IntakePanel>
 
-          <IntakeSection
-            icon={MessageCircle}
-            title="Previous therapy history"
-            badge={<ProvenancePill entry={provenance.previous_therapy_history} />}
-            defaultOpen={Boolean(intake?.previous_therapy_history?.trim())}
-          >
-            <ChipNote
-              label="Approaches"
-              value={intake?.previous_therapy_history}
-              options={THERAPY_HISTORY_OPTIONS}
-              onSave={onSave("previous_therapy_history")}
-              disabled={!canManage}
-              helper="Select every approach the patient has tried — other approaches can be added directly."
-            />
-          </IntakeSection>
+            <IntakePanel icon={TriangleAlert} title="Trauma & stress factors">
+              <HybridChipsCard
+                chipsLabel="Trauma & adverse events (ACEs)"
+                options={TRAUMA_OPTIONS}
+                value={intake?.trauma_history}
+                onSave={onSave("trauma_history")}
+                disabled={!canManage}
+                badge={<ProvenancePill entry={provenance.trauma_history} />}
+                detailsLabel="Trauma details"
+                detailsFieldLabel="Trauma & adverse events — specific events, ages at exposure and ongoing impact"
+                detailsPlaceholder="e.g. left the patient at 19, ongoing nightmares…"
+                detailsRows={3}
+              />
+              <ChipNote
+                label="Current stressors (day-to-day)"
+                value={intake?.stressors}
+                options={STRESSOR_OPTIONS}
+                onSave={onSave("stressors")}
+                disabled={!canManage}
+                badge={<ProvenancePill entry={provenance.stressors} />}
+                helper="Everyday pressures — acute or childhood events live in the trauma group above."
+              />
+            </IntakePanel>
+          </div>
 
-          <IntakeSection
-            icon={BriefcaseMedical}
-            title="Previous diagnosis"
-            badge={<ProvenancePill entry={provenance.previous_diagnosis} />}
-            defaultOpen={Boolean(intake?.previous_diagnosis?.trim())}
-          >
-            <SearchTagSelect
-              label="Diagnoses"
-              value={intake?.previous_diagnosis}
-              options={DIAGNOSIS_OPTIONS}
-              onSave={onSave("previous_diagnosis")}
-              placeholder="Search diagnoses or add your own…"
-              disabled={!canManage}
-              helper="Multiple diagnoses supported. Type to filter or add an unknown one directly."
-            />
-          </IntakeSection>
+          {/* ------------------------------------------------------------ */}
+          {/* Column 2 — psychiatric & psychosocial history                 */}
+          {/* ------------------------------------------------------------ */}
+          <div className="space-y-4">
+            <IntakePanel icon={BriefcaseMedical} title="Psychiatric history & safety">
+              <HybridChipsCard
+                chipsLabel="Personal crisis history"
+                options={CRISIS_OPTIONS}
+                value={intake?.personal_crisis_history}
+                onSave={onSave("personal_crisis_history")}
+                disabled={!canManage}
+                badge={<ProvenancePill entry={provenance.personal_crisis_history} />}
+                detailsLabel="Crisis details"
+                detailsFieldLabel="Personal psychiatric crisis history — when, where, what happened, treatment received"
+                detailsPlaceholder="e.g. attempt in 2019, hospitalised three days…"
+                detailsRows={3}
+              />
+              <div>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <p className="text-ink text-[12.5px] font-bold">Previous diagnoses</p>
+                  <ProvenancePill entry={provenance.previous_diagnosis} />
+                </div>
+                <SearchTagSelect
+                  label=""
+                  value={intake?.previous_diagnosis}
+                  options={DIAGNOSIS_OPTIONS}
+                  onSave={onSave("previous_diagnosis")}
+                  placeholder="Search diagnoses or add your own…"
+                  disabled={!canManage}
+                  helper="Multiple diagnoses supported. Type to filter or add an unknown one directly."
+                />
+              </div>
+              <ChipNote
+                label="Previous therapies"
+                value={intake?.previous_therapy_history}
+                options={THERAPY_HISTORY_OPTIONS}
+                onSave={onSave("previous_therapy_history")}
+                disabled={!canManage}
+                badge={<ProvenancePill entry={provenance.previous_therapy_history} />}
+                helper="Select every approach the patient has tried — other approaches can be added directly."
+              />
+              <HybridChipsCard
+                chipsLabel="Family mental health history"
+                options={FAMILY_HISTORY_OPTIONS}
+                value={intake?.family_mental_health_history}
+                onSave={onSave("family_mental_health_history")}
+                disabled={!canManage}
+                badge={<ProvenancePill entry={provenance.family_mental_health_history} />}
+                detailsLabel="Family details"
+                detailsFieldLabel="Family mental health history — who had what, and how it relates to the patient"
+                detailsPlaceholder="e.g. Mother had depression, treated from 2004…"
+                detailsRows={3}
+              />
+            </IntakePanel>
 
-          <IntakeSection
-            icon={Users}
-            title="Family mental health history"
-            badge={<ProvenancePill entry={provenance.family_mental_health_history} />}
-            defaultOpen={Boolean(intake?.family_mental_health_history?.trim())}
-          >
-            <FamilyHistoryCard
-              value={intake?.family_mental_health_history}
-              onSave={onSave("family_mental_health_history")}
-              disabled={!canManage}
-            />
-          </IntakeSection>
-
-          <IntakeSection
-            icon={Activity}
-            title="Social & psychosocial history"
-            badge={<ProvenancePill entry={provenance.psychosocial_background} />}
-            defaultOpen={Boolean(intake?.psychosocial_background?.trim())}
-          >
-            <NarrativeAssistNote
-              label="Narrative"
-              name="psych-intake-psychosocial_background"
-              value={intake?.psychosocial_background}
-              onSave={onSave("psychosocial_background")}
-              fieldLabel="Social & psychosocial history (family, upbringing, education, occupation, relationships, social support, life events)"
-              rows={5}
-              placeholder="Family background, education, occupation, relationships, social support, important life events…"
-              disabled={!canManage}
-            />
-          </IntakeSection>
-
-          <IntakeSection
-            icon={Activity}
-            title="Current stressors"
-            badge={<ProvenancePill entry={provenance.stressors} />}
-            defaultOpen={Boolean(intake?.stressors?.trim())}
-          >
-            <ChipNote
-              label="Current stressors"
-              value={intake?.stressors}
-              options={STRESSOR_OPTIONS}
-              onSave={onSave("stressors")}
-              disabled={!canManage}
-              helper="Select the stressors the patient is currently facing, or add one."
-            />
-          </IntakeSection>
-
-          <IntakeSection
-            icon={Pill}
-            title="Substance use history"
-            badge={<ProvenancePill entry={provenance.substance_use_history} />}
-            defaultOpen={Boolean(intake?.substance_use_history?.trim())}
-          >
-            <SubstanceUseCard
-              value={intake?.substance_use_history}
-              onSave={onSave("substance_use_history")}
-              disabled={!canManage}
-            />
-          </IntakeSection>
-
-          <IntakeSection
-            icon={ClipboardList}
-            title="Additional clinical notes"
-            badge={<ProvenancePill entry={provenance.additional_clinical_notes} />}
-            defaultOpen={Boolean(intake?.additional_clinical_notes?.trim())}
-          >
-            <NarrativeAssistNote
-              label="Notes"
-              name="psych-intake-additional-notes"
-              value={intake?.additional_clinical_notes}
-              onSave={onSave("additional_clinical_notes")}
-              fieldLabel="Additional clinical notes for the intake history"
-              rows={4}
-              placeholder="Anything else relevant to the history…"
-              disabled={!canManage}
-            />
-          </IntakeSection>
+            <IntakePanel icon={Users} title="Psychosocial & substance factors">
+              <HybridChipsCard
+                chipsLabel="Substances"
+                options={SUBSTANCE_OPTIONS}
+                value={intake?.substance_use_history}
+                onSave={onSave("substance_use_history")}
+                disabled={!canManage}
+                badge={<ProvenancePill entry={provenance.substance_use_history} />}
+                detailsLabel="Details"
+                detailsFieldLabel="Substance use details (frequency, duration, last use, treatment)"
+                detailsPlaceholder="Frequency, duration, last use, treatment history…"
+                detailsRows={3}
+              />
+              <NarrativeAssistNote
+                label="Social & psychosocial background"
+                name="psych-intake-psychosocial_background"
+                value={intake?.psychosocial_background}
+                onSave={onSave("psychosocial_background")}
+                fieldLabel="Social & psychosocial history (family, upbringing, education, occupation, relationships, social support, life events)"
+                rows={5}
+                placeholder="Family background, education, occupation, relationships, social support, important life events…"
+                disabled={!canManage}
+                badge={<ProvenancePill entry={provenance.psychosocial_background} />}
+              />
+              <NarrativeAssistNote
+                label="Additional clinical notes"
+                name="psych-intake-additional-notes"
+                value={intake?.additional_clinical_notes}
+                onSave={onSave("additional_clinical_notes")}
+                fieldLabel="Additional clinical notes for the intake history"
+                rows={4}
+                placeholder="Anything else relevant to the history…"
+                disabled={!canManage}
+                badge={<ProvenancePill entry={provenance.additional_clinical_notes} />}
+              />
+            </IntakePanel>
+          </div>
         </div>
       </div>
     </RecordSection>
