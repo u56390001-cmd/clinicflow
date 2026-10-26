@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
@@ -85,10 +85,33 @@ function isMissingTableError(
 }
 
 /** Whether a write failed only because the 0052 document-date column is absent. */
-function isMissingDateColumnError(
+/** True when the 0117 `category` column is not there yet. */
+/** Same pattern for the 0117 category column. */
+function withoutCategoryColumns<
+  T extends {
+    category?: string | null;
+  },
+>(rows: T[]): T[] {
+  return rows.map((row) => {
+    const rest = { ...row };
+    delete rest.category;
+    return rest;
+  });
+}
+
+function isMissingCategoryColumnError(
   error: { code?: string | null; message?: string | null } | null,
 ): boolean {
-  const code = error?.code ?? "";
+  const message = (error?.message ?? "").toLowerCase();
+  return (
+    (error?.code === "42703" || error?.code === "PGRST204") &&
+    (message.includes("category") || message.includes("column"))
+  );
+}
+
+function isMissingDateColumnError(
+  error: { code?: string | null; message?: string | null } | null,
+): boolean {  const code = error?.code ?? "";
   if (code === "42703" || code === "PGRST204") return true;
   const message = (error?.message ?? "").toLowerCase();
   return (
@@ -505,10 +528,28 @@ if (insertError) {
         size_bytes: file.size,
         document_date: reportDate,
         uploaded_by_user_id: user.id,
+        // 0117: the scanner's output is a lab report / scan until proven otherwise.
+        category: "labs_scans" as const,
       };
       let persistInsertError = (
         await supabase.from("patient_documents").insert(documentRow)
       ).error;
+      if (
+        persistInsertError &&
+        isMissingCategoryColumnError(persistInsertError)
+      ) {
+        // Keep the scan even on a database without 0117 - the row matters more
+        // than its bucket.
+        console.warn(
+          "[processDocumentOCRAction] 0117 category column missing - saving the document without its category",
+          { clinicId, patientId, code: persistInsertError.code },
+        );
+        persistInsertError = (
+          await supabase
+            .from("patient_documents")
+            .insert(withoutCategoryColumns([documentRow])[0])
+        ).error;
+      }
       if (persistInsertError && isMissingDateColumnError(persistInsertError)) {
         // Keep the scan itself even on a database without 0052 — losing the
         // audit copy of the document would be worse than losing its date.

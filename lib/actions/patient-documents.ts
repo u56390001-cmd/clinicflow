@@ -10,13 +10,26 @@ import {
 } from "@/lib/file-signature";
 import { createClient } from "@/lib/supabase/server";
 import {
+  PATIENT_DOCUMENT_CATEGORIES,
   PATIENT_DOCUMENT_MAX_BYTES,
   PATIENT_DOCUMENTS_BUCKET,
 } from "@/types/database";
+import type { PatientDocumentCategory } from "@/types/database";
 import type { ActionResult } from "@/types";
 
 const uploadSchema = z.object({ patientId: z.uuid() });
 const deleteSchema = z.object({ documentId: z.uuid() });
+
+/**
+ * The category is optional input: anything unexpected collapses to the
+ * `general` bucket so a tampered form value can never violate the 0117 CHECK.
+ */
+function categoryFromForm(formData: FormData): PatientDocumentCategory {
+  const raw = formData.get("category");
+  return PATIENT_DOCUMENT_CATEGORIES.includes(raw as PatientDocumentCategory)
+    ? (raw as PatientDocumentCategory)
+    : "general";
+}
 
 /**
  * Attach a file to a patient's record.
@@ -121,6 +134,7 @@ export async function uploadPatientDocumentAction(
       mime_type: sniffed.mimeType,
       size_bytes: file.size,
       uploaded_by_user_id: user?.id ?? null,
+      category: categoryFromForm(formData),
     });
 
   if (insertError) {

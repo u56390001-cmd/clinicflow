@@ -61,8 +61,10 @@ import type {
   AssessmentInterpretationRule,
   AssessmentQuestion,
   AssessmentRaterType,
+  Database,
   IntakeFieldKey,
 } from "@/types/database";
+import { PSYCH_GOAL_STATUSES } from "@/types/database";
 import type { ActionResult } from "@/types";
 
 /** Free-text clinical note field: trimmed, bounded, coalesces to null. */
@@ -223,13 +225,43 @@ const savePsychAssessmentSchema = z.object({
     .or(z.literal("")),
 });
 
+/** One structured SMART goal row (0118). Titles stay short; dates as yyyy-mm-dd. */
+const smartGoalSchema = z.object({
+  id: z.string().trim().min(1).max(64),
+  title: z.string().trim().min(1, "Goal title is required.").max(500),
+  target_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Target date must be a valid calendar date.")
+    .nullable()
+    .optional()
+    .default(null),
+  status: z.enum(PSYCH_GOAL_STATUSES),
+  baseline_metric: z.string().trim().max(120).default(""),
+  target_metric: z.string().trim().max(120).default(""),
+});
+
 const savePsychCarePlanSchema = z.object({
-  therapy_goals: note,
-  intervention_plan: note,
-  homework_assignments: note,
-  follow_up_frequency: note,
-  psychiatrist_referral: z.boolean().optional().default(false),
-  referral_notes: note,
+  therapy_goals: note.optional(),
+  intervention_plan: note.optional(),
+  homework_assignments: note.optional(),
+  follow_up_frequency: note.optional(),
+  psychiatrist_referral: z.boolean().optional(),
+  referral_notes: note.optional(),
+  // 0118 fields - all optional so the existing single-field autosave flow
+  // (one key per save) keeps working unchanged.
+  diagnosis_problem_list: note.optional(),
+  goals: z.array(smartGoalSchema).max(30).optional(),
+  next_review_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Review date must be a valid calendar date.")
+    .nullable()
+    .optional(),
+  review_cadence_days: z
+    .number()
+    .int()
+    .min(7, "Review cadence must be at least weekly.")
+    .max(365, "Review cadence must be at most a year.")
+    .optional(),
 });
 
 const saveDermProfileSchema = z.object({
@@ -1517,22 +1549,120 @@ export async function savePsychCarePlanAction(
   if (!g.ok) return g.result;
 
   const me = await authorName(g.supabase, g.clinicId);
-  const { error } = await g.supabase.from("psych_care_plans").upsert(
-    {
-      clinic_id: g.clinicId,
-      patient_id: patientId,
-      therapy_goals: parsed.data.therapy_goals ?? null,
-      intervention_plan: parsed.data.intervention_plan ?? null,
-      homework_assignments: parsed.data.homework_assignments ?? null,
-      follow_up_frequency: parsed.data.follow_up_frequency ?? null,
-      psychiatrist_referral: parsed.data.psychiatrist_referral,
-      referral_notes: parsed.data.referral_notes ?? null,
-      updated_by: me,
+  const d = parsed.data;
+  // Partial-save contract: a key only appears when the caller supplied the
+  // field, so a goals-array save does not blank homework or the legacy text
+  // fields (the conditional spreads are the TS-friendly way to do that).
+  const payload: Database["public"]["Tables"]["psych_care_plans"]["Insert"] = {
+    clinic_id: g.clinicId,
+    patient_id: patientId,
+    updated_by: me,
+    updated_at: new Date().toISOString(),
+    ...(d.therapy_goals !== undefined && { therapy_goals: d.therapy_goals }),
+    ...(d.intervention_plan !== undefined && { intervention_plan: d.intervention_plan }),
+    ...(d.homework_assignments !== undefined && { homework_assignments: d.homework_assignments }),
+    ...(d.follow_up_frequency !== undefined && { follow_up_frequency: d.follow_up_frequency }),
+    ...(d.psychiatrist_referral !== undefined && { psychiatrist_referral: d.psychiatrist_referral }),
+    ...(d.referral_notes !== undefined && { referral_notes: d.referral_notes }),
+    ...(d.diagnosis_problem_list !== undefined && {
+      diagnosis_problem_list: d.diagnosis_problem_list,
+    }),
+    ...(d.goals !== undefined && { goals: d.goals }),
+    ...(d.next_review_date !== undefined && { next_review_date: d.next_review_date }),
+    ...(d.review_cadence_days !== undefined && { review_cadence_days: d.review_cadence_days }),
+  };
+
+  const { error } = await g.supabase
+    .from("psych_care_plans")
+    .upsert(payload, { onConflict: "patient_id" });
+
+  if (error) {
+    // A deployment without 0118 rejects the new columns. Retry without ALL of
+    // them so the legacy fields still land during the upgrade window - the
+    // caller sees the data:"legacy-schema" marker and can tell the clinician
+    // the structured part is waiting on the migration.
+    const message = error.message.toLowerCase();
+    if (
+      (error.code === "42703" || error.code === "PGRST204") &&
+      (message.includes("goals") ||
+        message.includes("diagnosis_problem_list") ||
+        message.includes("next_review_date") ||
+        message.includes("review_cadence_days"))
+    ) {
+      const legacyPayload: Database["public"]["Tables"]["psych_care_plans"]["Insert"] = {
+        ...payload,
+      };
+      for (const key of [
+        "diagnosis_problem_list",
+        "goals",
+        "next_review_date",
+        "review_cadence_days",
+      ] as const) {
+        delete legacyPayload[key];
+      }
+      const legacy = await g.supabase
+        .from("psych_care_plans")
+        .upsert(legacyPayload, { onConflict: "patient_id" });
+      if (legacy.error) {
+        return { ok: false, message: legacy.error.message };
+      }
+      return { ok: true, data: "plan-saved-legacy-schema-goals-pending" };
+    }
+    return { ok: false, message: error.message };
+  }
+  return ok();
+}
+
+/**
+ * 🔄 Mark Plan Reviewed Today — stamps `updated_at`/`updated_by` and pushes
+ * `next_review_date` out by the plan's cadence (default 60 days).
+ */
+export async function markCarePlanReviewedAction(
+  patientId: string,
+): Promise<ActionResult<string>> {
+  const g = await guard();
+  if (!g.ok) return g.result;
+
+  const { data: plan } = await g.supabase
+    .from("psych_care_plans")
+    .select("review_cadence_days")
+    .eq("clinic_id", g.clinicId)
+    .eq("patient_id", patientId)
+    .maybeSingle();
+
+  const cadenceDays = plan?.review_cadence_days ?? 60;
+  const next = new Date(Date.now() + cadenceDays * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  const me = await authorName(g.supabase, g.clinicId);
+
+  const { error } = await g.supabase
+    .from("psych_care_plans")
+    .update({
       updated_at: new Date().toISOString(),
-    },
-    { onConflict: "patient_id" },
-  );
-  if (error) return { ok: false, message: error.message };
+      updated_by: me,
+      next_review_date: next,
+    })
+    .eq("clinic_id", g.clinicId)
+    .eq("patient_id", patientId);
+
+  if (error) {
+    // Legacy DB without 0118: stamp the audit fields so the button still
+    // behaves (the review date computes client-side until the migration runs).
+    const message = error.message.toLowerCase();
+    if (error.code === "42703" && message.includes("next_review_date")) {
+      const legacy = await g.supabase
+        .from("psych_care_plans")
+        .update({ updated_at: new Date().toISOString(), updated_by: me })
+        .eq("clinic_id", g.clinicId)
+        .eq("patient_id", patientId);
+      if (legacy.error) {
+        return { ok: false, message: legacy.error.message };
+      }
+      return { ok: true, data: "review-marked-legacy-schema" };
+    }
+    return { ok: false, message: error.message };
+  }
   return ok();
 }
 

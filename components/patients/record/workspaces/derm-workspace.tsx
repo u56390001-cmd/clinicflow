@@ -223,6 +223,12 @@ export function DermWorkspace({
           documents={documents}
           timezone={timezone}
           canManage={canManage}
+          patientInfo={{
+            name: patient.name,
+            patientCode: patient.patient_code,
+            dateOfBirth: patient.date_of_birth,
+            gender: patient.gender,
+          }}
         />
       )}
     </div>

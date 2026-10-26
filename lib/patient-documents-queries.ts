@@ -13,7 +13,63 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { Database, PatientDocument } from "@/types/database";
+import type {
+  Database,
+  PatientDocument,
+  PatientDocumentCategory,
+} from "@/types/database";
+
+/** Filter-bar + badge metadata for the 0117 category buckets. */
+export const PATIENT_DOCUMENT_CATEGORY_META: Record<
+  PatientDocumentCategory,
+  { label: string; short: string; badge: string }
+> = {
+  consents_legal: {
+    label: "Consents & Legal",
+    short: "Consents",
+    badge: "bg-violet-500/10 text-violet-700",
+  },
+  labs_scans: {
+    label: "Labs & Scans",
+    short: "Labs",
+    badge: "bg-teal-500/10 text-teal-700",
+  },
+  referrals_evals: {
+    label: "Referrals & Evals",
+    short: "Referrals",
+    badge: "bg-amber-500/10 text-amber-700",
+  },
+  patient_uploads: {
+    label: "Patient Uploads",
+    short: "Patient",
+    badge: "bg-primary/10 text-primary",
+  },
+  general: {
+    label: "General",
+    short: "General",
+    badge: "bg-text-muted/10 text-text-secondary",
+  },
+};
+
+/** Safe folder label for a category that an older DB has not seen yet. */
+export function patientDocumentCategoryLabel(
+  category: string | null | undefined,
+): string {
+  const meta = (category as PatientDocumentCategory | undefined | null)
+    ? PATIENT_DOCUMENT_CATEGORY_META[category as PatientDocumentCategory]
+    : undefined;
+  return meta?.label ?? "General";
+}
+
+/** Columns every row carries, regardless of which migrations have landed. */
+const BASE_COLUMNS =
+  "id, clinic_id, patient_id, document_name, mime_type, size_bytes, uploaded_by_user_id, uploaded_at, source";
+
+/** `document_date` arrived in 0052. */
+const WITH_DATE_COLUMNS = `${BASE_COLUMNS}, document_date`;
+
+/** `category` arrived in 0117. */
+const WITH_CATEGORY_COLUMNS = `${WITH_DATE_COLUMNS}, category`;
 
 /**
  * A document as the UI sees it: everything from the row except `file_path`,
@@ -22,6 +78,23 @@ import type { Database, PatientDocument } from "@/types/database";
  */
 export type PatientDocumentView = Omit<PatientDocument, "file_path">;
 
+/** Shape the query actually returns — every late column optional. */
+type RawDocumentRow = Partial< {
+  document_date: string | null;
+  category: PatientDocumentCategory;
+} > &
+  Omit<PatientDocumentView, "document_date" | "category">;
+
+function asView(
+  row: RawDocumentRow,
+): PatientDocumentView {
+  return {
+    ...row,
+    document_date: row.document_date ?? null,
+    category: row.category ?? "general",
+  };
+}
+
 export async function fetchPatientDocuments(
   supabase: SupabaseClient<Database>,
   clinicId: string,
@@ -29,32 +102,41 @@ export async function fetchPatientDocuments(
 ): Promise<PatientDocumentView[]> {
   const { data, error } = await supabase
     .from("patient_documents")
-    .select(
-      "id, clinic_id, patient_id, document_name, mime_type, size_bytes, document_date, uploaded_by_user_id, uploaded_at, source",
-    )
+    .select(WITH_CATEGORY_COLUMNS)
     .eq("clinic_id", clinicId)
     .eq("patient_id", patientId)
     .order("uploaded_at", { ascending: false });
 
   if (error) {
-    // `document_date` arrived in 0052. If this deployment has not applied it
-    // yet, retry without the column rather than blanking the whole Documents
-    // tab — the dates are a bonus, the list is not.
-    if (isMissingDocumentDate(error.code, error.message)) {
+    // `document_date` arrived in 0052 and `category` in 0117. If a deployment
+    // has not applied one of them yet, retry without the missing column rather
+    // than blanking the whole Documents tab — extras are a bonus, the list is
+    // not. The checks match the 42703 message shape PostgREST returns.
+    const message = error.message.toLowerCase();
+    const missing = error.code === "42703" || error.code === "PGRST204";
+    if (missing && message.includes("category")) {
       const retry = await supabase
         .from("patient_documents")
-        .select(
-          "id, clinic_id, patient_id, document_name, mime_type, size_bytes, uploaded_by_user_id, uploaded_at, source",
-        )
+        .select(WITH_DATE_COLUMNS)
         .eq("clinic_id", clinicId)
         .eq("patient_id", patientId)
         .order("uploaded_at", { ascending: false });
-
       if (!retry.error) {
-        return (retry.data ?? []).map((row) => ({
-          ...row,
-          document_date: null,
-        }));
+        return ((retry.data ?? []) as RawDocumentRow[]).map(asView);
+      }
+    }
+    if (
+      (missing && message.includes("document_date")) ||
+      (missing && message.includes("category"))
+    ) {
+      const retry = await supabase
+        .from("patient_documents")
+        .select(BASE_COLUMNS)
+        .eq("clinic_id", clinicId)
+        .eq("patient_id", patientId)
+        .order("uploaded_at", { ascending: false });
+      if (!retry.error) {
+        return ((retry.data ?? []) as RawDocumentRow[]).map(asView);
       }
     }
 
@@ -66,16 +148,7 @@ export async function fetchPatientDocuments(
     return [];
   }
 
-  return (data ?? []) as PatientDocumentView[];
-}
-
-/** Whether the failure is the 0052 `document_date` column not being there yet. */
-function isMissingDocumentDate(
-  code: string | undefined,
-  message: string,
-): boolean {
-  if (code === "42703" || code === "PGRST204") return true;
-  return message.toLowerCase().includes("document_date");
+  return (data ?? []).map((row) => asView(row as RawDocumentRow));
 }
 
 /**

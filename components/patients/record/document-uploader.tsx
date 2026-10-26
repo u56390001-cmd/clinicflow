@@ -6,14 +6,20 @@ import { AlertCircle, CloudUpload, Paperclip } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { uploadPatientDocumentAction } from "@/lib/actions/patient-documents";
-import { formatFileSize } from "@/lib/patient-documents-queries";
+import {
+  PATIENT_DOCUMENT_CATEGORY_META,
+  formatFileSize,
+} from "@/lib/patient-documents-queries";
 import { cn } from "@/lib/utils";
 import {
+  PATIENT_DOCUMENT_CATEGORIES,
   PATIENT_DOCUMENT_MAX_BYTES,
   PATIENT_DOCUMENT_MIME_TYPES,
 } from "@/types/database";
+import type { PatientDocumentCategory } from "@/types/database";
 import type { ActionResult } from "@/types";
 
 /** What the file picker offers. Not validation — the server sniffs the bytes. */
@@ -31,16 +37,23 @@ const ACCEPT = PATIENT_DOCUMENT_MIME_TYPES.join(",");
  * The obvious client-side checks (type, size) run here purely for a fast, clear
  * error; `uploadPatientDocumentAction` re-checks both and identifies the file by
  * its magic bytes rather than the type the browser guessed from the extension.
+ *
+ * The category select (0117) is part of this form, so a scan can be filed as a
+ * consent, a lab or a referral in the same breath as it is attached — the
+ * filter bar stays trustworthy without renames later.
  */
 export function DocumentUploader({
   patientId,
   variant = "inline",
   disabled = false,
+  defaultCategory = "general",
 }: {
   patientId: string;
   variant?: "dropzone" | "inline";
   /** True when the signed-in role may not manage clinical data. */
   disabled?: boolean;
+  /** Pre-fill for flows like "file the signed consent copy". */
+  defaultCategory?: PatientDocumentCategory;
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -107,6 +120,22 @@ export function DocumentUploader({
 
   const message = clientError ?? (state && !state.ok ? state.message : null);
 
+  const categorySelect = (
+    <NativeSelect
+      name="category"
+      defaultValue={defaultCategory}
+      className="h-9 text-xs"
+      disabled={disabled || pending}
+      aria-label="Document category"
+    >
+      {PATIENT_DOCUMENT_CATEGORIES.map((category) => (
+        <option key={category} value={category}>
+          {PATIENT_DOCUMENT_CATEGORY_META[category].label}
+        </option>
+      ))}
+    </NativeSelect>
+  );
+
   return (
     <form ref={formRef} action={formAction} className="space-y-2">
       <input type="hidden" name="patientId" value={patientId} />
@@ -156,21 +185,27 @@ export function DocumentUploader({
             <Paperclip aria-hidden="true" />
             Upload Document
           </Button>
+          <div className="mx-auto mt-2 max-w-56">
+            {categorySelect}
+          </div>
           <p className="mt-2 text-xs text-text-muted">
             PDF, PNG, JPEG or WebP · up to 10 MB
           </p>
         </div>
       ) : (
-        <Button
-          type="button"
-          variant="primary"
-          size="sm"
-          disabled={disabled || pending}
-          onClick={() => inputRef.current?.click()}
-        >
-          {pending ? <Spinner size="sm" /> : <Paperclip aria-hidden="true" />}
-          {pending ? "Uploading…" : "Upload Document"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            disabled={disabled || pending}
+            onClick={() => inputRef.current?.click()}
+          >
+            {pending ? <Spinner size="sm" /> : <Paperclip aria-hidden="true" />}
+            {pending ? "Uploading…" : "Upload Document"}
+          </Button>
+          <div className="w-full sm:w-44">{categorySelect}</div>
+        </div>
       )}
 
       {message && (

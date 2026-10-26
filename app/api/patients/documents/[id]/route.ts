@@ -81,6 +81,41 @@ export async function GET(
   // inline, which is what a clinician glancing at a report wants.
   const download = request.nextUrl.searchParams.get("download") === "1";
 
+  // `?embed=1` streams the bytes same-origin instead of redirecting. The
+  // preview modal needs this: a cross-origin signed URL would render in an
+  // iframe, but `iframe.contentWindow.print()` is cross-origin blocked, so
+  // print-from-modal requires the document to share this app's origin.
+  const embed = request.nextUrl.searchParams.get("embed") === "1";
+
+  if (embed) {
+    const { data: blob, error: downloadError } = await supabase.storage
+      .from(PATIENT_DOCUMENTS_BUCKET)
+      .download(document.file_path);
+
+    if (downloadError || !blob) {
+      console.error("[patients/documents] embed download failed", {
+        documentId,
+        message: downloadError?.message,
+      });
+      return NextResponse.json(
+        { ok: false, error: "Could not open that document." },
+        { status: 500 },
+      );
+    }
+
+    // filename* carries the real name through non-ASCII characters.
+    const asciiName = document.document_name.replace(/[^\x20-\x7e]/g, "_");
+    const response = new NextResponse(blob, {
+      headers: {
+        "Content-Type": document.mime_type,
+        "Content-Disposition": `inline; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(document.document_name)}`,
+        // Same rule as the redirect below: never cached, never held.
+        "Cache-Control": "private, no-store, max-age=0",
+      },
+    });
+    return response;
+  }
+
   const { data: signed, error: signError } = await supabase.storage
     .from(PATIENT_DOCUMENTS_BUCKET)
     .createSignedUrl(

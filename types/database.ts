@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Hand-written database types mirroring `supabase/migrations/0001_*.sql`.
  *
  * These are intentionally hand-maintained rather than generated so the
@@ -1076,7 +1076,9 @@ export type PatientDocument = {
   uploaded_by_user_id: string | null;
   uploaded_at: string;
   /** Provenance: patient-uploaded via a share link, front desk, or clinical staff. */
-  source: "patient_online" | "reception" | "staff";
+  source: PatientDocumentSource;
+  /** 0117 category bucket; rows predating 0117 default to `general`. */
+  category: PatientDocumentCategory;
 };
 
 /**
@@ -1590,6 +1592,33 @@ export type AssessmentScheduleRule = {
   updated_at: string;
 };
 
+
+/**
+ * A structured SMART goal inside `psych_care_plans.goals` (migration 0118).
+ * Dates are yyyy-mm-dd strings; `baseline_metric`/`target_metric` are short
+ * human strings, e.g. `PHQ-9: 18` / `PHQ-9 <= 7`, because goals are read by
+ * clinicians and printed - numeric scoring lives in psych_assessments.
+ */
+export const PSYCH_GOAL_STATUSES = [
+  "active",
+  "in_progress",
+  "achieved",
+  "discontinued",
+] as const;
+
+/** Goal lifecycle states (0118). */
+export type PsychGoalStatus = (typeof PSYCH_GOAL_STATUSES)[number];
+
+/** One row of the Care Plan Goal Builder. */
+export type PsychSmartGoal = {
+  id: string;
+  title: string;
+  target_date: string | null;
+  status: PsychGoalStatus;
+  baseline_metric: string;
+  target_metric: string;
+};
+
 /** Psychology — Care Plan (one per patient). */
 export type PsychCarePlan = {
   id: string;
@@ -1601,6 +1630,10 @@ export type PsychCarePlan = {
   follow_up_frequency: string | null;
   psychiatrist_referral: boolean;
   referral_notes: string | null;
+  diagnosis_problem_list: string | null;
+  goals: PsychSmartGoal[];
+  next_review_date: string | null;
+  review_cadence_days: number | null;
   updated_by: string | null;
   created_at: string;
   updated_at: string;
@@ -1866,6 +1899,25 @@ export type DrugInteractionRule = {
   created_at: string;
   updated_at: string;
 };
+
+/**
+ * Standardized document buckets, matching DB CHECK patient_documents_category_check
+ * (migration 0117). Kept as a const tuple so the filter bar, the uploader select
+ * and the server-side validation all read one source of truth.
+ */
+export const PATIENT_DOCUMENT_CATEGORIES = [
+  "consents_legal",
+  "labs_scans",
+  "referrals_evals",
+  "patient_uploads",
+  "general",
+] as const;
+
+/** One of the five patient_documents categories (0117). */
+export type PatientDocumentCategory = (typeof PATIENT_DOCUMENT_CATEGORIES)[number];
+
+/** Default bucket for anything the clinic has not classified. */
+export type PatientDocumentSource = "patient_online" | "reception" | "staff";
 
 /** MIME types accepted by DB CHECK `patient_documents_mime_type_check`. */
 export const PATIENT_DOCUMENT_MIME_TYPES = [
@@ -5105,7 +5157,8 @@ export type Database = {
           document_date?: string | null;
           uploaded_by_user_id?: string | null;
           uploaded_at?: string;
-          source?: "patient_online" | "reception" | "staff";
+          source?: PatientDocumentSource;
+          category?: PatientDocumentCategory;
         };
         Update: {
           id?: never;
@@ -5118,7 +5171,8 @@ export type Database = {
           document_date?: string | null;
           uploaded_by_user_id?: never;
           uploaded_at?: never;
-          source?: "patient_online" | "reception" | "staff";
+          source?: PatientDocumentSource;
+          category?: PatientDocumentCategory;
         };
         Relationships: [
           {
@@ -6324,6 +6378,10 @@ export type Database = {
           follow_up_frequency?: string | null;
           psychiatrist_referral?: boolean;
           referral_notes?: string | null;
+          diagnosis_problem_list?: string | null;
+          goals?: PsychSmartGoal[];
+          next_review_date?: string | null;
+          review_cadence_days?: number | null;
           updated_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -6338,6 +6396,10 @@ export type Database = {
           follow_up_frequency?: string | null;
           psychiatrist_referral?: boolean;
           referral_notes?: string | null;
+          diagnosis_problem_list?: string | null;
+          goals?: PsychSmartGoal[];
+          next_review_date?: string | null;
+          review_cadence_days?: number | null;
           updated_by?: string | null;
           created_at?: never;
           updated_at?: string;

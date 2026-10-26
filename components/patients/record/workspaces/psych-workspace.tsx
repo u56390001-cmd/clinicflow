@@ -24,7 +24,9 @@ import {
   FileText,
   History,
   Loader2,
+  MessageCircle,
   Printer,
+  RefreshCw,
   Rocket,
   ShieldAlert,
   Sparkles,
@@ -44,6 +46,9 @@ import { SessionsTab, type PsychDraft } from "@/components/patients/record/works
 import { PatientLinksPanel } from "@/components/patients/record/workspaces/patient-links-panel";
 import { AssessmentSafetyBanner } from "@/components/patients/record/workspaces/assessment-safety-banner";
 import { AssessmentPrint, responsesFor } from "@/components/patients/record/workspaces/assessment-print";
+import { CarePlanGoalBuilder } from "@/components/patients/record/workspaces/care-plan-goal-builder";
+import { CarePlanPrint } from "@/components/patients/record/workspaces/care-plan-print";
+import { SendHomeworkModal } from "@/components/patients/record/workspaces/send-homework-modal";
 import { InClinicAssessmentModal } from "@/components/assessment/in-clinic-assessment-modal";
 import { TrendChart } from "@/components/clinical/TrendChart";
 import { AISummaryCard as LongitudinalSummaryCard } from "@/components/clinical/AISummaryCard";
@@ -59,6 +64,7 @@ import {
   generateAssessmentInterpretationAction,
   getClinicLetterheadAction,
   getCurrentClinicianInfoAction,
+  markCarePlanReviewedAction,
   savePsychAssessmentAction,
   savePsychCarePlanAction,
   savePsychMseFindingsAction,
@@ -80,6 +86,7 @@ import { utcIsoToClinicLocalInput } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { formatShortDate } from "@/lib/utils/datetime";
 import { SESSION_TYPE_META } from "@/lib/psych-session";
+import { pushSnippetToSessionDraft } from "@/lib/session-note-draft";
 import type { PatientPsychBundle } from "@/lib/patient-record";
 import type { PatientDocumentView } from "@/lib/patient-documents-queries";
 import { hasPsychSummaryContent } from "@/lib/psych-summary";
@@ -91,6 +98,7 @@ import type {
   PatientDirectoryRow,
   PsychAssessment,
   PsychCarePlan,
+  PsychSmartGoal,
 } from "@/types/database";
 
 type Props = {
@@ -101,9 +109,9 @@ type Props = {
   canManage: boolean;
   timezone: string;
   aiSummaryEnabled: boolean;
-  /** `?tab=psy_psychometrics` Ã¢â‚¬â€ the Overview's "View history" target. */
+  /** `?tab=psy_psychometrics` Ã¢â‚¬â€ the Overview's "View history" target. */
   assessmentsHref: string;
-  /** `?tab=psy_documents` Ã¢â‚¬â€ the Overview's "View" documents target. */
+  /** `?tab=psy_documents` Ã¢â‚¬â€ the Overview's "View" documents target. */
   documentsHref: string;
   /** `?tab=psy_sessions` — the Overview timeline's session-event target. */
   sessionsHref: string;
@@ -111,9 +119,11 @@ type Props = {
   intakeHref: string;
   /** `?tab=psy_care_plan` — the Overview care-plan snapshot target. */
   carePlanHref: string;
+  /** Clinic name for the homework WhatsApp template and plan print fallback. */
+  clinicName?: string;
 };
 
-export function PsychWorkspace({ patient, psych, documents, activeTab, canManage, timezone, aiSummaryEnabled, assessmentsHref, documentsHref, sessionsHref, intakeHref, carePlanHref }: Props) {
+export function PsychWorkspace({ patient, psych, documents, activeTab, canManage, timezone, aiSummaryEnabled, assessmentsHref, documentsHref, sessionsHref, intakeHref, carePlanHref, clinicName }: Props) {
   const [seed, setSeed] = useState<PsychDraft | null>(null);
   const [library, setLibrary] = useState<AssessmentTemplate[]>([]);
   /** A copilot extraction that triaged HIGH/CRISIS — banner until dismissed. */
@@ -275,9 +285,28 @@ export function PsychWorkspace({ patient, psych, documents, activeTab, canManage
               documents={documents}
               timezone={timezone}
               canManage={canManage}
+              sessionNoteDraftKey={`psych-session-draft:${patient.id}`}
+              patientInfo={{
+                name: patient.name,
+                patientCode: patient.patient_code,
+                dateOfBirth: patient.date_of_birth,
+                gender: patient.gender,
+              }}
             />
           )}
-          {activeTab === "psy_care_plan" && <CarePlanTab patientId={patient.id} psych={psych} canManage={canManage} />}
+          {activeTab === "psy_care_plan" && (
+            <CarePlanTab
+              patientId={patient.id}
+              psych={psych}
+              canManage={canManage}
+              patientName={patient.name}
+              patientCode={patient.patient_code}
+              dateOfBirth={patient.date_of_birth}
+              gender={patient.gender}
+              whatsappNumber={patient.whatsapp_number}
+              clinicName={clinicName}
+            />
+          )}
         </div>
         {canManage && (
           <CopilotDrawer
@@ -872,7 +901,15 @@ function CarePlanSnapshotCard({
   href: string;
 }) {
   const therapy = parseList(carePlan?.intervention_plan)[0] ?? null;
-  const goal = carePlan?.therapy_goals?.split("\n")[0]?.trim() || null;
+  // Structured goals lead (0118); the legacy free-text line only fires when no
+  // structured goal exists, so pre-upgrade plans still render.
+  const goal =
+    (carePlan?.goals ?? []).find(
+      (g) => g.status === "active" || g.status === "in_progress",
+    )?.title ||
+    (carePlan?.goals ?? [])[0]?.title ||
+    carePlan?.therapy_goals?.split("\n")[0]?.trim() ||
+    null;
 
   return (
     <OverviewCard
@@ -891,6 +928,7 @@ function CarePlanSnapshotCard({
         <RecordFact label="Therapy">{therapy}</RecordFact>
         <RecordFact label="Active goal">{goal}</RecordFact>
         <RecordFact label="Follow-up">{carePlan?.follow_up_frequency}</RecordFact>
+        <RecordFact label="Next review">{carePlan?.next_review_date ?? null}</RecordFact>
       </dl>
       {carePlan?.psychiatrist_referral && (
         <div className="mt-3">
@@ -1390,44 +1428,28 @@ function PsychometricsTab({
 
   /**
    * 📋 Push to Session Note — writes one objective snippet straight into the
-   * localStorage draft the Session Notes tab restores on mount, so the
-   * clinician never retypes the score or band. No format switch: the snippet
+   * localStorage draft the Session Notes tab restores on mount, via the shared
+   * push helper (`lib/session-note-draft.ts`). No format switch: the snippet
    * lands in the field the *saved draft's* format already uses (BIRP
    * Behavior / SOAP Objective / DAP Data).
    */
   function pushToSessionNote(assessment: PsychAssessment) {
-    const draftKey = `psych-session-draft:${patient.id}`;
-    try {
-      const raw = window.localStorage.getItem(draftKey);
-      const saved = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
-      const format =
-        typeof saved.format === "string" && ["BIRP", "SOAP", "DAP"].includes(saved.format)
-          ? saved.format
-          : "BIRP";
-      const field =
-        format === "SOAP" ? "objective" : format === "DAP" ? "observation_data" : "behavior";
-      const draft =
-        saved.draft && typeof saved.draft === "object"
-          ? (saved.draft as Record<string, string>)
-          : {};
-      const existing = typeof draft[field] === "string" ? draft[field].trim() : "";
-      const snippet = assessmentSnippet(
-        assessment,
-        templateById(assessment.template_id),
-        previousFor(assessment),
+    const snippet = assessmentSnippet(
+      assessment,
+      templateById(assessment.template_id),
+      previousFor(assessment),
+    );
+    if (!snippet) return;
+    const result = pushSnippetToSessionDraft(patient.id, snippet);
+    if (!result.ok) {
+      toast.error(
+        "Couldn't reach the session note draft. Open Session Notes and paste it manually.",
       );
-      if (!snippet) return;
-      draft[field] = existing ? `${existing}\n\n${snippet}` : snippet;
-      window.localStorage.setItem(
-        draftKey,
-        JSON.stringify({ ...saved, format, draft }),
-      );
-      toast.success(
-        `Pushed to today's session note draft (${format} ${field === "observation_data" ? "Data" : field === "objective" ? "Objective" : "Behavior"}) — review it in Session Notes.`,
-      );
-    } catch {
-      toast.error("Couldn't reach the session note draft. Open Session Notes and paste it manually.");
+      return;
     }
+    toast.success(
+      `Pushed to today's session note draft (${result.format} ${result.fieldLabel}) — review it in Session Notes.`,
+    );
   }
 
   const selectOptions = [
@@ -2163,8 +2185,70 @@ function AssessmentTrendRow({
 /* Care Plan                                                                 */
 /* ------------------------------------------------------------------------- */
 
-function CarePlanTab({ patientId, psych, canManage }: { patientId: string; psych: PatientPsychBundle; canManage: boolean }) {
+/**
+ * Care Plan tab (0118 production upgrade).
+ *
+ * The structured plan lives in four write surfaces:
+ * 1. SMART Goal Builder — one card per goal (status pills, baseline → target),
+ *    autosaved as a single JSONB write, backfilled from the legacy textarea.
+ * 2. Diagnosis & problem list — the clinical-focus text the plan hangs on.
+ * 3. Review cadence + due banner — "⚠️ Care Plan Due for {n}-Day Clinical
+ *    Review" when `next_review_date` (or updated_at + cadence) passes, and a
+ *    one-click "🔄 Mark Plan Reviewed Today" that pushes the date out again.
+ * 4. Hand-off toolbar — push the active plan into the session-note draft's
+ *    Plan field, dispatch homework over WhatsApp, and print the formal plan.
+ */
+function CarePlanTab({
+  patientId,
+  psych,
+  canManage,
+  patientName,
+  patientCode,
+  dateOfBirth,
+  gender,
+  whatsappNumber,
+  clinicName,
+}: {
+  patientId: string;
+  psych: PatientPsychBundle;
+  canManage: boolean;
+  patientName: string;
+  patientCode: string | null;
+  dateOfBirth: string | null;
+  gender: string | null;
+  whatsappNumber: string | null;
+  clinicName?: string;
+}) {
+  const router = useRouter();
   const carePlan = psych.carePlan;
+  const goals = carePlan?.goals ?? [];
+  const activeGoals = goals.filter(
+    (goal) => goal.status !== "achieved" && goal.status !== "discontinued",
+  );
+  const homework = parseList(carePlan?.homework_assignments).filter(
+    (task) => task.toLowerCase() !== "none",
+  );
+
+  const [homeworkOpen, setHomeworkOpen] = useState(false);
+  const [printReady, setPrintReady] = useState(false);
+  const [markingReview, setMarkingReview] = useState(false);
+  const [legacyGoalReminder, setLegacyGoalReminder] = useState<string | null>(null);
+  const [letterhead, setLetterhead] = useState<{
+    name: string;
+    phone: string | null;
+    address: string | null;
+    logoPath: string | null;
+  } | null>(null);
+  const [clinician, setClinician] = useState("");
+
+  useEffect(() => {
+    void getClinicLetterheadAction().then((result) => {
+      if (result.ok) setLetterhead(result.data);
+    });
+    void getCurrentClinicianInfoAction().then((result) => {
+      if (result.ok) setClinician(result.data.name);
+    });
+  }, []);
 
   const save =
     (field: keyof NonNullable<PatientPsychBundle["carePlan"]>) =>
@@ -2177,8 +2261,129 @@ function CarePlanTab({ patientId, psych, canManage }: { patientId: string; psych
     else toast.error(result.message);
   };
 
+  /** Whole-array save for the builder (JSONB column, no partial writes). */
+  const saveGoals = (next: PsychSmartGoal[]): Promise<boolean> => {
+    return savePsychCarePlanAction(patientId, { goals: next }).then((result) => {
+      if (!result.ok) {
+        toast.error(result.message);
+        return false;
+      }
+      if (result.data === "plan-saved-legacy-schema-goals-pending") {
+        setLegacyGoalReminder(
+          "Legacy schema: structured goals will persist once migration 0118 runs.",
+        );
+      }
+      router.refresh();
+      return true;
+    });
+  };
+
+  async function saveCadence(days: string) {
+    const result = await savePsychCarePlanAction(patientId, {
+      review_cadence_days: Number(days),
+    });
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    toast.success(`Care plan renews every ${days} days`);
+    router.refresh();
+  }
+
+  async function markReviewed() {
+    if (!canManage || markingReview) return;
+    setMarkingReview(true);
+    const cadence = carePlan?.review_cadence_days ?? 60;
+    const result = await markCarePlanReviewedAction(patientId);
+    setMarkingReview(false);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    toast.success(
+      result.data === "review-marked-legacy-schema"
+        ? "Review logged — structured review date arrives with migration 0118"
+        : `Plan reviewed — next clinical review in ${cadence} days`,
+    );
+    router.refresh();
+  }
+
+  /** 📋 Push Active Plan to Session Note — lands in the draft's Plan field. */
+  function pushPlanToSessionNote() {
+    const parts: string[] = [
+      `Treatment Plan Review: Active Goals (${activeGoals.length}): ${
+        activeGoals.length
+          ? activeGoals.map((goal) => goal.title || "(untitled)").join("; ")
+          : "none currently active"
+      }`,
+      `Assigned Homework: ${homework.length ? homework.join(", ") : "None"}`,
+      `Follow-up: ${carePlan?.follow_up_frequency?.trim() || "—"}`,
+    ];
+    const pushed = pushSnippetToSessionDraft(patientId, parts.join(". "), "plan");
+    if (pushed.ok) {
+      toast.success(
+        `Care plan pushed to the ${pushed.format} draft — check the ${pushed.fieldLabel} field.`,
+      );
+    } else {
+      toast.error("Push failed. Open the Session Notes tab once and try again.");
+    }
+  }
+
+  /**
+   * Review due: the explicit date wins (0118); for plans that predate the
+   * column we derive the same from updated_at + cadence, so legacy plans get
+   * the banner without any data migration guesswork.
+   */
+  const cadence = carePlan?.review_cadence_days ?? 60;
+  const dueDate = (() => {
+    if (!carePlan?.updated_at) return null;
+    if (carePlan.next_review_date) return carePlan.next_review_date;
+    const computed = new Date(
+      new Date(carePlan.updated_at).getTime() + cadence * 86_400_000,
+    );
+    return Number.isNaN(computed.getTime())
+      ? null
+      : computed.toISOString().slice(0, 10);
+  })();
+  const today = new Date().toISOString().slice(0, 10);
+  const reviewDue = dueDate !== null && dueDate <= today;
+
   return (
     <RecordSection title="Care Plan">
+      {printReady && carePlan && (
+        <CarePlanPrint
+          plan={carePlan}
+          patient={{
+            name: patientName,
+            patient_code: patientCode,
+            date_of_birth: dateOfBirth,
+            gender,
+          }}
+          letterhead={letterhead}
+          clinician={clinician}
+        />
+      )}
+
+      {reviewDue && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-card border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+          <TriangleAlert aria-hidden="true" className="size-4 shrink-0 text-amber-600" />
+          <p className="min-w-0 flex-1 text-[12.5px] font-bold text-amber-700">
+            ⚠️ Care Plan Due for {cadence}-Day Clinical Review
+            <span className="ml-2 font-medium text-amber-600">due {dueDate}</span>
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!canManage || markingReview}
+            onClick={markReviewed}
+          >
+            <RefreshCw aria-hidden="true" className={cn(markingReview && "animate-spin")} />
+            Mark Plan Reviewed Today
+          </Button>
+        </div>
+      )}
+
       <div className="mb-4 flex flex-wrap items-center gap-4">
         <label className="flex items-center gap-2 text-[12.5px] font-bold text-ink">
           <input
@@ -2197,14 +2402,22 @@ function CarePlanTab({ patientId, psych, canManage }: { patientId: string; psych
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <AutosaveNote
-          label="Therapy goals"
-          name="psych-care-therapy_goals"
-          value={carePlan?.therapy_goals}
-          onSave={canManage ? save("therapy_goals") : async () => true}
-          rows={3}
-          placeholder="Agreed goals, one per line…"
-        />
+        <div className="md:col-span-2">
+          <AutosaveNote
+            label="Diagnosis & problem list"
+            name="psych-care-diagnosis"
+            value={carePlan?.diagnosis_problem_list}
+            onSave={canManage ? save("diagnosis_problem_list") : async () => true}
+            rows={3}
+            placeholder="Working diagnosis, comorbids and the problems this plan is targeting…"
+          />
+        </div>
+        <div className="md:col-span-2">
+          <CarePlanGoalBuilder goals={goals} canManage={canManage} onSave={saveGoals} />
+          {legacyGoalReminder && (
+            <p className="mt-1 text-[11px] font-medium text-amber-600">{legacyGoalReminder}</p>
+          )}
+        </div>
         <SelectNote
           label="Follow-up frequency"
           name="psych-care-follow_up_frequency"
@@ -2213,6 +2426,28 @@ function CarePlanTab({ patientId, psych, canManage }: { patientId: string; psych
           onSave={canManage ? save("follow_up_frequency") : async () => true}
           disabled={!canManage}
         />
+        <div>
+          <label className="mb-1.5 block text-[12.5px] font-bold text-ink">
+            Plan review cadence
+          </label>
+          <select
+            value={String(carePlan?.review_cadence_days ?? 60)}
+            disabled={!canManage}
+            aria-label="Plan review cadence"
+            className="h-10 w-full rounded-control border border-text-muted/40 bg-surface px-3 text-[13px] text-text-primary disabled:opacity-50"
+            onChange={(event) => void saveCadence(event.target.value)}
+          >
+            {[30, 60, 90, 180, 365].map((days) => (
+              <option key={days} value={days}>
+                {days === 365 ? "Yearly" : `Every ${days} days`}
+                {days === 60 || days === 90 ? " (default)" : ""}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-[10.5px] text-ink-faint">
+            Drives the review-due banner and the &ldquo;Mark reviewed&rdquo; button.
+          </p>
+        </div>
         <ChipNote
           label="Intervention plan"
           value={carePlan?.intervention_plan}
@@ -2237,6 +2472,61 @@ function CarePlanTab({ patientId, psych, canManage }: { patientId: string; psych
           />
         </div>
       </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-hairline pt-4">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={!canManage}
+          onClick={pushPlanToSessionNote}
+          title="Appends the active goals, homework and follow-up to the session-note draft's Plan field"
+        >
+          [ 📋 Push Active Plan to Session Note ]
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={!canManage || homework.length === 0}
+          title={
+            homework.length === 0
+              ? "Pick homework chips above first"
+              : whatsappNumber
+                ? "Opens WhatsApp with a prefilled homework message"
+                : "No WhatsApp number on file — the copy fallback is provided in the modal"
+          }
+          onClick={() => setHomeworkOpen(true)}
+        >
+          <MessageCircle aria-hidden="true" />
+          [ 📲 Send Homework via WhatsApp ]
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={!carePlan}
+          onClick={() => canManage && setPrintReady(true)}
+          title={carePlan ? "Formal one-page treatment plan for the chart" : "Save the plan first"}
+        >
+          <Printer aria-hidden="true" />
+          [ 🖨️ Print Treatment Plan ]
+        </Button>
+        <span className="text-[11px] text-ink-faint">
+          Pushes land in the session-note draft (Plan field) — the patient never
+          re-types data you already have.
+        </span>
+      </div>
+
+      <SendHomeworkModal
+        open={homeworkOpen}
+        onClose={() => setHomeworkOpen(false)}
+        patientName={patientName}
+        whatsappNumber={whatsappNumber}
+        homeworkText={carePlan?.homework_assignments ?? null}
+        followUp={carePlan?.follow_up_frequency ?? null}
+        clinicName={clinicName || "the clinic"}
+      />
     </RecordSection>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Eye, Trash2 } from "lucide-react";
+import { Download, Eye, NotebookPen, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -11,11 +11,12 @@ import { patientDocumentHref } from "@/lib/patient-documents-queries";
 import type { ActionResult } from "@/types";
 
 /**
- * View / download / remove for one document row.
+ * Preview / download / push-note / remove for one document row.
  *
- * View and download are plain links to `/api/patients/documents/{id}` — the
- * route checks access and mints a fresh signed URL per click, so nothing here
- * holds a URL that could go stale or be shared.
+ * Preview opens the in-app modal (`document-preview-modal.tsx`) instead of a raw
+ * new tab. Download is still a plain link to `/api/patients/documents/{id}` —
+ * the route checks access and mints a fresh signed URL per click, so nothing
+ * here holds a URL that could go stale or be shared.
  *
  * Removal asks first. Deleting a lab report is not undoable and the file is gone
  * from storage too, so a stray click on a 4-icon row must not be enough.
@@ -24,10 +25,16 @@ export function DocumentRowActions({
   documentId,
   documentName,
   canManage,
+  onPreview,
+  onPushToNote,
 }: {
   documentId: string;
   documentName: string;
   canManage: boolean;
+  /** Open the in-app preview modal. */
+  onPreview: () => void;
+  /** Present only where a psychology session-note draft is being kept. */
+  onPushToNote?: () => void;
 }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
@@ -79,17 +86,27 @@ export function DocumentRowActions({
         <span className="mr-1 text-xs text-status-destructive">{state.message}</span>
       )}
       <Button
-        asChild
         variant="ghost"
         size="icon"
         className="size-8"
-        title={`View ${documentName}`}
+        onClick={onPreview}
+        title={`Preview ${documentName}`}
       >
-        <a href={href} target="_blank" rel="noopener noreferrer">
-          <Eye aria-hidden="true" />
-          <span className="sr-only">View {documentName}</span>
-        </a>
+        <Eye aria-hidden="true" />
+        <span className="sr-only">Preview {documentName}</span>
       </Button>
+      {onPushToNote && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8"
+          onClick={onPushToNote}
+          title={`Push ${documentName} to Session Note`}
+        >
+          <NotebookPen aria-hidden="true" />
+          <span className="sr-only">Push {documentName} to Session Note</span>
+        </Button>
+      )}
       <Button
         asChild
         variant="ghost"

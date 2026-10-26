@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -958,6 +958,8 @@ export async function submitDocumentUploadLinkAction(
     size_bytes: file.size,
     uploaded_by_user_id: null,
     source: "patient_online",
+    // 0117: a share-link upload is by definition a patient upload.
+    category: "patient_uploads",
   });
   if (insertError) {
     await widget.storage.from(PATIENT_DOCUMENTS_BUCKET).remove([objectKey]);
