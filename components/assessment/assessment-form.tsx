@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { ClinicHeader } from "@/components/assessment/clinic-header";
+import { AssessmentLanguageToggle } from "@/components/assessment/assessment-language-toggle";
 import { severityFromBands } from "@/lib/assessment-library";
 import { submitAssessmentLinkAction } from "@/lib/actions/patient-links";
 import {
@@ -12,6 +14,15 @@ import {
   severityFor,
   type PsychometricKey,
 } from "@/lib/psychometrics";
+import {
+  dirForLanguage,
+  getInstrumentTranslation,
+  languageFromClient,
+  resolveLocalized,
+  uiString,
+  urduTypographyClass,
+  type AssessmentLanguage,
+} from "@/lib/assessments/translations";
 import type { PatientInstrumentModel } from "@/lib/scoring/types";
 import type {
   AssessmentQuestion,
@@ -31,11 +42,12 @@ type Result = { score: number; severity: string | null; instrument: string };
  *   * clinic library templates (migration 0085) that are scored and
  *     patient-completable, rendered from their stored questions/options.
  *
- * Mobile-first, with a progress bar. Answers are plain per-item values for
- * single/scale; multiple-choice stores the SUM of the selected option values so
- * the shared sum-scorer (server side) tallies correctly. For validated
- * instruments the score, severity and safety flag are computed server-side by
- * the deterministic engine.
+ * 3-WAY LOCALISATION (`AssessmentLanguageToggle`): English / Urdu Nastaliq / Roman
+ * Urdu, switched instantly and persisted under `eval:{token}` in sessionStorage.
+ * PHQ-9 / GAD-7 / DASS-21 carry full translation packs in
+ * `lib/assessments/translations/`; everything else falls back to English. The
+ * layer is display-only — answers keep their numeric keys/values, so scoring,
+ * the answers JSONB and severity never see a translated word.
  */
 export function AssessmentForm({
   token,
@@ -43,6 +55,7 @@ export function AssessmentForm({
   instrument,
   template,
   preview,
+  initialLanguage,
 }: {
   token: string;
   /** Present for the legacy built-in instrument flow. */
@@ -51,9 +64,18 @@ export function AssessmentForm({
   instrument?: PatientInstrumentModel | null;
   /** The clinic library template this link was minted for, when applicable. */
   template?: AssessmentTemplate | null;
-  preview: { patientFirstName: string; clinicName: string };
+  preview: {
+    patientFirstName: string;
+    clinicName: string;
+    clinicPhone?: string | null;
+    clinicAddress?: string | null;
+    clinicLogoPath?: string | null;
+  };
+  /** Server-detected from the Accept-Language header (ur/ar → اردو). */
+  initialLanguage?: AssessmentLanguage;
 }) {
   const bank = instrumentKey ? PSYCHOMETRIC_INSTRUMENTS[instrumentKey] : null;
+  const storageKey = `eval:${token}`;
 
   /** Numeric answers for single/scale questions (keyed by question id). */
   const [answers, setAnswers] = useState<Record<string, number>>({});
@@ -62,6 +84,42 @@ export function AssessmentForm({
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
+
+  // Language: server hint first, then the patient's own previous choice, then
+  // the browser locale. A stored choice wins because it was made deliberately.
+  const [lang, setLang] = useState<AssessmentLanguage>(initialLanguage ?? "en");
+  useEffect(() => {
+    if (initialLanguage) return;
+    try {
+      const raw = sessionStorage.getItem(storageKey);
+      if (raw) {
+        const saved = JSON.parse(raw) as { language?: AssessmentLanguage };
+        if (saved?.language) {
+          setLang(saved.language);
+          return;
+        }
+      }
+    } catch {
+      // No storage — fall through to browser detection.
+    }
+    setLang(languageFromClient());
+  }, [initialLanguage, storageKey]);
+
+  // Persist the chosen language — the wizard keeps progress here too.
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(storageKey);
+      const saved = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+      if (saved.language !== lang) {
+        sessionStorage.setItem(storageKey, JSON.stringify({ ...saved, language: lang }));
+      }
+    } catch {
+      // Storage unavailable — best-effort persistence.
+    }
+  }, [lang, storageKey]);
+
+  const dir = dirForLanguage(lang);
+  const typography = urduTypographyClass(lang);
 
   const scorableQuestions = useMemo(
     () => (template ? template.questions.filter((q) => q.type !== "text") : []),
@@ -75,6 +133,26 @@ export function AssessmentForm({
   );
   const bankOptions = instrument?.options ?? bank?.options ?? [];
   const branching = useMemo(() => instrument?.branching ?? [], [instrument]);
+
+  /** Translation pack for validated instruments (PHQ-9 / GAD-7 / DASS-21). */
+  const pack = useMemo(
+    () => getInstrumentTranslation(instrument?.code ?? instrumentKey ?? null),
+    [instrument?.code, instrumentKey],
+  );
+
+  /** Localised item text with the strict English fallback. */
+  function itemText(id: string, fallback: string): string {
+    if (pack && pack.items[id]) return resolveLocalized(pack.items[id], lang) ?? fallback;
+    return fallback;
+  }
+
+  /** Localised option label with the strict English fallback (value untouched). */
+  function optionLabel(value: number, fallback: string): string {
+    if (pack && pack.options[value]) {
+      return resolveLocalized(pack.options[value], lang) ?? fallback;
+    }
+    return fallback;
+  }
 
   /** Item ids that apply given the current branching answers. */
   const applicable = useMemo(() => {
@@ -141,7 +219,7 @@ export function AssessmentForm({
   function submit() {
     if (working) return;
     if (!complete) {
-      setError("Please answer every question before submitting.");
+      setError(uiString("errorIncomplete", lang));
       return;
     }
     setWorking(true);
@@ -154,7 +232,7 @@ export function AssessmentForm({
     void submitAssessmentLinkAction(null, form).then((res) => {
       setWorking(false);
       if (!res.ok) {
-        setError(res.message);
+        setError(uiString("errorSubmitFailed", lang));
         return;
       }
       setResult(res.data);
@@ -162,36 +240,57 @@ export function AssessmentForm({
   }
 
   const instrumentName = instrument?.name ?? bank?.name ?? template?.name ?? "Questionnaire";
-  const instructions = instrument?.instructions ?? bank?.instructions ?? template?.description ?? "";
+  const instrumentCode = instrument?.code ?? instrumentKey ?? null;
+  const packInstrument = getInstrumentTranslation(instrumentCode);
+  const instructions =
+    packInstrument?.instructions
+      ? resolveLocalized(packInstrument.instructions, lang)
+      : ((instrument?.instructions ?? bank?.instructions ?? template?.description ?? "") as string);
 
   if (result) {
     const band = usingBank
       ? (instrument ? result.severity : severityFor(bank!, result.score))
       : severityFromBands(template?.scoring.bands ?? [], result.score);
     return (
-      <div className="rounded-panel border border-hairline bg-surface px-6 py-12 text-center">
-        <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-emerald-100">
-          <Check aria-hidden="true" className="size-7 text-emerald-600" />
+      <div dir={dir} className={typography}>
+        <div className="rounded-panel border border-hairline bg-surface px-6 py-12 text-center">
+          <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-emerald-100">
+            <Check aria-hidden="true" className="size-7 text-emerald-600" />
+          </div>
+          <h1 className="mt-4 text-xl font-extrabold text-text-primary">
+            {uiString("submittedTitle", lang)}
+          </h1>
+          <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-text-secondary">
+            {uiString("thankYouBody", lang, {
+              instrument: result.instrument,
+              clinic: preview.clinicName,
+            })}
+            {band
+              ? uiString("thankYouBand", lang, { band })
+              : uiString("thankYouBodyPlain", lang)}
+          </p>
+          <p className="mt-6 text-xs text-text-muted">{uiString("closeNote", lang)}</p>
         </div>
-        <h1 className="mt-4 text-xl font-extrabold text-text-primary">Submitted</h1>
-        <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-text-secondary">
-          Thank you. Your {result.instrument} answers were shared with{" "}
-          <span className="font-medium text-text-primary">{preview.clinicName}</span>.
-          {band ? ` The result falls in the "${band}" range — your clinician will review it with you.` : " Your clinician will review it with you."}
-        </p>
-        <p className="mt-6 text-xs text-text-muted">You can close this page now.</p>
       </div>
     );
   }
 
   return (
-    <div>
-      <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-text-muted">
-        {preview.clinicName}
-      </p>
-      <h1 className="mt-1 text-2xl font-extrabold text-text-primary">
-        {instrumentName}
-      </h1>
+    <div dir={dir} className={typography}>
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-2 border-b border-hairline pb-5">
+        <ClinicHeader
+          clinicName={preview.clinicName}
+          phone={preview.clinicPhone}
+          address={preview.clinicAddress}
+          logoPath={preview.clinicLogoPath}
+        />
+        <AssessmentLanguageToggle value={lang} onChange={setLang} />
+      </div>
+      <header>
+        <h1 className="text-2xl font-extrabold text-text-primary">
+          {instrumentName}
+        </h1>
+      </header>
       {instructions ? (
         <p className="mt-1.5 text-sm leading-relaxed text-text-secondary">
           {instructions}
@@ -201,7 +300,7 @@ export function AssessmentForm({
       <div className="mt-4">
         <div className="flex items-center justify-between text-[11px] font-semibold text-text-muted">
           <span>
-            {answeredItems} of {total} answered
+            {uiString("answeredOf", lang, { answered: answeredItems, total })}
           </span>
           <span>{progress}%</span>
         </div>
@@ -240,28 +339,28 @@ export function AssessmentForm({
                     <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-[11px] font-bold text-primary">
                       {index + 1}
                     </span>
-                    <p className="text-[13.5px] font-semibold leading-snug text-text-primary">
-                      {item.text}
+                    <p className="text-start text-[13.5px] font-semibold leading-snug text-text-primary">
+                      {itemText(item.id, item.text)}
                     </p>
                   </div>
                   <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {bankOptions.map((option) => {
                       const isSelected = selected === option.value;
                       return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          aria-pressed={isSelected}
-                          onClick={() => setAnswer(item.id, option.value)}
-                          className={
-                            "rounded-control border px-3 py-2 text-left text-[12.5px] font-medium transition-colors " +
-                            (isSelected
-                              ? "border-primary bg-primary/10 text-primary"
-                              : "border-hairline bg-surface text-text-secondary hover:border-primary/40 hover:text-primary")
-                          }
-                        >
-                          {option.label}
-                        </button>
+                      <button
+                        key={option.value}
+                        type="button"
+                        aria-pressed={isSelected}
+                        onClick={() => setAnswer(item.id, option.value)}
+                        className={
+                          "assessment-choice-label rounded-control border px-3 py-2 text-start text-[12.5px] font-medium transition-colors " +
+                          (isSelected
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-hairline bg-surface text-text-secondary hover:border-primary/40 hover:text-primary")
+                        }
+                      >
+                        {optionLabel(option.value, option.label)}
+                      </button>
                       );
                     })}
                   </div>
@@ -276,7 +375,7 @@ export function AssessmentForm({
                       key={question.id}
                       className="rounded-panel border border-hairline bg-surface p-4 text-[12px] italic text-text-muted"
                     >
-                      “{question.text}” is answered with your clinician.
+                      {uiString("noQuestionsNote", lang, { text: question.text })}
                     </div>
                   );
                 }
@@ -292,10 +391,10 @@ export function AssessmentForm({
                       <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-[11px] font-bold text-primary">
                         {index + 1}
                       </span>
-                      <p className="text-[13.5px] font-semibold leading-snug text-text-primary">
+                      <p className="text-start text-[13.5px] font-semibold leading-snug text-text-primary">
                         {question.text}
                         {question.required ? (
-                          <span className="ml-1 text-status-destructive" aria-hidden="true">
+                          <span className="ms-1 text-status-destructive" aria-hidden="true">
                             *
                           </span>
                         ) : null}
@@ -320,7 +419,7 @@ export function AssessmentForm({
                                   }))
                             }
                             className={
-                              "rounded-control border px-3 py-2 text-left text-[12.5px] font-medium transition-colors " +
+                              "assessment-choice-label rounded-control border px-3 py-2 text-start text-[12.5px] font-medium transition-colors " +
                               (isSelected
                                 ? "border-primary bg-primary/10 text-primary"
                                 : "border-hairline bg-surface text-text-secondary hover:border-primary/40 hover:text-primary")
@@ -346,19 +445,18 @@ export function AssessmentForm({
         {working ? (
           <>
             <Spinner size="sm" />
-            Submitting…
+            {uiString("submitting", lang)}
           </>
         ) : (
           <>
             <Check aria-hidden="true" className="size-4" />
-            Submit answers
+            {uiString("submit", lang)}
           </>
         )}
       </Button>
 
       <p className="mt-3 text-center text-[11px] leading-relaxed text-text-muted">
-        Shared privately with {preview.clinicName} only. This is not a diagnosis —
-        your clinician will interpret your answers.
+        {uiString("footnote", lang, { clinic: preview.clinicName })}
       </p>
     </div>
   );

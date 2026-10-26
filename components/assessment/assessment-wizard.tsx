@@ -5,6 +5,8 @@ import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { ClinicHeader } from "@/components/assessment/clinic-header";
+import { AssessmentLanguageToggle } from "@/components/assessment/assessment-language-toggle";
 import { severityFromBands } from "@/lib/assessment-library";
 import { submitAssessmentLinkAction } from "@/lib/actions/patient-links";
 import {
@@ -12,6 +14,15 @@ import {
   severityFor,
   type PsychometricKey,
 } from "@/lib/psychometrics";
+import {
+  dirForLanguage,
+  getInstrumentTranslation,
+  languageFromClient,
+  resolveLocalized,
+  uiString,
+  urduTypographyClass,
+  type AssessmentLanguage,
+} from "@/lib/assessments/translations";
 import type { PatientInstrumentModel } from "@/lib/scoring/types";
 import type { AssessmentQuestion, AssessmentTemplate } from "@/types/database";
 
@@ -29,6 +40,7 @@ type SavedProgress = {
   answers: Record<string, number>;
   multi: Record<string, number[]>;
   step: number;
+  language?: AssessmentLanguage;
 };
 
 /**
@@ -40,9 +52,13 @@ type SavedProgress = {
  *   * one question per step with Back / Next;
  *   * a clear numeric scale legend on every item;
  *   * progress auto-saved to `sessionStorage` so a dropped connection or an
- *     accidental refresh does not lose answers;
+ *     accidental refresh does not lose answers — the chosen language is stored
+ *     alongside `eval:{token}`;
+ *   * full 3-way localisation (`AssessmentLanguageToggle`): English / اردو /
+ *     Roman Urdu, swapping labels, directions (`dir`) and typography instantly
+ *     without touching the numeric scoring keys;
  *   * full RTL support (Tailwind logical properties + a `dir` on the root), so
- *     Arabic/Urdu patients read the wizard correctly.
+ *     Urdu Nastaliq patients read the wizard correctly.
  */
 export function AssessmentWizard({
   token,
@@ -50,14 +66,21 @@ export function AssessmentWizard({
   instrument,
   template,
   preview,
-  dir = "ltr",
+  initialLanguage,
 }: {
   token: string;
   instrumentKey?: PsychometricKey | null;
   instrument?: PatientInstrumentModel | null;
   template?: AssessmentTemplate | null;
-  preview: { patientFirstName: string; clinicName: string };
-  dir?: "ltr" | "rtl";
+  preview: {
+    patientFirstName: string;
+    clinicName: string;
+    clinicPhone?: string | null;
+    clinicAddress?: string | null;
+    clinicLogoPath?: string | null;
+  };
+  /** Server-detected from the Accept-Language header (ur/ar → اردو). */
+  initialLanguage?: AssessmentLanguage;
 }) {
   const bank = instrumentKey ? PSYCHOMETRIC_INSTRUMENTS[instrumentKey] : null;
   const storageKey = `eval:${token}`;
@@ -69,9 +92,11 @@ export function AssessmentWizard({
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
+  const [lang, setLang] = useState<AssessmentLanguage>(initialLanguage ?? "en");
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   // Restore any in-progress answers for this token (session memory).
+  // The patient's language choice rides along in the same payload.
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(storageKey);
@@ -81,23 +106,32 @@ export function AssessmentWizard({
           if (saved.answers) setAnswers(saved.answers);
           if (saved.multi) setMulti(saved.multi);
           if (typeof saved.step === "number") setStep(saved.step);
+          if (saved.language) setLang(saved.language);
         }
+      } else if (!initialLanguage) {
+        setLang(languageFromClient());
       }
     } catch {
       // Corrupt/stale payload — start clean rather than trap the patient.
     }
     setRestored(true);
-  }, [storageKey]);
+  }, [storageKey, initialLanguage]);
 
   // Auto-save progress locally; cleared on successful submit.
   useEffect(() => {
     if (!restored || result) return;
     try {
-      sessionStorage.setItem(storageKey, JSON.stringify({ answers, multi, step }));
+      sessionStorage.setItem(
+        storageKey,
+        JSON.stringify({ answers, multi, step, language: lang }),
+      );
     } catch {
       // Storage unavailable (private mode) — autosave is best-effort.
     }
-  }, [answers, multi, step, restored, result, storageKey]);
+  }, [answers, multi, step, lang, restored, result, storageKey]);
+
+  const dir = dirForLanguage(lang);
+  const typography = urduTypographyClass(lang);
 
   /** Items for the engine/bank renderer (validated instrument or legacy bank). */
   const bankItems = useMemo(
@@ -112,6 +146,12 @@ export function AssessmentWizard({
     [instrument, bank],
   );
   const branching = useMemo(() => instrument?.branching ?? [], [instrument]);
+
+  /** Translation pack for validated instruments (PHQ-9 / GAD-7 / DASS-21). */
+  const pack = useMemo(
+    () => getInstrumentTranslation(instrument?.code ?? instrumentKey ?? null),
+    [instrument?.code, instrumentKey],
+  );
 
   /** Item ids that apply given the current branching answers. */
   const applicable = useMemo(() => {
@@ -161,8 +201,23 @@ export function AssessmentWizard({
     return [];
   }, [usingBank, bankItems, applicable, bankOptions, template]);
 
-  const clampedStep = steps.length === 0 ? 0 : Math.min(step, steps.length - 1);
-  const current = steps[clampedStep];
+  /** Display layer: localised item text + option labels, English fallback. */
+  const displaySteps: Step[] = useMemo(() => {
+    if (lang === "en" || !pack) return steps;
+    return steps.map((s) => ({
+      ...s,
+      text: pack.items[s.id] ? (resolveLocalized(pack.items[s.id], lang) ?? s.text) : s.text,
+      options: s.options.map((option) => ({
+        value: option.value,
+        label: pack.options[option.value]
+          ? (resolveLocalized(pack.options[option.value], lang) ?? option.label)
+          : option.label,
+      })),
+    }));
+  }, [steps, lang, pack]);
+
+  const clampedStep = displaySteps.length === 0 ? 0 : Math.min(step, displaySteps.length - 1);
+  const current = displaySteps[clampedStep];
 
   function isAnswered(item: Step): boolean {
     if (item.multiple) return (multi[item.id] ?? []).length > 0;
@@ -222,7 +277,7 @@ export function AssessmentWizard({
   function submit() {
     if (working) return;
     if (!complete) {
-      setError("Please answer every question before submitting.");
+      setError(uiString("errorIncomplete", lang));
       return;
     }
     setWorking(true);
@@ -235,7 +290,7 @@ export function AssessmentWizard({
     void submitAssessmentLinkAction(null, form).then((res) => {
       setWorking(false);
       if (!res.ok) {
-        setError(res.message);
+        setError(uiString("errorSubmitFailed", lang));
         return;
       }
       try {
@@ -249,8 +304,13 @@ export function AssessmentWizard({
 
   const instrumentName =
     instrument?.name ?? bank?.name ?? template?.name ?? "Questionnaire";
-  const instructions =
-    instrument?.instructions ?? bank?.instructions ?? template?.description ?? "";
+  const packInstructions = pack?.instructions;
+  const instructions = packInstructions
+    ? resolveLocalized(packInstructions, lang)
+    : (instrument?.instructions ??
+      bank?.instructions ??
+      template?.description ??
+      "");
   const Back = dir === "rtl" ? ChevronRight : ChevronLeft;
   const Next = dir === "rtl" ? ChevronLeft : ChevronRight;
 
@@ -261,38 +321,40 @@ export function AssessmentWizard({
         : severityFor(bank!, result.score)
       : severityFromBands(template?.scoring.bands ?? [], result.score);
     return (
-      <div
-        dir={dir}
-        className="rounded-panel border border-hairline bg-surface px-6 py-12 text-center"
-      >
-        <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-emerald-100">
-          <Check aria-hidden="true" className="size-7 text-emerald-600" />
+      <div dir={dir} className={typography}>
+        <div className="rounded-panel border border-hairline bg-surface px-6 py-12 text-center">
+          <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-emerald-100">
+            <Check aria-hidden="true" className="size-7 text-emerald-600" />
+          </div>
+          <h1 className="mt-4 text-xl font-extrabold text-text-primary">
+            {uiString("submittedTitle", lang)}
+          </h1>
+          <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-text-secondary">
+            {uiString("thankYouBody", lang, {
+              instrument: result.instrument,
+              clinic: preview.clinicName,
+            })}
+            {band
+              ? uiString("thankYouBand", lang, { band })
+              : uiString("thankYouBodyPlain", lang)}
+          </p>
+          <p className="mt-6 text-xs text-text-muted">{uiString("closeNote", lang)}</p>
         </div>
-        <h1 className="mt-4 text-xl font-extrabold text-text-primary">Submitted</h1>
-        <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-text-secondary">
-          Thank you. Your {result.instrument} answers were shared with{" "}
-          <span className="font-medium text-text-primary">{preview.clinicName}</span>.
-          {band
-            ? ` The result falls in the "${band}" range — your clinician will review it with you.`
-            : " Your clinician will review it with you."}
-        </p>
-        <p className="mt-6 text-xs text-text-muted">You can close this page now.</p>
       </div>
     );
   }
 
-  if (steps.length === 0 || !current) {
+  if (displaySteps.length === 0 || !current) {
     return (
-      <div
-        dir={dir}
-        className="rounded-panel border border-hairline bg-surface px-6 py-12 text-center"
-      >
-        <h1 className="text-xl font-extrabold text-text-primary">
-          This questionnaire has no questions
-        </h1>
-        <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-text-secondary">
-          Please ask {preview.clinicName} for a fresh link.
-        </p>
+      <div dir={dir} className={typography}>
+        <div className="rounded-panel border border-hairline bg-surface px-6 py-12 text-center">
+          <h1 className="text-xl font-extrabold text-text-primary">
+            {uiString("emptyTitle", lang)}
+          </h1>
+          <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-text-secondary">
+            {uiString("emptyBody", lang, { clinic: preview.clinicName })}
+          </p>
+        </div>
       </div>
     );
   }
@@ -300,11 +362,19 @@ export function AssessmentWizard({
   const selected = answers[current.id];
 
   return (
-    <div dir={dir}>
-      <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-text-muted">
-        {preview.clinicName}
-      </p>
-      <h1 className="mt-1 text-2xl font-extrabold text-text-primary">{instrumentName}</h1>
+    <div dir={dir} className={typography}>
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-2 border-b border-hairline pb-5">
+        <ClinicHeader
+          clinicName={preview.clinicName}
+          phone={preview.clinicPhone}
+          address={preview.clinicAddress}
+          logoPath={preview.clinicLogoPath}
+        />
+        <AssessmentLanguageToggle value={lang} onChange={setLang} />
+      </div>
+      <header>
+        <h1 className="text-2xl font-extrabold text-text-primary">{instrumentName}</h1>
+      </header>
       {instructions && clampedStep === 0 ? (
         <p className="mt-1.5 text-sm leading-relaxed text-text-secondary">{instructions}</p>
       ) : null}
@@ -312,7 +382,7 @@ export function AssessmentWizard({
       <div className="mt-4">
         <div className="flex items-center justify-between text-[11px] font-semibold text-text-muted">
           <span>
-            Question {clampedStep + 1} of {total}
+            {uiString("questionOf", lang, { current: clampedStep + 1, total })}
           </span>
           <span>{progress}%</span>
         </div>
@@ -372,7 +442,7 @@ export function AssessmentWizard({
                     : setAnswer(current.id, option.value)
                 }
                 className={
-                  "flex items-center gap-3 rounded-control border px-3 py-3 text-start transition-colors " +
+                  "assessment-choice-label flex items-center gap-3 rounded-control border px-3 py-3 text-start transition-colors " +
                   (isSelected
                     ? "border-primary bg-primary/10"
                     : "border-hairline bg-surface hover:border-primary/40")
@@ -412,7 +482,7 @@ export function AssessmentWizard({
           onClick={goBack}
         >
           <Back aria-hidden="true" className="size-4" />
-          Back
+          {uiString("back", lang)}
         </Button>
 
         {clampedStep < total - 1 ? (
@@ -422,7 +492,7 @@ export function AssessmentWizard({
             disabled={!isAnswered(current)}
             onClick={goNext}
           >
-            Next
+            {uiString("next", lang)}
             <Next aria-hidden="true" className="size-4" />
           </Button>
         ) : (
@@ -435,12 +505,12 @@ export function AssessmentWizard({
             {working ? (
               <>
                 <Spinner size="sm" />
-                Submitting…
+                {uiString("submitting", lang)}
               </>
             ) : (
               <>
                 <Check aria-hidden="true" className="size-4" />
-                Submit answers
+                {uiString("submit", lang)}
               </>
             )}
           </Button>
@@ -448,8 +518,7 @@ export function AssessmentWizard({
       </div>
 
       <p className="mt-3 text-center text-[11px] leading-relaxed text-text-muted">
-        Shared privately with {preview.clinicName} only. This is not a diagnosis —
-        your clinician will interpret your answers.
+        {uiString("footnote", lang, { clinic: preview.clinicName })}
       </p>
     </div>
   );

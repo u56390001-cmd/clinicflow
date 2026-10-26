@@ -16,6 +16,11 @@ import { copyText } from "@/lib/booking-url";
 import { PSYCHOMETRIC_INSTRUMENTS, PSYCHOMETRIC_KEYS } from "@/lib/psychometrics";
 import { listInstruments } from "@/lib/scoring";
 import { ASSESSMENT_RATERS, DEFAULT_RATER_TYPE } from "@/lib/assessments/raters";
+import {
+  LANG_ORDER,
+  languageLabel,
+  type AssessmentLanguage,
+} from "@/lib/assessments/translations";
 import type {
   AssessmentRaterType,
   AssessmentTemplate,
@@ -62,6 +67,8 @@ export function PatientLinksPanel({
   const [pending, setPending] = useState<string | null>(null);
   const [assessmentType, setAssessmentType] = useState<string>(PSYCHOMETRIC_KEYS[0]);
   const [raterType, setRaterType] = useState<AssessmentRaterType>(DEFAULT_RATER_TYPE);
+  /** Language the WhatsApp/portal message is pre-formatted in (default Roman Urdu). */
+  const [messageLanguage, setMessageLanguage] = useState<AssessmentLanguage>("roman_ur");
   const [readyLink, setReadyLink] = useState<string | null>(null);
   const hasWhatsapp = (whatsappNumber ?? "").replace(/[^\d]/g, "").length > 0;
   const busy = pending !== null;
@@ -75,15 +82,31 @@ export function PatientLinksPanel({
       if (assessmentType.startsWith(TEMPLATE_PREFIX)) {
         const template = templates.find((t) => t.id === assessmentType.slice(TEMPLATE_PREFIX.length));
         result = template
-          ? await sendPsychAssessmentLinkAction(patientId, template.name, template.id, null, channel, raterType)
+          ? await sendPsychAssessmentLinkAction(
+              patientId,
+              template.name,
+              template.id,
+              null,
+              channel,
+              raterType,
+              messageLanguage,
+            )
           : { ok: false as const, message: "That assessment is no longer available." };
       } else {
-        result = await sendPsychAssessmentLinkAction(patientId, assessmentType, null, null, channel, raterType);
+        result = await sendPsychAssessmentLinkAction(
+          patientId,
+          assessmentType,
+          null,
+          null,
+          channel,
+          raterType,
+          messageLanguage,
+        );
       }
     } else if (kind === "pre_visit") {
-      result = await sendPsychPreVisitLinkAction(patientId, null, channel);
+      result = await sendPsychPreVisitLinkAction(patientId, null, channel, messageLanguage);
     } else {
-      result = await sendPsychDocumentUploadLinkAction(patientId, null, channel);
+      result = await sendPsychDocumentUploadLinkAction(patientId, null, channel, messageLanguage);
     }
     setPending(null);
 
@@ -96,7 +119,7 @@ export function PatientLinksPanel({
     setReadyLink(url);
 
     if (mode === "link") {
-      toast.success(copied ? "Link copied — send it however you like" : "Link ready below");
+      toast.success(copied ? "Link copied ✓ — send it via any channel" : "Link ready below");
     } else if (result.data.whatsappSent) {
       toast.success(copied ? "Sent on WhatsApp · link copied" : "Sent on WhatsApp");
     } else {
@@ -116,6 +139,21 @@ export function PatientLinksPanel({
   function actionRow(kind: Kind) {
     return (
       <div className="flex flex-wrap items-center gap-2">
+        <div className="min-w-[130px]">
+          <NativeSelect
+            aria-label="Message language"
+            value={messageLanguage}
+            disabled={!canManage || busy}
+            onChange={(event) => setMessageLanguage(event.target.value as AssessmentLanguage)}
+            className="h-8 py-1 text-[11.5px]"
+          >
+            {LANG_ORDER.map((lang) => (
+              <option key={lang} value={lang}>
+                {languageLabel(lang)}
+              </option>
+            ))}
+          </NativeSelect>
+        </div>
         <Button
           type="button"
           size="sm"
@@ -159,7 +197,8 @@ export function PatientLinksPanel({
       <div className="space-y-3">
         <p className="text-[12px] leading-relaxed text-text-secondary">
           Send a secure form over WhatsApp, or generate a link and send it yourself. Answers appear
-          in this record automatically.
+          in this record automatically. Pick the language of the pre-formatted message first —
+          patients can still switch between Urdu, Roman Urdu and English inside the form.
         </p>
 
         <div className="rounded-control border border-hairline bg-app p-3">

@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400..700&family=Noto+Sans+Arabic:wght@400;500;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -1783,4 +1785,17 @@ main:has(.medbook-dashboard-overview) {
   .medbook-btn-lift:hover {
     transform: none !important;
   }
+}
+
+/* Patient portal Urdu typography — 3-way localisation (`AssessmentLanguageToggle`). */
+.font-urdu {
+  font-family: "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", "Noto Sans Arabic", serif;
+  /* Nastaliq sets tall, high-hanging glyphs — needs room below the bar. */
+  line-height: 2.1;
+  font-feature-settings: "kern" off;
+}
+
+.font-urdu button,
+.font-urdu .assessment-choice-label {
+  line-height: 1.9;
 }

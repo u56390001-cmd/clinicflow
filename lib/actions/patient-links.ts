@@ -42,6 +42,7 @@ import {
   administrationModeForRater,
   completedByForRater,
 } from "@/lib/assessments/raters";
+import { type AssessmentLanguage as PatientLinkLanguage } from "@/lib/assessments/translations";
 import { createClient } from "@/lib/supabase/server";
 import { createWidgetClient } from "@/lib/supabase/widget";
 import {
@@ -92,19 +93,39 @@ function linkMessage(
   clinicName: string,
   url: string,
   assessmentType: string | null,
+  language: PatientLinkLanguage = "roman_ur",
 ): string {
-  const who = firstName ? `Hello ${firstName},` : "Hello,";
+  const label =
+    assessmentType && isPsychometricKey(assessmentType)
+      ? PSYCHOMETRIC_INSTRUMENTS[assessmentType].shortName
+      : assessmentType || "questionnaire";
+  const greetingName = firstName ? ` ${firstName}` : "";
+
   if (kind === "assessment") {
-    const label =
-      assessmentType && isPsychometricKey(assessmentType)
-        ? PSYCHOMETRIC_INSTRUMENTS[assessmentType].shortName
-        : assessmentType || "questionnaire";
-    return `${who}\n\nPlease complete your ${label} questionnaire for ${clinicName} on your phone. It takes a few minutes:\n${url}\n\nYour answers are shared privately with your clinician.`;
+    if (language === "ur") {
+      return `السلام علیکم${greetingName}،\n\n${clinicName} کی جانب سے آپ کے سیشن کے سوالنامے کا لنک:\n${url}\n\nبرائے کرم اپوائنٹمنٹ سے پہلے یہ ۲ منٹ کا سوالنامہ مکمل کر لیں۔ (یہ سوالنامہ اردو، Roman Urdu اور English تینوں میں دستیاب ہے۔)\n\nآپ کے جوابات صرف آپ کے ڈاکٹر کے ساتھ شیئر ہوں گے۔`;
+    }
+    if (language === "roman_ur") {
+      return `Assalam-o-Alaikum${greetingName},\n\n${clinicName} ki taraf se aapki session evaluation ka link:\n${url}\n\nBarah-e-karam appointment se pehle yeh 2 minute ka sawal-nama mukammal karein. (Yeh test Urdu, Roman Urdu aur English teeno mein dastiyab hai).\n\nAapke jawabat sirf aapke doctor ke sath share honge.`;
+    }
+    return `Hello${greetingName},\n\nPlease complete your clinical questionnaire (${label}) for ${clinicName} on your phone. It takes a few minutes:\n${url}\n\nThis questionnaire is available in Urdu, Roman Urdu and English.\n\nYour answers are shared privately with your clinician.`;
   }
   if (kind === "document_upload") {
-    return `${who}\n\nYou can securely upload any previous reports, prescriptions or assessment documents for ${clinicName} here:\n${url}\n\nThese are shared privately with your clinician.`;
+    if (language === "ur") {
+      return `السلام علیکم${greetingName}،\n\nآپ بذریعہ لنک ${clinicName} کے لیے اپنی پرانی رپورٹس، پریسکرپشنز یا دستاویزات محفوظ کر سکتے ہیں:\n${url}`;
+    }
+    if (language === "roman_ur") {
+      return `Assalam-o-Alaikum${greetingName},\n\nAp purani reports, prescriptions ya documents ${clinicName} ke liye is link par bhej sakte hain:\n${url}`;
+    }
+    return `Hello${greetingName},\n\nYou can securely upload any previous reports, prescriptions or assessment documents for ${clinicName} here:\n${url}\n\nThese are shared privately with your clinician.`;
   }
-  return `${who}\n\nPlease answer a few questions before your visit to ${clinicName} — it helps your clinician prepare:\n${url}\n\nYour answers are shared privately with your clinician.`;
+  if (language === "ur") {
+    return `السلام علیکم${greetingName}،\n\nبراہِ کرم اپنے دورے سے پہلے چند سوالوں کے جواب دیں تاکہ آپ کے ڈاکٹر کی تیاری بہتر ہو سکے:\n${url}`;
+  }
+  if (language === "roman_ur") {
+    return `Assalam-o-Alaikum${greetingName},\n\nBarah-e-karam visit se pehle kuch sawalon ke jawab dein taake aapke doctor ki tayyari behtar ho sake:\n${url}`;
+  }
+  return `Hello${greetingName},\n\nPlease answer a few questions before your visit to ${clinicName} — it helps your clinician prepare:\n${url}\n\nYour answers are shared privately with your clinician.`;
 }
 
 /**
@@ -125,6 +146,7 @@ async function mintAndSendLink(
   templateId: string | null = null,
   deliveryChannel: PatientShareLinkDeliveryChannel = "whatsapp",
   raterType: AssessmentRaterType = "SELF",
+  messageLanguage: PatientLinkLanguage = "roman_ur",
 ): Promise<SendLinkResult> {
   if (!uuidSchema.safeParse(patientId).success) {
     return { ok: false, message: "Missing patient id." };
@@ -246,7 +268,14 @@ async function mintAndSendLink(
   const path = buildPatientLinkPath(kind, rawToken);
   const url = `${getBaseUrl()}${path}`;
   const firstName = (patient.name ?? "").split(" ")[0];
-  const body = linkMessage(kind, firstName, access.clinic.name, url, resolvedType);
+  const body = linkMessage(
+    kind,
+    firstName,
+    access.clinic.name,
+    url,
+    resolvedType,
+    messageLanguage,
+  );
 
   let whatsappSent = false;
   if (deliveryChannel === "whatsapp") {
@@ -322,8 +351,18 @@ export async function sendPsychPreVisitLinkAction(
   patientId: string,
   appointmentId?: string | null,
   deliveryChannel: PatientShareLinkDeliveryChannel = "whatsapp",
+  messageLanguage: PatientLinkLanguage = "roman_ur",
 ): Promise<SendLinkResult> {
-  return mintAndSendLink("pre_visit", patientId, null, appointmentId ?? null, null, deliveryChannel);
+  return mintAndSendLink(
+    "pre_visit",
+    patientId,
+    null,
+    appointmentId ?? null,
+    null,
+    deliveryChannel,
+    "SELF",
+    messageLanguage,
+  );
 }
 
 export async function sendPsychAssessmentLinkAction(
@@ -333,6 +372,7 @@ export async function sendPsychAssessmentLinkAction(
   appointmentId?: string | null,
   deliveryChannel: PatientShareLinkDeliveryChannel = "whatsapp",
   raterType: AssessmentRaterType = "SELF",
+  messageLanguage: PatientLinkLanguage = "roman_ur",
 ): Promise<SendInviteResult> {
   const result = await mintAndSendLink(
     "assessment",
@@ -342,6 +382,7 @@ export async function sendPsychAssessmentLinkAction(
     templateId ?? null,
     deliveryChannel,
     raterType,
+    messageLanguage,
   );
   if (!result.ok) return result;
   return {
@@ -366,6 +407,7 @@ export async function sendAssessmentInviteAction(input: {
   patientId: string;
   assessmentType?: string | null;
   templateId?: string | null;
+  messageLanguage?: PatientLinkLanguage;
   appointmentId?: string | null;
   deliveryChannel?: PatientShareLinkDeliveryChannel;
   raterType?: AssessmentRaterType;
@@ -382,6 +424,7 @@ export async function sendAssessmentInviteAction(input: {
     input.templateId ?? null,
     deliveryChannel,
     input.raterType ?? "SELF",
+    input.messageLanguage ?? "roman_ur",
   );
   if (!result.ok) return result;
   return {
@@ -399,8 +442,18 @@ export async function sendPsychDocumentUploadLinkAction(
   patientId: string,
   appointmentId?: string | null,
   deliveryChannel: PatientShareLinkDeliveryChannel = "whatsapp",
+  messageLanguage: PatientLinkLanguage = "roman_ur",
 ): Promise<SendLinkResult> {
-  return mintAndSendLink("document_upload", patientId, null, appointmentId ?? null, null, deliveryChannel);
+  return mintAndSendLink(
+    "document_upload",
+    patientId,
+    null,
+    appointmentId ?? null,
+    null,
+    deliveryChannel,
+    "SELF",
+    messageLanguage,
+  );
 }
 
 /* ------------------------------------------------------------------------- */

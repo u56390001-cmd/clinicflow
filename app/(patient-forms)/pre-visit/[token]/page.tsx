@@ -4,7 +4,11 @@ import { PreVisitForm } from "@/components/pre-visit/pre-visit-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { resolvePatientLink } from "@/lib/patient-links";
 
-export const metadata: Metadata = { title: "Before your visit", manifest: null };
+export const metadata: Metadata = {
+  title: { absolute: "Pre-visit questionnaire" },
+  robots: "noindex, nofollow",
+  manifest: null,
+};
 
 /**
  * Public pre-visit questionnaire link. The raw token is the visitor's only

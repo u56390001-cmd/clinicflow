@@ -1,10 +1,18 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 
 import { AssessmentForm } from "@/components/assessment/assessment-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { loadAssessmentDocument } from "@/lib/assessments/document";
+import { detectLanguage } from "@/lib/assessments/translations";
 
-export const metadata: Metadata = { title: "Questionnaire", manifest: null };
+export const metadata: Metadata = {
+  // `absolute` bypasses the root layout's "%s | MedBook AI" template — this
+  // canvas is white-labelled to the clinic that minted the link.
+  title: { absolute: "Clinical Questionnaire" },
+  robots: "noindex, nofollow",
+  manifest: null,
+};
 
 /**
  * Public psychometric assessment link (legacy scrolling form) — a validated
@@ -23,9 +31,7 @@ export default async function AssessmentLinkPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const loaded = await loadAssessmentDocument(token);
-
-  if (!loaded) {
+  const loaded = await loadAssessmentDocument(token);  if (!loaded) {
     return (
       <Card>
         <CardHeader className="text-center">
@@ -43,6 +49,12 @@ export default async function AssessmentLinkPage({
 
   const { preview, document } = loaded;
 
+  // Browser locale seeds the 3-way language toggle (English / اردو / Roman
+  // Urdu); the patient can switch instantly on the client.
+  const headerList = await headers();
+  const acceptLanguage = headerList.get("accept-language") ?? "";
+  const initialLanguage = detectLanguage(acceptLanguage);
+
   return (
     <AssessmentForm
       key={token}
@@ -50,6 +62,7 @@ export default async function AssessmentLinkPage({
       instrumentKey={document.instrumentKey}
       instrument={document.instrument ?? null}
       template={document.template ?? null}
+      initialLanguage={initialLanguage}
       preview={{
         patientFirstName: preview.patientFirstName,
         clinicName: preview.clinicName,

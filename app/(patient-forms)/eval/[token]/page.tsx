@@ -4,9 +4,12 @@ import { headers } from "next/headers";
 import { AssessmentWizard } from "@/components/assessment/assessment-wizard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { loadAssessmentDocument } from "@/lib/assessments/document";
+import { detectLanguage } from "@/lib/assessments/translations";
 
 export const metadata: Metadata = {
-  title: "Questionnaire",
+  // `absolute` bypasses the root layout's "%s | MedBook AI" template — this
+  // canvas is white-labelled to the clinic that minted the link.
+  title: { absolute: "Clinical Questionnaire" },
   robots: "noindex, nofollow",
   manifest: null,
 };
@@ -16,13 +19,15 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const RTL_LANGUAGES = new Set(["ar", "ur", "fa", "he", "ps", "sd"]);
-
 /**
  * Phase 3 patient mobile assessment wizard. Lives under `(patient-forms)` so it
  * shares the standalone canvas (URL is `/eval/[token]`). The raw token is the
  * visitor's only credential; a dead, wrong-kind, expired or already-used link
  * shows one deliberately generic card.
+ *
+ * The browser's language preference seeds the 3-way localisation toggle
+ * (English / اردو / Roman Urdu) — the patient can switch instantly on the
+ * client without losing progress.
  */
 export default async function AssessmentEvalPage({
   params,
@@ -31,13 +36,9 @@ export default async function AssessmentEvalPage({
 }) {
   const { token } = await params;
 
-  // Choose text direction from the browser's language preference. Tailwind
-  // logical properties in the wizard mean one dir flip lays the whole flow out
-  // correctly.
   const headerList = await headers();
   const acceptLanguage = headerList.get("accept-language") ?? "";
-  const primary = acceptLanguage.split(",")[0]?.trim().slice(0, 2).toLowerCase() ?? "";
-  const dir: "ltr" | "rtl" = RTL_LANGUAGES.has(primary) ? "rtl" : "ltr";
+  const initialLanguage = detectLanguage(acceptLanguage);
 
   const loaded = await loadAssessmentDocument(token);
   if (!loaded) {
@@ -65,7 +66,7 @@ export default async function AssessmentEvalPage({
       instrumentKey={document.instrumentKey}
       instrument={document.instrument ?? null}
       template={document.template ?? null}
-      dir={dir}
+      initialLanguage={initialLanguage}
       preview={{
         patientFirstName: preview.patientFirstName,
         clinicName: preview.clinicName,
