@@ -24,6 +24,7 @@ import {
   FileText,
   History,
   Loader2,
+  Printer,
   Rocket,
   ShieldAlert,
   Sparkles,
@@ -42,6 +43,8 @@ import { MseTab } from "@/components/patients/record/workspaces/psych-mse-tab";
 import { SessionsTab, type PsychDraft } from "@/components/patients/record/workspaces/psych-sessions-tab";
 import { PatientLinksPanel } from "@/components/patients/record/workspaces/patient-links-panel";
 import { AssessmentSafetyBanner } from "@/components/patients/record/workspaces/assessment-safety-banner";
+import { AssessmentPrint, responsesFor } from "@/components/patients/record/workspaces/assessment-print";
+import { InClinicAssessmentModal } from "@/components/assessment/in-clinic-assessment-modal";
 import { TrendChart } from "@/components/clinical/TrendChart";
 import { AISummaryCard as LongitudinalSummaryCard } from "@/components/clinical/AISummaryCard";
 import { AiSummaryCard } from "@/components/patients/record/ai-summary-card";
@@ -54,6 +57,8 @@ import { getActiveAssessmentTemplatesAction } from "@/lib/actions/assessment-lib
 import {
   deletePsychAssessmentAction,
   generateAssessmentInterpretationAction,
+  getClinicLetterheadAction,
+  getCurrentClinicianInfoAction,
   savePsychAssessmentAction,
   savePsychCarePlanAction,
   savePsychMseFindingsAction,
@@ -77,7 +82,6 @@ import { formatShortDate } from "@/lib/utils/datetime";
 import { SESSION_TYPE_META } from "@/lib/psych-session";
 import type { PatientPsychBundle } from "@/lib/patient-record";
 import type { PatientDocumentView } from "@/lib/patient-documents-queries";
-import { PSYCHOMETRIC_INSTRUMENTS, isPsychometricKey } from "@/lib/psychometrics";
 import { hasPsychSummaryContent } from "@/lib/psych-summary";
 import { PSYCHOLOGY_WORKSPACE, type PsychTabId } from "@/lib/specialty-workspaces";
 import type {
@@ -258,7 +262,7 @@ export function PsychWorkspace({ patient, psych, documents, activeTab, canManage
           )}
           {activeTab === "psy_psychometrics" && (
             <PsychometricsTab
-              patientId={patient.id}
+              patient={patient}
               psych={psych}
               canManage={canManage}
               whatsappNumber={patient.whatsapp_number}
@@ -1134,6 +1138,37 @@ const ASSESSMENT_LIBRARY: Record<
       { upTo: 24, label: "Likely ADHD" },
     ],
   },
+  "DASS-21": {
+    label: "DASS-21 · Dep/Anx/Stress",
+    max: 63,
+    // Severity reads the D/A/S subscale sums DOUBLED (×2 short-form convention),
+    // never the 21-item total — so the manual score field does not auto-fill
+    // severity. The [✍️ Administer In-Clinic] flow computes subscales and bands
+    // from the engine instead.
+    bands: [],
+  },
+  ISI: {
+    label: "ISI · Insomnia",
+    max: 28,
+    bands: [
+      { upTo: 7, label: "No clinically significant insomnia" },
+      { upTo: 14, label: "Subthreshold insomnia" },
+      { upTo: 21, label: "Clinical insomnia (moderate)" },
+      { upTo: 28, label: "Clinical insomnia (severe)" },
+    ],
+  },
+  "PSS-10": {
+    label: "PSS-10 · Perceived stress",
+    max: 40,
+    // Published key reverses items 4, 5, 7 and 8 — a hand-typed total only maps
+    // correctly onto these bands when the clinician has already applied the
+    // reversal (the in-clinic administered path does it automatically).
+    bands: [
+      { upTo: 13, label: "Low perceived stress" },
+      { upTo: 26, label: "Moderate perceived stress" },
+      { upTo: 40, label: "High perceived stress" },
+    ],
+  },
   Other: { label: "Other", max: 30, bands: [] },
 };
 
@@ -1171,14 +1206,75 @@ function severityForChoice(type: string, templates: AssessmentTemplate[], score:
   return severityForBuiltIn(type, score);
 }
 
+function severityLabelOf(assessment: PsychAssessment): string {
+  return assessment.severity ? ` (${assessment.severity})` : "";
+}
+
+/**
+ * One objective line for the session-note draft: instrument, date, score with
+ * ceiling, severity band, subscale sums where the instrument publishes them
+ * (DASS-21 D/A/S, shown as ×2 scaled values), then up to two most-endorsed
+ * items so themes land in the note without the clinician reopening responses.
+ */
+function assessmentSnippet(
+  assessment: PsychAssessment,
+  template: AssessmentTemplate | null,
+  previous: PsychAssessment | null,
+): string {
+  const parts: string[] = [];
+  parts.push(`${assessment.assessment_type} administered on ${assessment.conducted_at}`);
+  if (assessment.score !== null) {
+    const ceiling = template ? templateMaxScore(template.scoring) : null;
+    parts.push(
+      `Score ${assessment.score}${ceiling ? `/${ceiling}` : ""}${severityLabelOf(assessment)}`,
+    );
+  } else {
+    parts[0] += severityLabelOf(assessment);
+  }
+  const delta =
+    previous?.score !== null &&
+    previous?.score !== undefined &&
+    assessment.score !== null
+      ? assessment.score - previous.score
+      : null;
+  if (delta !== null && delta !== 0) {
+    parts.push(`${delta > 0 ? "increased" : "decreased"} ${Math.abs(delta)} pts vs ${previous!.conducted_at}`);
+  }
+
+  const def = getInstrument(assessment.instrument_code ?? assessment.assessment_type);
+  if (assessment.subscale_scores && def?.subscales.length) {
+    const labels = new Map(def.subscales.map((s) => [s.id, s.label]));
+    const subscaleText = Object.entries(assessment.subscale_scores)
+      .map(([id, value]) => {
+        const scaled = def.code === "DASS-21" ? value * 2 : value;
+        return `${labels.get(id) ?? id} ${scaled}`;
+      })
+      .join(", ");
+    parts.push(`Subscales: ${subscaleText}`);
+  }
+
+  const responses = responsesFor(assessment, template).filter((r) => typeof r.value === "number");
+  const topItems = [...responses]
+    .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
+    .slice(0, 2)
+    .filter((r) => (r.value ?? 0) > 0)
+    .map((r) => {
+      const short = r.text.length > 48 ? `${r.text.slice(0, 48)}…` : r.text;
+      return `${short} (${r.value})`;
+    });
+  if (topItems.length > 0) parts.push(`Most endorsed: ${topItems.join("; ")}`);
+
+  return parts.join(" · ") + ".";
+}
+
 function PsychometricsTab({
-  patientId,
+  patient,
   psych,
   canManage,
   whatsappNumber,
   templates = [],
 }: {
-  patientId: string;
+  patient: PatientDirectoryRow;
   psych: PatientPsychBundle;
   canManage: boolean;
   whatsappNumber: string | null;
@@ -1193,6 +1289,25 @@ function PsychometricsTab({
   const [notes, setNotes] = useState("");
   const [raterType, setRaterType] = useState<AssessmentRaterType>("SELF");
   const [raterName, setRaterName] = useState("");
+  const [showInClinic, setShowInClinic] = useState(false);
+  const [printTarget, setPrintTarget] = useState<PsychAssessment | null>(null);
+  /** Clinic letterhead + clinician identity, loaded once per tab mount for the print report. */
+  const [letterhead, setLetterhead] = useState<{
+    name: string;
+    phone: string | null;
+    address: string | null;
+    logoPath: string | null;
+  } | null>(null);
+  const [clinician, setClinician] = useState("");
+
+  useEffect(() => {
+    void getClinicLetterheadAction().then((result) => {
+      if (result.ok) setLetterhead(result.data);
+    });
+    void getCurrentClinicianInfoAction().then((result) => {
+      if (result.ok) setClinician(result.data.name);
+    });
+  }, []);
 
   const selectedTemplate = type.startsWith(TEMPLATE_PREFIX)
     ? (templates.find((t) => templateValue(t) === type) ?? null)
@@ -1200,11 +1315,33 @@ function PsychometricsTab({
   const instrument = ASSESSMENT_LIBRARY[type] ?? ASSESSMENT_LIBRARY.Other;
   const max = selectedTemplate ? templateMaxScore(selectedTemplate.scoring) : instrument.max;
 
-  /** Template lookup for the trend rows below (template_id â†’ template). */
+  /** Template lookup for the trend rows below (template_id → template). */
   const templateById = useCallback(
     (id: string | null | undefined) =>
       id ? (templates.find((t) => t.id === id) ?? null) : null,
     [templates],
+  );
+
+  /** Previous administration of the same measure, for the print comparison line. */
+  const previousFor = useCallback(
+    (assessment: PsychAssessment): PsychAssessment | null => {
+      const key = assessment.instrument_code ?? assessment.assessment_type;
+      return (
+        [...psych.assessments]
+          .filter(
+            (a) =>
+              a.id !== assessment.id &&
+              (a.instrument_code ?? a.assessment_type) === key &&
+              new Date(a.conducted_at).getTime() <
+                new Date(assessment.conducted_at).getTime(),
+          )
+          .sort(
+            (a, b) =>
+              new Date(b.conducted_at).getTime() - new Date(a.conducted_at).getTime(),
+          )[0] ?? null
+      );
+    },
+    [psych.assessments],
   );
 
   function changeType(next: string) {
@@ -1220,7 +1357,7 @@ function PsychometricsTab({
   async function addAssessment() {
     if (!canManage) return;
     setPending(true);
-    const result = await savePsychAssessmentAction(patientId, {
+    const result = await savePsychAssessmentAction(patient.id, {
       assessment_type: selectedTemplate ? selectedTemplate.name : type,
       template_id: selectedTemplate?.id ?? null,
       score: score === "" ? null : Number(score),
@@ -1251,6 +1388,48 @@ function PsychometricsTab({
     else toast.error(result.message);
   }
 
+  /**
+   * 📋 Push to Session Note — writes one objective snippet straight into the
+   * localStorage draft the Session Notes tab restores on mount, so the
+   * clinician never retypes the score or band. No format switch: the snippet
+   * lands in the field the *saved draft's* format already uses (BIRP
+   * Behavior / SOAP Objective / DAP Data).
+   */
+  function pushToSessionNote(assessment: PsychAssessment) {
+    const draftKey = `psych-session-draft:${patient.id}`;
+    try {
+      const raw = window.localStorage.getItem(draftKey);
+      const saved = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+      const format =
+        typeof saved.format === "string" && ["BIRP", "SOAP", "DAP"].includes(saved.format)
+          ? saved.format
+          : "BIRP";
+      const field =
+        format === "SOAP" ? "objective" : format === "DAP" ? "observation_data" : "behavior";
+      const draft =
+        saved.draft && typeof saved.draft === "object"
+          ? (saved.draft as Record<string, string>)
+          : {};
+      const existing = typeof draft[field] === "string" ? draft[field].trim() : "";
+      const snippet = assessmentSnippet(
+        assessment,
+        templateById(assessment.template_id),
+        previousFor(assessment),
+      );
+      if (!snippet) return;
+      draft[field] = existing ? `${existing}\n\n${snippet}` : snippet;
+      window.localStorage.setItem(
+        draftKey,
+        JSON.stringify({ ...saved, format, draft }),
+      );
+      toast.success(
+        `Pushed to today's session note draft (${format} ${field === "observation_data" ? "Data" : field === "objective" ? "Objective" : "Behavior"}) — review it in Session Notes.`,
+      );
+    } catch {
+      toast.error("Couldn't reach the session note draft. Open Session Notes and paste it manually.");
+    }
+  }
+
   const selectOptions = [
     ...ASSESSMENT_TYPES.map((key) => ({
       value: key,
@@ -1267,6 +1446,34 @@ function PsychometricsTab({
 
   return (
     <div className="space-y-4">
+      {printTarget && (
+        <AssessmentPrint
+          assessment={printTarget}
+          template={templateById(printTarget.template_id)}
+          patient={{
+            name: patient.name,
+            patient_code: patient.patient_code,
+            date_of_birth: patient.date_of_birth,
+            gender: patient.gender,
+          }}
+          letterhead={letterhead}
+          clinician={clinician}
+          previous={previousFor(printTarget)}
+        />
+      )}
+      {showInClinic && (
+        <InClinicAssessmentModal
+          open={showInClinic}
+          patientId={patient.id}
+          patientLabel={patient.name}
+          templates={templates}
+          onClose={() => setShowInClinic(false)}
+          onSaved={() => {
+            toast.success("In-clinic administration scored and saved");
+            router.refresh();
+          }}
+        />
+      )}
       <RecordSection title="Score history">
         {psych.assessments.length > 0 ? (
           <div className="space-y-3">
@@ -1277,6 +1484,8 @@ function PsychometricsTab({
                 assessment={a}
                 canManage={canManage}
                 onDelete={removeAssessment}
+                onPrint={setPrintTarget}
+                onPushToNote={pushToSessionNote}
                 template={templateById(a.template_id)}
               />
             ))}
@@ -1285,19 +1494,19 @@ function PsychometricsTab({
           <RecordEmpty
             icon={TrendingUp}
             title="No assessments on file"
-            description="Log a standard instrument (PHQ-9, GAD-7, BDI-II, PCL-5) or a clinic library template to track score history and trends."
+            description="Log a standard instrument (PHQ-9, GAD-7, DASS-21, ISI, PSS-10) or a clinic library template to track score history and trends."
           />
         )}
       </RecordSection>
 
       <LongitudinalSummaryCard
-        patientId={patientId}
+        patientId={patient.id}
         assessmentCount={psych.assessments.filter((a) => a.score !== null).length}
         canManage={canManage}
       />
 
       <AssessmentScheduleCard
-        patientId={patientId}
+        patientId={patient.id}
         canManage={canManage}
         templates={templates.filter(canSendOnline)}
         hasWhatsappNumber={Boolean(whatsappNumber)}
@@ -1392,7 +1601,17 @@ function PsychometricsTab({
               className="w-full resize-y rounded-control border border-text-muted/25 bg-surface p-2.5 text-[12.5px] leading-relaxed text-text-primary outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
             />
           </div>
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setShowInClinic(true)}
+              className="gap-1.5"
+            >
+              <ClipboardList aria-hidden="true" className="size-3.5" />
+              Administer in-clinic
+            </Button>
             <Button type="button" size="sm" onClick={addAssessment} disabled={pending} className="gap-1.5">
               {pending ? <Loader2 aria-hidden="true" className="size-3.5 animate-spin" /> : <TrendingUp aria-hidden="true" className="size-3.5" />}
               {pending ? "Saving…" : "Record assessment"}
@@ -1402,7 +1621,7 @@ function PsychometricsTab({
       )}
 
       <PatientLinksPanel
-        patientId={patientId}
+        patientId={patient.id}
         whatsappNumber={whatsappNumber}
         canManage={canManage}
         templates={templates.filter(canSendOnline)}
@@ -1757,7 +1976,21 @@ function AssessmentScheduleCard({
   );
 }
 
-function AssessmentTrendRow({ assessment, canManage, onDelete, template }: { assessment: PsychAssessment; canManage: boolean; onDelete: (id: string) => void; template?: AssessmentTemplate | null }) {
+function AssessmentTrendRow({
+  assessment,
+  canManage,
+  onDelete,
+  onPrint,
+  onPushToNote,
+  template,
+}: {
+  assessment: PsychAssessment;
+  canManage: boolean;
+  onDelete: (id: string) => void;
+  onPrint: (assessment: PsychAssessment) => void;
+  onPushToNote: (assessment: PsychAssessment) => void;
+  template?: AssessmentTemplate | null;
+}) {
   const meta = ASSESSMENT_LIBRARY[assessment.assessment_type] ?? ASSESSMENT_LIBRARY.Other;
   const max = template ? templateMaxScore(template.scoring) : meta.max;
   const pct = assessment.score === null ? 0 : Math.min(100, Math.round((assessment.score / max) * 100));
@@ -1766,6 +1999,21 @@ function AssessmentTrendRow({ assessment, canManage, onDelete, template }: { ass
   const [aiResult, setAiResult] = useState<{ interpretation: string; source: "ai" | "rule" } | null>(null);
 
   const canInterpret = assessment.score !== null;
+
+  /**
+   * 🚨 Item-9 safety interceptor. Suicidal ideation items (PHQ-9 item 9,
+   * BDI-II item 9) are split directly from the stored answer map, and any
+   * engine-raised safety flag counts too. The badge stays persistent so the
+   * clinician cannot scroll past an endorsed ideation item unnoticed, and it
+   * routes to the Safety tab (where the safety plan lives).
+   */
+  const ideationScore =
+    (assessment.answers?.phq9_9 as number | undefined) ??
+    (assessment.answers?.bdi2_9 as number | undefined) ??
+    null;
+  const safetyFlagged =
+    (ideationScore !== null && ideationScore > 0) ||
+    (assessment.risk_level !== null && assessment.risk_level !== "NONE");
 
   async function interpret() {
     if (interpreting) return;
@@ -1780,22 +2028,27 @@ function AssessmentTrendRow({ assessment, canManage, onDelete, template }: { ass
   }
 
   // Item-level answers only exist for online submissions (0080). Map them back
-  // to the question text â€” the library template's stored questions when the
-  // assessment carries a template_id (0085), else the instrument bank.
-  const responses =
-    template && assessment.answers
-      ? template.questions
-          .filter((q) => q.type !== "text")
-          .map((q) => ({ text: q.text, value: assessment.answers?.[q.id] }))
-      : isPsychometricKey(assessment.assessment_type)
-        ? PSYCHOMETRIC_INSTRUMENTS[assessment.assessment_type].items.map((item) => ({
-            text: item.text,
-            value: assessment.answers?.[item.id],
-          }))
-        : [];
+  // to the question text — the library template's stored questions when the
+  // assessment carries a template_id (0085), else the instrument bank or the
+  // validated registry definition (DASS-21 / ISI / PSS-10).
+  const responses = responsesFor(assessment, template ?? null);
 
   return (
     <div className="space-y-1.5">
+      {safetyFlagged && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-control border border-status-destructive/30 bg-status-destructive/5 px-3 py-2">
+          <TriangleAlert aria-hidden="true" className="size-3.5 shrink-0 text-status-destructive" />
+          <p className="text-[11.5px] font-bold text-status-destructive">
+            {ideationScore !== null && ideationScore > 0
+              ? `Critical: suicidal ideation flagged (item 9 = ${ideationScore}).`
+              : "Critical: safety flag raised by the scoring engine."}
+          </p>
+          <span className="text-[11.5px] text-text-secondary">
+            Review the Suicide Safety Plan in the Safety tab.
+          </span>
+        </div>
+      )}
+
       <div className="flex items-center gap-3">
         <div className="w-24 shrink-0 sm:w-28">
           <p className="text-[12px] font-semibold text-secondary">{assessment.assessment_type}</p>
@@ -1846,6 +2099,24 @@ function AssessmentTrendRow({ assessment, canManage, onDelete, template }: { ass
                 {interpreting ? "Interpreting…" : aiResult ? "Re-interpret" : "AI interpretation"}
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => onPushToNote(assessment)}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+              title="Append this result to today's session note draft"
+            >
+              <ClipboardList aria-hidden="true" className="size-3" />
+              Push to session note
+            </button>
+            <button
+              type="button"
+              onClick={() => onPrint(assessment)}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+              title="Open the clinical report (clinic letterhead, demographics, score history)"
+            >
+              <Printer aria-hidden="true" className="size-3" />
+              Print clinical report
+            </button>
           </div>
         </div>
         {canManage && (

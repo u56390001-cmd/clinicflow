@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
-import { interpretationForScore } from "@/lib/assessment-library";
+import { interpretationForScore, scoreTemplateAnswers, severityFromBands } from "@/lib/assessment-library";
 import {
   ClinicAiKeyMissingError,
   resolveProviderForClinic,
@@ -37,7 +37,20 @@ import {
 import {
   PSYCHOMETRIC_INSTRUMENTS,
   isPsychometricKey,
+  scoreInstrument,
+  severityFor,
 } from "@/lib/psychometrics";
+import {
+  getInstrument,
+  isValidatedInstrumentCode,
+  scoreValidatedInstrument,
+  toInstrumentMeta,
+  validateInstrumentAnswers,
+} from "@/lib/scoring";
+import { applyAssessmentSafety } from "@/lib/scoring/safety";
+import type { ScoringResult } from "@/lib/scoring/types";
+import { createWidgetClient } from "@/lib/supabase/widget";
+import { readClinicLogoPath } from "@/lib/clinic-logo";
 import {
   ASSESSMENT_RATERS,
   DEFAULT_RATER_TYPE,
@@ -1974,6 +1987,324 @@ export async function deletePsychAssessmentAction(
   return ok();
 }
 
+/* ------------------------------------------------------------------------- */
+/* In-clinic interactive administration                                       */
+/* ------------------------------------------------------------------------- */
+
+const inClinicSchema = z.object({
+  patientId: z.string().uuid(),
+  assessmentType: z.string().trim().min(1).max(120),
+  templateId: z.string().uuid().nullable().optional(),
+  raterType: z
+    .custom<AssessmentRaterType>(
+      (value) =>
+        typeof value === "string" &&
+        (ASSESSMENT_RATERS as ReadonlyArray<{ value: string }>).some(
+          (rater) => rater.value === value,
+        ),
+    )
+    .optional(),
+  answers: z.record(z.string(), z.coerce.number().int().min(0).max(999)),
+});
+
+/**
+ * Legacy-bank suicidality → a scoring result the safety pipeline consumes.
+ * PHQ-9 item 9 or BDI-II item 9 endorsed in any self-report flags the record
+ * (risk HIGH, PENDING_REVIEW) even though the legacy bank has no engine.
+ */
+function legacySafetyResult(
+  instrumentKey: string,
+  score: number | null,
+  severity: string | null,
+  answers: Record<string, number>,
+  reasons: string[] = [],
+): ScoringResult {
+  const flaggedItem =
+    instrumentKey === "PHQ-9"
+      ? typeof answers["phq9_9"] === "number" && answers["phq9_9"] > 0
+        ? `PHQ-9 item 9 = ${answers["phq9_9"]}`
+        : null
+      : instrumentKey === "BDI-II"
+        ? typeof answers["bdi2_9"] === "number" && answers["bdi2_9"] > 0
+          ? `BDI-II item 9 = ${answers["bdi2_9"]}`
+          : null
+        : null;
+  const flagRaised = flaggedItem !== null;
+  return {
+    instrumentCode: instrumentKey,
+    instrumentVersion: "legacy-bank",
+    instrumentName: instrumentKey,
+    rawScore: score,
+    scaledScore: null,
+    subscaleScores: {},
+    severityBand: severity,
+    diagnosticCriteria: {},
+    safetyFlagRaised: flagRaised,
+    riskLevel: flagRaised ? "HIGH" : "NONE",
+    safetyReasons: flagRaised ? [...reasons, flaggedItem as string] : reasons,
+    isValid: true,
+    invalidationReason: null,
+    missingItems: [],
+    answeredCount: Object.keys(answers).length,
+    applicableCount: Object.keys(answers).length,
+  };
+}
+
+/** Uploads an item-level completed in-clinic questionnaire, scoring it server-side. */
+export async function saveInClinicAssessmentAction(
+  raw: unknown,
+): Promise<ActionResult<{ id: string; score: number | null; severity: string | null; instrument: string }>> {
+  const parsed = inClinicSchema.safeParse(raw);
+  if (!parsed.success)
+    return { ok: false, message: firstIssue(parsed)?.message ?? "Invalid input." };
+  const g = await guard();
+  if (!g.ok) {
+    return g.result.ok ? { ok: false, message: "Action blocked." } : { ok: false, message: g.result.message };
+  }
+
+  const { patientId, assessmentType, templateId, answers } = parsed.data;
+  const raterType = parsed.data.raterType ?? "CLINICIAN";
+  const { data: patient } = await g.supabase
+    .from("patients")
+    .select("name")
+    .eq("clinic_id", g.clinicId)
+    .eq("id", patientId)
+    .maybeSingle();
+  if (!patient) return { ok: false, message: "That patient is not in this clinic." };
+  const clinicName = (await getCurrentClinic(g.supabase))?.clinic.name ?? "";
+
+  const widget = createWidgetClient();
+  const conductedAt = new Date().toISOString().slice(0, 10);
+  const doctorIdForStamp = await doctorId(g.supabase, g.clinicId);
+  const base = {
+    clinic_id: g.clinicId,
+    patient_id: patientId,
+    doctor_id: doctorIdForStamp,
+    conducted_at: conductedAt,
+    rater_type: raterType,
+    rater_name: null,
+    administration_mode: administrationModeForRater(raterType),
+    completed_by: completedByForRater(raterType),
+    answers,
+  } as const;
+
+  /* Library template (0085) — score from stored questions/bands. */
+  if (templateId) {
+    const { data: template } = await g.supabase
+      .from("assessment_templates")
+      .select("*")
+      .eq("id", templateId)
+      .eq("clinic_id", g.clinicId)
+      .maybeSingle();
+    if (!template || template.status !== "active") {
+      return { ok: false, message: "That assessment is no longer available." };
+    }
+    const score = scoreTemplateAnswers(template, answers);
+    if (score === null) return { ok: false, message: "One or more answers could not be scored." };
+    const severity = severityFromBands(template.scoring.bands, score);
+    // Heuristic safety net: template copies of PHQ-9/BDI-II share stable item
+    // ids, so an endorsed ideation item still raises the flag.
+    const flagged = answers["phq9_9"] > 0 || answers["bdi2_9"] > 0;
+
+    const { data: inserted, error } = await g.supabase
+      .from("psych_assessments")
+      .insert({
+        ...base,
+        assessment_type: template.name,
+        template_id: template.id,
+        score,
+        severity,
+        safety_flag_raised: flagged,
+        risk_level: flagged ? "HIGH" : "NONE",
+        review_status: flagged ? "PENDING_REVIEW" : "CLEAR",
+      })
+      .select("id")
+      .single();
+    if (error) return { ok: false, message: error.message };
+    if (flagged) {
+      await runAssessmentSafetyPipeline(
+        widget,
+        {
+          clinicId: g.clinicId,
+          patientId,
+          assessmentId: inserted.id,
+          patientName: patient.name ?? "",
+          clinicName: clinicName,
+          instrumentName: template.name,
+          severity,
+        },
+        legacySafetyResult(template.name, score, severity, answers),
+        doctorIdForStamp,
+      );
+    }
+    revalidatePath(APP_ROUTES.app.patients);
+    return { ok: true, data: { id: inserted.id, score, severity, instrument: template.name } };
+  }
+
+  /* Validated engine instrument — the deterministic path. */
+  const validated = isValidatedInstrumentCode(assessmentType) || isPsychometricKey(assessmentType)
+    ? getInstrument(assessmentType)
+    : null;
+  if (validated) {
+    const validation = validateInstrumentAnswers(validated.code, answers, true);
+    if (!validation.success) {
+      return { ok: false, message: validation.error };
+    }
+    const result = scoreValidatedInstrument(validated.code, validation.data);
+    const { data: inserted, error } = await g.supabase
+      .from("psych_assessments")
+      .insert({
+        ...base,
+        assessment_type: validated.code,
+        score: result.rawScore,
+        severity: result.severityBand,
+        scaled_score: result.scaledScore,
+        subscale_scores: result.subscaleScores,
+        diagnostic_criteria_results: result.diagnosticCriteria,
+        is_valid: result.isValid,
+        invalidation_reason: result.invalidationReason,
+        template_version: result.instrumentVersion,
+        template_snapshot: toInstrumentMeta(validated),
+        instrument_code: result.instrumentCode,
+        safety_flag_raised: result.safetyFlagRaised,
+        risk_level: result.riskLevel,
+        review_status: result.safetyFlagRaised ? "PENDING_REVIEW" : "CLEAR",
+      })
+      .select("id")
+      .single();
+    if (error) return { ok: false, message: error.message };
+    if (result.safetyFlagRaised) {
+      await runAssessmentSafetyPipeline(
+        widget,
+        {
+          clinicId: g.clinicId,
+          patientId,
+          assessmentId: inserted.id,
+          patientName: patient.name ?? "",
+          clinicName: clinicName,
+          instrumentName: validated.shortName,
+          severity: result.severityBand,
+        },
+        result,
+        doctorIdForStamp,
+      );
+    }
+    revalidatePath(APP_ROUTES.app.patients);
+    return {
+      ok: true,
+      data: {
+        id: inserted.id,
+        score: result.rawScore,
+        severity: result.severityBand,
+        instrument: validated.shortName,
+      },
+    };
+  }
+
+  /* Legacy built-in bank (PHQ-9 / GAD-7 / BDI-II / PCL-5). */
+  if (!isPsychometricKey(assessmentType)) return { ok: false, message: "That assessment is not supported." };
+  const instrument = PSYCHOMETRIC_INSTRUMENTS[assessmentType];
+  const allowed = new Set(instrument.options.map((option) => option.value));
+  for (const item of instrument.items) {
+    const value = answers[item.id];
+    if (value === undefined || !allowed.has(value)) {
+      return { ok: false, message: "Answer every question before saving." };
+    }
+  }
+  const score = scoreInstrument(instrument, answers);
+  const severity = severityFor(instrument, score);
+  const safety = legacySafetyResult(instrument.key, score, severity, answers);
+
+  const { data: inserted, error } = await g.supabase
+    .from("psych_assessments")
+    .insert({
+      ...base,
+      assessment_type: instrument.key,
+      score,
+      severity,
+      safety_flag_raised: safety.safetyFlagRaised,
+      risk_level: safety.riskLevel,
+      review_status: safety.safetyFlagRaised ? "PENDING_REVIEW" : "CLEAR",
+    })
+    .select("id")
+    .single();
+  if (error) return { ok: false, message: error.message };
+  if (safety.safetyFlagRaised) {
+    await runAssessmentSafetyPipeline(
+      widget,
+      {
+        clinicId: g.clinicId,
+        patientId,
+        assessmentId: inserted.id,
+        patientName: patient.name ?? "",
+        clinicName: clinicName,
+        instrumentName: instrument.shortName,
+        severity,
+      },
+      safety,
+      doctorIdForStamp,
+    );
+  }
+  revalidatePath(APP_ROUTES.app.patients);
+  return { ok: true, data: { id: inserted.id, score, severity, instrument: instrument.shortName } };
+}
+
+/** Fire the shared Phase 1 safety pipeline without losing the assessment. */
+async function runAssessmentSafetyPipeline(
+  widget: ReturnType<typeof createWidgetClient>,
+  context: {
+    clinicId: string;
+    patientId: string;
+    assessmentId: string;
+    patientName: string;
+    clinicName: string;
+    instrumentName: string;
+    severity: string | null;
+  },
+  result: ScoringResult,
+  actorUserId: string | null,
+): Promise<void> {
+  try {
+    await applyAssessmentSafety({
+      widget,
+      ...context,
+      result,
+      actorUserId,
+    });
+  } catch (error) {
+    console.error("[saveInClinicAssessment] safety pipeline failed", {
+      assessmentId: context.assessmentId,
+      message: error instanceof Error ? error.message : "unknown",
+    });
+  }
+}
+
+/** Clinic letterhead facts for the printable assessment report (white-label). */
+export async function getClinicLetterheadAction(): Promise<
+  ActionResult<{ name: string; phone: string | null; address: string | null; logoPath: string | null }>
+> {
+  const supabase = await createClient();
+  const access = await getCurrentClinic(supabase);
+  if (!access || !canManageClinical(access.role)) {
+    return { ok: false, message: "You must have a clinic to perform this action." };
+  }
+  let logoPath: string | null = null;
+  try {
+    logoPath = await readClinicLogoPath(access.clinic.id);
+  } catch {
+    logoPath = null;
+  }
+  return {
+    ok: true,
+    data: {
+      name: access.clinic.name,
+      phone: access.clinic.phone,
+      address: access.clinic.address,
+      logoPath,
+    },
+  };
+}
+
 /** Provider-selectable triage transitions (Phase 1 §2.2). CLEAR is system-only. */
 const ASSESSMENT_REVIEW_STATUSES = [
   "UNDER_REVIEW",
@@ -2783,3 +3114,5 @@ export async function deleteDermDiagnosisAction(
   if (error) return { ok: false, message: error.message };
   return ok();
 }
+
+

@@ -39,6 +39,15 @@ export type PatientLinkPreview = {
   patientId: string;
   patientFirstName: string;
   clinicName: string;
+  /** Clinic contact line for the white-labelled header (null when unset). */
+  clinicPhone: string | null;
+  clinicAddress: string | null;
+  /**
+   * Object path of the clinic logo inside the public `clinic-logos` bucket —
+   * callers turn it into a browser URL with `clinicLogoPublicUrl`. Null when
+   * the clinic has no logo (or the column predates migration 0054).
+   */
+  clinicLogoPath: string | null;
   kind: PatientShareLinkKind;
   assessmentType: string | null;
   /** Library template this link points at (0085), null for built-ins. */
@@ -71,7 +80,7 @@ export async function resolvePatientLink(
   const { data } = await client
     .from("patient_share_links")
     .select(
-      "id, clinic_id, patient_id, kind, assessment_type, template_id, rater_type, status, expires_at, created_by, clinics(name), patients(name)",
+      "id, clinic_id, patient_id, kind, assessment_type, template_id, rater_type, status, expires_at, created_by, clinics(name, phone, address, logo_url), patients(name)",
     )
     .eq("token_hash", tokenHash)
     .maybeSingle();
@@ -87,17 +96,21 @@ export async function resolvePatientLink(
     typeof data.patients === "object" && data.patients !== null && "name" in data.patients
       ? String(data.patients.name)
       : "";
-  const clinicName =
-    typeof data.clinics === "object" && data.clinics !== null && "name" in data.clinics
-      ? String(data.clinics.name)
-      : "";
+  const clinic =
+    typeof data.clinics === "object" && data.clinics !== null
+      ? (data.clinics as { name?: string | null; phone?: string | null; address?: string | null; logo_url?: string | null })
+      : null;
 
   return {
     tokenId: data.id,
     clinicId: data.clinic_id,
     patientId: data.patient_id,
     patientFirstName: patientName.split(" ")[0].slice(0, TRUNCATED_NAME_MAX),
-    clinicName,
+    clinicName:
+      typeof clinic?.name === "string" ? clinic.name : "",
+    clinicPhone: typeof clinic?.phone === "string" ? clinic.phone : null,
+    clinicAddress: typeof clinic?.address === "string" ? clinic.address : null,
+    clinicLogoPath: typeof clinic?.logo_url === "string" && clinic.logo_url.length > 0 ? clinic.logo_url : null,
     kind: data.kind as PatientShareLinkKind,
     assessmentType: data.assessment_type,
     templateId: data.template_id,

@@ -210,6 +210,104 @@ test("WHODAS two missing — invalid", () => {
   assert.equal(r.isValid, false);
 });
 
+/* ------------------------------ DASS-21 ---------------------------------- */
+
+test("DASS-21 all 3 — normalise-free raw 63, subscales ×2, extremely severe", () => {
+  const r = scoreValidatedInstrument("DASS-21", fill("dass21_", 21, 3));
+  assert.equal(r.rawScore, 63);
+  assert.deepEqual(r.subscaleScores, { D: 21, A: 21, S: 21 });
+  assert.equal(r.severityBand, "Extremely severe");
+  assert.equal(r.scaledScore, null);
+  assert.equal(r.safetyFlagRaised, false);
+});
+
+test("DASS-21 all 0 — Normal", () => {
+  const r = scoreValidatedInstrument("DASS-21", fill("dass21_", 21, 0));
+  assert.equal(r.rawScore, 0);
+  assert.equal(r.severityBand, "Normal");
+});
+
+test("DASS-21 depression-only severe response — overall band driven by most severe subscale", () => {
+  const answers = fill("dass21_", 21, 0);
+  for (const n of [3, 5, 10, 13, 16, 17, 21]) answers[`dass21_${n}`] = 3;
+  const r = scoreValidatedInstrument("DASS-21", answers);
+  assert.deepEqual(r.subscaleScores, { D: 21, A: 0, S: 0 });
+  assert.equal(r.severityBand, "Extremely severe");
+});
+
+test("DASS-21 three missing (one per subscale) — invalid, cap is 2 globally", () => {
+  const answers = fill("dass21_", 21, 1);
+  for (const id of ["dass21_3", "dass21_2", "dass21_1"]) delete answers[id];
+  const r = scoreValidatedInstrument("DASS-21", answers);
+  assert.equal(r.isValid, false);
+});
+
+test("DASS-21 two missing — imputed from the subscale mean, valid", () => {
+  const answers = fill("dass21_", 21, 1);
+  delete answers.dass21_3;
+  delete answers.dass21_5;
+  const r = scoreValidatedInstrument("DASS-21", answers);
+  assert.equal(r.isValid, true);
+  assert.equal(r.missingItems.filter((m) => m.imputed).length, 2);
+});
+
+/* -------------------------------- ISI ------------------------------------ */
+
+test("ISI all 4 — raw 28, clinical insomnia (severe)", () => {
+  const r = scoreValidatedInstrument("ISI", fill("isi_", 7, 4));
+  assert.equal(r.rawScore, 28);
+  assert.equal(r.severityBand, "Clinical insomnia (severe)");
+});
+
+test("ISI all 0 — No clinically significant insomnia", () => {
+  const r = scoreValidatedInstrument("ISI", fill("isi_", 7, 0));
+  assert.equal(r.rawScore, 0);
+  assert.equal(r.severityBand, "No clinically significant insomnia");
+});
+
+test("ISI 8 — Subthreshold insomnia band", () => {
+  const answers = fill("isi_", 7, 1);
+  answers.isi_1 = 2;
+  const r = scoreValidatedInstrument("ISI", answers);
+  assert.equal(r.rawScore, 8);
+  assert.equal(r.severityBand, "Subthreshold insomnia");
+});
+
+test("ISI two missing — invalid (no imputation)", () => {
+  const answers = fill("isi_", 7, 2);
+  delete answers.isi_1;
+  delete answers.isi_4;
+  const r = scoreValidatedInstrument("ISI", answers);
+  assert.equal(r.isValid, false);
+});
+
+/* ------------------------------- PSS-10 ---------------------------------- */
+
+test("PSS-10 all 0 — raw 16 after reversal (items 4,5,7,8 read 4), Moderate", () => {
+  const r = scoreValidatedInstrument("PSS-10", fill("pss10_", 10, 0));
+  assert.equal(r.rawScore, 16);
+  assert.equal(r.severityBand, "Moderate perceived stress");
+});
+
+test("PSS-10 normals 4, reversed 0 — raw 40, High", () => {
+  const answers = { ...fill("pss10_", 10, 4), pss10_4: 0, pss10_5: 0, pss10_7: 0, pss10_8: 0 };
+  const r = scoreValidatedInstrument("PSS-10", answers);
+  assert.equal(r.rawScore, 40);
+  assert.equal(r.severityBand, "High perceived stress");
+});
+
+test("PSS-10 reversed pick is 4 − value, never double-reversed", () => {
+  // Absolute invariant: reversal must equal 4 - pick exactly.
+  const answers = fill("pss10_", 10, 2);
+  answers.pss10_4 = 1;
+  answers.pss10_5 = 1;
+  answers.pss10_7 = 1;
+  answers.pss10_8 = 1;
+  const r = scoreValidatedInstrument("PSS-10", answers);
+  // 6 normals ×2 + 4 reversed ×3 = 12 + 12 = 24
+  assert.equal(r.rawScore, 24);
+});
+
 /* ------------------------------- Schemas --------------------------------- */
 
 test("schema rejects an out-of-domain value", () => {

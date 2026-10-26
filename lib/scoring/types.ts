@@ -22,6 +22,13 @@ export type InstrumentItem = {
   id: string;
   text: string;
   subscaleId?: string;
+  /**
+   * True for positively-worded items whose published scoring reverses the
+   * anchor (PSS-10 items 4, 5, 7, 8). The patient picks the same frequency
+   * labels; the engine subtracts the pick from the anchor maximum at scoring
+   * time, so no separate option set has to be rendered per item.
+   */
+  reversed?: boolean;
 };
 
 export type SeverityBand = { min: number; max: number; label: string };

@@ -11,6 +11,9 @@ import { GAD7 } from "@/lib/scoring/instruments/gad7";
 import { CSSRS } from "@/lib/scoring/instruments/cssrs";
 import { PCL5 } from "@/lib/scoring/instruments/pcl5";
 import { WHODAS12 } from "@/lib/scoring/instruments/whodas12";
+import { DASS21 } from "@/lib/scoring/instruments/dass21";
+import { ISI } from "@/lib/scoring/instruments/isi";
+import { PSS10 } from "@/lib/scoring/instruments/pss10";
 
 /**
  * Registry + deterministic scoring algorithm for Phase 1 validated instruments.
@@ -19,7 +22,16 @@ import { WHODAS12 } from "@/lib/scoring/instruments/whodas12";
  * server (authoritative persistence) and the client (live preview).
  */
 
-const INSTRUMENTS: InstrumentDefinition[] = [PHQ9, GAD7, CSSRS, PCL5, WHODAS12];
+const INSTRUMENTS: InstrumentDefinition[] = [
+  PHQ9,
+  GAD7,
+  CSSRS,
+  PCL5,
+  WHODAS12,
+  DASS21,
+  ISI,
+  PSS10,
+];
 
 const BY_CODE: Record<string, InstrumentDefinition> = Object.fromEntries(
   INSTRUMENTS.map((def) => [def.code, def]),
@@ -59,6 +71,24 @@ function mean(values: number[]): number {
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+/**
+ * The scored value of one answered item: reverse-anchored items (PSS-10's
+ * positively-worded items) subtract the pick from the anchor maximum, every
+ * other item contributes its raw pick. Applied consistently to the total and
+ * every subscale sum so the whole record stays on one scoring convention.
+ */
+function scoredValue(
+  def: InstrumentDefinition,
+  itemById: Record<string, InstrumentDefinition["items"][number]>,
+  id: string,
+  value: number,
+): number {
+  const item = itemById[id];
+  if (!item?.reversed) return value;
+  const anchorMax = Math.max(...def.responseOptions.map((option) => option.value));
+  return anchorMax - value;
 }
 
 /**
@@ -135,7 +165,9 @@ export function scoreValidatedInstrument(
     );
   }
 
-  // Missing-data handling.
+  // Missing-data handling. `values` holds raw picks throughout; reversal is
+  // applied at every summing site (below), never stored — the row keeps what
+  // the respondent actually chose.
   const values: Record<string, number> = { ...answered };
   const imputed = new Set<string>();
 
@@ -192,17 +224,22 @@ export function scoreValidatedInstrument(
           );
           continue;
         }
+        // Impute in raw-pick terms: the reversal (if any) is applied at sum
+        // time like the respondent's own picks, never folded in here.
         values[id] = mean(peers.map((peer) => answered[peer]));
         imputed.add(id);
       }
     }
   }
 
-  // Subscale sums (computed from answered + imputed values).
+  // Subscale sums (computed from answered + imputed values, reversal-aware).
   const subscaleScores: Record<string, number> = {};
   for (const subscale of def.subscales) {
     const ids = subscale.itemIds.filter((id) => applicable.has(id) && id in values);
-    subscaleScores[subscale.id] = ids.reduce((sum, id) => sum + (values[id] ?? 0), 0);
+    subscaleScores[subscale.id] = ids.reduce(
+      (sum, id) => sum + scoredValue(def, itemById, id, values[id] ?? 0),
+      0,
+    );
   }
 
   // Safety evaluation runs on the raw answers regardless of validity — a
@@ -232,7 +269,10 @@ export function scoreValidatedInstrument(
 
   if (isValid) {
     rawScore = Math.round(
-      applicableIds.reduce((sum, id) => sum + (values[id] ?? 0), 0),
+      applicableIds.reduce(
+        (sum, id) => sum + scoredValue(def, itemById, id, values[id] ?? 0),
+        0,
+      ),
     );
     scaledScore = def.scaledScore ? def.scaledScore(rawScore) : null;
     if (def.deriveSeverity) {

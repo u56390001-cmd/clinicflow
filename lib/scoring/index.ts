@@ -19,3 +19,6 @@ export { GAD7 } from "@/lib/scoring/instruments/gad7";
 export { CSSRS } from "@/lib/scoring/instruments/cssrs";
 export { PCL5 } from "@/lib/scoring/instruments/pcl5";
 export { WHODAS12 } from "@/lib/scoring/instruments/whodas12";
+export { DASS21 } from "@/lib/scoring/instruments/dass21";
+export { ISI } from "@/lib/scoring/instruments/isi";
+export { PSS10 } from "@/lib/scoring/instruments/pss10";

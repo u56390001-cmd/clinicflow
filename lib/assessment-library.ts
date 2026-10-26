@@ -129,6 +129,32 @@ const SEVERITY_BDI: AssessmentQuestionOption[] = [
   { label: "Severe", value: 3 },
 ];
 
+/** DASS-21 anchors (0–3; the short form doubles each subscale sum at scoring). */
+const DASS_ANCHORS: AssessmentQuestionOption[] = [
+  { label: "Did not apply to me at all", value: 0 },
+  { label: "Applied to me to some degree, or some of the time", value: 1 },
+  { label: "Applied to me to a considerable degree, or a good part of the time", value: 2 },
+  { label: "Applied to me very much, or most of the time", value: 3 },
+];
+
+/** ISI anchors (0–4), 0–28 total. */
+const ISI_ANCHORS: AssessmentQuestionOption[] = [
+  { label: "Not at all / None", value: 0 },
+  { label: "A little", value: 1 },
+  { label: "Somewhat", value: 2 },
+  { label: "Much", value: 3 },
+  { label: "Very much / Severe", value: 4 },
+];
+
+/** PSS-10 frequency anchors (0–4; items 4, 5, 7, 8 reverse at scoring). */
+const PSS_ANCHORS: AssessmentQuestionOption[] = [
+  { label: "Never", value: 0 },
+  { label: "Almost never", value: 1 },
+  { label: "Sometimes", value: 2 },
+  { label: "Fairly often", value: 3 },
+  { label: "Very often", value: 4 },
+];
+
 function likertQuestions(
   prefix: string,
   texts: readonly string[],
@@ -379,6 +405,131 @@ export const ASSESSMENT_CATALOG: readonly AssessmentCatalogEntry[] = [
       [17, 24, "Likely ADHD"],
     ]),
     interpretation: [],
+  },
+  {
+    key: "DASS-21",
+    name: "Depression, Anxiety and Stress Scale (21)",
+    category: "Depression, Anxiety & Stress",
+    targetSpecialty: "psychology",
+    onlineCapable: true,
+    questions: likertQuestions(
+      "dass21",
+      [
+        "I found it hard to wind down",
+        "I was aware of dryness of my mouth",
+        "I couldn't seem to experience any positive feeling at all",
+        "I experienced breathing difficulty (e.g. excessively rapid breathing, breathlessness in the absence of physical exertion)",
+        "I found it difficult to work up the initiative to do things",
+        "I tended to over-react to situations",
+        "I experienced trembling (e.g. in the hands)",
+        "I felt that I was using a lot of nervous energy",
+        "I was worried about situations in which I might panic and make a fool of myself",
+        "I felt that I had nothing to look forward to",
+        "I found myself getting agitated",
+        "I found it difficult to relax",
+        "I felt down-hearted and blue",
+        "I was intolerant of anything that kept me from getting on with what I was doing",
+        "I felt I was close to panic",
+        "I was unable to become enthusiastic about anything",
+        "I felt I wasn't worth much as a person",
+        "I felt that I was rather touchy",
+        "I was aware of the action of my heart in the absence of physical exertion (e.g. sense of heart rate increase, heart missing a beat)",
+        "I felt scared without any good reason",
+        "I felt that life was meaningless",
+      ],
+      DASS_ANCHORS,
+    ),
+    scoring: {
+      method: "sum",
+      min_score: 0,
+      max_score: 63,
+      // Severity for DASS-21 reads the D/A/S subscale sums doubled (×2 short-form
+      // convention), never the 21-item total — so no total bands are published
+      // here. The validated engine path (`DASS-21` in lib/scoring) computes the
+      // subscale bands; a hand-rolled template copy leaves severity blank for
+      // the clinician to read from the subscale printout.
+      bands: [],
+    },
+    interpretation: [],
+  },
+  {
+    key: "ISI",
+    name: "Insomnia Severity Index",
+    category: "Sleep",
+    targetSpecialty: "psychology",
+    onlineCapable: true,
+    questions: likertQuestions(
+      "isi",
+      [
+        "Difficulty falling asleep",
+        "Difficulty staying asleep",
+        "Problem waking up too early",
+        "How SATISFIED/DISSATISFIED are you with your current sleep pattern?",
+        "How noticeable to others do you think your sleep problem is in terms of impairing the quality of your life?",
+        "How WORRIED/DISTRESSED are you about your current sleep problem?",
+        "To what extent do you consider your sleep problem to interfere with daily functioning (e.g. daytime fatigue, mood, ability to function at work/daily chores)?",
+      ],
+      ISI_ANCHORS,
+    ),
+    scoring: {
+      method: "sum",
+      min_score: 0,
+      max_score: 28,
+      bands: bands([
+        [0, 7, "No clinically significant insomnia"],
+        [8, 14, "Subthreshold insomnia"],
+        [15, 21, "Clinical insomnia (moderate)"],
+        [22, 28, "Clinical insomnia (severe)"],
+      ]),
+    },
+    interpretation: [
+      { min: 0, max: 7, text: "No clinically significant insomnia. No action indicated." },
+      { min: 8, max: 14, text: "Subthreshold insomnia. Sleep-hygiene counselling and monitoring recommended." },
+      { min: 15, max: 21, text: "Moderate clinical insomnia. Structured intervention (e.g. CBT-I) recommended." },
+      { min: 22, max: 28, text: "Severe clinical insomnia. Prompt clinical review and intensive treatment recommended." },
+    ],
+  },
+  {
+    key: "PSS-10",
+    name: "Perceived Stress Scale",
+    category: "Stress",
+    targetSpecialty: "psychology",
+    onlineCapable: true,
+    questions: likertQuestions(
+      "pss10",
+      [
+        "In the last month, how often have you been upset because of something that happened unexpectedly?",
+        "In the last month, how often have you felt that you were unable to control the important things in your life?",
+        "In the last month, how often have you felt nervous and stressed?",
+        "In the last month, how often have you felt confident about your ability to handle your personal problems?",
+        "In the last month, how often have you felt that things were going your way?",
+        "In the last month, how often have you found that you could not cope with all the things that you had to do?",
+        "In the last month, how often have you been able to control irritations in your life?",
+        "In the last month, how often have you felt that you were on top of things?",
+        "In the last month, how often have you been angered because of things that were outside of your control?",
+        "In the last month, how often have you felt difficulties were piling up so high that you could not overcome them?",
+      ],
+      PSS_ANCHORS,
+    ),
+    scoring: {
+      method: "sum",
+      min_score: 0,
+      max_score: 40,
+      // Published key reverses items 4, 5, 7 and 8. The validated engine path
+      // (PSS-10 in lib/scoring) applies the reversal automatically; a hand-rolled
+      // template copy plus a plain sum will READ THOSE FOUR ITEMS WRONG — bands
+      // below assume the published reversed key.
+      bands: bands([
+        [0, 13, "Low perceived stress"],
+        [14, 26, "Moderate perceived stress"],
+        [27, 40, "High perceived stress"],
+      ]),
+    },
+    interpretation: [
+      { min: 0, max: 13, text: "Low perceived stress in the last month. No action indicated." },
+      { min: 14, max: 26, text: "Moderate perceived stress. Consider stress-management work and monitoring." },
+      { min: 27, max: 40, text: "High perceived stress. Structured stress intervention and clinical review recommended." },
+    ],
   },
 ];
 
