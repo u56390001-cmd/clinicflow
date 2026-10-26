@@ -63,6 +63,48 @@ interface CopilotDrawerProps {
 }
 
 /**
+ * Command-bar dictation.
+ *
+ * Typing a command defeats the point of an ambient scribe: the doctor just
+ * finished talking so the machine would listen, and the command bar asks them
+ * to pick the keyboard back up. The browser's own SpeechRecognition fills the
+ * input directly — no server roundtrip, no transcription quota — and the
+ * command routes receive clean text exactly as if it were typed.
+ *
+ * Minimal structural typing: lib.dom typings for SpeechRecognition vary
+ * across TS versions, so the touch surface is kept to start/stop/onresult.
+ */
+interface SpeechRecognitionLike {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start(): void;
+  stop(): void;
+  onresult:
+    | ((
+        event: {
+          resultIndex: number;
+          results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }>;
+        },
+      ) => void)
+    | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+}
+
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
+
+/** Chrome/Edge expose it under a prefixed name; Firefox does not ship it. */
+function getSpeechRecognitionCtor(): SpeechRecognitionCtor | null {
+  if (typeof window === 'undefined') return null;
+  const w = window as unknown as Record<string, unknown>;
+  const ctor = (w.SpeechRecognition ?? w.webkitSpeechRecognition) as
+    | SpeechRecognitionCtor
+    | undefined;
+  return ctor ?? null;
+}
+
+/**
  * AUTO-APPLY, and why it is on by default.
  *
  * Ambient capture exists to remove typing, and typing was what the doctor did
@@ -104,6 +146,14 @@ export function CopilotDrawer({
   const [autoApply, setAutoApply] = useState<boolean>(true);
   /** Open section-menu of the targeted `[ 📋 Push to Session Field ]` inserter. */
   const [pushMenuOpen, setPushMenuOpen] = useState<boolean>(false);
+  /**
+   * Dictation on the command bar. `speechSupported` resolves in an effect so
+   * server and first client render agree (no hydration mismatch), settling
+   * before interaction — the button simply does not exist where unsupported.
+   */
+  const [speechSupported, setSpeechSupported] = useState<boolean>(false);
+  const [isDictating, setIsDictating] = useState<boolean>(false);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const headerLabel = contextLabel ?? (mode === "general" ? "Ambient Copilot" : COPILOT_MODE_LABELS[mode]);
   const formNoun =
@@ -270,6 +320,70 @@ export function CopilotDrawer({
     },
     [isProcessingCommand, mode, liveFormState, extractedData, setExtractedData, workspaceContext, clinicalContext, autoApply, applyOnce]
   );
+
+  // Browser support can only be checked on the client; settle it post-hydration.
+  useEffect(() => {
+    setSpeechSupported(getSpeechRecognitionCtor() !== null);
+  }, []);
+
+  /**
+   * Toggle command-bar dictation. Final utterances append into the input so a
+   * dictated command can still be edited before sending; starting a new
+   * session stops any live one. `onend`/`onerror` clear the ref so the toggle
+   * reflects what the engine actually did, not what we asked it to do.
+   */
+  const toggleDictation = useCallback(() => {
+    const Ctor = getSpeechRecognitionCtor();
+    if (!Ctor) return;
+    if (recognitionRef.current || isDictating) {
+      recognitionRef.current?.stop();
+      recognitionRef.current = null;
+      setIsDictating(false);
+      return;
+    }
+    const recognition = new Ctor();
+    recognition.lang = 'en-US';
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.onresult = (event) => {
+      let addition = '';
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        if (event.results[i].isFinal) addition += event.results[i][0].transcript;
+      }
+      const text = addition.trim();
+      if (text) setCommandInput((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text));
+    };
+    recognition.onerror = () => {
+      recognitionRef.current = null;
+      setIsDictating(false);
+    };
+    recognition.onend = () => {
+      recognitionRef.current = null;
+      setIsDictating(false);
+    };
+    recognitionRef.current = recognition;
+    setIsDictating(true);
+    try {
+      recognition.start();
+    } catch {
+      // Already-started engines throw synchronously; treat as a no-op toggle.
+      recognitionRef.current = null;
+      setIsDictating(false);
+    }
+  }, [isDictating]);
+
+  // Closing or unmounting the drawer must not leak a live recognition session.
+  useEffect(() => {
+    if (!isOpen) {
+      recognitionRef.current?.stop();
+      recognitionRef.current = null;
+      setIsDictating(false);
+    }
+    return () => {
+      recognitionRef.current?.stop();
+      recognitionRef.current = null;
+    };
+  }, [isOpen]);
 
   const handleCommandSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -721,9 +835,22 @@ export function CopilotDrawer({
                       ? "Command Copilot (e.g., 'Change dosage to 7 days')..."
                       : "Describe the prescription (e.g., 'Fever 3 days, paracetamol 500 TDS 5 days')..."
               }
-              className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-9 text-xs text-slate-800 placeholder-slate-400 shadow-sm focus:border-brand-sage focus:outline-none focus:ring-2 focus:ring-brand-pale disabled:opacity-60"
+              className={`w-full rounded-lg border border-slate-300 bg-white py-2 text-xs text-slate-800 placeholder-slate-400 shadow-sm focus:border-brand-sage focus:outline-none focus:ring-2 focus:ring-brand-pale disabled:opacity-60 ${speechSupported ? 'pl-3 pr-[4.75rem]' : 'pl-3 pr-9'}`}
               disabled={isProcessingCommand}
             />
+            {/* 🎙 Command dictation — browser-native, zero server cost. Records
+                into the input so the dictated command is still editable. */}
+            {speechSupported && (
+              <button
+                type="button"
+                onClick={toggleDictation}
+                title={isDictating ? 'Stop dictation' : 'Dictate command (voice to text)'}
+                aria-label={isDictating ? 'Stop dictation' : 'Dictate command (voice to text)'}
+                className={`absolute right-8 top-2.5 transition ${isDictating ? 'animate-pulse text-red-500' : 'text-slate-400 hover:text-brand-cta'}`}
+              >
+                {isDictating ? <Square className="size-3.5" /> : <Mic className="size-3.5" />}
+              </button>
+            )}
             <button
               type="submit"
               disabled={isProcessingCommand || !commandInput.trim()}
