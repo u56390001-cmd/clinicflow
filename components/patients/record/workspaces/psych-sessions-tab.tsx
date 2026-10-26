@@ -28,7 +28,7 @@ import {
   assistPsychSessionAction,
   deletePsychSessionAction,
   generatePsychSessionNoteAction,
-  getCurrentClinicianNameAction,
+  getCurrentClinicianInfoAction,
   savePsychSessionAction,
 } from "@/lib/actions/specialty-workspaces";
 import type { AmbientRecorder } from "@/lib/copilot/hooks/useAmbientRecorder";
@@ -147,6 +147,8 @@ export function SessionsTab({
   const [draft, setDraft] = useState<Partial<Record<SessionSectionKey, string>>>({});
   const [sessionDate, setSessionDate] = useState("");
   const [sessionType, setSessionType] = useState<SessionType>("individual");
+  /** Session length in minutes (30/45/50/60/90) — the select writes, the payload reads. */
+  const [sessionDuration, setSessionDuration] = useState(45);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [doctorName, setDoctorName] = useState("");
   const [busy, setBusy] = useState<"saving" | "generating" | "approving" | null>(null);
@@ -157,8 +159,8 @@ export function SessionsTab({
   const [safety, setSafety] = useState<SafetyKey>(null);
 
   useEffect(() => {
-    void getCurrentClinicianNameAction().then((result) => {
-      if (result.ok) setDoctorName(result.data);
+    void getCurrentClinicianInfoAction().then((result) => {
+      if (result.ok) setDoctorName(result.data.name);
     });
   }, []);
 
@@ -191,11 +193,15 @@ export function SessionsTab({
           format?: SessionNoteFormat;
           sessionDate?: string;
           sessionType?: SessionType;
+          sessionDuration?: number;
           draft?: Partial<Record<SessionSectionKey, string>>;
         };
         if (saved.format) setFormat(saved.format);
         if (saved.sessionDate) setSessionDate(saved.sessionDate);
         if (saved.sessionType && saved.sessionType in SESSION_TYPE_META) setSessionType(saved.sessionType);
+        if (typeof saved.sessionDuration === "number" && saved.sessionDuration > 0) {
+          setSessionDuration(saved.sessionDuration);
+        }
         if (saved.draft && Object.keys(saved.draft).length > 0) setDraft(saved.draft);
       }
     } catch {
@@ -210,14 +216,14 @@ export function SessionsTab({
       try {
         window.localStorage.setItem(
           draftKey,
-          JSON.stringify({ format, sessionDate, sessionType, draft }),
+          JSON.stringify({ format, sessionDate, sessionType, sessionDuration, draft }),
         );
       } catch {
         // Quota errors are non-fatal — autosave is a convenience.
       }
     }, 1000);
     return () => window.clearTimeout(timer);
-  }, [draft, format, sessionDate, sessionType, draftKey]);
+  }, [draft, format, sessionDate, sessionType, sessionDuration, draftKey]);
 
   // The print surface mounts, then window.print() fires after it paints.
   useEffect(() => {
@@ -276,7 +282,10 @@ export function SessionsTab({
       assessment: draft.assessment?.trim(),
       plan: draft.plan?.trim(),
       transcript: ambient.transcript.trim().slice(0, 20000),
-      duration_seconds: recordingSeconds(ambient.recordingTime),
+      duration_seconds:
+        recordingSeconds(ambient.recordingTime) ?? sessionDuration * 60,
+      doctor_id: activeId ? (psych.sessions.find((s) => s.id === activeId)?.doctor_id ?? null) : null,
+      doctor_name: doctorName,
     };
   }
 
@@ -361,6 +370,7 @@ export function SessionsTab({
     setDraft({});
     setSessionDate("");
     setSessionType("individual");
+    setSessionDuration(45);
     setSafety(null);
     setSeedBanner(null);
     try {
@@ -378,6 +388,9 @@ export function SessionsTab({
     setFormat(session.format);
     setSessionType(session.session_type);
     setSessionDate(session.session_date);
+    if (session.duration_seconds != null) {
+      setSessionDuration(Math.max(1, Math.round(session.duration_seconds / 60)));
+    }
     setDraft(sessionToDraftFields(session));
     editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -417,68 +430,63 @@ export function SessionsTab({
           }
         >
           <div ref={editorRef} className="scroll-mt-6 space-y-4">
-            {/* Header: who, when, what kind of session, and the note format. */}
-            <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="min-w-0">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-text-muted">Patient</p>
-                <p className="mt-0.5 text-sm text-text-primary">{patient.name}</p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-text-muted">Therapist</p>
-                <p className="mt-0.5 text-sm text-text-primary">{doctorName || "—"}</p>
-              </div>
-              <label className="flex min-w-0 flex-col gap-1">
-                <span className="text-[10px] font-medium uppercase tracking-wide text-text-muted">Date</span>
+            {/* Compact one-line control bar: date, session type, duration, note format.
+                Patient and therapist identity live in the global workspace header. */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-control border border-text-muted/20 bg-surface px-3 py-2 text-[12.5px]">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">Date</span>
                 <input
                   type="date"
                   value={sessionDate}
                   max={new Date().toISOString().slice(0, 10)}
                   onChange={(event) => setSessionDate(event.target.value)}
-                  className="rounded-control border border-text-muted/25 bg-surface px-2 py-1.5 text-[12.5px] text-text-primary outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
+                  className="min-w-[110px] rounded border border-text-muted/20 bg-surface px-2 py-0.5 text-[12.5px] text-text-primary outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/15"
                 />
-              </label>
-              <label className="flex min-w-0 flex-col gap-1">
-                <span className="text-[10px] font-medium uppercase tracking-wide text-text-muted">Session type</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">Session type</span>
                 <select
                   value={sessionType}
                   onChange={(event) => setSessionType(event.target.value as SessionType)}
-                  className="rounded-control border border-text-muted/25 bg-surface px-2 py-1.5 text-[12.5px] text-text-primary outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
+                  className="min-w-[130px] rounded border border-text-muted/20 bg-surface px-2 py-0.5 text-[12.5px] text-text-primary outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/15"
                 >
                   {(Object.keys(SESSION_TYPE_META) as SessionType[]).map((key) => (
-                    <option key={key} value={key}>
-                      {SESSION_TYPE_META[key]}
-                    </option>
+                    <option key={key} value={key}>{SESSION_TYPE_META[key]}</option>
                   ))}
                 </select>
-              </label>
-            </div>
-
-            {/* Format selector drives the AI generation, not the stored sections. */}
-            <div>
-              <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-text-muted">
-                Note format
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center rounded-control border border-hairline bg-app p-0.5">
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">Duration</span>
+                <select
+                  value={sessionDuration}
+                  onChange={(event) => setSessionDuration(Number(event.target.value))}
+                  className="min-w-[70px] rounded border border-text-muted/20 bg-surface px-2 py-0.5 text-[12.5px] text-text-primary outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/15"
+                >
+                  {[30, 45, 50, 60, 90].map((m) => (
+                    <option key={m} value={m}>{m}m</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">Note format</span>
+                <div className="flex items-center rounded border border-text-muted/20 bg-surface p-0.5">
                   {(["BIRP", "SOAP", "DAP"] as SessionNoteFormat[]).map((kind) => (
                     <button
                       key={kind}
                       type="button"
                       onClick={() => setFormat(kind)}
                       aria-pressed={format === kind}
-                      className={cn(
-                        "rounded-control px-3 py-1 text-[12px] font-semibold transition-colors",
-                        format === kind
-                          ? "bg-white text-primary shadow-sm"
-                          : "text-text-secondary hover:text-primary",
-                      )}
+                      className="rounded px-2.5 py-0.5 text-[12px] font-semibold transition-colors"
                     >
                       {kind}
                     </button>
                   ))}
                 </div>
-                <span className="text-[11.5px] text-ink-faint">{NOTE_FORMAT_META[format]}</span>
               </div>
+            </div>
+
+            <div>
+              <span className="text-[11.5px] text-ink-faint">{NOTE_FORMAT_META[format]}</span>
             </div>
 
             {/* 1-Copilot handoff banner. */}
@@ -731,6 +739,28 @@ export function SessionsTab({
 }
 
 /* ------------------------------------------------------------------------- */
+/* Clinical focus extractor                                                  */
+/* ------------------------------------------------------------------------- */
+
+/** Extracts a short clinical focus line from the note body for the print surface. */
+function clinicalFocusFor(session: PsychSession): string | null {
+  const first = sessionSectionEntries(session).find(
+    ({ value }) => value.length > 60,
+  );
+  if (!first) return null;
+  const text = first.value.replace(/Safety assessment:[^\n]*\n?/m, "").trim();
+  const sentence = text.split(/[.!?]/, 1)[0].trim();
+  return sentence.length > 5 ? sentence : null;
+}
+
+/** Returns the safety stamp line if stamped into the assessment. */
+function safetyStatusFrom(session: PsychSession): string | null {
+  const assessment = session.assessment ?? "";
+  const m = assessment.match(/^Safety assessment:([^\n]+)/m);
+  return m ? m[1].trim() : null;
+}
+
+/* ------------------------------------------------------------------------- */
 /* History row                                                               */
 /* ------------------------------------------------------------------------- */
 
@@ -883,6 +913,11 @@ function SessionNotePrint({
   patient: PatientDirectoryRow;
 }) {
   const entries = sessionSectionEntries(session);
+  const focus = clinicalFocusFor(session);
+  const safety = safetyStatusFrom(session);
+  const clinician = session.doctor_name || "Clinician";
+  const approvedBy = session.approved_by || clinician;
+  const approvedAt = session.approved_at ? formatPrintDate(session.approved_at.slice(0, 10)) : null;
 
   return (
     <div className="session-print-preview hidden" id="session-print-area">
@@ -905,60 +940,114 @@ function SessionNotePrint({
         }
       `}</style>
 
-      <div className="mb-6 flex items-start justify-between gap-4 border-b-2 border-text-primary pb-4">
-        <div className="min-w-0 flex-1 text-center">
-          <h1 className="text-xl font-bold text-text-primary">Psychology Session Note</h1>
-          <h2 className="mt-1 text-sm font-medium text-text-secondary">
-            {session.session_date} · {SESSION_TYPE_META[session.session_type]} · {session.format}
-          </h2>
+      {/* Clinic header + title */}
+      <div className="mb-6 border-b-2 border-text-primary pb-4">
+        <div className="flex items-center justify-between">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg font-bold uppercase tracking-widest text-text-primary">
+              Psychology Session Note
+            </h1>
+            <p className="mt-0.5 text-xs font-medium uppercase tracking-wider text-text-muted">
+              Encounter record
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted">Format</p>
+            <p className="text-sm font-semibold text-text-primary">{session.format}</p>
+            <p className="mt-1 text-[11px] font-bold uppercase tracking-wider text-text-muted">Date</p>
+            <p className="text-sm font-semibold text-text-primary">{formatPrintDate(session.session_date)}</p>
+          </div>
         </div>
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-4 text-sm">
+      {/* Encounter details */}
+      <div className="mb-5 grid grid-cols-4 gap-4 text-sm">
         <div>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Patient</span>
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-text-muted">Patient</span>
           <p className="font-medium text-text-primary">{patient.name}</p>
         </div>
-        {patient.patient_code && (
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">UHID</span>
-            <p className="font-mono font-medium text-text-primary">{patient.patient_code}</p>
-          </div>
-        )}
-        {session.doctor_name && (
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Therapist</span>
-            <p className="font-medium text-text-primary">{session.doctor_name}</p>
-          </div>
-        )}
-        {session.duration_seconds != null && (
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Recording</span>
-            <p className="font-medium text-text-primary">
-              {Math.round(session.duration_seconds / 60)} minutes
-            </p>
-          </div>
+        <div>
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-text-muted">UHID</span>
+          <p className="font-mono font-medium text-text-primary">{patient.patient_code || "—"}</p>
+        </div>
+        <div>
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-text-muted">Therapist</span>
+          <p className="font-medium text-text-primary">{clinician}</p>
+        </div>
+        <div>
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-text-muted">Status</span>
+          <p className="font-medium text-text-primary capitalize">{session.status}</p>
+        </div>
+        <div>
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-text-muted">Session type</span>
+          <p className="font-medium text-text-primary">{SESSION_TYPE_META[session.session_type]}</p>
+        </div>
+        <div>
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-text-muted">Duration</span>
+          <p className="font-medium text-text-primary">
+            {session.duration_seconds != null
+              ? `${Math.round(session.duration_seconds / 60)} minutes`
+              : "—"}
+          </p>
+        </div>
+        {approvedAt && (
+          <>
+            <div>
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-text-muted">Approved date</span>
+              <p className="font-medium text-text-primary">{approvedAt}</p>
+            </div>
+            <div>
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-text-muted">Approved by</span>
+              <p className="font-medium text-text-primary">{approvedBy}</p>
+            </div>
+          </>
         )}
       </div>
 
-      {entries.map(({ key, label, value }) => (
-        <div key={key} className="mb-4">
-          <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-text-muted">{label}</h3>
-          <p className="whitespace-pre-wrap text-sm text-text-primary">{value}</p>
-        </div>
-      ))}
-
-      <div className="mt-12 flex justify-end">
-        <div className="text-center">
-          <div className="mb-1 h-px w-40 bg-text-primary" />
-          <p className="text-sm font-medium text-text-primary">
-            {session.approved_by || session.doctor_name || "Clinician"}
-          </p>
-          {session.approved_at && (
-            <p className="text-xs text-text-secondary">
-              Approved {formatPrintDate(session.approved_at.slice(0, 10))}
-            </p>
+      {/* Primary diagnosis / clinical focus + safety */}
+      {(focus || safety) && (
+        <div className="mb-5 rounded-control border border-text-muted/20 bg-surface p-3.5">
+          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-text-muted">Clinical focus</p>
+          <p className="text-sm text-text-primary">{focus || "—"}</p>
+          {safety && (
+            <>
+              <p className="mt-3 mb-1.5 text-[10px] font-bold uppercase tracking-wider text-text-muted">Safety risk assessment</p>
+              <p className="text-sm font-semibold text-text-primary">{safety}</p>
+            </>
           )}
+        </div>
+      )}
+
+      {/* Clinical body */}
+      <div className="space-y-4">
+        {entries.length > 0 ? (
+          entries.map(({ key, label, value }) => (
+            <div key={key} className="break-inside-avoid">
+              <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-text-muted">{label}</h3>
+              <p className="whitespace-pre-wrap text-sm text-text-primary">{value}</p>
+            </div>
+          ))
+        ) : (
+          <p className="text-ink-faint text-sm italic">No fields recorded.</p>
+        )}
+      </div>
+
+      {/* Footer / signature stamp */}
+      <div className="mt-12 border-t border-hairline pt-6">
+        <div className="flex items-end justify-between gap-8">
+          <div className="text-center">
+            <div className="mb-2 h-px w-48 bg-text-primary" />
+            <p className="text-sm font-semibold text-text-primary">
+              {`Approved by ${approvedBy}`}
+            </p>
+            <p className="text-[11px] text-text-secondary">Therapist signature</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted">License / credential</p>
+            <p className="text-xs text-text-secondary">____________________</p>
+            <p className="mt-3 text-[11px] font-bold uppercase tracking-wider text-text-muted">Record issued</p>
+            <p className="text-xs text-text-primary">{new Date().toISOString().slice(0, 10)}</p>
+          </div>
         </div>
       </div>
     </div>

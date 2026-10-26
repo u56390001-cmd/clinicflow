@@ -150,6 +150,15 @@ const savePsychSessionSchema = z.object({
   session_summary: note,
   transcript: longNote,
   duration_seconds: duration,
+  /** Therapist identity attached in the background (never keyed in the form). */
+  doctor_id: optionalUuid,
+  doctor_name: z
+    .string()
+    .trim()
+    .max(120, "Name is too long.")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
 });
 
 const approveSessionSchema = z.object({ id: z.string().uuid() });
@@ -450,20 +459,64 @@ async function guard(): Promise<Guard> {
   return { ok: true, supabase, clinicId: access.clinic.id };
 }
 
-/** Snapshots the signed-in user's display name for the update stamp. */
+/**
+ * Clean display name for the signed-in clinician, resolved by priority:
+ *   1. `profiles.full_name` (dedicated clinician profile, if present)
+ *   2. `doctors.name` (roster name linked via user_id)
+ *   3. `user.user_metadata.full_name` / `user.user_metadata.name`
+ *   4. A friendly formatting of the username when only an email exists
+ *      (e.g. "medbookai@admin.com" -> "Dr. MedBook Ai").
+ *
+ * Raw email addresses never surface into clinical records or printed notes.
+ */
 async function authorName(
   supabase: Awaited<ReturnType<typeof createClient>>,
+  clinicId: string,
 ): Promise<string | null> {
-  const { data } = await supabase.auth.getUser();
-  const user = data.user;
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
-  const meta = user.user_metadata;
-  return (
-    (typeof meta?.name === "string" && meta.name) ||
+
+  const meta = user.user_metadata ?? {};
+  const metaName =
     (typeof meta?.full_name === "string" && meta.full_name) ||
-    user.email ||
-    null
-  );
+    (typeof meta?.name === "string" && meta.name);
+
+  // 1. Dedicated clinician profile (profiles table, may not exist in every
+  //    deployment — a failed or absent lookup falls through silently).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- profiles is not in the generated schema types
+  const { data: profile } = await (supabase as any)
+    .from("profiles")
+    .select("full_name")
+    .eq("user_id", user.id)
+    .eq("clinic_id", clinicId)
+    .maybeSingle();
+  if (typeof profile?.full_name === "string" && profile.full_name.trim()) {
+    return profile.full_name.trim();
+  }
+
+  // 2. Roster name on the linked doctor record.
+  const { data: doctor } = await supabase
+    .from("doctors")
+    .select("name")
+    .eq("clinic_id", clinicId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (typeof doctor?.name === "string" && doctor.name.trim()) {
+    return doctor.name.trim();
+  }
+
+  // 3. Auth metadata name.
+  if (metaName) return metaName.trim();
+
+  // 4. Friendly username-only formatting — never expose the raw email domain.
+  const email = user.email ?? "";
+  const prefix = email.split("@")[0].replace(/[^a-zA-Z0-9]/g, " ");
+  const formatted = prefix
+    .split(" ")
+    .filter(Boolean)
+    .map((word, i) => (i === 0 ? "Dr. " : "") + word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+  return formatted || "Clinician";
 }
 
 /** The logged-in user's doctor id, so event rows can point at the clinician. */
@@ -531,7 +584,7 @@ export async function savePsychSafetyAction(
   const g = await guard();
   if (!g.ok) return g.result;
 
-  const me = await authorName(g.supabase);
+  const me = await authorName(g.supabase, g.clinicId);
   const { error } = await g.supabase.from("psych_safety").upsert(
     {
       clinic_id: g.clinicId,
@@ -586,7 +639,7 @@ export async function savePsychIntakeAction(
   >;
   const provenance = readIntakeProvenance(existing?.field_provenance);
 
-  const me = await authorName(g.supabase);
+  const me = await authorName(g.supabase, g.clinicId);
   const payload: Record<string, unknown> = {
     clinic_id: g.clinicId,
     patient_id: patientId,
@@ -1087,7 +1140,7 @@ export async function approvePsychIntakeSuggestionAction(
     .maybeSingle();
   if (intakeError) return { ok: false, message: intakeError.message };
 
-  const me = await authorName(g.supabase);
+  const me = await authorName(g.supabase, g.clinicId);
   const base = (currentIntake as Record<string, string | null> | null) ?? {};
   const mergedValue = mergeIntakeValue(
     field,
@@ -1199,7 +1252,7 @@ export async function approveAllPsychIntakeSuggestionsAction(
     );
   }
 
-  const me = await authorName(g.supabase);
+  const me = await authorName(g.supabase, g.clinicId);
   const { error: saveError } = await g.supabase.from("psych_intake").upsert(
     {
       clinic_id: g.clinicId,
@@ -1252,7 +1305,7 @@ export async function rejectPsychIntakeSuggestionAction(
   const g = await guard();
   if (!g.ok) return g.result;
 
-  const me = await authorName(g.supabase);
+  const me = await authorName(g.supabase, g.clinicId);
   const { error } = await g.supabase
     .from("psych_intake_suggestions")
     .update({
@@ -1311,7 +1364,7 @@ export async function savePsychMseFindingsAction(
   if (!g.ok) return g.result;
 
   const findings = readMseFindings(parsed.data.findings);
-  const me = await authorName(g.supabase);
+  const me = await authorName(g.supabase, g.clinicId);
   const { error } = await g.supabase.from("psych_mse").upsert(
     {
       clinic_id: g.clinicId,
@@ -1340,7 +1393,7 @@ export async function savePsychMseSummaryAction(
   const g = await guard();
   if (!g.ok) return g.result;
 
-  const me = await authorName(g.supabase);
+  const me = await authorName(g.supabase, g.clinicId);
   const { error } = await g.supabase.from("psych_mse").upsert(
     {
       clinic_id: g.clinicId,
@@ -1450,7 +1503,7 @@ export async function savePsychCarePlanAction(
   const g = await guard();
   if (!g.ok) return g.result;
 
-  const me = await authorName(g.supabase);
+  const me = await authorName(g.supabase, g.clinicId);
   const { error } = await g.supabase.from("psych_care_plans").upsert(
     {
       clinic_id: g.clinicId,
@@ -1480,8 +1533,8 @@ export async function savePsychSessionAction(
   if (!g.ok) return g.result;
 
   const data = parsed.data;
-  const me = await authorName(g.supabase);
-  const doctor = await doctorId(g.supabase, g.clinicId);
+  const me = await authorName(g.supabase, g.clinicId);
+  const doctor = data.doctor_id || (await doctorId(g.supabase, g.clinicId));
   const sessionDate =
     data.session_date || new Date().toISOString().slice(0, 10);
 
@@ -1502,6 +1555,7 @@ export async function savePsychSessionAction(
     transcript: data.transcript || null,
     duration_seconds: data.duration_seconds ?? null,
     doctor_id: doctor,
+    // Clean display name only — a raw email from any client payload is ignored.
     doctor_name: me,
   };
 
@@ -1536,7 +1590,7 @@ export async function approvePsychSessionAction(
   const g = await guard();
   if (!g.ok) return g.result;
 
-  const me = await authorName(g.supabase);
+  const me = await authorName(g.supabase, g.clinicId);
   const { error } = await g.supabase
     .from("psych_sessions")
     .update({
@@ -1829,8 +1883,27 @@ export async function getCurrentClinicianNameAction(): Promise<
 > {
   const g = await guard();
   if (!g.ok) return g.result;
-  const name = await authorName(g.supabase);
+  const name = await authorName(g.supabase, g.clinicId);
   return { ok: true, data: name ?? "" };
+}
+
+/** Clinician identity resolved for session notes: display name + linked doctor_id. */
+export async function getCurrentClinicianInfoAction(): Promise<
+  ActionResult<{ name: string; doctorId: string | null }>
+> {
+  const g = await guard();
+  if (!g.ok) {
+    return {
+      ok: false,
+      message:
+        g.result.ok
+          ? "You must have a clinic to perform this action."
+          : g.result.message,
+    };
+  }
+  const name = await authorName(g.supabase, g.clinicId);
+  const doctor = await doctorId(g.supabase, g.clinicId);
+  return { ok: true, data: { name: name ?? "Clinician", doctorId: doctor } };
 }
 
 export async function deletePsychSessionAction(
@@ -1959,7 +2032,7 @@ export async function updateAssessmentReviewStatusAction(
     .eq("clinic_id", g.clinicId);
   if (error) return { ok: false, message: error.message };
 
-  const me = await authorName(g.supabase);
+  const me = await authorName(g.supabase, g.clinicId);
   const { error: eventError } = await g.supabase
     .from("assessment_safety_events")
     .insert({
@@ -2160,7 +2233,7 @@ export async function saveDermProfileAction(
   const g = await guard();
   if (!g.ok) return g.result;
 
-  const me = await authorName(g.supabase);
+  const me = await authorName(g.supabase, g.clinicId);
   // Only persist the fields the caller actually sent, so a single-field
   // autosave patches the snapshot instead of nulling every other column.
   const values: Record<string, unknown> = {};
