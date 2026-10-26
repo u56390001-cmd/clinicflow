@@ -31,7 +31,7 @@ UPDATE public.psych_care_plans p
                     )
                     ORDER BY t.ord
                   )
-             FROM regexp_split_to_array(p.therapy_goals, E'\r?\n')
+             FROM unnest(regexp_split_to_array(p.therapy_goals, E'\r?\n'))
                   WITH ORDINALITY AS t(line, ord)
             WHERE btrim(t.line) <> ''
          ),
