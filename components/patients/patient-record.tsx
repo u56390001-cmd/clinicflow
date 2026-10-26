@@ -20,6 +20,7 @@ import { VitalsTab } from "@/components/patients/record/vitals-tab";
 import { DermWorkspace } from "@/components/patients/record/workspaces/derm-workspace";
 import { PsychWorkspace } from "@/components/patients/record/workspaces/psych-workspace";
 import type { TelehealthPatientContext } from "@/components/telehealth/telehealth-context";
+import { ACTIVE_SAFETY_REVIEW_STATUSES } from "@/lib/scoring/labels";
 import { Button } from "@/components/ui/button";
 import {
   patientDirectoryHref,
@@ -66,6 +67,28 @@ function firstListToken(value?: string | null): string | null {
   const first = value.split(",")[0]?.trim();
   if (!first) return null;
   return first.length > 28 ? `${first.slice(0, 27)}…` : first;
+}
+
+/** SI/HI assertion detection — a security statement must never be truncated. */
+const SAFETY_TOKEN = /\bsi\b|\bhi\b|si\/hi|suicid|self[-\s]?harm|ideation|denies\b/i;
+
+/**
+ * The header's concern capsule is safety-critical, so it searches the list for
+ * a token that reads like an SI/HI assertion ("Denies SI/HI", "Suicidal
+ * ideation, passive") and shows THAT one in full; a truncation there could
+ * literally invert the meaning (" denies…" cut to nothing). No SI/HI token →
+ * the generic first-token fallback with the usual capping.
+ */
+function safetyConcernLabel(value?: string | null): string | null {
+  if (!value) return null;
+  const tokens = value
+    .split(/[,;\n]/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+  const safety = tokens.find((token) => SAFETY_TOKEN.test(token));
+  if (safety) return safety;
+  const first = tokens[0];
+  return first ? (first.length > 28 ? `${first.slice(0, 27)}…` : first) : null;
 }
 
 /**
@@ -201,12 +224,87 @@ export function PatientRecord({
     [router, params, workspace.writeTab],
   );
 
+  /**
+   * The psychiatrist's secondary header action: their primary CTA opens the Rx
+   * surface, so the BIRP/DAP note writer must stay one click away too.
+   */
+  const openSessionNoteTab = useCallback(
+    () => router.push(patientDirectoryHref({ ...params, tab: "psy_sessions" })),
+    [router, params],
+  );
+
   // The workspace works on today's live visit, so it needs that visit's own
   // vitals, prescription and doctor — all of which the record read already has.
   const activeVisitId = activeVisitInfo.activeVisit?.id ?? null;
   const activeVisitRow = activeVisitId
     ? (record.visits.find((visit) => visit.id === activeVisitId) ?? null)
     : null;
+
+  /**
+   * Header psychometrics: up to three most-recent instruments, one badge each
+   * ("PHQ-9: 14", "DASS-21: Severe"). Score wins over severity; a measure
+   * recorded twice shows only its latest administration.
+   */
+  const psychScoreBadges: string[] = (() => {
+    const badges: string[] = [];
+    const seen = new Set<string>();
+    for (const assessment of record.psych.assessments) {
+      const code =
+        assessment.instrument_code ?? assessment.assessment_type ?? "";
+      if (!code || seen.has(code)) continue;
+      const value =
+        assessment.score !== null ? String(assessment.score) : assessment.severity;
+      if (!value) continue;
+      seen.add(code);
+      badges.push(`${code}: ${value}`);
+      if (badges.length >= 3) break;
+    }
+    return badges;
+  })();
+
+  /**
+   * 🚨 Sticky red alert gate: the provider-recorded risk state is high/crisis,
+   * OR any scored assessment still carries an un-triaged safety flag (the
+   * Item-9 interceptor). Both live in data the header already owns.
+   */
+  const psychCriticalSafety =
+    record.psych.safety?.risk_level === "high" ||
+    record.psych.safety?.risk_level === "crisis" ||
+    record.psych.assessments.some(
+      (assessment) =>
+        assessment.safety_flag_raised &&
+        ACTIVE_SAFETY_REVIEW_STATUSES.includes(assessment.review_status),
+    );
+
+  /** The Prescriptions node is shared: the general workspace renders it as its
+   *  "medications" tab, and a psychiatrist's psychology workspace does too. */
+  const prescriptionsNode = (
+    <PrescriptionsTab
+      clinicId={clinicId}
+      clinic={clinic}
+      patient={patient}
+      prescriptions={record.prescriptions}
+      medications={record.medications}
+      documents={documents}
+      labResults={record.labResults}
+      timezone={timezone}
+      canManage={canManage}
+      params={params}
+      activeVisit={activeVisitInfo.activeVisit}
+      visitVitals={activeVisitRow?.vitals ?? null}
+      visitPrescription={activeVisitRow?.prescription ?? null}
+      visitDoctor={
+        activeVisitRow
+          ? {
+              id: activeVisitRow.doctor_id,
+              name: activeVisitRow.doctorName,
+              specialty: activeVisitRow.doctorSpecialty,
+            }
+          : null
+      }
+      preAnswers={preAnswers}
+    />
+  );
 
   /**
    * The telehealth workspace shows the patient's own facts beside the video, so
@@ -348,6 +446,12 @@ export function PatientRecord({
             onMergeDuplicate={onMergeDuplicate}
             onWritePrescription={openPrescriptionWorkspace}
             writePrescriptionLabel={workspace.writeTabLabel}
+            onWriteSessionNote={
+              workspace.kind === "psychology" && workspace.prescriber
+                ? openSessionNoteTab
+                : undefined
+            }
+            writeSessionNoteLabel={workspace.prescriber ? "Write Session Note" : undefined}
             telehealthContext={telehealthContext}
             activeVisitId={activeVisitId}
             onCompleteAndNext={(nextPatientId) =>
@@ -359,13 +463,15 @@ export function PatientRecord({
               workspace.kind === "psychology"
                 ? {
                     riskLevel: record.psych.safety?.risk_level ?? null,
-                    concern: firstListToken(
+                    concern: safetyConcernLabel(
                       record.psych.safety?.current_concerns,
                     ),
                     diagnosis: firstListToken(
                       record.psych.intake?.previous_diagnosis,
                     ),
                     lastSession: record.psych.sessions[0]?.session_date ?? null,
+                    scores: psychScoreBadges,
+                    criticalSafety: psychCriticalSafety,
                   }
                 : null
             }
@@ -428,33 +534,7 @@ export function PatientRecord({
                   />
                 )}
 
-                {generalTab === "medications" && (
-                  <PrescriptionsTab
-                    clinicId={clinicId}
-                    clinic={clinic}
-                    patient={patient}
-                    prescriptions={record.prescriptions}
-                    medications={record.medications}
-                    documents={documents}
-                    labResults={record.labResults}
-                    timezone={timezone}
-                    canManage={canManage}
-                    params={params}
-                    activeVisit={activeVisitInfo.activeVisit}
-                    visitVitals={activeVisitRow?.vitals ?? null}
-                    visitPrescription={activeVisitRow?.prescription ?? null}
-                    visitDoctor={
-                      activeVisitRow
-                        ? {
-                            id: activeVisitRow.doctor_id,
-                            name: activeVisitRow.doctorName,
-                            specialty: activeVisitRow.doctorSpecialty,
-                          }
-                        : null
-                    }
-                    preAnswers={preAnswers}
-                  />
-                )}
+                {generalTab === "medications" && prescriptionsNode}
 
                 {generalTab === "appointments" && (
                   <AppointmentsTab
@@ -481,7 +561,12 @@ export function PatientRecord({
                 )}
               </>
             ) : workspace.kind === "psychology" ? (
-              <PsychWorkspace
+              workspace.prescriber && activeTab === "medications" ? (
+                /** Psychiatrist: the Rx surface rides under their tabs like the
+                    general Prescriptions tab does under the general ones. */
+                prescriptionsNode
+              ) : (
+                <PsychWorkspace
                 patient={patient}
                 psych={record.psych}
                 documents={documents}
@@ -510,7 +595,8 @@ export function PatientRecord({
                   tab: "psy_care_plan",
                 })}
                 clinicName={clinic.name}
-              />
+                />
+              )
             ) : (
               <DermWorkspace
                 patient={patient}

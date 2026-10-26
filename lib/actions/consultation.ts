@@ -152,11 +152,12 @@ export async function completeAndAdvanceAction(
   // Why the visit is not completable yet, decided before touching the queue.
   // `closed` stays unstarted on purpose: starting a completed visit would put
   // the doctor back into consultation and hand them the next patient for a
-  // visit they already signed off.
+  // visit they already signed off. `started_at` + `patient_id` + `doctor_id`
+  // ride along for the psych session-duration auto-sync after completion.
   const OPEN_STATUSES = ["waiting", "checked_in"] as const;
   const { data: visitRow, error: visitError } = await supabase
     .from("visits")
-    .select("id, status")
+    .select("id, status, consultation_started_at, patient_id, doctor_id")
     .eq("clinic_id", access.clinic.id)
     .eq("id", parsed.data.visitId)
     .maybeSingle();
@@ -218,6 +219,51 @@ export async function completeAndAdvanceAction(
     .eq("clinic_id", access.clinic.id)
     .eq("visit_id", parsed.data.visitId)
     .eq("status", "draft");
+
+  /**
+   * ⏱ Session duration auto-sync (psychology): complete the visit and the
+   * elapsed wall-clock since `started_at` lands on today's psych session for
+   * this patient+doctor, so the note's duration stops being hand-guessed. If
+   * the visit was started by THIS action (needsStarting), the start is now.
+   * Best-effort and tightly scoped — a wrong-day or wrong-doctor read simply
+   * matches zero rows and nothing is written.
+   */
+  const visitPatientId = visitRow.patient_id;
+  const visitDoctorId = visitRow.doctor_id;
+  if (visitPatientId && visitDoctorId) {
+    const startedAt =
+      needsStarting || !visitRow.consultation_started_at
+        ? new Date().toISOString()
+        : visitRow.consultation_started_at;
+    const startedMs = new Date(startedAt).getTime();
+    if (!Number.isNaN(startedMs)) {
+      const elapsedSeconds = Math.min(
+        Math.max(60, Math.round((Date.now() - startedMs) / 1000)),
+        12 * 60 * 60,
+      );
+      const today = new Date().toISOString().slice(0, 10);
+      const { data: sessionRow } = await supabase
+        .from("psych_sessions")
+        .select("id")
+        .eq("clinic_id", access.clinic.id)
+        .eq("patient_id", visitPatientId)
+        .eq("doctor_id", visitDoctorId)
+        .eq("status", "draft")
+        .eq("session_date", today)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (sessionRow) {
+        await supabase
+          .from("psych_sessions")
+          .update({
+            duration_seconds: elapsedSeconds,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", sessionRow.id);
+      }
+    }
+  }
 
   const {
     data: { user },

@@ -14,11 +14,14 @@ export async function POST(req: NextRequest) {
     const {
       currentFormState,
       command,
+      clinicalContext,
       workspaceKind,
       workspaceContext,
     }: {
       currentFormState?: unknown;
       command?: unknown;
+      /** Patient bundle from the workspace (intake, scores, plan, safety). */
+      clinicalContext?: unknown;
       workspaceKind?: unknown;
       workspaceContext?: unknown;
     } = await req.json();
@@ -42,9 +45,16 @@ export async function POST(req: NextRequest) {
       }, { status: 500 });
     }
 
+    // The clinical bundle rides on commands too ("Summarize Trajectory" and
+    // "CBT ideas" are meaningless without the scores and goals it references).
+    const contextBlock =
+      typeof clinicalContext === 'string' && clinicalContext.trim()
+        ? `\n\nCLINICAL HISTORY & CONTEXT:\n${clinicalContext.trim().slice(0, 6000)}`
+        : '';
+
     const raw = await getGeminiProvider().completeJson({
       systemInstruction: buildCopilotCommandPrompt(mode, context),
-      prompt: `CURRENT FORM STATE:\n${JSON.stringify(currentFormState, null, 2)}\n\nDOCTOR COMMAND:\n"${command}"\n\nReturn the complete updated note.`,
+      prompt: `CURRENT FORM STATE:\n${JSON.stringify(currentFormState, null, 2)}${contextBlock}\n\nDOCTOR COMMAND:\n"${command}"\n\nReturn the complete updated note.`,
       schema: responseSchemaFor(mode),
       temperature: 0.1,
       maxOutputTokens: 8192,

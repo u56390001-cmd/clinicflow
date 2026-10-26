@@ -14,11 +14,14 @@ export async function POST(req: NextRequest) {
     const {
       transcript,
       patientProfile,
+      clinicalContext,
       workspaceKind,
       workspaceContext,
     }: {
       transcript?: unknown;
       patientProfile?: { allergies?: string; current_meds?: string };
+      /** Patient bundle from the workspace (intake, scores, plan, safety). */
+      clinicalContext?: unknown;
       workspaceKind?: unknown;
       workspaceContext?: unknown;
     } = await req.json();
@@ -41,9 +44,19 @@ export async function POST(req: NextRequest) {
       }, { status: 500 });
     }
 
+    // Full clinical grounding: allergies/meds are the prescription-safety
+    // minimum; the workspace's bundle (intake, psychometrics, care plan,
+    // safety, past notes) lets the draft reference real baselines and goals
+    // instead of inventing history. Server-capped so a huge bundle can't blow
+    // the prompt budget.
+    const contextBlock =
+      typeof clinicalContext === 'string' && clinicalContext.trim()
+        ? `\n\nCLINICAL HISTORY & CONTEXT:\n${clinicalContext.trim().slice(0, 6000)}`
+        : '';
+
     const raw = await getGeminiProvider().completeJson({
       systemInstruction: buildCopilotSystemPrompt(mode, context),
-      prompt: `PATIENT CONTEXT:\nAllergies: ${patientProfile?.allergies || 'None'}\nCurrent Meds: ${patientProfile?.current_meds || 'None'}\n\nTRANSCRIPT:\n${transcript}`,
+      prompt: `PATIENT CONTEXT:\nAllergies: ${patientProfile?.allergies || 'None'}\nCurrent Meds: ${patientProfile?.current_meds || 'None'}${contextBlock}\n\nTRANSCRIPT:\n${transcript}`,
       schema: responseSchemaFor(mode),
       temperature: 0.1,
       maxOutputTokens: 8192,

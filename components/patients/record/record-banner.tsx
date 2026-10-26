@@ -7,6 +7,7 @@ import {
   CalendarDays,
   ClipboardList,
   GitMerge,
+  NotebookPen,
   PenLine,
   Phone,
   Play,
@@ -14,6 +15,7 @@ import {
   SquarePen,
   Stethoscope,
   Timer,
+  TrendingUp,
   User,
   Wallet,
 } from "lucide-react";
@@ -62,6 +64,17 @@ export type PsychHeaderContext = {
   concern?: string | null;
   diagnosis?: string | null;
   lastSession?: string | null;
+  /**
+   * Latest psychometrics, one string per instrument ("PHQ-9: 14"). Rendered as
+   * compact capsules beside the risk state so the baseline is always on screen.
+   */
+  scores?: string[];
+  /**
+   * 🚨 Sticky alert gate: provider risk is HIGH/CRISIS or an Item-9 safety flag
+   * is still un-triaged — renders the red "Item-9 Alert" badge in the status
+   * row, pulsing while the state is crisis.
+   */
+  criticalSafety?: boolean;
 };
 
 const PSYCH_RISK_TONE: Record<string, string> = {
@@ -163,6 +176,8 @@ export function RecordBanner({
   onMergeDuplicate,
   onWritePrescription,
   writePrescriptionLabel = "Write Prescription",
+  onWriteSessionNote,
+  writeSessionNoteLabel,
   onCompleteAndNext,
   psychContext,
   telehealthContext = null,
@@ -184,6 +199,13 @@ export function RecordBanner({
   onWritePrescription: () => void;
   /** Label for that CTA, scoped to the active workspace. */
   writePrescriptionLabel?: string;
+  /**
+   * Optional secondary writing action (a psychiatrist's psychology record:
+   * primary = Prescriptions, secondary = the BIRP/DAP note writer). Omitted
+   * everywhere else, where the single primary CTA is the whole hierarchy.
+   */
+  onWriteSessionNote?: () => void;
+  writeSessionNoteLabel?: string;
   onCompleteAndNext?: (nextPatientId: string) => void;
   /** Psychology-only context strip; omitted in the general and derm workspaces. */
   psychContext?: PsychHeaderContext | null;
@@ -333,6 +355,21 @@ export function RecordBanner({
             </button>
           )}
 
+          {activeVisit && onWriteSessionNote && writeSessionNoteLabel && (
+            <button
+              type="button"
+              onClick={onWriteSessionNote}
+              className={GHOST_BUTTON}
+            >
+              <NotebookPen
+                aria-hidden="true"
+                className="size-4"
+                strokeWidth={2}
+              />
+              <span className="hidden sm:inline">{writeSessionNoteLabel}</span>
+            </button>
+          )}
+
           <TelehealthLauncher
             patientId={patient.id}
             whatsappNumber={patient.whatsapp_number}
@@ -470,14 +507,35 @@ export function RecordBanner({
         (psychContext.riskLevel ||
           psychContext.concern ||
           psychContext.diagnosis ||
-          psychContext.lastSession) && (
+          psychContext.lastSession ||
+          psychContext.criticalSafety ||
+          (psychContext.scores?.length ?? 0) > 0) && (
           <div className="-mt-1 flex flex-wrap items-center gap-1.5 px-4 pb-3 sm:px-[26px]">
+            {psychContext.criticalSafety && (
+              <span
+                className={cn(
+                  CAPSULE,
+                  "font-bold uppercase tracking-wide",
+                  "border-status-destructive/50 bg-status-destructive/15 text-status-destructive",
+                  psychContext.riskLevel === "crisis" && "animate-pulse",
+                )}
+                title="A scored instrument or the provider's risk assessment still needs triage — review the safety plan before proceeding."
+              >
+                <ShieldAlert
+                  aria-hidden="true"
+                  className="size-3.5 shrink-0"
+                  strokeWidth={2}
+                />
+                🚨 Item-9 Alert: Suicidal Ideation Flagged
+              </span>
+            )}
             {psychContext.riskLevel && (
               <span
                 className={cn(
                   CAPSULE,
                   "font-bold",
                   PSYCH_RISK_TONE[psychContext.riskLevel] ?? "",
+                  psychContext.riskLevel === "crisis" && "animate-pulse",
                 )}
               >
                 <ShieldAlert
@@ -488,6 +546,16 @@ export function RecordBanner({
                 {psychContext.riskLevel.replace(/_/g, " ")} risk
               </span>
             )}
+            {(psychContext.scores ?? []).map((score) => (
+              <span key={score} className={cn(CAPSULE, "font-semibold")}>
+                <TrendingUp
+                  aria-hidden="true"
+                  className={CAPSULE_ICON}
+                  strokeWidth={2}
+                />
+                {score}
+              </span>
+            ))}
             {psychContext.concern && (
               <span className={CAPSULE}>
                 <ClipboardList

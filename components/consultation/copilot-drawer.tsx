@@ -24,6 +24,18 @@ interface CopilotDrawerProps {
   /** Per-workspace AI guidance sent to both the structure and command routes. */
   workspaceContext?: string;
   patientProfile?: { allergies?: string; current_meds?: string };
+  /**
+   * The full clinical bundle (intake, psychometrics, care plan, safety, past
+   * notes) built by the workspace. Sent to both scribe routes so the model can
+   * reference real baselines instead of drafting from the transcript alone.
+   */
+  clinicalContext?: string;
+  /**
+   * Psychology only: the clinician's LIVE session-note draft (the field-level
+   * edits they already made on the Sessions tab). A command edits that state
+   * instead of only the copilot's own last output, so manual fixes survive.
+   */
+  liveFormState?: () => unknown;
   onPopulateForm: (data: WorkspaceExtraction) => void;
   /** Restores the pre-copilot draft. Omitted where there is no undo to offer. */
   onUndo?: () => boolean;
@@ -42,6 +54,12 @@ interface CopilotDrawerProps {
    * (via the workspace's own handler).
    */
   onPushToMse?: (note: PsychNoteExtraction) => void;
+  /**
+   * Targeted insertion: writes ONE AI section into one BIRP/SOAP field via
+   * `[ 📋 Push to Session Field ]` — appends to the clinician's draft instead
+   * of the whole-draft populate.
+   */
+  onPushToField?: (field: string, snippet: string) => void;
 }
 
 /**
@@ -70,17 +88,22 @@ export function CopilotDrawer({
   contextLabel,
   workspaceContext,
   patientProfile,
+  clinicalContext,
+  liveFormState,
   onPopulateForm,
   onUndo,
   canUndo = false,
   recorder,
   onRiskFlag,
-  onPushToMse
+  onPushToMse,
+  onPushToField
 }: CopilotDrawerProps) {
   const [isOpen, setIsOpen] = useState<boolean>(true);
   const [commandInput, setCommandInput] = useState<string>('');
   const [isProcessingCommand, setIsProcessingCommand] = useState<boolean>(false);
   const [autoApply, setAutoApply] = useState<boolean>(true);
+  /** Open section-menu of the targeted `[ 📋 Push to Session Field ]` inserter. */
+  const [pushMenuOpen, setPushMenuOpen] = useState<boolean>(false);
 
   const headerLabel = contextLabel ?? (mode === "general" ? "Ambient Copilot" : COPILOT_MODE_LABELS[mode]);
   const formNoun =
@@ -90,7 +113,7 @@ export function CopilotDrawer({
         ? "the examination form"
         : "the prescription form";
 
-  const ownRecorder = useAmbientRecorder({ patientProfile, workspaceKind: mode, workspaceContext });
+  const ownRecorder = useAmbientRecorder({ patientProfile, workspaceKind: mode, workspaceContext, clinicalContext });
   // The workspace-lifted engine wins; the hook above stays only so the drawer
   // keep working standalone when no engine is injected.
   const engine = recorder ?? ownRecorder;
@@ -143,12 +166,16 @@ export function CopilotDrawer({
   }, [isRecording]);
 
   // Workspace triage: an extraction that carries HIGH/CRISIS risk raises the
-  // alert outside the drawer, exactly once per extraction object.
+  // alert outside the drawer, exactly once per extraction object. The risk
+  // NOTES are advisory — the escalation must not depend on them being filled.
   useEffect(() => {
     if (!onRiskFlag || !extractedData || mode !== "psychology") return;
     const note = extractedData as PsychNoteExtraction;
-    if ((note.risk_level === "high" || note.risk_level === "crisis") && note.risk_notes?.trim()) {
-      onRiskFlag(note.risk_notes.trim());
+    if (note.risk_level === "high" || note.risk_level === "crisis") {
+      onRiskFlag(
+        note.risk_notes?.trim() ||
+          `AI flagged ${note.risk_level.toUpperCase()} risk during capture — assess before proceeding.`,
+      );
     }
   }, [extractedData, mode, onRiskFlag]);
 
@@ -161,75 +188,124 @@ export function CopilotDrawer({
     }
   }, [onUndo, setExtractedData]);
 
-  const handleCommandSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const command = commandInput.trim();
-    if (!command || isProcessingCommand) return;
+  /**
+   * The command pipeline. The form's submit and the quick-action chips both go
+   * through here. Two context streams ride along:
+   * - `clinicalContext` — the full patient bundle (scores, plan, safety).
+   * - `liveFormState` — the clinician's manually-edited draft wins over the
+   *   copilot's own last output, so a rewrite preserves the doctor's fixes.
+   */
+  const runCommand = useCallback(
+    async (command: string): Promise<void> => {
+      if (!command || isProcessingCommand) return;
 
-    setIsProcessingCommand(true);
-    setCommandError(null);
-    try {
-      // A command with nothing recorded yet edits a blank draft rather than
-      // being refused. Typing "paracetamol 500 TDS 5 days for fever" is a
-      // complete prescription on its own, and making the doctor record audio
-      // first to reach this box defeated the point of the box.
-      const res = await fetchWithTimeout(
-        '/api/scribe/command',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            currentFormState: extractedData ?? emptyExtractionFor(mode),
-            command,
-            workspaceKind: mode,
-            workspaceContext
-          })
-        },
-        COMMAND_TIMEOUT_MS,
-        'The copilot'
-      );
-
-      // Parsed defensively: a failed request can still come back as a gateway's
-      // HTML page rather than the route's JSON, and letting `res.json()` throw
-      // on its own would replace a useful explanation with a parser complaint.
-      let result: { data?: WorkspaceExtraction; error?: string } | null = null;
+      setIsProcessingCommand(true);
+      setCommandError(null);
       try {
-        result = await res.json();
-      } catch {
-        result = null;
-      }
-
-      if (!res.ok) {
-        throw new Error(result?.error || `The copilot returned ${res.status}.`);
-      }
-      if (result?.data) {
-        setExtractedData(result.data);
-        setCommandInput('');
-        // A typed command is just as complete a note as a recording, so it goes
-        // to the form by the same rule. Left on the manual button this would
-        // have meant the doctor typed a full order and then pressed one more
-        // key to send it — the one interaction auto-apply exists to remove.
-        if (autoApply) applyOnce(result.data);
-      } else {
-        throw new Error(
-          mode === "general"
-            ? 'The copilot did not return a prescription. Try rephrasing the command.'
-            : mode === "psychology"
-              ? 'The copilot did not return a session note. Try rephrasing the command.'
-              : 'The copilot did not return a note. Try rephrasing the command.'
+        // A command with nothing recorded yet edits a blank draft rather than
+        // being refused. Typing "paracetamol 500 TDS 5 days for fever" is a
+        // complete prescription on its own, and making the doctor record audio
+        // first to reach this box defeated the point of the box.
+        const baseState = (() => {
+          const live = mode === "psychology" ? liveFormState?.() ?? null : null;
+          return live ?? extractedData ?? emptyExtractionFor(mode);
+        })();
+        const res = await fetchWithTimeout(
+          '/api/scribe/command',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              currentFormState: baseState,
+              command,
+              workspaceKind: mode,
+              workspaceContext,
+              clinicalContext
+            })
+          },
+          COMMAND_TIMEOUT_MS,
+          'The copilot'
         );
+
+        // Parsed defensively: a failed request can still come back as a gateway's
+        // HTML page rather than the route's JSON, and letting `res.json()` throw
+        // on its own would replace a useful explanation with a parser complaint.
+        let result: { data?: WorkspaceExtraction; error?: string } | null = null;
+        try {
+          result = await res.json();
+        } catch {
+          result = null;
+        }
+
+        if (!res.ok) {
+          throw new Error(result?.error || `The copilot returned ${res.status}.`);
+        }
+        if (result?.data) {
+          setExtractedData(result.data);
+          setCommandInput('');
+          // A typed command is just as complete a note as a recording, so it goes
+          // to the form by the same rule. Left on the manual button this would
+          // have meant the doctor typed a full order and then pressed one more
+          // key to send it — the one interaction auto-apply exists to remove.
+          if (autoApply) applyOnce(result.data);
+        } else {
+          throw new Error(
+            mode === "general"
+              ? 'The copilot did not return a prescription. Try rephrasing the command.'
+              : mode === "psychology"
+                ? 'The copilot did not return a session note. Try rephrasing the command.'
+                : 'The copilot did not return a note. Try rephrasing the command.'
+          );
+        }
+      } catch (err) {
+        console.error('Command failed:', err);
+        setCommandError(
+          err instanceof Error && err.message
+            ? err.message
+            : 'The copilot could not apply that command. Please try again.'
+        );
+      } finally {
+        setIsProcessingCommand(false);
       }
-    } catch (err) {
-      console.error('Command failed:', err);
-      setCommandError(
-        err instanceof Error && err.message
-          ? err.message
-          : 'The copilot could not apply that command. Please try again.'
-      );
-    } finally {
-      setIsProcessingCommand(false);
-    }
+    },
+    [isProcessingCommand, mode, liveFormState, extractedData, setExtractedData, workspaceContext, clinicalContext, autoApply, applyOnce]
+  );
+
+  const handleCommandSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void runCommand(commandInput.trim());
   };
+
+  /** Quick-action presets — one click runs the full command pipeline. */
+  const quickActions =
+    mode === "psychology"
+      ? [
+          {
+            label: "Draft BIRP Note",
+            title: "Structure the transcript into a complete BIRP note",
+            command:
+              "Convert the discussion into a complete BIRP note (Behavior, Intervention, Response, Plan), grounded in the patient context.",
+          },
+          {
+            label: "Summarize Trajectory",
+            title: "Synthesize score trends and goal progress",
+            command:
+              "Summarize the patient's trajectory: latest psychometric scores and their deltas, progress on the active SMART goals, and the direction of care.",
+          },
+          {
+            label: "CBT / Homework Ideas",
+            title: "CBT techniques matched to the current symptom profile",
+            command:
+              "Suggest 2-3 CBT techniques and homework tasks tailored to the patient's current symptom profile (use the psychometric subscales and active goals in the context).",
+          },
+          {
+            label: "Safety Check",
+            title: "Screen the session for suicide / self-harm markers",
+            command:
+              "Review the transcript and history for suicide or self-harm risk markers. Set risk_level and risk_notes accordingly; flag any Item-9 endorsement.",
+          },
+        ]
+      : [];
 
   const populateLabel =
     mode === "psychology"
@@ -276,6 +352,23 @@ export function CopilotDrawer({
             : note.risk_level === "moderate"
               ? "bg-amber-100 text-amber-700"
               : "bg-slate-200 text-slate-700";
+      /** Sections an AI note produced, keyed as they land in the session draft.
+      `objective` (SOAP) is not on the BIRP/DAP extraction shape, so lookups go
+       through a plain record view — absent sections simply come back empty. */
+      const sectionSource = note as unknown as Record<string, string | undefined>;
+      const sections: { field: string; label: string; text: string }[] = (
+        [
+          ["behavior", "B — Behavior"],
+          ["intervention", "I — Intervention"],
+          ["response", "R — Response"],
+          ["objective", "O — Objective"],
+          ["observation_data", "D — Data"],
+          ["assessment", "A — Assessment"],
+          ["plan", "P — Plan"],
+        ] as const
+      )
+        .map(([field, label]) => ({ field, label, text: (sectionSource[field] ?? "").trim() }))
+        .filter((section) => section.text);
       return (
         <div className="flex flex-col gap-3 rounded-xl border border-brand-sage bg-gradient-to-br from-brand-wash to-brand-pale p-3.5 shadow-sm">
           <div className="flex items-center justify-between">
@@ -299,17 +392,49 @@ export function CopilotDrawer({
               </span>
               {note.risk_notes && <span className="text-slate-500">— {note.risk_notes}</span>}
             </div>
-            {onPushToMse && (
+          </div>
+          {sections.length > 0 && onPushToField && (
+            <div className="relative">
               <button
                 type="button"
-                onClick={() => onPushToMse(note)}
-                className="mt-0.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-[11px] font-medium text-slate-700 transition hover:border-brand-sage hover:text-brand-ink"
+                onClick={() => setPushMenuOpen((open) => !open)}
+                className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-[11px] font-medium text-slate-700 transition hover:border-brand-sage hover:text-brand-ink"
               >
                 <ClipboardList className="size-3.5" aria-hidden="true" />
-                Push to Today&apos;s MSE
+                📋 Push to Session Field
+                <span className="ml-1 text-[9px] text-slate-400">{sections.length} sections</span>
               </button>
-            )}
-          </div>
+              {pushMenuOpen && (
+                <div className="absolute bottom-full z-20 mb-1.5 w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+                  {sections.map((section) => (
+                    <button
+                      key={section.field}
+                      type="button"
+                      title={section.text.slice(0, 120)}
+                      onClick={() => {
+                        onPushToField(section.field, section.text);
+                        setPushMenuOpen(false);
+                      }}
+                      className="flex w-full items-center justify-between px-3 py-2 text-left text-[11px] font-medium text-slate-700 transition hover:bg-brand-pale hover:text-brand-ink"
+                    >
+                      <span>{section.label}</span>
+                      <span className="truncate text-[9px] text-slate-400">&ldquo;{section.text.slice(0, 40)}&hellip;&rdquo;</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {onPushToMse && (
+            <button
+              type="button"
+              onClick={() => onPushToMse(note)}
+              className="mt-0.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-[11px] font-medium text-slate-700 transition hover:border-brand-sage hover:text-brand-ink"
+            >
+              <ClipboardList className="size-3.5" aria-hidden="true" />
+              Push to Today&apos;s MSE
+            </button>
+          )}
           {populate}
         </div>
       );
@@ -477,6 +602,25 @@ export function CopilotDrawer({
               )}
             </div>
           </div>
+
+          {/* Quick-action chips — psychology presets that run the full command
+              pipeline in one click (context bundle + live draft included). */}
+          {quickActions.length > 0 && (
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Copilot quick actions">
+              {quickActions.map((action) => (
+                <button
+                  key={action.label}
+                  type="button"
+                  disabled={isProcessingCommand}
+                  title={action.title}
+                  onClick={() => void runCommand(action.command)}
+                  className="rounded-full border border-brand-sage bg-brand-pale/70 px-2.5 py-1 text-[11px] font-semibold text-brand-ink transition hover:border-brand-cta hover:bg-brand-pale disabled:opacity-50"
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Ambient Mic Controller */}
           <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">

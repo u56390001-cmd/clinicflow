@@ -16,6 +16,11 @@ interface UseAmbientRecorderProps {
   workspaceKind?: CopilotMode;
   /** Per-workspace AI guidance passed to the structure route's system prompt. */
   workspaceContext?: string;
+  /**
+   * The workspace's clinical bundle (intake, scores, plan, safety) sent with
+   * the structure request so the extraction is grounded in real history.
+   */
+  clinicalContext?: string;
 }
 
 /**
@@ -49,7 +54,7 @@ async function readApiError(res: Response, fallback: string): Promise<string> {
 
 export type AmbientRecorder = ReturnType<typeof useAmbientRecorder>;
 
-export function useAmbientRecorder({ patientProfile, workspaceKind, workspaceContext }: UseAmbientRecorderProps) {
+export function useAmbientRecorder({ patientProfile, workspaceKind, workspaceContext, clinicalContext }: UseAmbientRecorderProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState('00:00');
   const [transcript, setTranscript] = useState('');
@@ -124,7 +129,8 @@ export function useAmbientRecorder({ patientProfile, workspaceKind, workspaceCon
             transcript: transcriptText,
             patientProfile: patientProfile || {},
             workspaceKind: workspaceKind ?? 'general',
-            workspaceContext
+            workspaceContext,
+            clinicalContext
           })
         },
         STRUCTURE_TIMEOUT_MS,
@@ -148,7 +154,7 @@ export function useAmbientRecorder({ patientProfile, workspaceKind, workspaceCon
     } finally {
       setIsProcessing(false);
     }
-  }, [patientProfile, workspaceKind, workspaceContext]);
+  }, [patientProfile, workspaceKind, workspaceContext, clinicalContext]);
 
   const startRecording = useCallback(async () => {
     setError(null);

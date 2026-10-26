@@ -82,11 +82,12 @@ import { useAmbientRecorder } from "@/lib/copilot/hooks/useAmbientRecorder";
 import type { PsychNoteExtraction, WorkspaceExtraction } from "@/lib/copilot/types";
 import { mseFindingsFromCopilotNote, readMseFindings } from "@/lib/psych-mse";
 import { setPsychCopilotReady } from "@/components/patients/record/workspaces/psych-copilot-ready";
+import { buildPsychClinicalContext } from "@/lib/copilot/psych-context";
 import { utcIsoToClinicLocalInput } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { formatShortDate } from "@/lib/utils/datetime";
 import { SESSION_TYPE_META } from "@/lib/psych-session";
-import { pushSnippetToSessionDraft } from "@/lib/session-note-draft";
+import { pushSnippetToSessionDraft, type SessionNoteField } from "@/lib/session-note-draft";
 import type { PatientPsychBundle } from "@/lib/patient-record";
 import type { PatientDocumentView } from "@/lib/patient-documents-queries";
 import { hasPsychSummaryContent } from "@/lib/psych-summary";
@@ -146,9 +147,21 @@ export function PsychWorkspace({ patient, psych, documents, activeTab, canManage
    * microphone keeps capturing. Both the CopilotDrawer and the Session Notes
    * tab receive this same instance, so there are never two record buttons.
    */
+  /**
+   * Full clinical bundle (intake, psychometrics + trend, 0118 care plan,
+   * safety, last approved notes) baked into one context string. Both scribe
+   * routes prompt with it, so an AI note references the patient's real
+   * baseline instead of inventing history.
+   */
+  const clinicalContext = useMemo(
+    () => buildPsychClinicalContext(psych, patient.name, formatShortDate),
+    [psych, patient.name],
+  );
+
   const ambient = useAmbientRecorder({
     workspaceKind: "psychology",
     workspaceContext: PSYCHOLOGY_WORKSPACE.copilotContext,
+    clinicalContext,
   });
 
   /**
@@ -177,11 +190,67 @@ export function PsychWorkspace({ patient, psych, documents, activeTab, canManage
     });
   }, []);
 
-  /** The 🚨 workspace alert from the drawer's HIGH/CRISIS extraction. */
+  /** 🚨 High-risk ideation alert from the drawer's HIGH/CRISIS extraction. */
   const handleRiskFlag = useCallback((notes: string) => {
     setRiskAlert(notes);
     toast.error(`High-risk content detected in the session — review the safety plan.`);
   }, []);
+
+  /**
+   * The clinician's LIVE session-note draft, read at command time from the
+   * same localStorage autosave the Sessions tab writes continuously. Feeding
+   * it to /api/scribe/command as `currentFormState` means "expand the plan"
+   * edits the note the doctor actually has on screen, manual fixes included —
+   * not the copilot's own last output.
+   */
+  const readLiveSessionDraft = useCallback((): unknown => {
+    try {
+      const raw = window.localStorage.getItem(
+        `psych-session-draft:${patient.id}`,
+      );
+      if (!raw) return null;
+      const saved = JSON.parse(raw) as {
+        format?: string;
+        draft?: Record<string, string | undefined>;
+      };
+      const draft = saved.draft ?? {};
+      return {
+        format: saved.format === "DAP" ? "DAP" : "BIRP",
+        behavior: draft.behavior ?? "",
+        intervention: draft.intervention ?? "",
+        response: draft.response ?? "",
+        subjective: draft.subjective ?? "",
+        objective: draft.objective ?? "",
+        observation_data: draft.observation_data ?? "",
+        assessment: draft.assessment ?? "",
+        plan: draft.plan ?? "",
+      };
+    } catch {
+      return null;
+    }
+  }, [patient.id]);
+
+  /**
+   * 📋 Targeted field insertion from the copilot's section menu: appends ONE
+   * AI section into the draft's matching field via the same helper every
+   * other push-to-note surface (psychometrics, documents, care plan) uses.
+   */
+  const handlePushToField = useCallback(
+    (field: string, snippet: string) => {
+      if (!snippet.trim()) return;
+      const pushed = pushSnippetToSessionDraft(
+        patient.id,
+        snippet,
+        field as SessionNoteField,
+      );
+      if (pushed.ok) {
+        toast.success(`Pushed to the ${pushed.format} ${pushed.fieldLabel} draft.`);
+      } else {
+        toast.error("Push failed — open the Session Notes tab once and try again.");
+      }
+    },
+    [patient.id],
+  );
 
   /**
    * 📋 Push to Today's MSE: keyword-map the copilot's observables onto real MSE
@@ -317,6 +386,9 @@ export function PsychWorkspace({ patient, psych, documents, activeTab, canManage
               allergies: patient.known_allergies || undefined,
               current_meds: patient.current_medications || undefined,
             }}
+            clinicalContext={clinicalContext}
+            liveFormState={readLiveSessionDraft}
+            onPushToField={handlePushToField}
             recorder={ambient}
             onRiskFlag={handleRiskFlag}
             onPushToMse={(note) => void handlePushToMse(note)}

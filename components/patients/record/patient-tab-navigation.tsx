@@ -74,10 +74,14 @@ export function PatientTabNavigation({
   const tabs = (
     isGeneral ? (GENERAL_TAB_IDS as readonly PatientTabId[]) : (workspace.tabs ?? [])
   ) as readonly PatientTabId[];
+  // A psych psychiatrist's tab set includes the shared "medications" id, which
+  // has no specialty label — fall back to the general tab label ("Prescriptions").
   const labelOf = (tab: PatientTabId) =>
     isGeneral
       ? PATIENT_TAB_LABELS[tab as PatientTab]
-      : SPECIALTY_TAB_LABELS[tab as SpecialtyTabId];
+      : (SPECIALTY_TAB_LABELS[tab as SpecialtyTabId] ??
+        PATIENT_TAB_LABELS[tab as PatientTab] ??
+        tab);
   // A copilot-drafted session note is waiting — advertise it on the tab.
   const copilotReady = usePsychCopilotReady();
 

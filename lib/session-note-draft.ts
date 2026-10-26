@@ -16,7 +16,17 @@
 const DRAFT_FORMATS = ["BIRP", "SOAP", "DAP"] as const;
 
 /** A draft field can be forced by callers whose snippet belongs to one slot. */
-type ForcedField = "behavior" | "intervention" | "response" | "subjective" | "objective" | "observation_data" | "assessment" | "plan";
+export type SessionNoteField =
+  | "behavior"
+  | "intervention"
+  | "response"
+  | "subjective"
+  | "objective"
+  | "observation_data"
+  | "assessment"
+  | "plan";
+
+type ForcedField = SessionNoteField;
 
 const FIELD_LABELS: Record<ForcedField, string> = {
   behavior: "Behavior",

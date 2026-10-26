@@ -31,8 +31,7 @@ import {
 } from "@/lib/consultation-queries";
 import { fetchPatientDocuments } from "@/lib/patient-documents-queries";
 import {
-  resolveDoctorWorkspace,
-  workspaceForKind,
+  workspaceForClinician,
 } from "@/lib/specialty-workspaces";
 import { createClient } from "@/lib/supabase/server";
 import { clinicDayRangeUtc, clinicMonthStart, clinicToday } from "@/lib/time";
@@ -362,7 +361,10 @@ async function PatientRecordStream({
     allDoctors[0] ??
     null;
 
-  const workspace = workspaceForKind(resolveDoctorWorkspace(doctor?.specialty));
+  // One specialty-aware config: resolves the workspace kind AND, inside the
+  // psychology workspace, distinguishes the psychiatrist (Rx-capable) from the
+  // psychologist (session-note CTA).
+  const workspace = workspaceForClinician(doctor?.specialty);
 
   const [record, appointments, documents, activeVisitInfo, pendingIntake] =
     await Promise.all([

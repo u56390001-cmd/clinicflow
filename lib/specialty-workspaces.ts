@@ -109,7 +109,16 @@ export type WorkspaceConfig = {
   copilotContext: string;
   /** The patient rail's heading (spec: Patient Context / Patient Skin Profile). */
   contextHeading: string;
+  /**
+   * True only for a clinician whose specialty is psychiatric: the psych
+   * workspace then carries the shared Prescriptions tab, and the header CTA
+   * becomes "Write Prescription" (with "Write Session Note" as the secondary).
+   * A psychologist keeps `prescriber: false` — no med Rx authority in the UI.
+   */
+  prescriber?: boolean;
 };
+
+const PSYCHIATRIC_SPECIALTIES = new Set(["psychiatry", "psychiatrist"]);
 
 const PSYCHOLOGY_SPECIALTIES = new Set([
   "clinical psychologist",
@@ -172,6 +181,10 @@ export const PSYCHOLOGY_WORKSPACE: WorkspaceConfig = {
   copilotContext:
     "Psychology copilot: session summary, BIRP/DAP draft and risk alerts.",
   contextHeading: "Patient Context",
+  // Psychologists keep the session-note CTA. A psychiatrist's config (built in
+  // `workspaceForClinician`) overrides this with the Prescriptions tab and the
+  // "Write Prescription" primary CTA.
+  prescriber: false,
 };
 
 export const DERMATOLOGY_WORKSPACE: WorkspaceConfig = {
@@ -196,4 +209,33 @@ export const PATIENT_WORKSPACES: Record<WorkspaceKind, WorkspaceConfig> = {
 
 export function workspaceForKind(kind: WorkspaceKind): WorkspaceConfig {
   return PATIENT_WORKSPACES[kind];
+}
+
+/**
+ * The workspace for one clinician, derived from their specialty.
+ *
+ * `workspaceForKind` is a specialty-blind lookup; this adds the one refinement
+ * the psych workspace needs: a psychiatrist gets the shared Prescriptions tab
+ * and a "Write Prescription" primary CTA (session note demoted to the
+ * secondary action the banner renders alongside), while every other mental
+ * health specialty keeps today's psychologist behavior unchanged.
+ */
+export function workspaceForClinician(
+  specialty: string | null | undefined,
+): WorkspaceConfig {
+  const workspace = workspaceForKind(resolveDoctorWorkspace(specialty));
+  if (workspace.kind !== "psychology") return workspace;
+
+  const isPrescriber = PSYCHIATRIC_SPECIALTIES.has(key(specialty));
+  if (!isPrescriber) return workspace;
+
+  // "medications" is the shared general id; it volunteers for the union above,
+  // and `patient-tab-navigation` labels it from PATIENT_TAB_LABELS.
+  return {
+    ...workspace,
+    tabs: [...(workspace.tabs ?? []), "medications" as SpecialtyTabId],
+    writeTab: "medications",
+    writeTabLabel: "Write Prescription",
+    prescriber: true,
+  };
 }
