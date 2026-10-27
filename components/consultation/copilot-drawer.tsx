@@ -834,12 +834,12 @@ export function CopilotDrawer({
                   : mode === "dermatology"
                     ? extractedData
                       ? "Command Copilot (e.g., 'Add hydrocortisone cream BID 7 days')..."
-                      : 'Describe the finding (e.g., "Erythematous papules on cheeks, clobetasol cream OD 14 days")...'
+                      : 'Describe the finding (e.g., "Erythematos papules on cheeks, clobetasol cream OD 14 days")...'
                     : extractedData
                       ? "Command Copilot (e.g., 'Change dosage to 7 days')..."
                       : "Describe the prescription (e.g., 'Fever 3 days, paracetamol 500 TDS 5 days')..."
               }
-              className={`w-full rounded-lg border border-slate-300 bg-white py-2 text-xs text-slate-800 placeholder-slate-400 shadow-sm focus:border-brand-sage focus:outline-none focus:ring-2 focus:ring-brand-pale disabled:opacity-60 ${speechSupported ? 'pl-3 pr-11' : 'pl-3 pr-9'}`}
+              className={`w-full rounded-lg border border-slate-300 bg-white py-2.5 text-xs text-slate-800 placeholder-slate-400 shadow-sm focus:border-brand-sage focus:outline-none focus:ring-2 focus:ring-brand-pale disabled:opacity-60 ${speechSupported ? 'pl-3 pr-13' : 'pl-3 pr-10'}`}
               disabled={isProcessingCommand}
             />
             {/* 🎙 Voice command — auto-detects whatever language the doctor speaks. */}
@@ -849,15 +849,20 @@ export function CopilotDrawer({
                 onClick={toggleDictation}
                 title={isDictating ? 'Stop dictation' : 'Speak your command — the mic listens in any language'}
                 aria-label={isDictating ? 'Stop dictation' : 'Speak your command'}
-                className={`absolute right-3 top-2.5 transition ${isDictating ? 'animate-pulse text-red-500' : 'text-slate-400 hover:text-brand-cta'}`}
+                className="absolute right-10 top-1/2 -translate-y-1/2 rounded-md border border-slate-200 bg-slate-50 p-1.5 text-slate-500 transition hover:border-brand-sage hover:text-brand-cta disabled:opacity-60"
               >
-                {isDictating ? <Square className="size-3.5" /> : <Mic className="size-3.5" />}
+                {isDictating ? (
+                  <Square className="size-3.5 animate-pulse" />
+                ) : (
+                  <Mic className="size-3.5" />
+                )}
               </button>
             )}
             <button
               type="submit"
               disabled={isProcessingCommand || !commandInput.trim()}
-              className="absolute right-2 top-2.5 text-brand-cta transition hover:text-brand-cta disabled:opacity-40"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md bg-brand-cta p-1.5 text-white transition hover:bg-brand-cta-hover disabled:opacity-40 disabled:hover:bg-brand-cta"
+              aria-label="Send command"
             >
               {isProcessingCommand ? (
                 <Spinner className="size-3.5" />
