@@ -95,14 +95,9 @@ interface SpeechRecognitionLike {
 type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
 
 /**
- * Dictation languages. `ur-PK` transcribes Urdu script; most doctors dictating
- * clinic commands in Urdu/roman-Urdu still get the most usable Latin-script
- * phonetics out of `en-US`, so both stay one tap apart.
+ * Browser SpeechRecognition auto-detects the spoken language — no lang
+ * setting means it listens to whatever the doctor says and adapts.
  */
-type DictationLang = 'en-US' | 'ur-PK';
-
-const DEFAULT_DICTATION_LANG: DictationLang = 'en-US';
-const DICTATION_LANG_KEY = 'copilot-dictation-lang';
 
 /** Chrome/Edge expose it under a prefixed name; Firefox does not ship it. */
 function getSpeechRecognitionCtor(): SpeechRecognitionCtor | null {
@@ -163,8 +158,6 @@ export function CopilotDrawer({
    */
   const [speechSupported, setSpeechSupported] = useState<boolean>(false);
   const [isDictating, setIsDictating] = useState<boolean>(false);
-  /** Dictation language for the command bar (EN English / اردو Urdu). */
-  const [dictationLang, setDictationLang] = useState<DictationLang>(DEFAULT_DICTATION_LANG);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const headerLabel = contextLabel ?? (mode === "general" ? "Ambient Copilot" : COPILOT_MODE_LABELS[mode]);
@@ -335,19 +328,8 @@ export function CopilotDrawer({
 
   // Browser support can only be checked on the client; settle it post-hydration.
   useEffect(() => {
-    try {
-      setSpeechSupported(getSpeechRecognitionCtor() !== null);
-      const saved = window.localStorage.getItem(DICTATION_LANG_KEY);
-      if (saved === 'en-US' || saved === 'ur-PK') setDictationLang(saved);
-    } catch {
-      // localStorage unavailable in private mode / some containers.
-    }
+    setSpeechSupported(getSpeechRecognitionCtor() !== null);
   }, []);
-
-  /** Persist the doctor's chosen dictation language for next time. */
-  useEffect(() => {
-    window.localStorage.setItem(DICTATION_LANG_KEY, dictationLang);
-  }, [dictationLang]);
 
   /**
    * Toggle command-bar dictation. Final utterances append into the input so a
@@ -365,7 +347,6 @@ export function CopilotDrawer({
       return;
     }
     const recognition = new Ctor();
-    recognition.lang = dictationLang;
     recognition.continuous = true;
     recognition.interimResults = false;
     recognition.onresult = (event) => {
@@ -393,7 +374,7 @@ export function CopilotDrawer({
       recognitionRef.current = null;
       setIsDictating(false);
     }
-  }, [dictationLang, isDictating]);
+  }, [isDictating]);
 
   // Closing or unmounting the drawer must not leak a live recognition session.
   useEffect(() => {
@@ -858,31 +839,19 @@ export function CopilotDrawer({
                       ? "Command Copilot (e.g., 'Change dosage to 7 days')..."
                       : "Describe the prescription (e.g., 'Fever 3 days, paracetamol 500 TDS 5 days')..."
               }
-              className={`w-full rounded-lg border border-slate-300 bg-white py-2 text-xs text-slate-800 placeholder-slate-400 shadow-sm focus:border-brand-sage focus:outline-none focus:ring-2 focus:ring-brand-pale disabled:opacity-60 ${speechSupported ? 'pl-3 pr-[5.75rem]' : 'pl-3 pr-9'}`}
+              className={`w-full rounded-lg border border-slate-300 bg-white py-2 text-xs text-slate-800 placeholder-slate-400 shadow-sm focus:border-brand-sage focus:outline-none focus:ring-2 focus:ring-brand-pale disabled:opacity-60 ${speechSupported ? 'pl-3 pr-11' : 'pl-3 pr-9'}`}
               disabled={isProcessingCommand}
             />
-            {/* 🎙 Command dictation — browser-native, zero server cost.
-                Switch language: EN ↔ اردو. */}
+            {/* 🎙 Voice command — auto-detects whatever language the doctor speaks. */}
             {speechSupported && (
               <button
                 type="button"
-                onClick={() => {
-                  if (isDictating) toggleDictation();
-                  setDictationLang((l) => (l === 'en-US' ? 'ur-PK' : 'en-US'));
-                }}
-                title={
-                  dictationLang === 'en-US'
-                    ? 'Dictation: English — click to switch to Urdu'
-                    : 'Dictation: اردو — click to switch to English'
-                }
-                aria-label={
-                  dictationLang === 'en-US'
-                    ? 'Dictation: English — switch to Urdu'
-                    : 'Dictation: اردو — switch to English'
-                }
-                className="absolute right-[3.4rem] top-2.5 rounded-full border border-slate-200 bg-slate-50 px-1.5 py-[1px] text-[9px] font-bold text-slate-500 transition hover:border-brand-sage hover:text-brand-cta"
+                onClick={toggleDictation}
+                title={isDictating ? 'Stop dictation' : 'Speak your command — the mic listens in any language'}
+                aria-label={isDictating ? 'Stop dictation' : 'Speak your command'}
+                className={`absolute right-3 top-2.5 transition ${isDictating ? 'animate-pulse text-red-500' : 'text-slate-400 hover:text-brand-cta'}`}
               >
-                {dictationLang === 'en-US' ? 'EN' : 'اردو'}
+                {isDictating ? <Square className="size-3.5" /> : <Mic className="size-3.5" />}
               </button>
             )}
             <button
