@@ -285,6 +285,10 @@ const saveDermProfileSchema = z.object({
   current_topicals: note,
   relevant_systemic_history: note,
   family_history: note,
+  // 0119 structured risk chips, comma-serialized like the other multi-value
+  // snapshot columns; optional so single-field autosaves stay unchanged.
+  sun_exposure_history: note,
+  family_skin_cancer_risk: note,
 });
 
 const dermSeverityScoreSchema = z.object({

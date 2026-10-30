@@ -1658,6 +1658,10 @@ export type DermProfile = {
   current_topicals: string | null;
   relevant_systemic_history: string | null;
   family_history: string | null;
+  /** Migration 0119 - UV/sunburn history chips (comma-serialized list). */
+  sun_exposure_history: string | null;
+  /** Migration 0119 - hereditary skin-cancer risk chips (comma-serialized list). */
+  family_skin_cancer_risk: string | null;
   updated_by: string | null;
   created_at: string;
   updated_at: string;

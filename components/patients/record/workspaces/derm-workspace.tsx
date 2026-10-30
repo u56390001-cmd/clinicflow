@@ -21,6 +21,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -30,12 +31,15 @@ import {
   ChevronRight,
   ClipboardList,
   History,
+  Images,
   Loader2,
   MapPin,
   Pill,
   Plus,
   Stethoscope,
+  Sun,
   TriangleAlert,
+  Users,
   Video,
   X,
 } from "lucide-react";
@@ -101,6 +105,8 @@ import type {
   DermNoteExtraction,
   WorkspaceExtraction,
 } from "@/lib/copilot/types";
+import { patientDirectoryHref } from "@/lib/patient-directory";
+import { patientDocumentHref } from "@/lib/patient-documents-queries";
 import type { ConsultationPreAnswer } from "@/lib/consultation-queries";
 import type { PatientDocumentView } from "@/lib/patient-documents-queries";
 import { cn } from "@/lib/utils";
@@ -108,6 +114,8 @@ import type { PatientDermBundle } from "@/lib/patient-record";
 import { DERMATOLOGY_WORKSPACE } from "@/lib/specialty-workspaces";
 import type {
   DermExam,
+  DermLesion,
+  DermPhoto,
   DermPrescription,
   PatientDirectoryRow,
 } from "@/types/database";
@@ -160,6 +168,7 @@ export function DermWorkspace({
           patient={patient}
           derm={derm}
           canManage={canManage}
+          params={params}
           visitId={activeVisitId}
           visitType={visitType}
           pendingIntake={pendingIntake}
@@ -350,13 +359,18 @@ function FitzpatrickSelector({
               {...tipProps(FITZPATRICK_TIPS[type], canManage)}
               onClick={() => onSelect(selected ? "" : type)}
               className={cn(
-                "rounded-control border px-2.5 py-1 text-[11.5px] font-medium transition-colors",
+                "flex items-center gap-1.5 rounded-control border px-2.5 py-1 text-[11.5px] font-medium transition-colors",
                 selected
                   ? "border-primary bg-primary text-white"
                   : "border-hairline bg-surface text-text-secondary hover:border-primary/50 hover:text-primary",
                 !canManage && "cursor-not-allowed opacity-60",
               )}
             >
+              <span
+                aria-hidden="true"
+                className="size-2.5 shrink-0 rounded-full ring-1 ring-black/15"
+                style={{ backgroundColor: FITZPATRICK_SWATCH[type] }}
+              />
               {type}
             </button>
           );
@@ -372,10 +386,186 @@ function FitzpatrickSelector({
   );
 }
 
+/**
+ * One-tap ingredient chips above a regimen textarea. Tapping toggles the chip
+ * in the comma-serialized list and autosaves; chips already in the saved value
+ * render active. The textarea below stays the free-text escape hatch.
+ */
+function RegimenChipRow({
+  chips,
+  value,
+  canManage,
+  onToggle,
+}: {
+  chips: readonly string[];
+  value: string | null;
+  canManage: boolean;
+  onToggle: (chip: string, active: boolean) => void;
+}) {
+  const existing = parseList(value);
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {chips.map((chip) => {
+        const active = existing.some(
+          (item) => item.toLowerCase() === chip.toLowerCase(),
+        );
+        return (
+          <button
+            key={chip}
+            type="button"
+            disabled={!canManage}
+            aria-pressed={active}
+            onClick={() => onToggle(chip, active)}
+            className={cn(
+              "rounded-control border px-2 py-0.5 text-[11px] font-medium transition-colors",
+              active
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-hairline bg-surface text-text-secondary hover:border-primary/50 hover:text-primary",
+              !canManage && "cursor-not-allowed opacity-60",
+            )}
+          >
+            {chip}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Structured risk-history tag toggles (sun exposure / family skin cancer).
+ * Same toggle-and-autosave contract as RegimenChipRow, with a heading.
+ */
+function RiskTagToggle({
+  icon,
+  title,
+  tags,
+  value,
+  canManage,
+  onToggle,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  tags: readonly string[];
+  value: string | null;
+  canManage: boolean;
+  onToggle: (tag: string) => void;
+}) {
+  const existing = parseList(value);
+  return (
+    <div>
+      <p className="text-ink flex items-center gap-1.5 text-[12.5px] font-bold">
+        {icon}
+        {title}
+      </p>
+      <div className="mt-1.5 flex flex-wrap gap-1.5">
+        {tags.map((tag) => {
+          const active = existing.includes(tag);
+          return (
+            <button
+              key={tag}
+              type="button"
+              disabled={!canManage}
+              aria-pressed={active}
+              onClick={() => onToggle(tag)}
+              className={cn(
+                "rounded-control border px-2 py-0.5 text-[11px] font-medium transition-colors",
+                active
+                  ? "border-status-warning bg-status-warning/10 text-status-warning"
+                  : "border-hairline bg-surface text-text-secondary hover:border-status-warning/50 hover:text-status-warning",
+                !canManage && "cursor-not-allowed opacity-60",
+              )}
+            >
+              {tag}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Active Lesions & Photo Progress — the compact Tab 1 window into Tab 3.
+ *
+ * Renders the latest tagged captures (the bundle arrives ordered
+ * taken-at-desc) with their region, photo type and capture date, plus the
+ * open lesion pins, and deep-links to `?tab=derm_photos` for the full
+ * gallery. Read-only: tagging/pairing stays in the Photos tab.
+ */
+function ActivePhotoPreview({
+  photos,
+  lesions,
+  params,
+}: {
+  photos: DermPhoto[];
+  lesions: DermLesion[];
+  params: { selectedId: string };
+}) {
+  const recentPhotos = photos.slice(0, 3);
+  const activePins = lesions.slice(0, 3);
+  return (
+    <div className="space-y-3">
+      {recentPhotos.length > 0 ? (
+        <div className="grid grid-cols-3 gap-2">
+          {recentPhotos.map((photo) => (
+            <figure key={photo.id} className="min-w-0 space-y-1">
+              <div className="relative aspect-square overflow-hidden rounded-control border border-hairline bg-app">
+                {photo.document_id ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={patientDocumentHref(photo.document_id)}
+                    alt={`${photo.body_region} — ${PHOTO_TYPE_LABELS[photo.photo_type]} skin photo`}
+                    loading="lazy"
+                    decoding="async"
+                    className="absolute inset-0 size-full object-cover"
+                  />
+                ) : (
+                  <div className="flex size-full flex-col items-center justify-center gap-1 text-text-muted">
+                    <Images aria-hidden="true" className="size-4" />
+                    <span className="text-[10px]">Not linked</span>
+                  </div>
+                )}
+              </div>
+              <figcaption className="text-ink-faint truncate text-[10.5px]">
+                {photo.body_region} · {PHOTO_TYPE_LABELS[photo.photo_type]} ·{" "}
+                {photo.taken_at}
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      ) : activePins.length === 0 ? (
+        <RecordNote
+          label="Status"
+          value="No tagged photos or lesion pins yet — capture them in the Photos tab."
+        />
+      ) : null}
+      {activePins.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {activePins.map((lesion) => (
+            <Badge key={lesion.id} className="bg-app text-text-secondary">
+              <MapPin aria-hidden="true" className="size-3" />
+              {lesion.body_region} Pin #{lesion.pin_number}
+            </Badge>
+          ))}
+        </div>
+      )}
+      <Link
+        href={patientDirectoryHref({ ...params, tab: "derm_photos" })}
+        className="inline-flex items-center gap-1.5 rounded-control border border-hairline bg-surface px-2.5 py-1 text-[11.5px] font-semibold text-primary transition-colors hover:border-primary/50"
+      >
+        📸 View Full Gallery
+        <ChevronRight aria-hidden="true" className="size-3" />
+      </Link>
+    </div>
+  );
+}
+
 function SkinOverviewTab({
   patient,
   derm,
   canManage,
+  params,
   visitId,
   visitType = null,
   pendingIntake = [],
@@ -384,6 +574,8 @@ function SkinOverviewTab({
   patient: PatientDirectoryRow;
   derm: PatientDermBundle;
   canManage: boolean;
+  /** Directory URL params — builds the `?tab=derm_photos` gallery deep link. */
+  params: { selectedId: string };
   visitId?: string | null;
   visitType?: "online" | "in_clinic" | null;
   pendingIntake?: HistoryItem[];
@@ -537,12 +729,52 @@ function SkinOverviewTab({
     else toast.error("Could not save the skin type.");
   }
 
+  /**
+   * Regimen chip toggle (topicals/orals): merge into the comma-serialized
+   * list and autosave through the same single-field path the textareas use.
+   * The textarea below is uncontrolled, so a successful save triggers a
+   * refresh whose new `key` remounts it with the merged text.
+   */
+  async function toggleRegimen(
+    field: "current_topicals" | "current_orals",
+    chip: string,
+    active: boolean,
+  ) {
+    if (!canManage) return;
+    const current = parseList(profile?.[field]);
+    const next = active
+      ? current.filter((item) => item.toLowerCase() !== chip.toLowerCase())
+      : [...current, chip];
+    const ok = await save(field)(serializeList(next));
+    if (ok) router.refresh();
+    else toast.error("Could not save the regimen change.");
+  }
+
+  /** Structured risk-tag toggle (sun exposure / family skin cancer, 0119). */
+  async function toggleRiskTag(
+    field: "sun_exposure_history" | "family_skin_cancer_risk",
+    tag: string,
+  ) {
+    if (!canManage) return;
+    const current = parseList(profile?.[field]);
+    const next = current.includes(tag)
+      ? current.filter((item) => item !== tag)
+      : [...current, tag];
+    const ok = await save(field)(serializeList(next));
+    if (ok) router.refresh();
+    else toast.error("Could not save the risk flag.");
+  }
+
   /* --- AI intake summary (deterministic, Approve & Import) --------------- */
   const suggestion = buildIntakeSuggestion(patient, preAnswers);
   const [intakeImported, setIntakeImported] = useState(false);
   // The complaint card registers its merge routine here; the button above it
   // just calls through, so the import uses the card's own save path.
   const applyIntakeRef = useRef<((s: IntakeSuggestion) => void) | null>(null);
+  // Same bridge pattern for "Push History to Session Note": the card owns the
+  // encounter fields, so it registers the push routine; the header button calls
+  // through and the card formats + appends the history summary into the HPI.
+  const historyPushRef = useRef<(() => void) | null>(null);
 
   function approveIntake() {
     if (!suggestion || !applyIntakeRef.current) return;
@@ -682,7 +914,60 @@ function SkinOverviewTab({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[3fr_2fr]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {/* Column 1 — snapshot: demographics capsule, skin type, structured risks */}
+        <div className="space-y-4">
+          <RecordSection title="Patient snapshot">
+            <div className="space-y-1.5 text-[12.5px]">
+              <p className="text-ink font-semibold">{patient.name}</p>
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11.5px] text-text-secondary">
+                <span>#{patient.patient_code}</span>
+                {patient.gender && <span>{patient.gender}</span>}
+                {(() => {
+                  const dobMs = patient.date_of_birth
+                    ? new Date(patient.date_of_birth).getTime()
+                    : NaN;
+                  if (Number.isNaN(dobMs)) return null;
+                  const age = Math.floor(
+                    (Date.now() - dobMs) / (365.25 * 24 * 60 * 60 * 1000),
+                  );
+                  return <span>{age} yrs</span>;
+                })()}
+              </div>
+            </div>
+          </RecordSection>
+
+          <RecordSection title="Skin type & procedure safety">
+            <FitzpatrickSelector
+              value={profile?.fitzpatrick_type ?? null}
+              canManage={canManage}
+              onSelect={selectFitzpatrick}
+            />
+          </RecordSection>
+
+          <RecordSection title="Sun & family skin-cancer risk">
+            <div className="space-y-3">
+              <RiskTagToggle
+                icon={<Sun aria-hidden="true" className="size-3.5 text-status-warning" />}
+                title="Sun exposure / sunburn history"
+                tags={SUN_EXPOSURE_TAGS}
+                value={profile?.sun_exposure_history ?? null}
+                canManage={canManage}
+                onToggle={(tag) => void toggleRiskTag("sun_exposure_history", tag)}
+              />
+              <RiskTagToggle
+                icon={<Users aria-hidden="true" className="size-3.5 text-primary" />}
+                title="Family skin-cancer risk"
+                tags={FAMILY_RISK_TAGS}
+                value={profile?.family_skin_cancer_risk ?? null}
+                canManage={canManage}
+                onToggle={(tag) => void toggleRiskTag("family_skin_cancer_risk", tag)}
+              />
+            </div>
+          </RecordSection>
+        </div>
+
+        {/* Column 2 — today's encounter: intake summary + complaint capture */}
         <div className="space-y-4">
           {suggestion && (
             <DermIntakeSummary
@@ -703,19 +988,20 @@ function SkinOverviewTab({
               canManage={canManage}
               visitId={visitId}
               applyIntakeRef={applyIntakeRef}
+              historyContext={{
+                fitzpatrick: profile?.fitzpatrick_type ?? null,
+                topicals: profile?.current_topicals ?? null,
+                orals: profile?.current_orals ?? null,
+                allergies:
+                  allergyTags.map((tag) => tag.text).join(", ") || null,
+              }}
+              historyPushRef={historyPushRef}
             />
           </RecordSection>
         </div>
 
+        {/* Column 3 — risks & background: allergies, regimen, photo progress */}
         <div className="space-y-4">
-          <RecordSection title="Skin type & procedure safety">
-            <FitzpatrickSelector
-              value={profile?.fitzpatrick_type ?? null}
-              canManage={canManage}
-              onSelect={selectFitzpatrick}
-            />
-          </RecordSection>
-
           <RecordSection
             title="Allergies & Sensitivities"
             meta={
@@ -838,23 +1124,55 @@ function SkinOverviewTab({
 
           <RecordSection title="Current skincare & oral meds">
             <div className="space-y-3">
-              <AutosaveNote
-                label="Oral medications"
-                name="derm-profile-current_orals"
-                value={profile?.current_orals ?? null}
-                onSave={canManage ? save("current_orals") : async () => true}
-                rows={2}
-                helper="e.g. Accutane, antibiotics, supplements"
-              />
-              <AutosaveNote
-                label="Topicals & skincare"
-                name="derm-profile-current_topicals"
-                value={profile?.current_topicals ?? null}
-                onSave={canManage ? save("current_topicals") : async () => true}
-                rows={2}
-                helper="Retinoids, creams, actives"
-              />
+              <div className="space-y-1.5">
+                <RegimenChipRow
+                  chips={ORAL_CHIPS}
+                  value={profile?.current_orals ?? null}
+                  canManage={canManage}
+                  onToggle={(chip, active) =>
+                    void toggleRegimen("current_orals", chip, active)
+                  }
+                />
+                <AutosaveNote
+                  // Uncontrolled textarea: the value-keyed remount shows chips
+                  // added above the moment the refresh lands.
+                  key={`current_orals-${profile?.current_orals ?? ""}`}
+                  label="Oral medications"
+                  name="derm-profile-current_orals"
+                  value={profile?.current_orals ?? null}
+                  onSave={canManage ? save("current_orals") : async () => true}
+                  rows={2}
+                  helper="e.g. Accutane, antibiotics, supplements"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <RegimenChipRow
+                  chips={TOPICAL_CHIPS}
+                  value={profile?.current_topicals ?? null}
+                  canManage={canManage}
+                  onToggle={(chip, active) =>
+                    void toggleRegimen("current_topicals", chip, active)
+                  }
+                />
+                <AutosaveNote
+                  key={`current_topicals-${profile?.current_topicals ?? ""}`}
+                  label="Topicals & skincare"
+                  name="derm-profile-current_topicals"
+                  value={profile?.current_topicals ?? null}
+                  onSave={canManage ? save("current_topicals") : async () => true}
+                  rows={2}
+                  helper="Retinoids, creams, actives"
+                />
+              </div>
             </div>
+          </RecordSection>
+
+          <RecordSection title="Active lesions & photo progress">
+            <ActivePhotoPreview
+              photos={derm.photos}
+              lesions={derm.lesions}
+              params={params}
+            />
           </RecordSection>
 
           <RecordSection title="Relevant medical & family history">
@@ -1064,6 +1382,63 @@ const FITZPATRICK_TYPES = [
   "Type VI",
 ] as const;
 
+/**
+ * Approximate tone swatch per Fitzpatrick type, so the selector reads at a
+ * glance instead of asking every doctor to memorise the numbering. Shades are
+ * the conventional reference swatches (pale white through deeply pigmented);
+ * they are indicative, not diagnostic.
+ */
+const FITZPATRICK_SWATCH: Record<(typeof FITZPATRICK_TYPES)[number], string> = {
+  "Type I": "#FFE0BD",
+  "Type II": "#F1C27D",
+  "Type III": "#E0AC69",
+  "Type IV": "#C68642",
+  "Type V": "#8D5524",
+  "Type VI": "#5C3317",
+};
+
+/** Single-tap ingredients for the current-topicals regimen. */
+const TOPICAL_CHIPS = [
+  "Tretinoin/Retinoid",
+  "Salicylic Acid 2%",
+  "Benzoyl Peroxide",
+  "Topical Steroid",
+  "Azelaic Acid",
+  "Sunscreen SPF50+",
+  "Moisturizer",
+] as const;
+
+/** Single-tap ingredients for the current-oral-medications regimen. */
+const ORAL_CHIPS = [
+  "Doxycycline/Lymecycline",
+  "Isotretinoin",
+  "Spironolactone",
+  "Antihistamine",
+  "Oral Steroid",
+] as const;
+
+/** Structured UV-exposure / sunburn history chips (migration 0119). */
+const SUN_EXPOSURE_TAGS = [
+  "Daily Outdoor Work",
+  "Frequent Sunburns",
+  "Tanning Bed Use",
+  "Strict Sun Protection",
+] as const;
+
+/** Structured hereditary skin-cancer risk chips (migration 0119). */
+const FAMILY_RISK_TAGS = [
+  "Family Melanoma",
+  "Family Non-Melanoma Skin Cancer",
+  "Dysplastic Nevus Syndrome",
+] as const;
+
+/** Mini labels for the overview photo preview (mirrors derm-photos-tab). */
+const PHOTO_TYPE_LABELS: Record<DermPhoto["photo_type"], string> = {
+  baseline: "Baseline",
+  follow_up: "Follow-up",
+  post_treatment: "Post-treatment",
+};
+
 const CHIEF_COMPLAINT_OPTIONS = [
   "Acne",
   "Eczema flare",
@@ -1205,6 +1580,8 @@ function DermComplaintCard({
   canManage,
   visitId,
   applyIntakeRef,
+  historyContext,
+  historyPushRef,
 }: {
   patient: PatientDirectoryRow;
   todayExam: DermExam | null;
@@ -1213,6 +1590,15 @@ function DermComplaintCard({
   visitId?: string | null;
   /** Registers the Approve & Import applier with the parent (Tab 1 summary). */
   applyIntakeRef?: { current: ((s: IntakeSuggestion) => void) | null };
+  /** Profile-side history (Fitzpatrick, regimen, allergies) for the push. */
+  historyContext?: {
+    fitzpatrick: string | null;
+    topicals: string | null;
+    orals: string | null;
+    allergies: string | null;
+  };
+  /** Registers the Push-History routine with the parent's header button. */
+  historyPushRef?: { current: (() => void) | null };
 }) {
   const router = useRouter();
   const [rowId, setRowId] = useState<string | null>(todayExam?.id ?? null);
@@ -1299,11 +1685,61 @@ function DermComplaintCard({
     );
   }
 
-  // Keep the parent's button pointed at the latest closure (no dep array —
-  // re-registers on every render so the merge always sees current fields).
+  // Keep the parent's buttons pointed at the latest closures (no dep array —
+  // re-registers on every render so the merge/push always see current fields).
   useEffect(() => {
     if (applyIntakeRef) applyIntakeRef.current = applyIntakeSuggestion;
+    if (historyPushRef) historyPushRef.current = pushHistoryToNote;
   });
+
+  /**
+   * 📋 Push History to Session Note — the Tab-1 workflow bridge.
+   *
+   * Formats the structured clinical summary (complaint, window, triggers,
+   * symptoms, Fitzpatrick, regimen, allergies) and appends it to today's
+   * encounter HPI — the dermatologist's session note — through the normal
+   * autosave path, so it lands in `derm_exams.hpi` and the past-encounter
+   * drawer instead of a throwaway clipboard string.
+   */
+  function pushHistoryToNote() {
+    if (!canManage) return;
+    const complaint = fields.chief_complaints.join(", ");
+    const window = [fields.duration, fields.severity]
+      .filter(Boolean)
+      .join(", ");
+    const parts: string[] = [];
+    if (complaint) {
+      parts.push(`HPI: ${complaint}${window ? ` (${window})` : ""}`);
+    }
+    if (fields.triggers.length) {
+      parts.push(`Triggers: ${fields.triggers.join(", ")}`);
+    }
+    if (fields.associated_symptoms.length) {
+      parts.push(`Symptoms: ${fields.associated_symptoms.join(", ")}`);
+    }
+    if (historyContext?.fitzpatrick) {
+      parts.push(`Fitzpatrick: ${historyContext.fitzpatrick}`);
+    }
+    const regimen = [historyContext?.topicals, historyContext?.orals]
+      .filter(Boolean)
+      .join("; ");
+    if (regimen) parts.push(`Active Skincare/Meds: ${regimen}`);
+    if (historyContext?.allergies) {
+      parts.push(`Allergies: ${historyContext.allergies}`);
+    }
+    if (parts.length === 0) {
+      toast.error("Nothing recorded yet — capture a complaint or history first.");
+      return;
+    }
+    const snippet = `${parts.join(". ")}.`;
+    const merged = fields.hpi.trim()
+      ? `${fields.hpi.trim()} ${snippet}`
+      : snippet;
+    void persist(
+      { hpi: merged },
+      "History pushed into today's session note (HPI).",
+    );
+  }
 
   function carryForward() {
     if (!previousExam) return;
@@ -1322,6 +1758,20 @@ function DermComplaintCard({
 
   return (
     <div className="space-y-4">
+      {/* 📋 Workflow bridge — profile history + today's chips into the note */}
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1.5 font-semibold"
+          onClick={pushHistoryToNote}
+          disabled={!canManage}
+        >
+          📋 Push History to Session Note
+        </Button>
+      </div>
+
       <div className="flex items-center justify-between gap-2">
         <p className="text-ink-faint text-[11px]">
           {todayExam
