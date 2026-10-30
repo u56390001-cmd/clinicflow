@@ -106,6 +106,8 @@ const SESSION_TYPES = [
 const DERM_FORM = ["cream", "ointment", "gel", "lotion"] as const;
 const CONSENT = ["obtained", "declined", "documented"] as const;
 const PHOTO_TYPES = ["baseline", "follow_up", "post_treatment"] as const;
+/** Capture modality — mirrors `derm_photos.image_kind` (migration 0121). */
+const DERM_IMAGE_KINDS = ["clinical", "dermoscopy", "histology"] as const;
 const DISTRIBUTIONS = ["localized", "generalized", "dermatomal"] as const;
 
 const textList = z
@@ -412,6 +414,8 @@ const saveDermPhotoSchema = z.object({
   document_id: optionalUuid,
   body_region: z.string().trim().min(1, "Body region is required.").max(80),
   photo_type: z.enum(PHOTO_TYPES),
+  // Capture modality (0121): macro clinical shot, dermatoscope or slide.
+  image_kind: z.enum(DERM_IMAGE_KINDS).optional(),
   lesion_notes: note,
   paired_with: optionalUuid,
   lesion_id: optionalUuid,

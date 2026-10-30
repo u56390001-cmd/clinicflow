@@ -5,6 +5,7 @@ import { z } from "zod";
 import { canManageClinical, getCurrentClinic } from "@/lib/clinic-access";
 import {
   UPLOAD_KIND_LABEL,
+  readSignatureHeader,
   sanitiseFileName,
   sniffFileSignature,
 } from "@/lib/file-signature";
@@ -162,6 +163,121 @@ export async function uploadPatientDocumentAction(
   }
 
   return { ok: true, data: undefined };
+}
+
+/**
+ * Direct in-tab skin-photo upload for the dermatology workspace (Tab 3).
+ *
+ * Same bytes-sniffing / tenant checks as `uploadPatientDocumentAction`, but:
+ * images only (PNG / JPEG / WebP — dermoscope exports are all three), the
+ * file comes as an argument instead of a form round-trip so the drag-and-drop
+ * surface can call it directly, and it returns the created `patient_documents`
+ * id so the caller can immediately tag it as a `derm_photos` row without a
+ * refetch round-trip.
+ */
+export async function uploadDermImageAction(
+  patientId: string,
+  file: File,
+): Promise<ActionResult<{ documentId: string; documentName: string }>> {
+  if (!z.string().uuid().safeParse(patientId).success) {
+    return { ok: false, message: "Missing patient id." };
+  }
+  if (file.size === 0) {
+    return { ok: false, message: "Choose a photo to upload." };
+  }
+  if (file.size > PATIENT_DOCUMENT_MAX_BYTES) {
+    return {
+      ok: false,
+      message: `That photo is ${(file.size / 1_048_576).toFixed(1)} MB. The limit is 10 MB.`,
+    };
+  }
+
+  const header = await readSignatureHeader(file);
+  const sniffed = sniffFileSignature(header);
+  if (!sniffed || !sniffed.mimeType.startsWith("image/")) {
+    return {
+      ok: false,
+      message: "Skin photos must be PNG, JPEG or WebP images.",
+    };
+  }
+
+  const supabase = await createClient();
+  const access = await getCurrentClinic(supabase);
+  if (!access) {
+    return { ok: false, message: "You must have a clinic to upload photos." };
+  }
+  if (!canManageClinical(access.role)) {
+    return { ok: false, message: "Your role can't upload patient photos." };
+  }
+  const clinicId = access.clinic.id;
+
+  const { data: patient } = await supabase
+    .from("patients")
+    .select("id")
+    .eq("clinic_id", clinicId)
+    .eq("id", patientId)
+    .maybeSingle();
+  if (!patient) {
+    return { ok: false, message: "That patient is not in this clinic." };
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const fileName = sanitiseFileName(file.name, sniffed.extension);
+  const objectKey = `${clinicId}/${patientId}/${crypto.randomUUID()}-${fileName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from(PATIENT_DOCUMENTS_BUCKET)
+    .upload(objectKey, file, {
+      contentType: sniffed.mimeType,
+      upsert: false,
+    });
+  if (uploadError) {
+    console.error("[uploadDermImageAction] storage upload failed", {
+      clinicId,
+      patientId,
+      message: uploadError.message,
+    });
+    return { ok: false, message: "We couldn't upload this photo. Please try again." };
+  }
+
+  const documentName = fileName.slice(0, 255);
+  const { data: inserted, error: insertError } = await supabase
+    .from("patient_documents")
+    .insert({
+      clinic_id: clinicId,
+      patient_id: patientId,
+      document_name: documentName,
+      file_path: objectKey,
+      mime_type: sniffed.mimeType,
+      size_bytes: file.size,
+      uploaded_by_user_id: user?.id ?? null,
+      category: "general",
+    })
+    .select("id")
+    .single();
+
+  if (insertError || !inserted) {
+    const { error: cleanupError } = await supabase.storage
+      .from(PATIENT_DOCUMENTS_BUCKET)
+      .remove([objectKey]);
+    if (cleanupError) {
+      console.error("[uploadDermImageAction] orphaned storage object", {
+        objectKey,
+        message: cleanupError.message,
+      });
+    }
+    console.error("[uploadDermImageAction] metadata insert failed", {
+      clinicId,
+      patientId,
+      message: insertError?.message,
+    });
+    return { ok: false, message: "We couldn't save this photo. Please try again." };
+  }
+
+  return { ok: true, data: { documentId: inserted.id, documentName } };
 }
 
 /**

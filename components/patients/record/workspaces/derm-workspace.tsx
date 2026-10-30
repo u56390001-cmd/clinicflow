@@ -108,6 +108,7 @@ import type {
 } from "@/lib/copilot/types";
 import { patientDirectoryHref } from "@/lib/patient-directory";
 import { patientDocumentHref } from "@/lib/patient-documents-queries";
+import { PHOTO_TYPE_LABEL } from "@/lib/derm-photo-utils";
 import type { ConsultationPreAnswer } from "@/lib/consultation-queries";
 import type { PatientDocumentView } from "@/lib/patient-documents-queries";
 import { cn } from "@/lib/utils";
@@ -516,7 +517,7 @@ function ActivePhotoPreview({
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={patientDocumentHref(photo.document_id)}
-                    alt={`${photo.body_region} — ${PHOTO_TYPE_LABELS[photo.photo_type]} skin photo`}
+                    alt={`${photo.body_region} — ${PHOTO_TYPE_LABEL[photo.photo_type]} skin photo`}
                     loading="lazy"
                     decoding="async"
                     className="absolute inset-0 size-full object-cover"
@@ -529,7 +530,7 @@ function ActivePhotoPreview({
                 )}
               </div>
               <figcaption className="text-ink-faint truncate text-[10.5px]">
-                {photo.body_region} · {PHOTO_TYPE_LABELS[photo.photo_type]} ·{" "}
+                {photo.body_region} · {PHOTO_TYPE_LABEL[photo.photo_type]} ·{" "}
                 {photo.taken_at}
               </figcaption>
             </figure>
@@ -1432,13 +1433,6 @@ const FAMILY_RISK_TAGS = [
   "Family Non-Melanoma Skin Cancer",
   "Dysplastic Nevus Syndrome",
 ] as const;
-
-/** Mini labels for the overview photo preview (mirrors derm-photos-tab). */
-const PHOTO_TYPE_LABELS: Record<DermPhoto["photo_type"], string> = {
-  baseline: "Baseline",
-  follow_up: "Follow-up",
-  post_treatment: "Post-treatment",
-};
 
 const CHIEF_COMPLAINT_OPTIONS = [
   "Acne",

@@ -8,23 +8,16 @@ import { ArrowLeftRight, Camera, Link2, Unlink } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { linkDermPhotoToLesionAction } from "@/lib/actions/specialty-workspaces";
-import { patientDirectoryHref } from "@/lib/patient-directory";
 import {
-  patientDocumentHref,
-  type PatientDocumentView,
-} from "@/lib/patient-documents-queries";
+  IMAGE_KIND_LABEL,
+  PHOTO_TYPE_LABEL,
+  photoAlt,
+  photoThumbHref,
+} from "@/lib/derm-photo-utils";
+import { patientDirectoryHref } from "@/lib/patient-directory";
+import type { PatientDocumentView } from "@/lib/patient-documents-queries";
 import { cn } from "@/lib/utils";
 import type { DermLesion, DermPhoto } from "@/types/database";
-
-const PHOTO_TYPE_LABEL: Record<DermPhoto["photo_type"], string> = {
-  baseline: "Baseline",
-  follow_up: "Follow-up",
-  post_treatment: "Post-treatment",
-};
-
-function photoAlt(photo: DermPhoto): string {
-  return `${PHOTO_TYPE_LABEL[photo.photo_type]} skin photo — ${photo.body_region}`;
-}
 
 function byTakenAtDesc(a: DermPhoto, b: DermPhoto): number {
   return b.taken_at.localeCompare(a.taken_at);
@@ -94,11 +87,21 @@ export function PinPhotosPanel({
   const main =
     working.find((photo) => photo.id === selectedPhotoId) ?? working[0] ?? null;
 
-  // Oldest vs newest for the before/after slider.
-  const timeline = useMemo(
-    () => [...working].sort((a, b) => a.taken_at.localeCompare(b.taken_at)),
-    [working],
-  );
+  /**
+   * Before/after timeline for the pin. When the pin has its own linked shots
+   * across visits, compare within those — the exact-lesion progression a
+   * doctor needs. Otherwise fall back to the same-region working set.
+   */
+  const timeline = useMemo(() => {
+    if (!selectedLesion) {
+      return [...working].sort((a, b) => a.taken_at.localeCompare(b.taken_at));
+    }
+    const linked = working.filter(
+      (photo) => photo.lesion_id === selectedLesion.id,
+    );
+    const source = linked.length >= 2 ? linked : working;
+    return [...source].sort((a, b) => a.taken_at.localeCompare(b.taken_at));
+  }, [working, selectedLesion]);
   const first = timeline[0] ?? null;
   const last = timeline[timeline.length - 1] ?? null;
 
@@ -125,13 +128,14 @@ export function PinPhotosPanel({
           <div className="relative overflow-hidden rounded-control border border-hairline bg-app/40">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={patientDocumentHref(main.document_id as string)}
+              src={photoThumbHref(main.document_id as string, 1200)}
               alt={photoAlt(main)}
               loading="lazy"
               decoding="async"
               className="aspect-[4/3] w-full object-contain"
             />
             <span className="absolute left-2 top-2 rounded-pill bg-black/55 px-2 py-0.5 text-[10.5px] font-semibold text-white">
+              {IMAGE_KIND_LABEL[main.image_kind]} ·{" "}
               {PHOTO_TYPE_LABEL[main.photo_type]} · {main.taken_at.slice(0, 10)}
             </span>
           </div>
@@ -172,7 +176,7 @@ export function PinPhotosPanel({
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={patientDocumentHref(photo.document_id as string)}
+                src={photoThumbHref(photo.document_id as string, 96)}
                 alt={photoAlt(photo)}
                 loading="lazy"
                 decoding="async"
@@ -293,7 +297,7 @@ function ComparisonSlider({
         {/* Today stays full-bleed underneath. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={patientDocumentHref(after.document_id as string)}
+          src={photoThumbHref(after.document_id as string, 640)}
           alt={photoAlt(after)}
           className="absolute inset-0 size-full object-cover"
         />
@@ -304,7 +308,7 @@ function ComparisonSlider({
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={patientDocumentHref(before.document_id as string)}
+            src={photoThumbHref(before.document_id as string, 640)}
             alt={photoAlt(before)}
             className="absolute inset-0 size-full object-cover"
           />

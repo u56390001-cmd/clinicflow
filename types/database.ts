@@ -1794,6 +1794,9 @@ export type DermProcedure = {
   updated_at: string;
 };
 
+/** Dermatology — how a skin photo was captured. Migration 0121. */
+export type DermImageKind = "clinical" | "dermoscopy" | "histology";
+
 /** Dermatology — a skin photo mapped to a body region; the file lives in the
  *  patient's DocumentUploader (patient_documents), this row tags it. */
 export type DermPhoto = {
@@ -1806,6 +1809,8 @@ export type DermPhoto = {
   document_id: string | null;
   body_region: string;
   photo_type: "baseline" | "follow_up" | "post_treatment";
+  /** Capture modality — clinical macro, dermatoscope, or pathology slide (0121). */
+  image_kind: DermImageKind;
   lesion_notes: string | null;
   paired_with: string | null;
   lesion_id: string | null;
@@ -6821,6 +6826,7 @@ export type Database = {
           document_id?: string | null;
           body_region: string;
           photo_type?: "baseline" | "follow_up" | "post_treatment";
+          image_kind?: DermImageKind;
           lesion_notes?: string | null;
           paired_with?: string | null;
           lesion_id?: string | null;
@@ -6837,6 +6843,7 @@ export type Database = {
           document_id?: string | null;
           body_region?: string;
           photo_type?: "baseline" | "follow_up" | "post_treatment";
+          image_kind?: DermImageKind;
           lesion_notes?: string | null;
           paired_with?: string | null;
           lesion_id?: string | null;

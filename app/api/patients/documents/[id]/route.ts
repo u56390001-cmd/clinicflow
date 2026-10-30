@@ -116,15 +116,53 @@ export async function GET(
     return response;
   }
 
+  // `?w=` requests a resized render (gallery thumbnails, before/after
+  // sliders). Storage's image transform runs server-side so the browser never
+  // downloads a 12 MP dermatoscope capture for a 48px tile. If the project
+  // cannot render transforms we fall back to the original bytes — a slow
+  // thumbnail beats a broken one.
+  const widthParam = Number(request.nextUrl.searchParams.get("w") ?? "");
+  const width =
+    Number.isFinite(widthParam) && widthParam >= 32 && widthParam <= 2000
+      ? Math.round(widthParam)
+      : null;
+
   const { data: signed, error: signError } = await supabase.storage
     .from(PATIENT_DOCUMENTS_BUCKET)
     .createSignedUrl(
       document.file_path,
       SIGNED_URL_EXPIRY_SECONDS,
-      download ? { download: document.document_name } : undefined,
+      width
+        ? { transform: { width } }
+        : download
+          ? { download: document.document_name }
+          : undefined,
     );
 
-  if (signError || !signed?.signedUrl) {
+  let signedUrl = signed?.signedUrl ?? null;
+  if ((signError || !signedUrl) && width) {
+    // Transform not supported (free-tier storage or non-image) — plain sign.
+    const retry = await supabase.storage
+      .from(PATIENT_DOCUMENTS_BUCKET)
+      .createSignedUrl(
+        document.file_path,
+        SIGNED_URL_EXPIRY_SECONDS,
+        download ? { download: document.document_name } : undefined,
+      );
+    signedUrl = retry.data?.signedUrl ?? null;
+    if (!signedUrl) {
+      console.error("[patients/documents] signing failed", {
+        documentId,
+        message: retry.error?.message,
+      });
+      return NextResponse.json(
+        { ok: false, error: "Could not open that document." },
+        { status: 500 },
+      );
+    }
+  }
+
+  if (!signedUrl) {
     console.error("[patients/documents] signing failed", {
       documentId,
       message: signError?.message,
@@ -135,7 +173,7 @@ export async function GET(
     );
   }
 
-  const response = NextResponse.redirect(signed.signedUrl, 302);
+  const response = NextResponse.redirect(signedUrl, 302);
   // The redirect target expires in a minute; a cached 302 would hand out a dead
   // URL, and an intermediary must never hold on to this one.
   response.headers.set("Cache-Control", "private, no-store, max-age=0");
