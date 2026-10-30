@@ -37,6 +37,7 @@ import {
   MapPin,
   Pill,
   Plus,
+  Sparkles,
   Stethoscope,
   Sun,
   TriangleAlert,
@@ -52,7 +53,6 @@ import {
 } from "@/components/patients/record/workspaces/derm-body-map";
 import { BodyMapPanel } from "@/components/patients/record/workspaces/derm-body-map-panel";
 import { PinPhotosPanel } from "@/components/patients/record/workspaces/derm-pin-photos";
-import { DermDiagnoses } from "@/components/patients/record/workspaces/derm-diagnosis";
 import { DermProcedures } from "@/components/patients/record/workspaces/derm-procedures";
 import { DermRxMeds } from "@/components/patients/record/workspaces/derm-rx-meds";
 import { DermSummary } from "@/components/patients/record/workspaces/derm-summary";
@@ -1922,6 +1922,9 @@ function ExamTab({
   const [rowId, setRowId] = useState<string | null>(todayExam?.id ?? null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The copilot is a slide-over drawer opened from the header button — it
+  // never occupies the examination body, which must stay focused on the form.
+  const [copilotOpen, setCopilotOpen] = useState(false);
   const [complaints, setComplaints] = useState<string[]>(
     todayExam?.chief_complaints ?? [],
   );
@@ -2216,6 +2219,23 @@ function ExamTab({
     <div className="space-y-4">
       {canManage && (
         <>
+          {/* Tab header: one copilot entry point (slide-over), no inline card. */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-ink text-[14px] font-bold">
+              Examination &amp; diagnosis
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setCopilotOpen(true)}
+              className="gap-1.5"
+            >
+              <Sparkles aria-hidden="true" className="size-3.5 text-primary" />
+              AI Copilot
+            </Button>
+          </div>
+
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
             <RecordSection title="Body map">
               <BodyMapPanel
@@ -2282,15 +2302,40 @@ function ExamTab({
               carried from today's exam and preserved on save. */}
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
             <RecordSection title="Diagnosis & assessment">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <ChipPicker
-                  label="Distribution"
-                  single
-                  value={distribution}
-                  onChange={setDistribution}
-                  options={DISTRIBUTIONS}
-                />
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {/* Row 1 — distribution: dedicated full-width chip row. */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[12px] font-bold text-text-secondary">
+                  Distribution
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {DISTRIBUTIONS.map((option) => {
+                    const active = distribution.includes(option);
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        disabled={!canManage}
+                        aria-pressed={active}
+                        onClick={() =>
+                          setDistribution(active ? [] : [option])
+                        }
+                        className={cn(
+                          "rounded-full border px-3 py-1 text-[11.5px] font-semibold capitalize transition-colors disabled:opacity-60",
+                          active
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-hairline text-text-secondary hover:border-primary/50 hover:text-text-primary",
+                        )}
+                      >
+                        {option}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Row 2 — coded diagnosis (wide) + derived ICD-10 (narrow). */}
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="md:col-span-2">
                   <TerminologySearch
                     label="Diagnosis"
                     inputId="derm-exam-diagnosis"
@@ -2302,32 +2347,35 @@ function ExamTab({
                       setIcdCode(hit.code);
                     }}
                   />
-                  <div>
-                    <label
-                      htmlFor="derm-exam-icd"
-                      className="text-ink mb-1.5 block text-[12.5px] font-bold"
-                    >
-                      ICD-10 code
-                    </label>
-                    <Input
-                      id="derm-exam-icd"
-                      value={icdCode}
-                      onChange={(event) =>
-                        setIcdCode(event.target.value.toUpperCase())
-                      }
-                      placeholder="e.g. L40.0"
-                      autoComplete="off"
-                      className="font-mono"
-                    />
-                  </div>
+                </div>
+                <div className="md:col-span-1">
+                  <label
+                    htmlFor="derm-exam-icd"
+                    className="text-ink mb-1.5 block text-[12.5px] font-bold"
+                  >
+                    ICD-10 code
+                  </label>
+                  <Input
+                    id="derm-exam-icd"
+                    value={icdCode}
+                    onChange={(event) =>
+                      setIcdCode(event.target.value.toUpperCase())
+                    }
+                    placeholder="e.g. L40.0"
+                    autoComplete="off"
+                    className="font-mono"
+                  />
                 </div>
               </div>
+
+              {/* Row 3 — clinical notes: dedicated full-width row. */}
               <div className="mt-4">
                 <label
                   htmlFor="derm-exam-notes"
                   className="text-ink mb-1.5 block text-[12.5px] font-bold"
                 >
-                  Clinical notes
+                  Clinical Notes (Lesion size, distribution, dermoscopy
+                  findings)
                 </label>
                 <Textarea
                   id="derm-exam-notes"
@@ -2337,13 +2385,15 @@ function ExamTab({
                   placeholder="Lesion size, distribution, dermoscopy findings, patient instructions…"
                 />
               </div>
+
+              {/* Row 4 — reasoning (left) + patient explanation (right). */}
               <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
                   <label
                     htmlFor="derm-exam-assessment"
                     className="text-ink mb-1.5 block text-[12.5px] font-bold"
                   >
-                    Assessment
+                    Assessment &amp; Clinical Reasoning
                   </label>
                   <Textarea
                     id="derm-exam-assessment"
@@ -2358,7 +2408,7 @@ function ExamTab({
                     htmlFor="derm-exam-explanation"
                     className="text-ink mb-1.5 block text-[12.5px] font-bold"
                   >
-                    Explanation for the patient
+                    Explanation for Patient
                   </label>
                   <Textarea
                     id="derm-exam-explanation"
@@ -2376,10 +2426,10 @@ function ExamTab({
                   {error}
                 </p>
               )}
+              {/* Row 5 — action bar: push CTA (primary) + save (secondary). */}
               <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
                 <Button
                   type="button"
-                  variant="outline"
                   size="sm"
                   onClick={pushExamToRx}
                   disabled={pending}
@@ -2387,12 +2437,13 @@ function ExamTab({
                 >
                   <ClipboardPaste
                     aria-hidden="true"
-                    className="size-3.5 text-primary"
+                    className="size-3.5"
                   />
                   Push Examination to Prescription &amp; Treatment Plan
                 </Button>
                 <Button
                   type="button"
+                  variant="outline"
                   size="sm"
                   onClick={addExam}
                   disabled={pending}
@@ -2426,26 +2477,54 @@ function ExamTab({
             </RecordSection>
           </div>
 
-          <CopilotDrawer
-            mode="dermatology"
-            contextLabel={`${DERMATOLOGY_WORKSPACE.name} Copilot`}
-            workspaceContext={DERMATOLOGY_WORKSPACE.copilotContext}
-            patientProfile={{
-              allergies: patient.known_allergies || undefined,
-              current_meds: patient.current_medications || undefined,
-            }}
-            onPopulateForm={handleCopilotPopulate}
-          />
+          {/* Slide-over copilot: opened from the header button, backdrop
+              click or ✕ closes; the examination form stays underneath. */}
+          {copilotOpen && (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Dermatology Copilot"
+              className="fixed inset-0 z-50 flex justify-end bg-black/40"
+              onClick={() => setCopilotOpen(false)}
+            >
+              <aside
+                className="h-full w-full max-w-sm overflow-y-auto border-l border-hairline bg-surface shadow-xl"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="flex items-center justify-between border-b border-hairline px-3 py-2">
+                  <p className="text-ink flex items-center gap-1.5 text-[12.5px] font-bold">
+                    <Sparkles
+                      aria-hidden="true"
+                      className="size-3.5 text-primary"
+                    />
+                    Dermatology Copilot
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    aria-label="Close Copilot"
+                    onClick={() => setCopilotOpen(false)}
+                    className="size-7 p-0"
+                  >
+                    <X aria-hidden="true" className="size-3.5" />
+                  </Button>
+                </div>
+                <CopilotDrawer
+                  mode="dermatology"
+                  contextLabel={`${DERMATOLOGY_WORKSPACE.name} Copilot`}
+                  workspaceContext={DERMATOLOGY_WORKSPACE.copilotContext}
+                  patientProfile={{
+                    allergies: patient.known_allergies || undefined,
+                    current_meds: patient.current_medications || undefined,
+                  }}
+                  onPopulateForm={handleCopilotPopulate}
+                />
+              </aside>
+            </div>
+          )}
         </>
       )}
-
-      <DermDiagnoses
-        patientId={patient.id}
-        examId={todayExam?.id ?? null}
-        diagnoses={derm.diagnoses}
-        canManage={canManage}
-        visitId={visitId}
-      />
 
       {derm.exams.length > 0 ? (
         <div className="space-y-3">

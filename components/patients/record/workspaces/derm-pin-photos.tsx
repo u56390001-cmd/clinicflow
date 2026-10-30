@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { ArrowLeftRight, Camera, Link2, Unlink } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { PhotoLightbox } from "@/components/patients/record/workspaces/derm-photo-viewer";
 import { linkDermPhotoToLesionAction } from "@/lib/actions/specialty-workspaces";
 import {
   IMAGE_KIND_LABEL,
@@ -46,6 +47,12 @@ export function PinPhotosPanel({
   const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
   const [comparing, setComparing] = useState(false);
   const [busy, setBusy] = useState(false);
+  /**
+   * In-tab lightbox: clicking a thumbnail (or the main image) opens the zoom
+   * overlay WITHOUT leaving the examination tab — the "Open Photos & Body
+   * Map" link stays as the only explicit navigation away.
+   */
+  const [lightboxPhoto, setLightboxPhoto] = useState<DermPhoto | null>(null);
 
   const imageDocs = useMemo(
     () =>
@@ -125,7 +132,12 @@ export function PinPhotosPanel({
     <div className="space-y-3">
       {main ? (
         <div className="space-y-1.5">
-          <div className="relative overflow-hidden rounded-control border border-hairline bg-app/40">
+          <button
+            type="button"
+            onClick={() => setLightboxPhoto(main)}
+            aria-label={`Open ${photoAlt(main)} in zoom viewer`}
+            className="relative block w-full cursor-zoom-in overflow-hidden rounded-control border border-hairline bg-app/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={photoThumbHref(main.document_id as string, 1200)}
@@ -138,7 +150,7 @@ export function PinPhotosPanel({
               {IMAGE_KIND_LABEL[main.image_kind]} ·{" "}
               {PHOTO_TYPE_LABEL[main.photo_type]} · {main.taken_at.slice(0, 10)}
             </span>
-          </div>
+          </button>
           <p className="text-ink-faint text-[11px]">
             {main.lesion_id && main.lesion_id === selectedLesion?.id
               ? `Linked to Pin #${selectedLesion.pin_number} · ${main.body_region}`
@@ -165,6 +177,8 @@ export function PinPhotosPanel({
               onClick={() => {
                 setSelectedPhotoId(photo.id);
                 setComparing(false);
+                // In-tab lightbox — never a tab jump to derm_photos.
+                setLightboxPhoto(photo);
               }}
               className={cn(
                 "relative overflow-hidden rounded-control border transition-colors",
@@ -241,6 +255,15 @@ export function PinPhotosPanel({
           )}
         </div>
       )}
+
+      {/* In-tab HD viewer: zoom/pan without leaving the examination tab. */}
+      <PhotoLightbox
+        photo={lightboxPhoto}
+        documentId={lightboxPhoto?.document_id ?? undefined}
+        pinNumber={selectedLesion?.pin_number ?? null}
+        open={lightboxPhoto !== null}
+        onClose={() => setLightboxPhoto(null)}
+      />
 
       <Button asChild variant="outline" size="sm" className="w-full">
         <Link

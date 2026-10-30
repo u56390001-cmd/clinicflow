@@ -2771,6 +2771,44 @@ export async function saveDermExamAction(
       : {}),
   };
 
+  /**
+   * Ledger sync: the exam card is now the ONLY diagnosis form on Tab 2 (the
+   * old "Diagnosis & clinical assessment" card with its 12 preset buttons was
+   * removed). Keep the derm_diagnoses ledger — status chips, summary tab and
+   * the assessment print read it — in step by upserting a primary row keyed
+   * on this exam. Best-effort: an exam save must not fail because the ledger
+   * write did.
+   */
+  async function syncExamDiagnosisLedger(examId: string): Promise<void> {
+    // Hoisted declarations do not inherit the caller's guard narrowing.
+    if (!g.ok) return;
+    const label = rest.diagnosis?.trim();
+    if (!label) return;
+    const { data: existing } = await g.supabase
+      .from("derm_diagnoses")
+      .select("id")
+      .eq("exam_id", examId)
+      .eq("clinic_id", g.clinicId)
+      .limit(1);
+    if (existing && existing.length > 0) {
+      await g.supabase
+        .from("derm_diagnoses")
+        .update({ label, icd_code: rest.icd_code || null })
+        .eq("id", existing[0].id)
+        .eq("clinic_id", g.clinicId);
+      return;
+    }
+    await g.supabase.from("derm_diagnoses").insert({
+      clinic_id: g.clinicId,
+      patient_id: patientId,
+      doctor_id: await doctorId(g.supabase, g.clinicId),
+      exam_id: examId,
+      label,
+      icd_code: rest.icd_code || null,
+      status: "primary",
+    });
+  }
+
   // Editing today's encounter row (form passes its id back) vs. a fresh visit.
   if (id) {
     const { error } = await g.supabase
@@ -2780,6 +2818,7 @@ export async function saveDermExamAction(
       .eq("clinic_id", g.clinicId)
       .eq("patient_id", patientId);
     if (error) return { ok: false, message: error.message };
+    await syncExamDiagnosisLedger(id);
     revalidatePath(APP_ROUTES.app.patients);
     return { ok: true, data: id };
   }
@@ -2801,6 +2840,7 @@ export async function saveDermExamAction(
     .select("id")
     .single();
   if (error) return { ok: false, message: error.message };
+  await syncExamDiagnosisLedger(data.id);
   revalidatePath(APP_ROUTES.app.patients);
   return { ok: true, data: data.id };
 }
