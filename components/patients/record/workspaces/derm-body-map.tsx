@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { MapPin, Ruler, Save } from "lucide-react";
+import { MapPin, Ruler, Save, TriangleAlert } from "lucide-react";
 
 import { ConfirmDeleteButton } from "@/components/patients/record/workspaces/confirm-delete";
 import {
@@ -79,43 +79,50 @@ const SIZE_UNITS = ["mm", "cm"] as const;
 /** Named anchor points on the body-map silhouette (viewBox 0 0 200 400). */
 export type Anchor = { name: string; x: number; y: number };
 export const FRONT_ANCHORS: Anchor[] = [
-  { name: "Scalp", x: 100, y: 20 },
-  { name: "Face", x: 100, y: 45 },
-  { name: "Neck", x: 100, y: 70 },
+  { name: "Scalp (hairline)", x: 100, y: 18 },
+  { name: "Forehead", x: 100, y: 34 },
+  { name: "Nasal bridge", x: 100, y: 44 },
+  { name: "Nose tip", x: 100, y: 50 },
+  { name: "Left malar / cheek", x: 82, y: 48 },
+  { name: "Right malar / cheek", x: 118, y: 48 },
+  { name: "Left ear / preauricular", x: 70, y: 48 },
+  { name: "Right ear / preauricular", x: 130, y: 48 },
+  { name: "Chin", x: 100, y: 60 },
+  { name: "Neck (anterior)", x: 100, y: 72 },
   { name: "Chest", x: 100, y: 110 },
   { name: "Abdomen", x: 100, y: 160 },
   { name: "Left upper arm", x: 46, y: 110 },
   { name: "Right upper arm", x: 154, y: 110 },
-  { name: "Left forearm", x: 40, y: 175 },
-  { name: "Right forearm", x: 160, y: 175 },
-  { name: "Left hand", x: 46, y: 216 },
-  { name: "Right hand", x: 154, y: 216 },
+  { name: "Left forearm (volar)", x: 40, y: 175 },
+  { name: "Right forearm (volar)", x: 160, y: 175 },
+  { name: "Left hand / palm", x: 46, y: 216 },
+  { name: "Right hand / palm", x: 154, y: 216 },
   { name: "Groin", x: 100, y: 205 },
-  { name: "Left thigh", x: 84, y: 265 },
-  { name: "Right thigh", x: 116, y: 265 },
-  { name: "Left lower leg", x: 84, y: 340 },
-  { name: "Right lower leg", x: 116, y: 340 },
-  { name: "Left foot", x: 84, y: 378 },
-  { name: "Right foot", x: 116, y: 378 },
+  { name: "Left thigh (anterior)", x: 84, y: 265 },
+  { name: "Right thigh (anterior)", x: 116, y: 265 },
+  { name: "Left lower leg (shin)", x: 84, y: 340 },
+  { name: "Right lower leg (calf)", x: 116, y: 340 },
+  { name: "Left foot (dorsum)", x: 84, y: 378 },
+  { name: "Right foot (dorsum)", x: 116, y: 378 },
 ];
 export const BACK_ANCHORS: Anchor[] = [
-  { name: "Scalp", x: 100, y: 20 },
+  { name: "Scalp (occiput)", x: 100, y: 20 },
   { name: "Nape of neck", x: 100, y: 70 },
   { name: "Upper back", x: 100, y: 110 },
   { name: "Lower back", x: 100, y: 165 },
   { name: "Left upper arm", x: 46, y: 110 },
   { name: "Right upper arm", x: 154, y: 110 },
-  { name: "Left forearm", x: 40, y: 175 },
-  { name: "Right forearm", x: 160, y: 175 },
-  { name: "Left hand", x: 46, y: 216 },
-  { name: "Right hand", x: 154, y: 216 },
+  { name: "Left forearm (dorsal)", x: 40, y: 175 },
+  { name: "Right forearm (dorsal)", x: 160, y: 175 },
+  { name: "Left hand / dorsum", x: 46, y: 216 },
+  { name: "Right hand / dorsum", x: 154, y: 216 },
   { name: "Buttock", x: 100, y: 210 },
-  { name: "Left thigh", x: 84, y: 265 },
-  { name: "Right thigh", x: 116, y: 265 },
-  { name: "Left lower leg", x: 84, y: 340 },
-  { name: "Right lower leg", x: 116, y: 340 },
-  { name: "Left foot", x: 84, y: 378 },
-  { name: "Right foot", x: 116, y: 378 },
+  { name: "Left thigh (posterior)", x: 84, y: 265 },
+  { name: "Right thigh (posterior)", x: 116, y: 265 },
+  { name: "Left lower leg (calf)", x: 84, y: 340 },
+  { name: "Right lower leg (calf)", x: 116, y: 340 },
+  { name: "Left foot (plantar)", x: 84, y: 378 },
+  { name: "Right foot (plantar)", x: 116, y: 378 },
 ];
 
 export function nearestAnchor(anchors: Anchor[], x: number, y: number): Anchor {
@@ -243,7 +250,23 @@ type LesionPatch = Pick<
   | "size_value"
   | "size_unit"
   | "observations"
->;
+> & { abcde: DermLesion["abcde"] };
+
+/**
+ * ABCDE melanoma-screening criteria — checked per LESION PIN, not per exam:
+ * a mole checklist is about one lesion. >= 3 criteria flags the pin
+ * "High-Risk Lesion — Biopsy Advised" (0120, `derm_lesions.abcde`).
+ */
+const ABCDE_ITEMS = [
+  { key: "asymmetry", label: "Asymmetry" },
+  { key: "border", label: "Irregular border" },
+  { key: "colour", label: "Colour variation" },
+  { key: "diameter", label: "Diameter > 6 mm" },
+  { key: "evolution", label: "Evolution / change" },
+] as const;
+
+/** The biopsy-escalation threshold: 3 of 5 criteria present. */
+const ABCDE_RISK_THRESHOLD = 3;
 
 export function LesionEditor({
   patientId,
@@ -269,6 +292,7 @@ export function LesionEditor({
     size_value: lesion.size_value,
     size_unit: lesion.size_unit ?? "mm",
     observations: lesion.observations,
+    abcde: lesion.abcde ?? null,
   });
 
   const customMorphology = patch.morphology.filter(
@@ -277,6 +301,10 @@ export function LesionEditor({
         (option) => option.toLowerCase() === term.toLowerCase(),
       ),
   );
+  const abcdeCount = ABCDE_ITEMS.filter(
+    (item) => patch.abcde?.[item.key],
+  ).length;
+  const highRisk = abcdeCount >= ABCDE_RISK_THRESHOLD;
 
   function save(next: LesionPatch): Promise<boolean> {
     if (!canManage) return Promise.resolve(false);
@@ -296,6 +324,7 @@ export function LesionEditor({
       size_value: next.size_value,
       size_unit: next.size_unit,
       observations: next.observations ?? "",
+      abcde: next.abcde ?? null,
     }).then((result) => {
       if (result.ok) {
         setStatus("saved");
@@ -317,9 +346,74 @@ export function LesionEditor({
   return (
     <RecordSection
       title={`Pin #${lesion.pin_number} — ${patch.body_region}`}
-      meta={<NoteStatus state={status} message={message} />}
+      meta={
+        <div className="flex items-center gap-2">
+          {highRisk && (
+            <span
+              role="status"
+              className="rounded-pill bg-status-destructive/15 px-2 py-0.5 text-[10.5px] font-bold text-status-destructive"
+            >
+              ⚠️ High-Risk Lesion — Biopsy Advised
+            </span>
+          )}
+          <NoteStatus state={status} message={message} />
+        </div>
+      }
     >
       <div className="space-y-3">
+        {highRisk && (
+          <div
+            role="status"
+            className="flex items-start gap-2 rounded-card border border-status-destructive/40 bg-status-destructive/10 p-2.5"
+          >
+            <TriangleAlert
+              aria-hidden="true"
+              className="mt-0.5 size-4 shrink-0 text-status-destructive"
+            />
+            <div className="min-w-0">
+              <p className="text-[12px] font-semibold text-text-primary">
+                {abcdeCount} of 5 ABCDE features present
+              </p>
+              <p className="text-[11px] text-text-secondary">
+                Dermoscopic review and biopsy advised; flag raised on this pin.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div>
+          <p className="text-ink text-[12.5px] font-bold">
+            ABCDE mole screening
+            <span className="text-ink-faint ml-1.5 text-[11px] font-medium">
+              ({abcdeCount}/5 — saved to this pin)
+            </span>
+          </p>
+          <div className="mt-1.5 space-y-1.5">
+            {ABCDE_ITEMS.map((item) => (
+              <label
+                key={item.key}
+                className="text-ink flex items-center gap-2 text-[12.5px] font-medium"
+              >
+                <input
+                  type="checkbox"
+                  checked={patch.abcde?.[item.key] ?? false}
+                  disabled={!canManage}
+                  onChange={(event) => {
+                    const next = { ...(patch.abcde ?? {}) };
+                    if (event.target.checked) next[item.key] = true;
+                    else delete next[item.key];
+                    void save(
+                      update({ abcde: Object.keys(next).length ? next : null }),
+                    );
+                  }}
+                  className="size-4 accent-[var(--color-primary)]"
+                />
+                {item.label}
+              </label>
+            ))}
+          </div>
+        </div>
+
         <div className="space-y-2">
           <ChipPicker
             label="Morphology"
@@ -520,14 +614,6 @@ const PASI_SEVERITY = [
   "very marked",
 ] as const;
 
-const ABCDE_ITEMS = [
-  { key: "asymmetry", label: "Asymmetry" },
-  { key: "border", label: "Irregular border" },
-  { key: "colour", label: "Colour variation" },
-  { key: "diameter", label: "Diameter > 6 mm" },
-  { key: "evolution", label: "Evolution / change" },
-] as const;
-
 function gagsBand(total: number): string {
   if (total === 0) return "Clear";
   if (total <= 18) return "Mild";
@@ -562,7 +648,6 @@ export function DermScoringTools({
   const [kind, setKind] = useState<DermSeverityScore["kind"]>("GAGS");
   const [gags, setGags] = useState<Record<string, number>>({});
   const [pasi, setPasi] = useState<Record<string, number>>({});
-  const [abcde, setAbcde] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
 
   const gagsTotal = GAGS_SITES.reduce(
@@ -577,25 +662,15 @@ export function DermScoringTools({
       (pasi[`${area.key}_d`] ?? 0);
     return sum + area.weight * a * sev;
   }, 0);
-  const abcdeTotal = ABCDE_ITEMS.filter((item) => abcde[item.key]).length;
 
-  const total =
-    kind === "GAGS" ? gagsTotal : kind === "PASI" ? pasiTotal : abcdeTotal;
+  const total = kind === "GAGS" ? gagsTotal : pasiTotal;
   const band =
     kind === "GAGS"
       ? gagsBand(gagsTotal)
-      : kind === "PASI"
-        ? pasiBand(pasiTotal)
-        : abcdeTotal === 0
-          ? "No features documented"
-          : `${abcdeTotal} of 5 features present`;
+      : pasiBand(pasiTotal);
 
   const inputs: Record<string, number | string | boolean> =
-    kind === "GAGS"
-      ? { ...gags }
-      : kind === "PASI"
-        ? { ...pasi }
-        : { ...abcde };
+    kind === "GAGS" ? { ...gags } : { ...pasi };
 
   async function saveScore() {
     if (!canManage || saving) return;
@@ -627,7 +702,7 @@ export function DermScoringTools({
   return (
     <div className="space-y-3">
       <div className="inline-flex rounded-control border border-hairline p-0.5">
-        {(["GAGS", "PASI", "ABCDE"] as const).map((option) => (
+        {(["GAGS", "PASI"] as const).map((option) => (
           <button
             key={option}
             type="button"
@@ -724,31 +799,6 @@ export function DermScoringTools({
                 ))}
               </div>
             </div>
-          ))}
-        </div>
-      )}
-
-      {kind === "ABCDE" && (
-        <div className="space-y-2">
-          {ABCDE_ITEMS.map((item) => (
-            <label
-              key={item.key}
-              className="text-ink flex items-center gap-2 text-[12.5px] font-medium"
-            >
-              <input
-                type="checkbox"
-                checked={abcde[item.key] ?? false}
-                onChange={(event) =>
-                  setAbcde((current) => ({
-                    ...current,
-                    [item.key]: event.target.checked,
-                  }))
-                }
-                disabled={!canManage}
-                className="size-4 accent-[var(--color-primary)]"
-              />
-              {item.label}
-            </label>
           ))}
         </div>
       )}

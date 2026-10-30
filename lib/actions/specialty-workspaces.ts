@@ -445,6 +445,9 @@ const saveDermLesionSchema = z.object({
   size_value: z.coerce.number().min(0).max(10000).nullable().optional(),
   size_unit: z.string().trim().max(10).nullable().optional().or(z.literal("")),
   observations: note,
+  // Per-pin ABCDE mole checklist (0120): the five boolean criteria, stored as
+  // JSONB so the lesion editor can raise a biopsy flag on >= 3 criteria.
+  abcde: z.record(z.string(), z.boolean()).nullable().optional(),
 });
 
 const dermMedicineEntrySchema = z.object({
@@ -3070,6 +3073,7 @@ export async function saveDermLesionAction(
     size_value: rest.size_value ?? null,
     size_unit: rest.size_unit || null,
     observations: rest.observations || null,
+    abcde: rest.abcde ?? null,
   };
 
   // Editing an existing pin (the map passes its id back) vs. a new pin.

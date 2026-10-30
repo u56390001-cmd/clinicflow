@@ -1747,6 +1747,8 @@ export type DermLesion = {
   size_value: number | null;
   size_unit: string | null;
   observations: string | null;
+  /** Migration 0120 - per-pin ABCDE checklist ({asymmetry…evolution}: boolean). */
+  abcde: Record<string, boolean> | null;
   created_at: string;
   updated_at: string;
 };
@@ -6662,6 +6664,7 @@ export type Database = {
           size_value?: number | null;
           size_unit?: string | null;
           observations?: string | null;
+          abcde?: Record<string, boolean> | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -6684,6 +6687,7 @@ export type Database = {
           size_value?: number | null;
           size_unit?: string | null;
           observations?: string | null;
+          abcde?: Record<string, boolean> | null;
           created_at?: never;
           updated_at?: string;
         };

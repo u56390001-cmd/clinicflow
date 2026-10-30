@@ -30,6 +30,7 @@ import {
   CheckCircle2,
   ChevronRight,
   ClipboardList,
+  ClipboardPaste,
   History,
   Images,
   Loader2,
@@ -2034,6 +2035,138 @@ function ExamTab({
   }
 
   /**
+   * Builds the exam summary line pushed downstream: today's pins (this exam's
+   * pins, or today's unassigned pins when the exam row is still unsaved), the
+   * latest severity score, and the diagnosis with ICD-10.
+   */
+  function buildExamSnippet(): string | null {
+    const examId = rowId || todayExam?.id || null;
+    const today = todayIso();
+    const pins = derm.lesions.filter(
+      (pin) =>
+        pin.exam_id
+          ? pin.exam_id === examId
+          : pin.created_at.slice(0, 10) === today,
+    );
+    const parts: string[] = [];
+    if (pins.length > 0) {
+      const pinText = pins
+        .map((pin) => {
+          const bits = [
+            pin.morphology.join("/"),
+            pin.color.join("/"),
+            pin.size_value
+              ? `${pin.size_value}${pin.size_unit ?? "mm"}`
+              : null,
+          ].filter(Boolean);
+          const lat = pin.laterality
+            ? `${pin.laterality.charAt(0).toUpperCase()}${pin.laterality.slice(1)} `
+            : "";
+          return `Pin #${pin.pin_number} ${lat}${pin.body_region} — ${
+            bits.join(", ") || "unclassified"
+          }`;
+        })
+        .join("; ");
+      parts.push(`EXAMINATION: ${pinText}.`);
+    }
+    const scores = todayExam?.severity_scores ?? [];
+    const latestScore = scores[scores.length - 1];
+    if (latestScore) {
+      parts.push(
+        `Severity: ${latestScore.kind} ${latestScore.total} (${latestScore.band}).`,
+      );
+    }
+    if (diagnosis.trim()) {
+      parts.push(
+        `DIAGNOSIS: ${diagnosis.trim()}${
+          icdCode.trim()
+            ? ` (ICD-10: ${icdCode.trim().toUpperCase()})`
+            : ""
+        }.`,
+      );
+    }
+    return parts.length ? parts.join(" ") : null;
+  }
+
+  /**
+   * [ 📋 Push Examination to Prescription & Treatment Plan ] — one tap that
+   * (1) appends the structured exam summary to today's assessment, and
+   * (2) appends it to the Rx tab's application instructions (today's active
+   * prescription if one exists, else a fresh plan row), so the doctor never
+   * re-types findings on the treatment tab.
+   */
+  async function pushExamToRx() {
+    if (!canManage || pending) return;
+    const snippet = buildExamSnippet();
+    if (!snippet) {
+      setError(
+        "Nothing to push yet — drop pins, score severity or record a diagnosis first.",
+      );
+      return;
+    }
+    setError(null);
+    setPending(true);
+    const mergedAssessment = assessment.trim()
+      ? `${assessment.trim()} ${snippet}`
+      : snippet;
+    // Update path rebuilds the payload from ALL form keys with defaults —
+    // send the full state so the other fields are never wiped.
+    const result = await saveDermExamAction(
+      patient.id,
+      {
+        id: rowId ?? "",
+        chief_complaints: complaints,
+        morphology,
+        distribution: distribution[0]?.toLowerCase() ?? "",
+        diagnosis,
+        icd_code: icdCode,
+        notes,
+        duration,
+        severity,
+        triggers,
+        associated_symptoms: associatedSymptoms,
+        hpi,
+        assessment: mergedAssessment,
+        patient_explanation: patientExplanation,
+      },
+      visitId,
+    );
+    if (!result.ok) {
+      setPending(false);
+      toast.error(result.message);
+      return;
+    }
+    setAssessment(mergedAssessment);
+    setRowId(result.data);
+
+    // The prescription tab keeps its own rows: append into today's active
+    // application instructions, or open a fresh plan carrying the summary.
+    const latestRx = derm.prescriptions[0] ?? null;
+    const rxToday =
+      latestRx && latestRx.created_at.slice(0, 10) === todayIso();
+    const existing = latestRx && rxToday ? latestRx.application_instructions : null;
+    const mergedInstructions = existing?.trim()
+      ? `${existing.trim()} ${snippet}`
+      : snippet;
+    const rxResult = await saveDermRxAction(
+      patient.id,
+      {
+        id: latestRx && rxToday ? latestRx.id : null,
+        topical_form: latestRx && rxToday ? latestRx.topical_form : "",
+        application_instructions: mergedInstructions,
+      },
+      visitId,
+    );
+    setPending(false);
+    if (rxResult.ok) {
+      toast.success("Examination pushed to assessment & prescription plan");
+      router.refresh();
+    } else {
+      toast.error(rxResult.message);
+    }
+  }
+
+  /**
    * Lands an ambient/commanded dermatology extraction in the examination form.
    * The chip fields accept a controlled vocabulary, so model output is matched
    * case-insensitively against those options; anything that misses lands in the
@@ -2148,21 +2281,14 @@ function ExamTab({
             )}
           </div>
 
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
-            <RecordSection title="Skin examination" className="xl:col-span-2">
+          {/* Row 2: diagnosis & assessment (left) + severity scoring (right).
+              Chief complaint / morphology chips were removed as duplicated UI —
+              pin morphology lives on the body map, and today's complaint is
+              already captured on the Overview tab. The underlying state is
+              carried from today's exam and preserved on save. */}
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+            <RecordSection title="Diagnosis & assessment">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <ChipPicker
-                  label="Chief complaint"
-                  value={complaints}
-                  onChange={setComplaints}
-                  options={CHIEF_COMPLAINTS}
-                />
-                <ChipPicker
-                  label="Morphology"
-                  value={morphology}
-                  onChange={setMorphology}
-                  options={MORPHOLOGY}
-                />
                 <ChipPicker
                   label="Distribution"
                   single
@@ -2256,7 +2382,21 @@ function ExamTab({
                   {error}
                 </p>
               )}
-              <div className="mt-4 flex justify-end">
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={pushExamToRx}
+                  disabled={pending}
+                  className="gap-1.5"
+                >
+                  <ClipboardPaste
+                    aria-hidden="true"
+                    className="size-3.5 text-primary"
+                  />
+                  Push Examination to Prescription &amp; Treatment Plan
+                </Button>
                 <Button
                   type="button"
                   size="sm"

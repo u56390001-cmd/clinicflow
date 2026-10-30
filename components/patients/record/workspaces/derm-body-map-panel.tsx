@@ -1,17 +1,9 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  Box,
-  LayoutGrid,
-  Plus,
-  RotateCcw,
-  ZoomIn,
-  ZoomOut,
-} from "lucide-react";
+import { MapPin, Plus, Search } from "lucide-react";
 
 import {
   BACK_ANCHORS,
@@ -20,36 +12,30 @@ import {
   nearestAnchor,
   type Anchor,
 } from "@/components/patients/record/workspaces/derm-body-map";
-import type {
-  Map3DCommand,
-  PinDrop,
-} from "@/components/patients/record/workspaces/derm-body-map-3d";
-import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { saveDermLesionAction } from "@/lib/actions/specialty-workspaces";
-import { cn } from "@/lib/utils";
 import type { DermLesion } from "@/types/database";
-
-/* The r3f canvas never runs on the server — keep three.js out of the route
- * bundle with a client-only dynamic import. */
-const DermBodyMap3D = dynamic(
-  () =>
-    import("@/components/patients/record/workspaces/derm-body-map-3d").then(
-      (module) => module.DermBodyMap3D,
-    ),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="grid h-[420px] place-items-center rounded-control border border-hairline bg-app/40">
-        <p className="text-ink-faint text-[12px]">Loading 3D body model…</p>
-      </div>
-    ),
-  },
-);
+import { cn } from "@/lib/utils";
 
 /**
- * Column 1 of the examination workspace: the body map with a 2D/3D toggle,
- * zoom controls and the pin chips. Pin-adding and selection live here so both
- * modes share one state with the rest of the tab.
+ * Laterality from the click position, matching the silhouette's own
+ * mirror-style labels (viewer-left = "Left upper arm", on both views).
+ * The centre band — trunk, face midline — is not a side: it is "central".
+ */
+function lateralityFor(bodyX: number): DermLesion["laterality"] {
+  if (bodyX < 0.42) return "left";
+  if (bodyX > 0.58) return "right";
+  return "central";
+}
+
+/**
+ * Column 1 of the examination workspace: the interactive 2D body map plus an
+ * anatomical region search.
+ *
+ * The 3D r3f canvas was removed (clinic-PC lag; three.js never justified a pin
+ * map), so pin-adding is either a precise click or a region search pick — the
+ * search list is genuinely useful for scalp, nails and palms where a schematic
+ * silhouette is hard to click.
  */
 export function BodyMapPanel({
   patientId,
@@ -70,14 +56,9 @@ export function BodyMapPanel({
   onSelect: (id: string | null) => void;
 }) {
   const router = useRouter();
-  const [mode, setMode] = useState<"3d" | "2d">("3d");
   const [view, setView] = useState<"front" | "back">("front");
   const [adding, setAdding] = useState(false);
-  const [command, setCommand] = useState<Map3DCommand | null>(null);
-
-  function send(kind: "zoom" | "reset", factor = 1) {
-    setCommand({ seq: Date.now(), kind, factor });
-  }
+  const [query, setQuery] = useState("");
 
   function selectPin(id: string) {
     onSelect(id);
@@ -101,6 +82,9 @@ export function BodyMapPanel({
         body_view,
         body_x: Number(body_x.toFixed(4)),
         body_y: Number(body_y.toFixed(4)),
+        // Auto-set from the click side — the editor's own picker stays as the
+        // override for bilateral / refined readings.
+        laterality: lateralityFor(body_x),
       },
       visitId,
     );
@@ -115,10 +99,6 @@ export function BodyMapPanel({
     }
   }
 
-  function addFromDrop(drop: PinDrop) {
-    void addPin(drop.body_view, drop.body_x, drop.body_y, drop.anchor);
-  }
-
   function addFrom2D(x: number, y: number) {
     const anchor = nearestAnchor(
       view === "front" ? FRONT_ANCHORS : BACK_ANCHORS,
@@ -128,109 +108,89 @@ export function BodyMapPanel({
     void addPin(view, x / 200, y / 400, anchor);
   }
 
+  /** Region search: matches the active view's anchors; pick = pin at anchor. */
+  const anchorMatches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return (view === "front" ? FRONT_ANCHORS : BACK_ANCHORS)
+      .filter((anchor) => anchor.name.toLowerCase().includes(q))
+      .slice(0, 6);
+  }, [query, view]);
+
   return (
     <div>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div
           className="inline-flex rounded-control border border-hairline p-0.5"
           role="group"
-          aria-label="Body map view mode"
+          aria-label="Body side"
         >
-          <button
-            type="button"
-            onClick={() => setMode("3d")}
-            aria-pressed={mode === "3d"}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-[6px] px-3 py-1 text-[12px] font-semibold transition-colors",
-              mode === "3d"
-                ? "bg-primary text-white"
-                : "text-text-secondary hover:text-text-primary",
-            )}
-          >
-            <Box aria-hidden="true" className="size-3.5" />
-            3D Model
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("2d")}
-            aria-pressed={mode === "2d"}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-[6px] px-3 py-1 text-[12px] font-semibold transition-colors",
-              mode === "2d"
-                ? "bg-primary text-white"
-                : "text-text-secondary hover:text-text-primary",
-            )}
-          >
-            <LayoutGrid aria-hidden="true" className="size-3.5" />
-            2D Flat View
-          </button>
+          {(["front", "back"] as const).map((side) => (
+            <button
+              key={side}
+              type="button"
+              onClick={() => setView(side)}
+              aria-pressed={view === side}
+              className={cn(
+                "rounded-[6px] px-3 py-1 text-[12px] font-semibold capitalize transition-colors",
+                view === side
+                  ? "bg-primary text-white"
+                  : "text-text-secondary hover:text-text-primary",
+              )}
+            >
+              {side}
+            </button>
+          ))}
         </div>
+      </div>
 
-        {mode === "3d" ? (
-          <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-label="Zoom in"
-              onClick={() => send("zoom", 0.8)}
-              className="size-7 p-0"
-            >
-              <ZoomIn aria-hidden="true" className="size-3.5" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-label="Zoom out"
-              onClick={() => send("zoom", 1.25)}
-              className="size-7 p-0"
-            >
-              <ZoomOut aria-hidden="true" className="size-3.5" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-label="Reset view"
-              onClick={() => send("reset")}
-              className="size-7 p-0"
-            >
-              <RotateCcw aria-hidden="true" className="size-3.5" />
-            </Button>
-          </div>
-        ) : (
-          <div
-            className="inline-flex rounded-control border border-hairline p-0.5"
-            role="group"
-            aria-label="Body side"
+      {/* Anatomical region search — a searchable shortcut to pin creation for
+          hard-to-click regions (scalp, palms, nails). */}
+      <div className="relative mb-2">
+        <Search
+          aria-hidden="true"
+          className="text-ink-faint pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2"
+        />
+        <Input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search region (e.g. malar, forearm, scalp)…"
+          aria-label="Search body region"
+          className="h-8 pl-8 text-[12px]"
+        />
+        {anchorMatches.length > 0 && (
+          <ul
+            role="listbox"
+            aria-label="Matching body regions"
+            className="absolute z-10 mt-1 w-full overflow-hidden rounded-control border border-hairline bg-surface shadow-lg"
           >
-            {(["front", "back"] as const).map((side) => (
-              <button
-                key={side}
-                type="button"
-                onClick={() => setView(side)}
-                aria-pressed={view === side}
-                className={cn(
-                  "rounded-[6px] px-3 py-1 text-[12px] font-semibold capitalize transition-colors",
-                  view === side
-                    ? "bg-primary text-white"
-                    : "text-text-secondary hover:text-text-primary",
-                )}
-              >
-                {side}
-              </button>
+            {anchorMatches.map((anchor) => (
+              <li key={anchor.name}>
+                <button
+                  type="button"
+                  disabled={!canManage || adding}
+                  onClick={() => {
+                    void addPin(view, anchor.x / 200, anchor.y / 400, anchor);
+                    setQuery("");
+                  }}
+                  className="text-text-secondary hover:bg-primary/10 hover:text-primary flex w-full items-center justify-between px-3 py-1.5 text-left text-[12px] transition-colors disabled:opacity-50"
+                >
+                  <span>{anchor.name}</span>
+                  <span className="text-ink-faint flex items-center gap-1 text-[10px]">
+                    <Plus aria-hidden="true" className="size-3" />
+                    add pin
+                  </span>
+                </button>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </div>
 
       {canManage && (
         <p className="text-ink-faint mb-1.5 flex items-center gap-1 text-[11px]">
-          <Plus aria-hidden="true" className="size-3" />
-          {mode === "3d"
-            ? "Click the body to drop a pin · drag to rotate, scroll to zoom"
-            : "Click the body to drop a pin"}
+          <MapPin aria-hidden="true" className="size-3" />
+          Click the body to drop a pin — laterality auto-set from the side
         </p>
       )}
       {adding && (
@@ -239,25 +199,14 @@ export function BodyMapPanel({
         </p>
       )}
 
-      {mode === "3d" ? (
-        <DermBodyMap3D
-          lesions={lesions}
-          selectedId={selectedId}
-          onSelect={selectPin}
-          onDrop={addFromDrop}
-          canManage={canManage}
-          command={command}
-        />
-      ) : (
-        <DermBodyMapFlat
-          view={view}
-          lesions={lesions}
-          selectedId={selectedId}
-          onSelect={selectPin}
-          onAddAt={addFrom2D}
-          canManage={canManage}
-        />
-      )}
+      <DermBodyMapFlat
+        view={view}
+        lesions={lesions}
+        selectedId={selectedId}
+        onSelect={selectPin}
+        onAddAt={addFrom2D}
+        canManage={canManage}
+      />
 
       {lesions.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
