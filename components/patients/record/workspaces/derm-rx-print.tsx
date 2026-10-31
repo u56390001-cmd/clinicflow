@@ -7,8 +7,12 @@ import type { DermPrescription } from "@/types/database";
 
 /**
  * 🖨 Dermatology prescription print sheet (single page, clinic letterhead).
- * Mount-then-print, same pattern as the care-plan print surface: the
- * `<style>` block hides everything else when `window.print()` fires.
+ * Two variants:
+ *  - "print" (default): mount-then-print, same pattern as the care-plan print
+ *    surface — hidden inline, the `<style>` block hides everything else when
+ *    `window.print()` fires.
+ *  - "preview": visible inline inside the preview dialog; printing is driven
+ *    externally by stamping out a "print" variant after the dialog closes.
  */
 export type DermRxLetterhead = {
   name: string;
@@ -29,6 +33,7 @@ export function DermRxPrint({
   letterhead,
   clinician,
   today,
+  variant = "print",
 }: {
   rx: DermPrescription;
   patient: {
@@ -40,13 +45,15 @@ export function DermRxPrint({
   letterhead: DermRxLetterhead | null;
   clinician: string;
   today: DermRxPrintToday;
+  variant?: "print" | "preview";
 }) {
   useEffect(() => {
+    if (variant !== "print") return;
     const timer = window.setTimeout(() => {
       window.print();
     }, 60);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [variant]);
 
   const logoUrl = clinicLogoPublicUrl(letterhead?.logoPath ?? null);
   const age = patient.date_of_birth
@@ -73,7 +80,13 @@ export function DermRxPrint({
   );
 
   return (
-    <div className="derm-rx-print-area hidden">
+    <div
+      className={
+        variant === "print"
+          ? "derm-rx-print-area hidden"
+          : "derm-rx-print-area rounded-card border border-hairline bg-white p-8 shadow-sm"
+      }
+    >
       <style>{`
         @media print {
           .derm-rx-print-area { display: block !important; }

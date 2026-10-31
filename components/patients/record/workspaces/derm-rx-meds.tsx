@@ -3,7 +3,16 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Save, Send, Printer, X } from "lucide-react";
+import {
+  Eye,
+  Mail,
+  MessageCircle,
+  Pencil,
+  Plus,
+  Printer,
+  Save,
+  X,
+} from "lucide-react";
 
 import { RxSafetyPanel } from "@/components/consultation/rx-safety-panel";
 import { RecordSection } from "@/components/patients/record/record-primitives";
@@ -13,6 +22,14 @@ import {
   type DermRxPrintToday,
 } from "@/components/patients/record/workspaces/derm-rx-print";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -85,7 +102,7 @@ const REGIMEN_TEMPLATES: RegimenTemplate[] = [
       },
     ],
     labOrders: [],
-    application: "Apply actives to the entire acne-prone area (not spot-only).Thin layer, face rational moisturiser over.",
+    application: "Apply actives to the entire acne-prone area (not spot-only) — thin layer, moisturiser on top.",
     skincareAm: "Gentle cleanser → benzoyl peroxide wash → moisturiser → sunscreen SPF 50",
     skincarePm: "Cleanse → adapalene (pea-sized, whole face) → moisturiser",
     education:
@@ -201,7 +218,7 @@ const REGIMEN_TEMPLATES: RegimenTemplate[] = [
       },
     ],
     labOrders: [],
-    application: "Steroid course is time-limited — do not reuse beyond 2 weeks without review. Then step to twice-weekly TCs maintenance if flaring recurs.",
+    application: "Steroid course is time-limited — do not reuse beyond 2 weeks without review. Then step down to twice-weekly corticosteroid maintenance if flares recur.",
     skincareAm: "Lukewarm 10-min bath/short shower → emollient on damp skin → bland sunscreen on exposed areas",
     skincarePm: "Emollient after any night bathing; reapply to itchy areas",
     education:
@@ -209,7 +226,7 @@ const REGIMEN_TEMPLATES: RegimenTemplate[] = [
   },
   {
     name: "Psoriasis Scalp Protocol",
-    blurb: "Scalp combi-analogue gel + tar shampoo",
+    blurb: "Combi-analogue scalp gel + tar shampoo",
     topicalForm: "gel",
     medicines: [
       {
@@ -310,7 +327,7 @@ const AMOUNT_CHIPS = [
 
 const LAB_PANELS: { label: string; tests: { name: string; notes: string }[] }[] = [
   {
-    label: "🩸 Retinoid Baseline Panel",
+    label: "Retinoid Baseline Panel",
     tests: [
       { name: "CBC (complete blood count)", notes: "Isotretinoin baseline" },
       { name: "LFTs (ALT, AST, bilirubin)", notes: "Isotretinoin baseline" },
@@ -319,20 +336,50 @@ const LAB_PANELS: { label: string; tests: { name: string; notes: string }[] }[] 
     ],
   },
   {
-    label: "🧫 Fungal Panel",
+    label: "Fungal Panel",
     tests: [
       { name: "KOH mount (skin scraping)", notes: "Direct microscopy" },
       { name: "Fungal culture & sensitivity", notes: "Identify species" },
     ],
   },
   {
-    label: "⚖️ Hormonal / PCOS Panel",
+    label: "Hormonal / PCOS Panel",
     tests: [
       { name: "Free testosterone", notes: "" },
       { name: "DHEA-S", notes: "" },
       { name: "LH : FSH ratio", notes: "Day 2–3 of cycle" },
     ],
   },
+];
+
+/** Dermatology-relevant lab menu for the test-search dropdown; manual typing stays allowed. */
+const COMMON_LAB_TESTS: { name: string; group: string }[] = [
+  { name: "CBC (complete blood count)", group: "Blood" },
+  { name: "ESR (erythrocyte sedimentation rate)", group: "Blood" },
+  { name: "CRP (C-reactive protein)", group: "Blood" },
+  { name: "LFTs (ALT, AST, bilirubin)", group: "Blood" },
+  { name: "RFTs (serum creatinine, urea)", group: "Blood" },
+  { name: "Fasting blood sugar", group: "Blood" },
+  { name: "HbA1c (glycated haemoglobin)", group: "Blood" },
+  { name: "Serum triglycerides / lipid profile", group: "Blood" },
+  { name: "Serum ferritin", group: "Blood" },
+  { name: "Vitamin D (25-OH)", group: "Blood" },
+  { name: "Vitamin B12", group: "Blood" },
+  { name: "Serum zinc", group: "Blood" },
+  { name: "TSH (thyroid stimulating hormone)", group: "Hormonal" },
+  { name: "Free testosterone", group: "Hormonal" },
+  { name: "DHEA-S", group: "Hormonal" },
+  { name: "LH : FSH ratio", group: "Hormonal" },
+  { name: "Prolactin", group: "Hormonal" },
+  { name: "ANA (antinuclear antibody)", group: "Immune" },
+  { name: "KOH mount (skin scraping)", group: "Infection" },
+  { name: "Fungal culture & sensitivity", group: "Infection" },
+  { name: "VDRL (syphilis serology)", group: "Infection" },
+  { name: "HIV 1 & 2 (rapid)", group: "Infection" },
+  { name: "HBsAg (hepatitis B surface antigen)", group: "Infection" },
+  { name: "Anti-HCV (hepatitis C antibody)", group: "Infection" },
+  { name: "Urine routine examination", group: "Urine" },
+  { name: "Skin biopsy (histopathology)", group: "Skin" },
 ];
 
 const ROUTE_OPTIONS = ["Oral", "Topical", "Subcutaneous", "Intralesional"] as const;
@@ -369,6 +416,67 @@ function isTopicalRow(medicine: MedicineEntry): boolean {
     VEHICLE_CHIPS.some(
       (vehicle) => vehicle.toLowerCase() === medicine.form.toLowerCase(),
     )
+  );
+}
+
+/* ------------------------------------------------------------------------- */
+/* Lab test search — typing filters a dropdown of the in-app test menu;      */
+/* clicking a row selects it, free-text typing still allowed.                */
+/* ------------------------------------------------------------------------- */
+
+function LabTestCombobox({
+  index,
+  value,
+  onChange,
+}: {
+  index: number;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const query = value.trim().toLowerCase();
+  const matches = query
+    ? COMMON_LAB_TESTS.filter((test) => test.name.toLowerCase().includes(query))
+    : COMMON_LAB_TESTS;
+  return (
+    <div className="relative">
+      <Input
+        id={`derm-lab-test-${index}`}
+        value={value}
+        role="combobox"
+        aria-expanded={open}
+        autoComplete="off"
+        placeholder="Search or type a test…"
+        onChange={(event) => {
+          onChange(event.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+      />
+      {open && matches.length > 0 && (
+        <ul className="absolute z-30 mt-1 max-h-52 w-[min(24rem,100%)] overflow-y-auto rounded-card border border-hairline bg-surface py-1 shadow-dropdown">
+          {matches.map((test) => (
+            <li key={test.name}>
+              <button
+                type="button"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  onChange(test.name);
+                  setOpen(false);
+                }}
+                className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[12.5px] text-text-secondary transition-colors hover:bg-app hover:text-primary"
+              >
+                <span className="truncate">{test.name}</span>
+                <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-text-muted">
+                  {test.group}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -671,7 +779,10 @@ export function DermRxMeds({
   const [skincarePm, setSkincarePm] = useState(
     prescription?.skincare_routine_pm ?? "",
   );
-  const [templateIndex, setTemplateIndex] = useState("");
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewDraft, setPreviewDraft] = useState<DermPrescription | null>(
+    null,
+  );
   const [printDraft, setPrintDraft] = useState<DermPrescription | null>(null);
   const [letterhead, setLetterhead] = useState<DermRxLetterhead | null>(null);
   const [clinician, setClinician] = useState("");
@@ -775,8 +886,8 @@ export function DermRxMeds({
     };
   }
 
-  /** One save for everything, then (optionally) mount the print sheet. */
-  async function save(options?: { print?: boolean }) {
+  /** One save for the whole draft. Printing always runs via the preview. */
+  async function save() {
     if (!canManage) return;
     setPending(true);
     const result = await saveDermRxAction(
@@ -803,11 +914,20 @@ export function DermRxMeds({
       return;
     }
     toast.success("Prescription saved");
-    if (options?.print) {
-      setPrintDraft(buildDraft());
-      return;
-    }
     router.refresh();
+  }
+
+  /** Stamp the current draft into the preview dialog (review → edit or print). */
+  function openPreview() {
+    setPreviewDraft(buildDraft());
+    setPreviewOpen(true);
+  }
+
+  /** Print: close the dialog, then stamp the root auto-print sheet. */
+  function printNow() {
+    const draft = previewDraft ?? buildDraft();
+    setPreviewOpen(false);
+    setPrintDraft(draft);
   }
 
   /** Plain-text summary for WhatsApp / e-mail sharing. */
@@ -893,53 +1013,27 @@ export function DermRxMeds({
 
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
         <div className="xl:col-span-2 space-y-3">
-          {/* ⚡ 1-Click regimen templates (§1) */}
-          <RecordSection title="⚡ 1-Click regimen templates" meta="Auto-fills Rx + labs + advice">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[280px_1fr] sm:items-end">
-              <div>
-                <label
-                  htmlFor="derm-rx-regimen"
-                  className="text-ink mb-1.5 block text-[12.5px] font-bold"
+          {/* Quick regimens (§1) — simple name, chips only. */}
+          <RecordSection
+            title="Quick Regimens"
+            meta="One tap fills medicines, labs & advice"
+          >
+            <div className="flex flex-wrap gap-1.5">
+              {REGIMEN_TEMPLATES.map((template) => (
+                <button
+                  key={template.name}
+                  type="button"
+                  title={template.blurb}
+                  onClick={() => loadRegimen(template)}
+                  disabled={!canManage}
+                  className="rounded-full border border-hairline bg-app px-2.5 py-1 text-[11.5px] font-medium text-text-secondary transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-50"
                 >
-                  Load a regimen protocol
-                </label>
-                <NativeSelect
-                  id="derm-rx-regimen"
-                  value={templateIndex}
-                  onChange={(event) => {
-                    const index = Number(event.target.value);
-                    if (Number.isNaN(index)) return;
-                    const template = REGIMEN_TEMPLATES[index];
-                    if (!template) return;
-                    setTemplateIndex("");
-                    loadRegimen(template);
-                  }}
-                >
-                  <option value="">Choose a condition protocol…</option>
-                  {REGIMEN_TEMPLATES.map((template, index) => (
-                    <option key={template.name} value={index}>
-                      {template.name}
-                    </option>
-                  ))}
-                </NativeSelect>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {REGIMEN_TEMPLATES.map((template) => (
-                  <button
-                    key={template.name}
-                    type="button"
-                    title={template.blurb}
-                    onClick={() => loadRegimen(template)}
-                    disabled={!canManage}
-                    className="rounded-full border border-hairline bg-app px-2.5 py-1 text-[11.5px] font-medium text-text-secondary transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-50"
-                  >
-                    ⚡ {template.name}
-                  </button>
-                ))}
-              </div>
+                  {template.name}
+                </button>
+              ))}
             </div>
             <p className="mt-2 text-[11px] text-text-muted">
-              Loading a template replaces the medicine, lab and advice draft
+              Loading a regimen replaces the medicine, lab and advice draft
               with the protocol&apos;s first-line regimen — review before saving.
             </p>
           </RecordSection>
@@ -1013,21 +1107,19 @@ export function DermRxMeds({
                     key={index}
                     className="grid grid-cols-1 items-end gap-2 rounded-card border border-hairline p-3 sm:grid-cols-[2fr_3fr_auto]"
                   >
-                    <div>
+                    <div className="relative">
                       <label
                         htmlFor={`derm-lab-test-${index}`}
                         className="text-ink mb-1 block text-[11.5px] font-bold"
                       >
                         Test
                       </label>
-                      <Input
-                        id={`derm-lab-test-${index}`}
+                      <LabTestCombobox
+                        index={index}
                         value={order.test_name}
-                        onChange={(event) =>
-                          updateLab(index, "test_name", event.target.value)
+                        onChange={(value) =>
+                          updateLab(index, "test_name", value)
                         }
-                        placeholder="e.g. CBC"
-                        autoComplete="off"
                       />
                     </div>
                     <div>
@@ -1080,10 +1172,7 @@ export function DermRxMeds({
 
         {/* Column 3: routine preview + safety — recomputed live (spec §8.4) */}
         <div className="flex min-w-0 flex-col gap-3">
-          <RecordSection
-            title="Topical form"
-            meta="Applies to the whole Rx"
-          >
+          <RecordSection title="Topical form" meta="One per prescription">
             <div className="flex flex-wrap gap-1.5">
               {(
                 ["cream", "ointment", "gel", "lotion"] as const
@@ -1109,7 +1198,7 @@ export function DermRxMeds({
 
           <RecordSection
             title="Application instructions & advice"
-            meta="Persists with the Rx"
+            meta="Included in print"
           >
             <div className="space-y-3">
               <div>
@@ -1208,23 +1297,35 @@ export function DermRxMeds({
         </div>
       </div>
 
-      {/* Unified action bar (§5): one primary CTA, share secondary. */}
+      {/* Unified action bar (§5): save / preview primary, share secondary. */}
       {canManage && (
         <div className="sticky bottom-0 z-10 -mx-1 mt-1 flex flex-wrap items-center justify-between gap-2 border-t border-hairline bg-surface/95 px-1 py-3 backdrop-blur">
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => save({ print: true })}
-            disabled={pending}
-            className="gap-1.5"
-          >
-            {pending ? (
-              <Save aria-hidden="true" className="size-3.5 animate-pulse" />
-            ) : (
-              <Printer aria-hidden="true" className="size-3.5" />
-            )}
-            🖨️ Save & Print Prescription
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              onClick={save}
+              disabled={pending}
+              className="gap-1.5"
+            >
+              {pending ? (
+                <Save aria-hidden="true" className="size-3.5 animate-pulse" />
+              ) : (
+                <Save aria-hidden="true" className="size-3.5" />
+              )}
+              Save Prescription
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={openPreview}
+              className="gap-1.5"
+            >
+              <Eye aria-hidden="true" className="size-3.5" />
+              Preview & Print
+            </Button>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
@@ -1233,8 +1334,8 @@ export function DermRxMeds({
               onClick={shareWhatsApp}
               className="gap-1.5"
             >
-              <Send aria-hidden="true" className="size-3.5" />
-              📱 WhatsApp
+              <MessageCircle aria-hidden="true" className="size-3.5" />
+              WhatsApp
             </Button>
             <Button
               type="button"
@@ -1243,12 +1344,58 @@ export function DermRxMeds({
               onClick={shareEmail}
               className="gap-1.5"
             >
-              <Send aria-hidden="true" className="size-3.5" />
-              ✉️ Email
+              <Mail aria-hidden="true" className="size-3.5" />
+              Email
             </Button>
           </div>
         </div>
       )}
+
+      {/* Print preview dialog: review the sheet, edit the draft, or print. */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent size="wide" className="max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>Prescription preview</DialogTitle>
+            <DialogDescription>
+              The sheet prints exactly as shown. Edit anything, then preview
+              again, or print now.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto rounded-card bg-app p-3">
+            {previewDraft && (
+              <DermRxPrint
+                rx={previewDraft}
+                patient={{
+                  name: patient.name,
+                  patient_code: patient.patient_code,
+                  date_of_birth: patient.date_of_birth,
+                  gender: patient.gender,
+                }}
+                letterhead={letterhead}
+                clinician={clinician}
+                today={today}
+                variant="preview"
+              />
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPreviewOpen(false)}
+              className="gap-1.5"
+            >
+              <Pencil aria-hidden="true" className="size-3.5" />
+              Edit prescription
+            </Button>
+            <Button type="button" size="sm" onClick={printNow} className="gap-1.5">
+              <Printer aria-hidden="true" className="size-3.5" />
+              Print now
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

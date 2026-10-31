@@ -36,6 +36,7 @@ import {
   Loader2,
   MapPin,
   Plus,
+  Scissors,
   Sparkles,
   Stethoscope,
   Sun,
@@ -2694,17 +2695,19 @@ function RxTab({
         {todayContext.diagnosis || todayContext.procedures.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2">
             {todayContext.diagnosis && (
-              <Badge className="bg-app text-text-secondary">
-                🩺 {todayContext.diagnosis}
-                {todayContext.icdCode ? ` (ICD-10 ${todayContext.icdCode})` : ""}
+              <Badge className="gap-1 border-primary/30 bg-primary/10 text-primary">
+                <Stethoscope aria-hidden="true" className="size-3" />
+                {todayContext.diagnosis}
+                {todayContext.icdCode ? ` · ICD-10 ${todayContext.icdCode}` : ""}
               </Badge>
             )}
             {todayContext.procedures.map((procedure) => (
               <Badge
                 key={procedure.name}
-                className="bg-app text-text-secondary"
+                className="gap-1 bg-app text-text-secondary"
               >
-                ✂️ {procedure.name}
+                <Scissors aria-hidden="true" className="size-3" />
+                {procedure.name}
                 {procedure.bottleId ? ` · Bottle ${procedure.bottleId}` : ""}
               </Badge>
             ))}
