@@ -1852,10 +1852,40 @@ export type DermPrescription = {
   skincare_routine_am: string | null;
   skincare_routine_pm: string | null;
   patient_education: string | null;
+  /** Revisit label printed on the sheet — "1 Week", "Post-Biopsy 10 Days", … */
+  follow_up: string | null;
   medicines: MedicineEntry[];
   lab_orders: LabOrder[];
   created_at: string;
   updated_at: string;
+};
+
+/** Dermatology — clinic-level prescription template (migration 0123):
+ *  a 1-tap regimen bundle (medicines, labs, advice texts, follow-up). */
+export type DermRxPreset = {
+  id: string;
+  clinic_id: string;
+  name: string;
+  description: string | null;
+  medicines: MedicineEntry[];
+  lab_orders: LabOrder[];
+  application_instructions: string | null;
+  skincare_routine_am: string | null;
+  skincare_routine_pm: string | null;
+  patient_education: string | null;
+  follow_up: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Dermatology — clinic lab registry row (migration 0123): a custom test
+ *  name saved from the prescriptions tab test-search combobox. */
+export type DermCustomLabTest = {
+  id: string;
+  clinic_id: string;
+  name: string;
+  created_at: string;
 };
 
 /** Code system accepted by DB CHECK `terminology_codes_code_system_check`. */
@@ -6972,6 +7002,7 @@ export type Database = {
           skincare_routine_am?: string | null;
           skincare_routine_pm?: string | null;
           patient_education?: string | null;
+          follow_up?: string | null;
           medicines?: MedicineEntry[];
           lab_orders?: LabOrder[];
           created_at?: string;
@@ -6988,6 +7019,7 @@ export type Database = {
           skincare_routine_am?: string | null;
           skincare_routine_pm?: string | null;
           patient_education?: string | null;
+          follow_up?: string | null;
           medicines?: MedicineEntry[];
           lab_orders?: LabOrder[];
           created_at?: never;
@@ -7020,6 +7052,74 @@ export type Database = {
             columns: ["visit_id"];
             isOneToOne: false;
             referencedRelation: "visits";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      derm_rx_presets: {
+        Row: DermRxPreset;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          name: string;
+          description?: string | null;
+          medicines?: MedicineEntry[];
+          lab_orders?: LabOrder[];
+          application_instructions?: string | null;
+          skincare_routine_am?: string | null;
+          skincare_routine_pm?: string | null;
+          patient_education?: string | null;
+          follow_up?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          name?: string;
+          description?: string | null;
+          medicines?: MedicineEntry[];
+          lab_orders?: LabOrder[];
+          application_instructions?: string | null;
+          skincare_routine_am?: string | null;
+          skincare_routine_pm?: string | null;
+          patient_education?: string | null;
+          follow_up?: string | null;
+          is_active?: boolean;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "derm_rx_presets_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      derm_custom_lab_tests: {
+        Row: DermCustomLabTest;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          name: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          name?: string;
+          created_at?: never;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "derm_custom_lab_tests_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
             referencedColumns: ["id"];
           },
         ];

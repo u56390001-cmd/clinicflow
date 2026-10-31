@@ -62,6 +62,7 @@ import type {
   AssessmentQuestion,
   AssessmentRaterType,
   Database,
+  DermRxPreset,
   IntakeFieldKey,
 } from "@/types/database";
 import { PSYCH_GOAL_STATUSES } from "@/types/database";
@@ -489,6 +490,8 @@ const saveDermRxSchema = z.object({
   skincare_routine_am: note,
   skincare_routine_pm: note,
   patient_education: note,
+  // Revisit tag ("1 Week", "Post-Biopsy 10 Days", …) — migration 0123.
+  follow_up: z.string().trim().max(80).optional().nullable().or(z.literal("")),
   medicines: z.array(dermMedicineEntrySchema).optional(),
   lab_orders: z.array(dermLabOrderSchema).optional(),
 });
@@ -3020,10 +3023,114 @@ export async function deleteDermProcedurePresetAction(
   const { error } = await g.supabase
     .from("derm_procedure_presets")
     .delete()
-    .eq("id", id);
+    .eq("id", id)
+    .eq("clinic_id", g.clinicId);
   if (error) return { ok: false, message: error.message };
-  revalidatePath(APP_ROUTES.app.patients);
   return ok();
+}
+
+/* ------------------------------------------------------------------------- */
+/* Dermatology — prescription presets + custom lab registry (migration 0123)  */
+/* ------------------------------------------------------------------------- */
+
+const saveDermRxPresetSchema = z.object({
+  name: z.string().trim().min(1, "Give the preset a name.").max(80),
+  description: z.string().trim().max(240).optional().nullable().or(z.literal("")),
+  medicines: z.array(dermMedicineEntrySchema).default([]),
+  lab_orders: z.array(dermLabOrderSchema).default([]),
+  application_instructions: note,
+  skincare_routine_am: note,
+  skincare_routine_pm: note,
+  patient_education: note,
+  follow_up: z.string().trim().max(80).optional().nullable().or(z.literal("")),
+});
+
+/** Save the current prescription draft as a clinic-level Rx template. */
+export async function saveDermRxPresetAction(
+  raw: unknown,
+): Promise<ActionResult<string>> {
+  const parsed = saveDermRxPresetSchema.safeParse(raw);
+  if (!parsed.success) return err(firstIssue(parsed));
+  const g = await guard();
+  if (!g.ok) return g.result;
+
+  const d = parsed.data;
+  const { error } = await g.supabase.from("derm_rx_presets").insert({
+    clinic_id: g.clinicId,
+    name: d.name,
+    description: d.description || null,
+    medicines: d.medicines,
+    lab_orders: d.lab_orders,
+    application_instructions: d.application_instructions || null,
+    skincare_routine_am: d.skincare_routine_am || null,
+    skincare_routine_pm: d.skincare_routine_pm || null,
+    patient_education: d.patient_education || null,
+    follow_up: d.follow_up || null,
+  });
+  if (error) return { ok: false, message: error.message };
+  return ok();
+}
+
+/** Clinic prescription templates, newest first — the preset picker modal. */
+export async function listDermRxPresetsAction(): Promise<
+  ActionResult<DermRxPreset[]>
+> {
+  const g = await guard();
+  if (!g.ok) return { ok: false, message: "You must have a clinic to view prescription templates." };
+
+  const { data, error } = await g.supabase
+    .from("derm_rx_presets")
+    .select("*")
+    .eq("clinic_id", g.clinicId)
+    .order("created_at", { ascending: false });
+  if (error) return { ok: false, message: error.message };
+  return { ok: true, data: (data ?? []) as unknown as DermRxPreset[] };
+}
+
+/** The clinic's learned custom lab-test names for the test-search dropdown. */
+export async function listDermCustomLabTestsAction(): Promise<
+  ActionResult<string[]>
+> {
+  const g = await guard();
+  if (!g.ok) return { ok: false, message: "You must have a clinic to view the lab registry." };
+
+  const { data, error } = await g.supabase
+    .from("derm_custom_lab_tests")
+    .select("name")
+    .eq("clinic_id", g.clinicId);
+  if (error) return { ok: false, message: error.message };
+  return { ok: true, data: (data ?? []).map((row) => row.name) };
+}
+
+const saveDermCustomLabTestSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+});
+
+/** Register a custom lab test for this clinic (idempotent on same name). */
+export async function saveDermCustomLabTestAction(
+  raw: unknown,
+): Promise<ActionResult<string>> {
+  const parsed = saveDermCustomLabTestSchema.safeParse(raw);
+  if (!parsed.success) return err(firstIssue(parsed));
+  const g = await guard();
+  if (!g.ok) return g.result;
+
+  const name = parsed.data.name;
+  const { data: existing } = await g.supabase
+    .from("derm_custom_lab_tests")
+    .select("id")
+    .eq("clinic_id", g.clinicId)
+    .ilike("name", name)
+    .maybeSingle();
+  if (existing) return { ok: true, data: existing.id };
+
+  const { data, error } = await g.supabase
+    .from("derm_custom_lab_tests")
+    .insert({ clinic_id: g.clinicId, name })
+    .select("id")
+    .single();
+  if (error) return { ok: false, message: error.message };
+  return { ok: true, data: data.id };
 }
 
 /**

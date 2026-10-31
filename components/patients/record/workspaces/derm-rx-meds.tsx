@@ -4,14 +4,18 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
+  Clock,
   Eye,
-  Mail,
+  FlaskConical,
   MessageCircle,
-  Pencil,
   Plus,
   Printer,
+  RotateCcw,
   Save,
+  Scissors,
+  Stethoscope,
   X,
+  Zap,
 } from "lucide-react";
 
 import { RxSafetyPanel } from "@/components/consultation/rx-safety-panel";
@@ -21,6 +25,7 @@ import {
   type DermRxLetterhead,
   type DermRxPrintToday,
 } from "@/components/patients/record/workspaces/derm-rx-print";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -36,11 +41,19 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   getClinicLetterheadAction,
   getCurrentClinicianInfoAction,
+  listDermCustomLabTestsAction,
+  listDermRxPresetsAction,
+  saveDermCustomLabTestAction,
+  saveDermRxPresetAction,
   saveDermRxAction,
 } from "@/lib/actions/specialty-workspaces";
 import { useMedicineCatalogueNames } from "@/lib/rx-reference";
 import { cn } from "@/lib/utils";
+import type { DermLesion } from "@/types/database";
 import type { DermPrescription, LabOrder, MedicineEntry } from "@/types/database";
+import type { DermRxPreset } from "@/types/database";
+
+/* Shared field sub-structure of every Rx row (matches DRP jsonb shape). */
 
 type PatientShareFields = {
   name: string;
@@ -52,26 +65,28 @@ type PatientShareFields = {
 };
 
 /* ------------------------------------------------------------------------- */
-/* Regimen templates (task §1) — real dermatology first-line regimens.        */
+/* Presets (built-in 0122-era regimens + clinic templates from migration      */
+/* 0123) share one loadable shape so the picker + save-as-template flow on.  */
 /* ------------------------------------------------------------------------- */
 
-type RegimenTemplate = {
+type LoadablePreset = {
   name: string;
-  blurb: string;
-  topicalForm: DermPrescription["topical_form"];
+  description: string;
   medicines: MedicineEntry[];
   labOrders: LabOrder[];
   application: string;
   skincareAm: string;
   skincarePm: string;
   education: string;
+  followUp: string;
+  source: "builtin" | "clinic";
 };
 
-const REGIMEN_TEMPLATES: RegimenTemplate[] = [
+const BUILTIN_PRESETS: LoadablePreset[] = [
   {
     name: "Acne Vulgaris — Mild",
-    blurb: "Retinoid night + BP wash · sunscreen",
-    topicalForm: "gel",
+    description: "Retinoid night + BP wash · sunscreen",
+    source: "builtin",
     medicines: [
       {
         name: "Adapalene 0.1% gel",
@@ -107,20 +122,21 @@ const REGIMEN_TEMPLATES: RegimenTemplate[] = [
     skincarePm: "Cleanse → adapalene (pea-sized, whole face) → moisturiser",
     education:
       "Purging/redness in weeks 2–4 is expected. Daily sunscreen is mandatory — adapalene increases photosensitivity. Avoid picking and avoid scrubbing. Review at 6 weeks.",
+    followUp: "6 Weeks",
   },
   {
     name: "Acne Vulgaris — Moderate",
-    blurb: "Oral antibiotic + retinoid + BP combo",
-    topicalForm: "gel",
+    description: "Oral antibiotic + retinoid + BP combo",
+    source: "builtin",
     medicines: [
       {
         name: "Doxycycline 100 mg",
         route: "Oral",
         form: "Capsule",
         frequency: "1-0-1 (BD)",
-        duration: "42 Days",
-        unit: "",
-        instructions: "Take after food with a full glass of water",
+        duration: "45 Days",
+        unit: "100 mg",
+        instructions: "After meals · take with a full glass of water",
       },
       {
         name: "Adapalene 0.1% + Clindamycin 1% gel",
@@ -142,16 +158,17 @@ const REGIMEN_TEMPLATES: RegimenTemplate[] = [
       },
     ],
     labOrders: [],
-    application: "Antibiotic course must be completed; topical retinoid continues after antibiotics finish (re-treatment behaviour control).",
+    application: "Antibiotic course must be completed; topical retinoid continues after antibiotics finish.",
     skincareAm: "Gentle cleanser (or BP wash) → moisturiser → sunscreen SPF 50",
     skincarePm: "Cleanse → adapalene/clindamycin combo (pea-sized) → moisturiser",
     education:
       "Upper GI upset with doxycycline — take after meals. No antacids/iron within 2 hours. Expect 4–6 weeks to visible change; continue topicals after antibiotic course.",
+    followUp: "6 Weeks",
   },
   {
     name: "Acne Vulgaris — Severe (Isotretinoin)",
-    blurb: "Isotretinoin course + retinoid baseline labs",
-    topicalForm: null,
+    description: "Isotretinoin course + retinoid baseline labs",
+    source: "builtin",
     medicines: [
       {
         name: "Isotretinoin 10 mg",
@@ -159,7 +176,7 @@ const REGIMEN_TEMPLATES: RegimenTemplate[] = [
         form: "Capsule",
         frequency: "1-0-0 (Morning)",
         duration: "30 Days",
-        unit: "",
+        unit: "10 mg",
         instructions: "With the fattiest meal of the day (absorption)",
       },
       {
@@ -173,21 +190,22 @@ const REGIMEN_TEMPLATES: RegimenTemplate[] = [
       },
     ],
     labOrders: [
-      { test_name: "CBC (complete blood count)", notes: "Retinoid baseline panel" },
-      { test_name: "LFTs (ALT, AST, bilirubin)", notes: "Retinoid baseline panel" },
-      { test_name: "Serum triglycerides / lipid profile", notes: "Retinoid baseline panel; repeat at 4 weeks" },
-      { test_name: "Fasting blood sugar", notes: "Retinoid baseline panel" },
+      { test_name: "CBC (complete blood count)", notes: "Isotretinoin baseline" },
+      { test_name: "LFTs (ALT, AST, bilirubin)", notes: "Isotretinoin baseline" },
+      { test_name: "Serum triglycerides / lipid profile", notes: "Repeat 4 Weeks" },
+      { test_name: "Fasting blood sugar", notes: "Baseline Test · Fasting 12h" },
     ],
     application: "Avoid waxing and elective laser while on isotretinoin and for 6 months after.",
     skincareAm: "Soap-free cleanser → heavy moisturiser → bland sunscreen (no acid actives)",
     skincarePm: "Cleanse → moisturiser; lip balm overnight",
     education:
       "Strictly avoid pregnancy — double contraception required. Dryness/cheilitis expected. Report mood changes, unusual headache or visual symptoms immediately. Repeat lipids at 4 weeks.",
+    followUp: "1 Month",
   },
   {
     name: "Atopic Dermatitis Flare",
-    blurb: "TCS ointment burst + antihistamine + emollient",
-    topicalForm: "ointment",
+    description: "TCS ointment burst + antihistamine + emollient",
+    source: "builtin",
     medicines: [
       {
         name: "Mometasone furoate 0.1% ointment",
@@ -204,7 +222,7 @@ const REGIMEN_TEMPLATES: RegimenTemplate[] = [
         form: "Tablet",
         frequency: "0-0-1 (Night)",
         duration: "14 Days",
-        unit: "",
+        unit: "5 mg",
         instructions: "For nocturnal itch",
       },
       {
@@ -213,7 +231,7 @@ const REGIMEN_TEMPLATES: RegimenTemplate[] = [
         form: "Cream",
         frequency: "1-0-1 (BD)",
         duration: "Until Next Visit",
-        unit: "",
+        unit: "Thin layer",
         instructions: "Apply within 3 minutes of bathing to damp skin (soak-and-seal)",
       },
     ],
@@ -223,11 +241,12 @@ const REGIMEN_TEMPLATES: RegimenTemplate[] = [
     skincarePm: "Emollient after any night bathing; reapply to itchy areas",
     education:
       "Soap/sanitiser substitutes only. Cotton clothing, keep nails short. Trigger diary: heat, sweat, wool, stress. Return if weeping/spreading occurs.",
+    followUp: "2 Weeks",
   },
   {
     name: "Psoriasis Scalp Protocol",
-    blurb: "Combi-analogue scalp gel + tar shampoo",
-    topicalForm: "gel",
+    description: "Combi-analogue scalp gel + tar shampoo",
+    source: "builtin",
     medicines: [
       {
         name: "Calcipotriol + Betamethasone dipropionate scalp gel",
@@ -235,7 +254,7 @@ const REGIMEN_TEMPLATES: RegimenTemplate[] = [
         form: "Gel",
         frequency: "0-0-1 (Night)",
         duration: "30 Days",
-        unit: "",
+        unit: "Thin layer",
         instructions: "Apply to scalp plaques only; up to 15 g/day. Max 4 weeks, then review",
       },
       {
@@ -244,7 +263,7 @@ const REGIMEN_TEMPLATES: RegimenTemplate[] = [
         form: "Lotion",
         frequency: "Once Weekly",
         duration: "30 Days",
-        unit: "",
+        unit: "Thin layer",
         instructions: "Lather, 5 minutes contact, then rinse; twice weekly if itching",
       },
       {
@@ -263,11 +282,12 @@ const REGIMEN_TEMPLATES: RegimenTemplate[] = [
     skincarePm: "Combi gel to scalp plaques → moisturiser body",
     education:
       "Psoriasis course is chronic: maintenance moisturisers continue after gel taper. Stress & strep throat flares — report early. No abrupt steroid withdrawal.",
+    followUp: "1 Month",
   },
   {
     name: "Androgenetic Alopecia",
-    blurb: "Minoxidil BD + adjuvants · shadow shed warning",
-    topicalForm: "lotion",
+    description: "Minoxidil BD + adjuvants · shadow shed warning",
+    source: "builtin",
     medicines: [
       {
         name: "Minoxidil 5% solution/foam",
@@ -285,33 +305,42 @@ const REGIMEN_TEMPLATES: RegimenTemplate[] = [
         frequency: "1-0-0 (Morning)",
         duration: "90 Days",
         unit: "",
-        instructions: "After breakfast",
+        instructions: "After meals",
       },
     ],
     labOrders: [
-      { test_name: "Serum ferritin", notes: "Rule out iron deficiency (common confounder)" },
-      { test_name: "TSH", notes: "Thyroid screening" },
+      { test_name: "Serum ferritin", notes: "Rule out iron deficiency" },
+      { test_name: "TSH (thyroid stimulating hormone)", notes: "Baseline Test" },
     ],
     application: "Do not wash hair for 4 hours after minoxidil application. Foam preferred if solution irritates.",
     skincareAm: "Minoxidil 1 mL to dry scalp → style later (wait 20-30 min)",
     skincarePm: "Second minoxidil dose 8–12 hours after morning dose",
     education:
       "Early increased shedding (weeks 2–8) is a good sign — do not stop. Visible regrowth takes 3–6 months; continue indefinitely or loss resumes. Others may prefer oral finasteride — discuss at review.",
+    followUp: "6 Weeks",
   },
 ];
 
 /* ------------------------------------------------------------------------- */
-/* 1-tap chips (task §2) and quick lab panels (task §3).                      */
+/* 1-tap chip sets (§2) — values mirror the Rx draft fields one-to-one so a   */
+/* loaded preset highlights the matching pill automatically.                  */
 /* ------------------------------------------------------------------------- */
 
-const FREQUENCY_CHIPS = [
-  "1-0-0 (Morning)",
-  "0-0-1 (Night)",
-  "1-0-1 (BD)",
-  "Once Weekly",
-] as const;
+const FREQUENCY_CHIPS: { value: string; short: string }[] = [
+  { value: "1-0-0 (Morning)", short: "1-0-0" },
+  { value: "0-0-1 (Night)", short: "0-0-1" },
+  { value: "1-0-1 (BD)", short: "1-0-1" },
+  { value: "Once Weekly", short: "Weekly" },
+];
 
-const DURATION_CHIPS = ["7 Days", "14 Days", "30 Days", "Until Next Visit"] as const;
+const DURATION_CHIPS = [
+  "7 Days",
+  "14 Days",
+  "30 Days",
+  "45 Days",
+  "90 Days",
+  "Until Next Visit",
+] as const;
 
 /** Topical vehicle chips write into the row's dosage-form field. */
 const VEHICLE_CHIPS = ["Cream", "Ointment", "Gel", "Lotion", "Foam"] as const;
@@ -325,31 +354,58 @@ const AMOUNT_CHIPS = [
   "Thin layer",
 ] as const;
 
-const LAB_PANELS: { label: string; tests: { name: string; notes: string }[] }[] = [
+/** Oral rows: strength chips write into the unit field, food timing apps. */
+const STRENGTH_CHIPS = ["5 mg", "10 mg", "25 mg", "50 mg", "100 mg"] as const;
+
+const LAB_NOTE_CHIPS = [
+  "Fasting 12h",
+  "Baseline Test",
+  "Repeat 4 Weeks",
+  "Urgent",
+  "Day 2-5 Cycle",
+] as const;
+
+const FOLLOW_UP_CHIPS = [
+  "1 Week",
+  "2 Weeks",
+  "1 Month",
+  "6 Weeks",
+  "SOS / As Needed",
+  "Post-Biopsy 10 Days",
+] as const;
+
+/** Multi-test bundles behind the ⚡ Lab Panels modal. */
+const LAB_PANELS: { name: string; tests: { name: string; notes: string }[] }[] = [
   {
-    label: "Retinoid Baseline Panel",
+    name: "Retinoid Baseline Panel",
     tests: [
       { name: "CBC (complete blood count)", notes: "Isotretinoin baseline" },
       { name: "LFTs (ALT, AST, bilirubin)", notes: "Isotretinoin baseline" },
-      { name: "Serum triglycerides / lipid profile", notes: "Repeat at 4 weeks" },
-      { name: "Fasting blood sugar", notes: "Baseline" },
+      { name: "Serum triglycerides / lipid profile", notes: "Repeat 4 Weeks" },
+      { name: "Fasting blood sugar", notes: "Fasting 12h" },
     ],
   },
   {
-    label: "Fungal Panel",
+    name: "Fungal Workup",
     tests: [
       { name: "KOH mount (skin scraping)", notes: "Direct microscopy" },
       { name: "Fungal culture & sensitivity", notes: "Identify species" },
     ],
   },
   {
-    label: "Hormonal / PCOS Panel",
+    name: "Hormonal / PCOS Panel",
     tests: [
-      { name: "Free testosterone", notes: "" },
-      { name: "DHEA-S", notes: "" },
-      { name: "LH : FSH ratio", notes: "Day 2–3 of cycle" },
+      { name: "Free testosterone", notes: "Day 2-5 Cycle" },
+      { name: "DHEA-S", notes: "Day 2-5 Cycle" },
+      { name: "LH : FSH ratio", notes: "Day 2-5 Cycle" },
     ],
   },
+];
+
+const ROUTE_OPTIONS: { value: string; label: string }[] = [
+  { value: "Topical", label: "Topical" },
+  { value: "Oral", label: "Oral" },
+  { value: "Intralesional", label: "Intralesional" },
 ];
 
 /** Dermatology-relevant lab menu for the test-search dropdown; manual typing stays allowed. */
@@ -382,9 +438,7 @@ const COMMON_LAB_TESTS: { name: string; group: string }[] = [
   { name: "Skin biopsy (histopathology)", group: "Skin" },
 ];
 
-const ROUTE_OPTIONS = ["Oral", "Topical", "Subcutaneous", "Intralesional"] as const;
-
-/** Empty draft row — no hardcoded sample drugs (task §2, clean default). */
+/** Empty draft row — no hardcoded sample drugs (clean default). */
 const EMPTY_MEDICINE: MedicineEntry = {
   name: "",
   route: "",
@@ -394,6 +448,28 @@ const EMPTY_MEDICINE: MedicineEntry = {
   unit: "",
   instructions: "",
 };
+
+const FOOD_PHRASE = /(^|·)\s*(take\s+)?(after|before)\s+(food|meals|meal)\b[.,]?\s*/i;
+
+/** Food-timing toggle: strips any existing phrase, then appends the new one. */
+function applyFoodTiming(
+  instructions: string,
+  timing: "after" | "before" | null,
+): string {
+  const stripped = instructions
+    .replace(FOOD_PHRASE, "$1")
+    .replace(/\s*·\s*$/, "")
+    .trimEnd();
+  if (!timing) return stripped;
+  const phrase = timing === "after" ? "After meals" : "Before meals";
+  return stripped ? `${stripped} · ${phrase}` : phrase;
+}
+
+function foodTimingOf(instructions: string): "after" | "before" | null {
+  if (/\bafter\s+(food|meals|meal)\b/i.test(instructions)) return "after";
+  if (/\bbefore\s+(food|meals|meal)\b/i.test(instructions)) return "before";
+  return null;
+}
 
 /** A medicine whose frequency names a time of day lands in that AM/PM list. */
 function routineSteps(medicines: MedicineEntry[], period: "am" | "pm"): string[] {
@@ -419,90 +495,138 @@ function isTopicalRow(medicine: MedicineEntry): boolean {
   );
 }
 
-/* ------------------------------------------------------------------------- */
-/* Lab test search — typing filters a dropdown of the in-app test menu;      */
-/* clicking a row selects it, free-text typing still allowed.                */
-/* ------------------------------------------------------------------------- */
+/** Lab notes quick chips: toggle a " · "-joined tag list in the row's notes. */
+function toggleLabNote(notes: string, chip: string): string {
+  const parts = notes
+    .split(" · ")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.some((part) => part.toLowerCase() === chip.toLowerCase())) {
+    return parts
+      .filter((part) => part.toLowerCase() !== chip.toLowerCase())
+      .join(" · ");
+  }
+  return [...parts, chip].join(" · ");
+}
 
-function LabTestCombobox({
-  index,
-  value,
-  onChange,
+function labNoteOn(notes: string, chip: string): boolean {
+  return notes
+    .split(" · ")
+    .some((part) => part.trim().toLowerCase() === chip.toLowerCase());
+}
+
+/* Body-site pin phrases: "Apply to Pin #1 — Face" inside the instructions. */
+
+const PIN_PHRASE = /\s*(Apply to Pin #\d+[^,;.]*[,.]?)/i;
+
+function withSite(instructions: string, site: string | null): string {
+  const cleaned = instructions.replace(PIN_PHRASE, "").trim();
+  const rest = cleaned.replace(/^[,;\-–]\s*/, "");
+  if (!site) return rest;
+  return rest ? `Apply to ${site} — ${rest}` : `Apply to ${site}`;
+}
+
+function siteOf(instructions: string): string | null {
+  const match = instructions.match(/Apply to (Pin #\d+[^,;.])/i);
+  return match ? match[1].trim().replace(/[–-]\s*$/, "") : null;
+}
+
+/** The clinic's whole-Rx topical form, derived from the first topical row. */
+function deriveTopicalForm(
+  items: MedicineEntry[],
+): DermPrescription["topical_form"] {
+  const form = items
+    .find((item) => isTopicalRow(item))
+    ?.form.trim()
+    .toLowerCase();
+  return form === "cream" || form === "ointment" || form === "gel" || form === "lotion"
+    ? form
+    : null;
+}
+
+const TOPICAL_LABEL: Record<string, string> = {
+  cream: "Cream",
+  ointment: "Ointment",
+  gel: "Gel",
+  lotion: "Lotion",
+};
+
+/** Chip / pill button — the one interactive row per field (§2). */
+function ChipButton({
+  selected,
+  disabled,
+  onClick,
+  children,
 }: {
-  index: number;
-  value: string;
-  onChange: (value: string) => void;
+  selected: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
-  const query = value.trim().toLowerCase();
-  const matches = query
-    ? COMMON_LAB_TESTS.filter((test) => test.name.toLowerCase().includes(query))
-    : COMMON_LAB_TESTS;
   return (
-    <div className="relative">
-      <Input
-        id={`derm-lab-test-${index}`}
-        value={value}
-        role="combobox"
-        aria-expanded={open}
-        autoComplete="off"
-        placeholder="Search or type a test…"
-        onChange={(event) => {
-          onChange(event.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => window.setTimeout(() => setOpen(false), 150)}
-      />
-      {open && matches.length > 0 && (
-        <ul className="absolute z-30 mt-1 max-h-52 w-[min(24rem,100%)] overflow-y-auto rounded-card border border-hairline bg-surface py-1 shadow-dropdown">
-          {matches.map((test) => (
-            <li key={test.name}>
-              <button
-                type="button"
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  onChange(test.name);
-                  setOpen(false);
-                }}
-                className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[12.5px] text-text-secondary transition-colors hover:bg-app hover:text-primary"
-              >
-                <span className="truncate">{test.name}</span>
-                <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-text-muted">
-                  {test.group}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      disabled={disabled}
+      className={cn(
+        "rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors disabled:opacity-50",
+        selected
+          ? "border-primary bg-primary/10 font-semibold text-primary"
+          : "border-hairline bg-app text-text-secondary hover:border-primary/40 hover:text-primary",
       )}
+    >
+      {children}
+    </button>
+  );
+}
+
+/* A small labelled pill row — exactly one per field, no text inputs. */
+function PillRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="text-ink shrink-0 text-[10.5px] font-bold uppercase tracking-wide">
+        {label}
+      </span>
+      {children}
     </div>
   );
 }
 
 /* ------------------------------------------------------------------------- */
-/* Editor row — label-per-field + 1-tap chips (Design System V2 pattern).     */
+/* Editor row — pure pill rows (§2): route pills drive topical/oral variants. */
 /* ------------------------------------------------------------------------- */
 
 function DermMedicineRow({
   index,
   medicine,
+  lesions,
   onChange,
   onRemove,
   canManage,
 }: {
   index: number;
   medicine: MedicineEntry;
+  lesions: DermLesion[];
   onChange: (index: number, field: keyof MedicineEntry, value: string) => void;
   onRemove: (index: number) => void;
   canManage: boolean;
 }) {
   const catalogueNames = useMedicineCatalogueNames();
   const topical = isTopicalRow(medicine);
+  const oral = /oral/i.test(medicine.route);
+
   return (
     <div className="rounded-card border border-hairline p-3">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="lg:col-span-1">
+      {/* Row 1: medicine name (the one text field) + remove */}
+      <div className="flex items-end gap-2">
+        <div className="min-w-0 flex-1">
           <label
             htmlFor={`derm-med-name-${index}`}
             className="text-ink mb-1 block text-[11.5px] font-bold"
@@ -525,225 +649,335 @@ function DermMedicineRow({
             </datalist>
           )}
         </div>
-        <div>
-          <label
-            htmlFor={`derm-med-route-${index}`}
-            className="text-ink mb-1 block text-[11.5px] font-bold"
-          >
-            Route
-          </label>
-          <NativeSelect
-            id={`derm-med-route-${index}`}
-            value={medicine.route}
-            onChange={(event) => onChange(index, "route", event.target.value)}
-          >
-            <option value="">Select route</option>
-            {ROUTE_OPTIONS.map((route) => (
-              <option key={route} value={route}>
-                {route}
-              </option>
-            ))}
-          </NativeSelect>
-        </div>
-        <div>
-          <label
-            htmlFor={`derm-med-form-${index}`}
-            className="text-ink mb-1 block text-[11.5px] font-bold"
-          >
-            {topical ? "Vehicle / form" : "Dosage form"}
-          </label>
-          <Input
-            id={`derm-med-form-${index}`}
-            value={medicine.form}
-            onChange={(event) => onChange(index, "form", event.target.value)}
-            placeholder={topical ? "e.g. Cream" : "e.g. Tablet"}
-            autoComplete="off"
-          />
-        </div>
-        <div>
-          <label
-            htmlFor={`derm-med-frequency-${index}`}
-            className="text-ink mb-1 block text-[11.5px] font-bold"
-          >
-            Frequency
-          </label>
-          <Input
-            id={`derm-med-frequency-${index}`}
-            value={medicine.frequency}
-            onChange={(event) =>
-              onChange(index, "frequency", event.target.value)
-            }
-            placeholder="e.g. 1-0-1"
-            autoComplete="off"
-          />
-        </div>
-        <div>
-          <label
-            htmlFor={`derm-med-duration-${index}`}
-            className="text-ink mb-1 block text-[11.5px] font-bold"
-          >
-            Duration
-          </label>
-          <Input
-            id={`derm-med-duration-${index}`}
-            value={medicine.duration}
-            onChange={(event) =>
-              onChange(index, "duration", event.target.value)
-            }
-            placeholder="e.g. 14 days"
-            autoComplete="off"
-          />
-        </div>
-        <div>
-          <label
-            htmlFor={`derm-med-unit-${index}`}
-            className="text-ink mb-1 block text-[11.5px] font-bold"
-          >
-            {topical ? "Amount / FTU" : "Unit"}
-          </label>
-          <Input
-            id={`derm-med-unit-${index}`}
-            value={medicine.unit}
-            onChange={(event) => onChange(index, "unit", event.target.value)}
-            placeholder={topical ? "e.g. 1 FTU" : "e.g. 100 mg"}
-            autoComplete="off"
-          />
-        </div>
-        <div className="sm:col-span-2 lg:col-span-3">
-          <label
-            htmlFor={`derm-med-instructions-${index}`}
-            className="text-ink mb-1 block text-[11.5px] font-bold"
-          >
-            Instructions
-          </label>
-          <Input
-            id={`derm-med-instructions-${index}`}
-            value={medicine.instructions}
-            onChange={(event) =>
-              onChange(index, "instructions", event.target.value)
-            }
-            placeholder="e.g. After meals; moisturiser on top"
-            autoComplete="off"
-          />
-        </div>
-      </div>
-
-      {/* 1-tap chips */}
-      <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <span className="flex flex-wrap items-center gap-1.5">
-          <span className="text-ink text-[11px] font-bold uppercase tracking-wide">
-            Freq:
-          </span>
-          {FREQUENCY_CHIPS.map((chip) => (
-            <button
-              key={chip}
-              type="button"
-              onClick={() => onChange(index, "frequency", chip)}
-              aria-pressed={medicine.frequency === chip}
-              className={cn(
-                "rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors",
-                medicine.frequency === chip
-                  ? "border-primary bg-primary/10 font-semibold text-primary"
-                  : "border-hairline bg-app text-text-secondary hover:border-primary/40 hover:text-primary",
-              )}
-            >
-              {chip}
-            </button>
-          ))}
-        </span>
-        <span className="flex flex-wrap items-center gap-1.5">
-          <span className="text-ink text-[11px] font-bold uppercase tracking-wide">
-            Dur:
-          </span>
-          {DURATION_CHIPS.map((chip) => (
-            <button
-              key={chip}
-              type="button"
-              onClick={() => onChange(index, "duration", chip)}
-              aria-pressed={medicine.duration === chip}
-              className={cn(
-                "rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors",
-                medicine.duration === chip
-                  ? "border-primary bg-primary/10 font-semibold text-primary"
-                  : "border-hairline bg-app text-text-secondary hover:border-primary/40 hover:text-primary",
-              )}
-            >
-              {chip}
-            </button>
-          ))}
-        </span>
-        {topical && (
-          <>
-            <span className="flex flex-wrap items-center gap-1.5">
-              <span className="text-ink text-[11px] font-bold uppercase tracking-wide">
-                Vehicle:
-              </span>
-              {VEHICLE_CHIPS.map((chip) => (
-                <button
-                  key={chip}
-                  type="button"
-                  onClick={() => onChange(index, "form", chip)}
-                  aria-pressed={medicine.form === chip}
-                  className={cn(
-                    "rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors",
-                    medicine.form === chip
-                      ? "border-primary bg-primary/10 font-semibold text-primary"
-                      : "border-hairline bg-app text-text-secondary hover:border-primary/40 hover:text-primary",
-                  )}
-                >
-                  {chip}
-                </button>
-              ))}
-            </span>
-            <span className="flex flex-wrap items-center gap-1.5">
-              <span className="text-ink text-[11px] font-bold uppercase tracking-wide">
-                Amount:
-              </span>
-              {AMOUNT_CHIPS.map((chip) => (
-                <button
-                  key={chip}
-                  type="button"
-                  onClick={() => onChange(index, "unit", chip)}
-                  aria-pressed={medicine.unit === chip}
-                  className={cn(
-                    "rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors",
-                    medicine.unit === chip
-                      ? "border-primary bg-primary/10 font-semibold text-primary"
-                      : "border-hairline bg-app text-text-secondary hover:border-primary/40 hover:text-primary",
-                  )}
-                >
-                  {chip}
-                </button>
-              ))}
-            </span>
-          </>
-        )}
-      </div>
-
-      {canManage && (
-        <div className="mt-2 flex justify-end">
+        {canManage && (
           <button
             type="button"
             onClick={() => onRemove(index)}
-            className="flex items-center gap-1 rounded-full border border-hairline px-2.5 py-1 text-[11px] font-medium text-text-muted transition-colors hover:border-status-destructive hover:text-status-destructive"
+            aria-label={`Remove medicine ${index + 1}`}
+            className="mb-0.5 flex size-7 shrink-0 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-app hover:text-status-destructive"
           >
-            <X aria-hidden="true" className="size-3" />
-            Remove medicine
+            <X aria-hidden="true" className="size-3.5" />
           </button>
-        </div>
+        )}
+      </div>
+
+      {/* Single interactive pill rows (§2) — the ONLY field controls. */}
+      <div className="mt-2.5 space-y-1.5">
+        <PillRow label="Route">
+          {ROUTE_OPTIONS.map((route) => (
+            <ChipButton
+              key={route.value}
+              selected={medicine.route === route.value}
+              disabled={!canManage}
+              onClick={() =>
+                onChange(
+                  index,
+                  "route",
+                  medicine.route === route.value ? "" : route.value,
+                )
+              }
+            >
+              {route.label}
+            </ChipButton>
+          ))}
+        </PillRow>
+
+        {topical && (
+          <>
+            <PillRow label="Vehicle">
+              {VEHICLE_CHIPS.map((chip) => (
+                <ChipButton
+                  key={chip}
+                  selected={medicine.form === chip}
+                  disabled={!canManage}
+                  onClick={() =>
+                    onChange(
+                      index,
+                      "form",
+                      medicine.form === chip ? "" : chip,
+                    )
+                  }
+                >
+                  {chip}
+                </ChipButton>
+              ))}
+            </PillRow>
+            <PillRow label="Amount">
+              {AMOUNT_CHIPS.map((chip) => (
+                <ChipButton
+                  key={chip}
+                  selected={medicine.unit === chip}
+                  disabled={!canManage}
+                  onClick={() =>
+                    onChange(index, "unit", medicine.unit === chip ? "" : chip)
+                  }
+                >
+                  {chip}
+                </ChipButton>
+              ))}
+              {lesions.length > 0 && (
+                <NativeSelect
+                  aria-label="Body site link"
+                  className="h-7 w-auto py-0 text-[11px]"
+                  value={siteOf(medicine.instructions) ?? ""}
+                  onChange={(event) =>
+                    onChange(
+                      index,
+                      "instructions",
+                      withSite(medicine.instructions, event.target.value || null),
+                    )
+                  }
+                  disabled={!canManage}
+                >
+                  <option value="">No site</option>
+                  {lesions.map((lesion) => {
+                    const site = `Pin #${lesion.pin_number} — ${lesion.body_region}${
+                      lesion.laterality ? ` (${lesion.laterality})` : ""
+                    }`;
+                    return (
+                      <option key={lesion.id} value={site}>
+                        {site}
+                      </option>
+                    );
+                  })}
+                </NativeSelect>
+              )}
+            </PillRow>
+          </>
+        )}
+
+        {oral && (
+          <>
+            <PillRow label="Strength">
+              {STRENGTH_CHIPS.map((chip) => (
+                <ChipButton
+                  key={chip}
+                  selected={medicine.unit === chip}
+                  disabled={!canManage}
+                  onClick={() =>
+                    onChange(index, "unit", medicine.unit === chip ? "" : chip)
+                  }
+                >
+                  {chip}
+                </ChipButton>
+              ))}
+            </PillRow>
+            <PillRow label="Timing">
+              {(
+                [
+                  { key: "after", label: "After Meals" },
+                  { key: "before", label: "Before Meals" },
+                ] as const
+              ).map((timing) => (
+                <ChipButton
+                  key={timing.key}
+                  selected={foodTimingOf(medicine.instructions) === timing.key}
+                  disabled={!canManage}
+                  onClick={() =>
+                    onChange(
+                      index,
+                      "instructions",
+                      applyFoodTiming(
+                        medicine.instructions,
+                        foodTimingOf(medicine.instructions) === timing.key
+                          ? null
+                          : timing.key,
+                      ),
+                    )
+                  }
+                >
+                  {timing.label}
+                </ChipButton>
+              ))}
+            </PillRow>
+          </>
+        )}
+
+        <PillRow label="Freq">
+          {FREQUENCY_CHIPS.map((chip) => (
+            <ChipButton
+              key={chip.value}
+              selected={medicine.frequency === chip.value}
+              disabled={!canManage}
+              onClick={() =>
+                onChange(
+                  index,
+                  "frequency",
+                  medicine.frequency === chip.value ? "" : chip.value,
+                )
+              }
+            >
+              {chip.short}
+            </ChipButton>
+          ))}
+        </PillRow>
+        <PillRow label="Dur">
+          {DURATION_CHIPS.map((chip) => (
+            <ChipButton
+              key={chip}
+              selected={medicine.duration === chip}
+              disabled={!canManage}
+              onClick={() =>
+                onChange(
+                  index,
+                  "duration",
+                  medicine.duration === chip ? "" : chip,
+                )
+              }
+            >
+              {chip}
+            </ChipButton>
+          ))}
+        </PillRow>
+      </div>
+
+      {/* Notes / site phrase — free text carved by the pills above. */}
+      <div className="mt-2.5">
+        <label
+          htmlFor={`derm-med-instructions-${index}`}
+          className="text-ink mb-1 block text-[11px] font-bold uppercase tracking-wide"
+        >
+          Instructions
+        </label>
+        <Input
+          id={`derm-med-instructions-${index}`}
+          value={medicine.instructions}
+          onChange={(event) =>
+            onChange(index, "instructions", event.target.value)
+          }
+          placeholder="e.g. Apply to affected area; moisturiser on top"
+          autoComplete="off"
+          disabled={!canManage}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------------- */
+/* Lab test search — typing filters a dropdown of the in-app menu plus the   */
+/* clinic's saved custom tests; a missing test can be registered in-place.   */
+/* ------------------------------------------------------------------------- */
+
+function LabTestCombobox({
+  index,
+  value,
+  existingNames,
+  customTests,
+  onAddCustom,
+  onChange,
+  disabled,
+}: {
+  index: number;
+  value: string;
+  /** Test names already on this Rx — selecting them is blocked (dedupe). */
+  existingNames: string[];
+  customTests: string[];
+  onAddCustom: (name: string) => Promise<boolean>;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const query = value.trim();
+  const lowerQuery = query.toLowerCase();
+  const all = [...COMMON_LAB_TESTS.map((t) => ({ name: t.name, group: t.group })), ...customTests.map((name) => ({ name, group: "Custom" }))];
+  const matches = lowerQuery
+    ? all.filter((test) => test.name.toLowerCase().includes(lowerQuery))
+    : all;
+  const alreadyOrdered = existingNames.some(
+    (name) => name.trim().toLowerCase() === lowerQuery,
+  );
+  const noExactMenuMatch =
+    query.length > 0 &&
+    !all.some((test) => test.name.toLowerCase() === lowerQuery) &&
+    !alreadyOrdered;
+
+  return (
+    <div className="relative">
+      <Input
+        id={`derm-lab-test-${index}`}
+        value={value}
+        role="combobox"
+        aria-expanded={open}
+        autoComplete="off"
+        disabled={disabled}
+        placeholder="Search or type a test…"
+        onChange={(event) => {
+          onChange(event.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+      />
+      {open && (
+        <ul className="absolute z-30 mt-1 max-h-56 w-[min(26rem,100%)] overflow-y-auto rounded-card border border-hairline bg-surface py-1 shadow-dropdown">
+          {matches.map((test) => (
+            <li key={test.name}>
+              <button
+                type="button"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  if (existingNames.some((n) => n.toLowerCase() === test.name.toLowerCase())) {
+                    toast.info(`"${test.name}" is already ordered.`);
+                    setOpen(false);
+                    return;
+                  }
+                  onChange(test.name);
+                  setOpen(false);
+                }}
+                className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[12.5px] text-text-secondary transition-colors hover:bg-app hover:text-primary"
+              >
+                <span className="truncate">{test.name}</span>
+                <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-text-muted">
+                  {test.group}
+                </span>
+              </button>
+            </li>
+          ))}
+          {matches.length === 0 && (
+            <li className="px-3 py-1.5 text-[12px] text-text-muted">
+              No saved test matches “{query}”.
+            </li>
+          )}
+          {noExactMenuMatch && (
+            <li className="border-t border-hairline">
+              <button
+                type="button"
+                disabled={adding || disabled}
+                onMouseDown={async (event) => {
+                  event.preventDefault();
+                  setAdding(true);
+                  const okFlag = await onAddCustom(query);
+                  setAdding(false);
+                  if (okFlag) {
+                    setOpen(false);
+                  }
+                }}
+                className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-[12.5px] font-medium text-primary transition-colors hover:bg-primary/10"
+              >
+                <Plus aria-hidden="true" className="size-3.5" />
+                {adding ? `Saving "${query}"…` : `Add “${query}” as a custom test (clinic registry)`}
+              </button>
+            </li>
+          )}
+        </ul>
       )}
     </div>
   );
 }
 
 /* ------------------------------------------------------------------------- */
-/* Root builder — owns the whole draft + the single unified CTA (task §5).    */
+/* Root builder — header actions bar (§1), pill-only rows (§2), labs (§3),   */
+/* follow-up picker (§5), history timeline with view/repeat (§4).            */
 /* ------------------------------------------------------------------------- */
 
 export function DermRxMeds({
   patientId,
   patient,
   prescription,
+  history,
+  lesions,
   today,
   allergies,
   canManage,
@@ -754,6 +988,10 @@ export function DermRxMeds({
   patient: PatientShareFields;
   /** Latest (active) prescription row the draft edits in-place. */
   prescription: DermPrescription | null;
+  /** All earlier prescription rows (deduped by id inside). */
+  history: DermPrescription[];
+  /** Body-map lesion pins for topical body-site linking. */
+  lesions: DermLesion[];
   /** Live context from today's encounter (diagnosis, procedures). */
   today: DermRxPrintToday;
   allergies?: Array<string | null | undefined>;
@@ -764,9 +1002,6 @@ export function DermRxMeds({
   const [pending, setPending] = useState(false);
   const [items, setItems] = useState<MedicineEntry[]>(prescription?.medicines ?? []);
   const [labs, setLabs] = useState<LabOrder[]>(prescription?.lab_orders ?? []);
-  const [topicalForm, setTopicalForm] = useState<NonNullable<DermPrescription["topical_form"]>>(
-    prescription?.topical_form ?? "cream",
-  );
   const [application, setApplication] = useState(
     prescription?.application_instructions ?? "",
   );
@@ -779,13 +1014,20 @@ export function DermRxMeds({
   const [skincarePm, setSkincarePm] = useState(
     prescription?.skincare_routine_pm ?? "",
   );
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewDraft, setPreviewDraft] = useState<DermPrescription | null>(
-    null,
-  );
+  const [followUp, setFollowUp] = useState(prescription?.follow_up ?? "");
   const [printDraft, setPrintDraft] = useState<DermPrescription | null>(null);
+  /** Encounter context printed on the sheet — empty for history reprints. */
+  const [printToday, setPrintToday] = useState<DermRxPrintToday>(today);
   const [letterhead, setLetterhead] = useState<DermRxLetterhead | null>(null);
   const [clinician, setClinician] = useState("");
+  const [customLabTests, setCustomLabTests] = useState<string[]>([]);
+  const [rxPresets, setRxPresets] = useState<DermRxPreset[]>([]);
+  const [presetsOpen, setPresetsOpen] = useState(false);
+  const [panelsOpen, setPanelsOpen] = useState(false);
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [saveTemplatePending, setSaveTemplatePending] = useState(false);
+  const [viewRx, setViewRx] = useState<DermPrescription | null>(null);
 
   useEffect(() => {
     void getClinicLetterheadAction().then((result) => {
@@ -793,6 +1035,12 @@ export function DermRxMeds({
     });
     void getCurrentClinicianInfoAction().then((result) => {
       if (result.ok) setClinician(result.data.name);
+    });
+    void listDermRxPresetsAction().then((result) => {
+      if (result.ok) setRxPresets(result.data);
+    });
+    void listDermCustomLabTestsAction().then((result) => {
+      if (result.ok) setCustomLabTests(result.data);
     });
   }, []);
 
@@ -810,26 +1058,24 @@ export function DermRxMeds({
     setItems((current) => current.filter((_, i) => i !== index));
   }
 
-  /** Load a 1-click regimen template — replaces the draft with the protocol. */
-  function loadRegimen(template: RegimenTemplate) {
-    setItems(template.medicines.map((m) => ({ ...m })));
-    setLabs(template.labOrders.map((l) => ({ ...l })));
-    if (template.topicalForm) setTopicalForm(template.topicalForm);
-    setApplication(template.application);
-    setSkincareAm(template.skincareAm);
-    setSkincarePm(template.skincarePm);
-    setEducation(template.education);
+  /** Load a preset (built-in regimen or clinic template) into the draft. */
+  function loadPreset(preset: LoadablePreset) {
+    setItems(preset.medicines.map((m) => ({ ...m })));
+    setLabs(preset.labOrders.map((l) => ({ ...l })));
+    setApplication(preset.application);
+    setSkincareAm(preset.skincareAm);
+    setSkincarePm(preset.skincarePm);
+    setEducation(preset.education);
+    if (preset.followUp) setFollowUp(preset.followUp);
     toast.success(
-      `Loaded "${template.name}" — ${template.medicines.length} medicines${
-        template.labOrders.length > 0 ? `, ${template.labOrders.length} labs` : ""
+      `Loaded "${preset.name}" — ${preset.medicines.length} medicines${
+        preset.labOrders.length > 0 ? `, ${preset.labOrders.length} labs` : ""
       } and advice filled. Review, then save.`,
     );
   }
 
-  /** 1-tap lab panels (§3): append missing tests, keep whatever exists. */
-  function applyLabPanel(
-    panel: (typeof LAB_PANELS)[number],
-  ) {
+  /** 1-tap lab panels: append missing tests, keep whatever exists (dedupe). */
+  function applyLabPanel(panel: (typeof LAB_PANELS)[number]) {
     setLabs((current) => {
       const existing = new Set(
         current.map((order) => order.test_name.trim().toLowerCase()),
@@ -838,14 +1084,30 @@ export function DermRxMeds({
         .filter((test) => !existing.has(test.name.toLowerCase()))
         .map((test) => ({ test_name: test.name, notes: test.notes }));
       if (additions.length === 0) {
-        toast.info(`${panel.label} — all tests already on the list.`);
+        toast.info(`${panel.name} — all tests already on the list.`);
         return current;
       }
-      toast.success(
-        `${panel.label}: ${additions.length} test(s) added.`,
-      );
+      toast.success(`${panel.name}: ${additions.length} test(s) added.`);
       return [...current, ...additions];
     });
+  }
+
+  /** Register a custom lab test into the clinic database registry. */
+  async function addCustomLabTest(name: string): Promise<boolean> {
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+    const result = await saveDermCustomLabTestAction({ name: trimmed });
+    if (!result.ok) {
+      toast.error(result.message);
+      return false;
+    }
+    setCustomLabTests((current) =>
+      current.some((t) => t.toLowerCase() === trimmed.toLowerCase())
+        ? current
+        : [...current, trimmed],
+    );
+    toast.success(`"${trimmed}" saved to the clinic lab registry.`);
+    return true;
   }
 
   function updateLab(index: number, field: keyof LabOrder, value: string) {
@@ -862,7 +1124,7 @@ export function DermRxMeds({
     setLabs((current) => current.filter((_, i) => i !== index));
   }
 
-  /** The draft as it would save, for print + share. */
+  /** The draft as it would save, for print + share + template stamping. */
   function buildDraft(): DermPrescription {
     const medicines = items.filter(
       (m) => m.name.trim() || m.route.trim() || m.frequency.trim(),
@@ -874,11 +1136,12 @@ export function DermRxMeds({
       patient_id: patientId,
       doctor_id: prescription?.doctor_id ?? null,
       visit_id: prescription?.visit_id ?? visitId ?? null,
-      topical_form: topicalForm,
+      topical_form: deriveTopicalForm(items),
       application_instructions: application.trim() || null,
       skincare_routine_am: skincareAm.trim() || null,
       skincare_routine_pm: skincarePm.trim() || null,
       patient_education: education.trim() || null,
+      follow_up: followUp.trim() || null,
       medicines,
       lab_orders,
       created_at: prescription?.created_at ?? new Date().toISOString(),
@@ -886,19 +1149,20 @@ export function DermRxMeds({
     };
   }
 
-  /** One save for the whole draft. Printing always runs via the preview. */
-  async function save() {
-    if (!canManage) return;
+  /** One save for the whole draft (§1 header primary does save+print). */
+  async function save(): Promise<boolean> {
+    if (!canManage) return false;
     setPending(true);
     const result = await saveDermRxAction(
       patientId,
       {
         id: prescription?.id ?? null,
-        topical_form: topicalForm,
+        topical_form: deriveTopicalForm(items),
         application_instructions: application.trim() || null,
         skincare_routine_am: skincareAm.trim() || null,
         skincare_routine_pm: skincarePm.trim() || null,
         patient_education: education.trim() || null,
+        follow_up: followUp.trim() || null,
         medicines: items.filter(
           (m) => m.name.trim() || m.route.trim() || m.frequency.trim(),
         ),
@@ -911,26 +1175,64 @@ export function DermRxMeds({
     setPending(false);
     if (!result.ok) {
       toast.error(result.message);
-      return;
+      return false;
     }
     toast.success("Prescription saved");
     router.refresh();
+    return true;
   }
 
-  /** Stamp the current draft into the preview dialog (review → edit or print). */
-  function openPreview() {
-    setPreviewDraft(buildDraft());
-    setPreviewOpen(true);
+  /** Header primary: save, then stamp the auto-print sheet (today's context). */
+  async function saveAndPrint() {
+    const saved = await save();
+    if (saved) {
+      setPrintToday(today);
+      setPrintDraft(buildDraft());
+    }
   }
 
-  /** Print: close the dialog, then stamp the root auto-print sheet. */
-  function printNow() {
-    const draft = previewDraft ?? buildDraft();
-    setPreviewOpen(false);
-    setPrintDraft(draft);
+  /** Save the current draft as a reusable clinic Rx template (0123). */
+  async function saveDraftAsTemplate() {
+    const name = templateName.trim();
+    if (!name) {
+      toast.error("Give the template a name.");
+      return;
+    }
+    const medicines = items.filter(
+      (m) => m.name.trim() || m.route.trim() || m.frequency.trim(),
+    );
+    if (medicines.length === 0) {
+      toast.error("Add at least one medicine before saving a template.");
+      return;
+    }
+    setSaveTemplatePending(true);
+    const result = await saveDermRxPresetAction({
+      name,
+      description: `${medicines.length} medicines, ${
+        labs.filter((l) => l.test_name.trim()).length
+      } labs`,
+      medicines,
+      lab_orders: labs.filter((l) => l.test_name.trim() || l.notes.trim()),
+      application_instructions: application.trim() || null,
+      skincare_routine_am: skincareAm.trim() || null,
+      skincare_routine_pm: skincarePm.trim() || null,
+      patient_education: education.trim() || null,
+      follow_up: followUp.trim() || null,
+    });
+    setSaveTemplatePending(false);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    toast.success(`Template "${name}" saved for this clinic.`);
+    setSaveTemplateOpen(false);
+    setTemplateName("");
+    void listDermRxPresetsAction().then((refresh) => {
+      if (refresh.ok) setRxPresets(refresh.data);
+    });
   }
 
-  /** Plain-text summary for WhatsApp / e-mail sharing. */
+  /** Plain-text summary for WhatsApp sharing. */
   function shareText(): string {
     const draft = buildDraft();
     const lines: string[] = [];
@@ -962,6 +1264,7 @@ export function DermRxMeds({
       lines.push(`PM routine: ${draft.skincare_routine_pm}`);
     if (draft.patient_education)
       lines.push("", `Advice: ${draft.patient_education}`);
+    if (draft.follow_up) lines.push("", `Follow-up: ${draft.follow_up}`);
     return lines.join("\n");
   }
 
@@ -980,19 +1283,35 @@ export function DermRxMeds({
     );
   }
 
-  function shareEmail() {
-    if (!patient.email) {
-      toast.error("Add an e-mail address to the patient profile first.");
-      return;
+  /** History: deduped by id (strictly one card per prescription row). */
+  const historyRows = Object.values(
+    history.reduce<Record<string, DermPrescription>>((acc, rx) => {
+      if (rx.id && !acc[rx.id]) acc[rx.id] = rx;
+      return acc;
+    }, {}),
+  )
+    .filter((rx) => rx.id !== prescription?.id)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+  /** Fuzzy title: a built-in protocol whose medicines are all present. */
+  function protocolTitleOf(rx: DermPrescription): string {
+    const names = new Set(
+      rx.medicines.map((m) => m.name.trim().toLowerCase()).filter(Boolean),
+    );
+    if (names.size > 0) {
+      const match = BUILTIN_PRESETS.find((preset) =>
+        preset.medicines.every((m) => names.has(m.name.trim().toLowerCase())),
+      );
+      if (match) return match.name;
     }
-    const subject = `Dermatology prescription — ${patient.name}`;
-    window.location.href = `mailto:${patient.email}?subject=${encodeURIComponent(
-      subject,
-    )}&body=${encodeURIComponent(shareText())}`;
+    return rx.topical_form
+      ? `Topical ${TOPICAL_LABEL[rx.topical_form] ?? rx.topical_form} Rx`
+      : "Prescription";
   }
 
   const am = routineSteps(items, "am");
   const pm = routineSteps(items, "pm");
+  const existingTestNames = labs.map((l) => l.test_name);
 
   return (
     <>
@@ -1007,46 +1326,95 @@ export function DermRxMeds({
           }}
           letterhead={letterhead}
           clinician={clinician}
-          today={today}
+          today={printToday}
         />
       )}
 
+      {/* §1 — compact header: context badges left, action buttons right. */}
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1.5">
+          {today.diagnosis ? (
+            <Badge className="border-status-info/30 bg-status-info/10 text-status-info">
+              <Stethoscope aria-hidden="true" className="size-3" />
+              Diagnosis: {today.diagnosis}
+              {today.icdCode ? ` (${today.icdCode})` : ""}
+            </Badge>
+          ) : (
+            <span className="block text-[12px] text-text-muted">
+              No diagnosis recorded today yet (Tab 2).
+            </span>
+          )}
+          {today.procedures.map((procedure) => (
+            <Badge
+              key={procedure.name}
+              className="border-violet-200 bg-violet-500/10 text-violet-600"
+            >
+              <Scissors aria-hidden="true" className="size-3" />
+              Procedure: {procedure.name}
+              {procedure.pin ? ` — Pin #${procedure.pin}` : ""}
+            </Badge>
+          ))}
+        </div>
+        {canManage && (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPresetsOpen(true)}
+              className="gap-1.5"
+            >
+              <Zap aria-hidden="true" className="size-3.5 text-primary" />
+              Presets &amp; Templates
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setTemplateName("");
+                setSaveTemplateOpen(true);
+              }}
+              className="gap-1.5"
+            >
+              <Save aria-hidden="true" className="size-3.5" />
+              Save Draft as Template
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={shareWhatsApp}
+              className="gap-1.5"
+            >
+              <MessageCircle aria-hidden="true" className="size-3.5" />
+              Send WhatsApp
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={saveAndPrint}
+              disabled={pending}
+              className="gap-1.5"
+            >
+              <Printer aria-hidden="true" className="size-3.5" />
+              {pending ? "Saving…" : "Save & Print Prescription"}
+            </Button>
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
         <div className="xl:col-span-2 space-y-3">
-          {/* Quick regimens (§1) — simple name, chips only. */}
-          <RecordSection
-            title="Quick Regimens"
-            meta="One tap fills medicines, labs & advice"
-          >
-            <div className="flex flex-wrap gap-1.5">
-              {REGIMEN_TEMPLATES.map((template) => (
-                <button
-                  key={template.name}
-                  type="button"
-                  title={template.blurb}
-                  onClick={() => loadRegimen(template)}
-                  disabled={!canManage}
-                  className="rounded-full border border-hairline bg-app px-2.5 py-1 text-[11.5px] font-medium text-text-secondary transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-50"
-                >
-                  {template.name}
-                </button>
-              ))}
-            </div>
-            <p className="mt-2 text-[11px] text-text-muted">
-              Loading a regimen replaces the medicine, lab and advice draft
-              with the protocol&apos;s first-line regimen — review before saving.
-            </p>
-          </RecordSection>
-
-          {/* Medicines (§2) */}
+          {/* Medicines (§2) — pill rows only. */}
           <RecordSection
             title="Medicines"
             meta={items.length > 0 ? `${items.length} item(s)` : "None yet"}
           >
             {items.length === 0 ? (
-              <p className="text-[13px] text-text-muted">
-                No medicines on the draft. Add rows, or load a regimen template
-                above.
+              <p className="text-[12.5px] text-text-muted">
+                No medicines on the draft. Use Presets &amp; Templates, or add
+                a row.
               </p>
             ) : (
               <div className="space-y-2">
@@ -1055,6 +1423,7 @@ export function DermRxMeds({
                     key={index}
                     index={index}
                     medicine={medicine}
+                    lesions={lesions}
                     canManage={canManage}
                     onChange={updateMedicine}
                     onRemove={removeMedicine}
@@ -1079,25 +1448,26 @@ export function DermRxMeds({
           </RecordSection>
 
           {/* Investigations (§3) */}
-          <RecordSection title="Investigations & labs" meta={labs.length > 0 ? `${labs.length} ordered` : "None yet"}>
-            <div className="mb-3 flex flex-wrap gap-1.5">
-              <span className="text-ink self-center text-[11px] font-bold uppercase tracking-wide">
-                Quick panel:
-              </span>
-              {LAB_PANELS.map((panel) => (
-                <button
-                  key={panel.label}
+          <RecordSection
+            title="Investigations & labs"
+            meta={labs.length > 0 ? `${labs.length} ordered` : "None yet"}
+          >
+            {canManage && (
+              <div className="mb-3">
+                <Button
                   type="button"
-                  onClick={() => applyLabPanel(panel)}
-                  disabled={!canManage}
-                  className="rounded-full border border-hairline bg-app px-2.5 py-1 text-[11.5px] font-medium text-text-secondary transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-50"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPanelsOpen(true)}
+                  className="gap-1.5"
                 >
-                  {panel.label}
-                </button>
-              ))}
-            </div>
+                  <FlaskConical aria-hidden="true" className="size-3.5 text-primary" />
+                  Lab Panels
+                </Button>
+              </div>
+            )}
             {labs.length === 0 ? (
-              <p className="text-[13px] text-text-muted">
+              <p className="text-[12.5px] text-text-muted">
                 No investigations ordered yet — rows also accept manual typing.
               </p>
             ) : (
@@ -1105,50 +1475,77 @@ export function DermRxMeds({
                 {labs.map((order, index) => (
                   <div
                     key={index}
-                    className="grid grid-cols-1 items-end gap-2 rounded-card border border-hairline p-3 sm:grid-cols-[2fr_3fr_auto]"
+                    className="rounded-card border border-hairline p-3"
                   >
-                    <div className="relative">
-                      <label
-                        htmlFor={`derm-lab-test-${index}`}
-                        className="text-ink mb-1 block text-[11.5px] font-bold"
-                      >
-                        Test
-                      </label>
-                      <LabTestCombobox
-                        index={index}
-                        value={order.test_name}
-                        onChange={(value) =>
-                          updateLab(index, "test_name", value)
-                        }
-                      />
+                    <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[2fr_2fr_auto]">
+                      <div>
+                        <label
+                          htmlFor={`derm-lab-test-${index}`}
+                          className="text-ink mb-1 block text-[11.5px] font-bold"
+                        >
+                          Test
+                        </label>
+                        <LabTestCombobox
+                          index={index}
+                          value={order.test_name}
+                          disabled={!canManage}
+                          existingNames={existingTestNames.filter(
+                            (name) => name !== order.test_name,
+                          )}
+                          customTests={customLabTests}
+                          onAddCustom={addCustomLabTest}
+                          onChange={(value) =>
+                            updateLab(index, "test_name", value)
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label
+                          htmlFor={`derm-lab-notes-${index}`}
+                          className="text-ink mb-1 block text-[11.5px] font-bold"
+                        >
+                          Notes
+                        </label>
+                        <Input
+                          id={`derm-lab-notes-${index}`}
+                          value={order.notes}
+                          disabled={!canManage}
+                          onChange={(event) =>
+                            updateLab(index, "notes", event.target.value)
+                          }
+                          placeholder="e.g. Baseline panel"
+                          autoComplete="off"
+                        />
+                      </div>
+                      {canManage && (
+                        <button
+                          type="button"
+                          onClick={() => removeLab(index)}
+                          aria-label={`Remove investigation ${index + 1}`}
+                          className="mb-1 flex size-7 shrink-0 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-app hover:text-status-destructive"
+                        >
+                          <X aria-hidden="true" className="size-3.5" />
+                        </button>
+                      )}
                     </div>
-                    <div>
-                      <label
-                        htmlFor={`derm-lab-notes-${index}`}
-                        className="text-ink mb-1 block text-[11.5px] font-bold"
-                      >
-                        Notes
-                      </label>
-                      <Input
-                        id={`derm-lab-notes-${index}`}
-                        value={order.notes}
-                        onChange={(event) =>
-                          updateLab(index, "notes", event.target.value)
-                        }
-                        placeholder="e.g. Baseline panel"
-                        autoComplete="off"
-                      />
+                    {/* 1-tap sample notes (§3) */}
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <span className="text-ink text-[10.5px] font-bold uppercase tracking-wide">
+                        Note:
+                      </span>
+                      {LAB_NOTE_CHIPS.map((chip) => (
+                        <ChipButton
+                          key={chip}
+                          selected={labNoteOn(order.notes, chip)}
+                          disabled={!canManage}
+                          onClick={() =>
+                            updateLab(index, "notes", toggleLabNote(order.notes, chip))
+                          }
+                        >
+                          {chip}
+                        </ChipButton>
+                      ))}
                     </div>
-                    {canManage && (
-                      <button
-                        type="button"
-                        onClick={() => removeLab(index)}
-                        aria-label={`Remove investigation ${index + 1}`}
-                        className="mb-1 flex size-7 shrink-0 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-app hover:text-status-destructive"
-                      >
-                        <X aria-hidden="true" className="size-3.5" />
-                      </button>
-                    )}
                   </div>
                 ))}
               </div>
@@ -1170,32 +1567,8 @@ export function DermRxMeds({
           </RecordSection>
         </div>
 
-        {/* Column 3: routine preview + safety — recomputed live (spec §8.4) */}
+        {/* Column 3: advice + routine preview + safety. */}
         <div className="flex min-w-0 flex-col gap-3">
-          <RecordSection title="Topical form" meta="One per prescription">
-            <div className="flex flex-wrap gap-1.5">
-              {(
-                ["cream", "ointment", "gel", "lotion"] as const
-              ).map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => setTopicalForm(option)}
-                  aria-pressed={topicalForm === option}
-                  disabled={!canManage}
-                  className={cn(
-                    "rounded-full border px-2.5 py-1 text-[11.5px] font-medium transition-colors disabled:opacity-50",
-                    topicalForm === option
-                      ? "border-primary bg-primary/10 font-semibold text-primary"
-                      : "border-hairline bg-app text-text-secondary hover:border-primary/40 hover:text-primary",
-                  )}
-                >
-                  {option.charAt(0).toUpperCase() + option.slice(1)}
-                </button>
-              ))}
-            </div>
-          </RecordSection>
-
           <RecordSection
             title="Application instructions & advice"
             meta="Included in print"
@@ -1236,7 +1609,7 @@ export function DermRxMeds({
             </div>
           </RecordSection>
 
-          <RecordSection title="Patient AM/PM routine" meta="From the current draft">
+          <RecordSection title="Patient AM/PM routine" meta="Printed on the sheet">
             <div className="space-y-3">
               <div>
                 <label
@@ -1284,10 +1657,6 @@ export function DermRxMeds({
                   </ol>
                 )}
               </div>
-              <p className="text-[11px] leading-relaxed text-text-muted">
-                Medicines whose frequency names a time of day (AM/PM,
-                morning/night) are previewed under the matching routine.
-              </p>
             </div>
           </RecordSection>
 
@@ -1297,103 +1666,353 @@ export function DermRxMeds({
         </div>
       </div>
 
-      {/* Unified action bar (§5): save / preview primary, share secondary. */}
-      {canManage && (
-        <div className="sticky bottom-0 z-10 -mx-1 mt-1 flex flex-wrap items-center justify-between gap-2 border-t border-hairline bg-surface/95 px-1 py-3 backdrop-blur">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              size="sm"
-              onClick={save}
-              disabled={pending}
-              className="gap-1.5"
+      {/* §5 — Follow-up / revisit picker before saving. */}
+      <RecordSection
+        title="Follow-up / revisit"
+        meta={followUp ? <Badge className="bg-app text-text-secondary">{followUp}</Badge> : "Pick one"}
+      >
+        <div className="flex flex-wrap gap-1.5">
+          {FOLLOW_UP_CHIPS.map((chip) => (
+            <ChipButton
+              key={chip}
+              selected={followUp === chip}
+              disabled={!canManage}
+              onClick={() => setFollowUp(followUp === chip ? "" : chip)}
             >
-              {pending ? (
-                <Save aria-hidden="true" className="size-3.5 animate-pulse" />
-              ) : (
-                <Save aria-hidden="true" className="size-3.5" />
-              )}
-              Save Prescription
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={openPreview}
-              className="gap-1.5"
-            >
-              <Eye aria-hidden="true" className="size-3.5" />
-              Preview & Print
-            </Button>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={shareWhatsApp}
-              className="gap-1.5"
-            >
-              <MessageCircle aria-hidden="true" className="size-3.5" />
-              WhatsApp
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={shareEmail}
-              className="gap-1.5"
-            >
-              <Mail aria-hidden="true" className="size-3.5" />
-              Email
-            </Button>
-          </div>
+              {chip}
+            </ChipButton>
+          ))}
         </div>
+      </RecordSection>
+
+      {/* §4 — Previous prescriptions: compact timeline (deduped by id). */}
+      {historyRows.length > 0 && (
+        <RecordSection
+          title="Previous prescriptions"
+          meta={`${historyRows.length} earlier`}
+        >
+          <div className="space-y-2">
+            {historyRows.map((rx) => {
+              const medicines = rx.medicines.filter((m) => m.name.trim());
+              return (
+                <div
+                  key={rx.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-card border border-hairline p-3"
+                >
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-bold text-text-primary">
+                      {rx.created_at.slice(0, 10)} · {protocolTitleOf(rx)}
+                    </p>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      {medicines.slice(0, 3).map((m, i) => (
+                        <Badge key={`${rx.id}-m-${i}`} className="bg-app text-[10.5px] text-text-secondary">
+                          {m.name}
+                        </Badge>
+                      ))}
+                      {medicines.length > 3 && (
+                        <span className="text-[10.5px] text-text-muted">
+                          +{medicines.length - 3} more
+                        </span>
+                      )}
+                      {rx.follow_up && (
+                        <Badge className="border-status-info/30 bg-status-info/10 text-status-info">
+                          <Clock aria-hidden="true" className="size-3" />
+                          Revisit: {rx.follow_up}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setViewRx(rx)}
+                      className="gap-1.5"
+                    >
+                      <Eye aria-hidden="true" className="size-3.5" />
+                      View Details
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const copies = (rx.medicines ?? []).map((m) => ({ ...m }));
+                        if (copies.length === 0) {
+                          toast.info("That prescription has no medicines to repeat.");
+                          return;
+                        }
+                        setItems(copies);
+                        toast.success(`Copied ${copies.length} medicines from ${rx.created_at.slice(0, 10)} into the draft.`);
+                      }}
+                      disabled={!canManage}
+                      className="gap-1.5"
+                    >
+                      <RotateCcw aria-hidden="true" className="size-3.5" />
+                      Repeat Rx
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </RecordSection>
       )}
 
-      {/* Print preview dialog: review the sheet, edit the draft, or print. */}
-      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent size="wide" className="max-h-[90vh]">
+      {/* §1 — Preset picker modal (built-ins + clinic templates). */}
+      <Dialog open={presetsOpen} onOpenChange={setPresetsOpen}>
+        <DialogContent size="wide" className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Prescription preview</DialogTitle>
+            <DialogTitle>Presets &amp; Templates</DialogTitle>
             <DialogDescription>
-              The sheet prints exactly as shown. Edit anything, then preview
-              again, or print now.
+              One tap loads a full regimen. Built-in protocols first, then this
+              clinic&apos;s saved templates.
             </DialogDescription>
           </DialogHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto rounded-card bg-app p-3">
-            {previewDraft && (
-              <DermRxPrint
-                rx={previewDraft}
-                patient={{
-                  name: patient.name,
-                  patient_code: patient.patient_code,
-                  date_of_birth: patient.date_of_birth,
-                  gender: patient.gender,
+          <div className="space-y-2">
+            {BUILTIN_PRESETS.map((preset) => (
+              <button
+                key={preset.name}
+                type="button"
+                onClick={() => {
+                  loadPreset(preset);
+                  setPresetsOpen(false);
                 }}
-                letterhead={letterhead}
-                clinician={clinician}
-                today={today}
-                variant="preview"
-              />
-            )}
+                disabled={!canManage}
+                className="flex w-full flex-wrap items-center justify-between gap-2 rounded-card border border-hairline p-3 text-left transition-colors hover:border-primary/40 disabled:opacity-50"
+              >
+                <div className="min-w-0">
+                  <p className="text-[13px] font-bold text-text-primary">
+                    {preset.name}
+                  </p>
+                  <p className="text-[11.5px] text-text-muted">{preset.description}</p>
+                </div>
+                <span className="shrink-0 rounded-full bg-app px-2 py-0.5 text-[10.5px] font-bold text-text-muted">
+                  Built-in · {preset.medicines.length} meds
+                  {preset.labOrders.length > 0 ? ` · ${preset.labOrders.length} labs` : ""}
+                </span>
+              </button>
+            ))}
+            {rxPresets.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => {
+                  loadPreset({
+                    name: preset.name,
+                    description: preset.description ?? "",
+                    medicines: preset.medicines ?? [],
+                    labOrders: preset.lab_orders ?? [],
+                    application: preset.application_instructions ?? "",
+                    skincareAm: preset.skincare_routine_am ?? "",
+                    skincarePm: preset.skincare_routine_pm ?? "",
+                    education: preset.patient_education ?? "",
+                    followUp: preset.follow_up ?? "",
+                    source: "clinic",
+                  });
+                  setPresetsOpen(false);
+                }}
+                disabled={!canManage}
+                className="flex w-full flex-wrap items-center justify-between gap-2 rounded-card border border-hairline p-3 text-left transition-colors hover:border-primary/40 disabled:opacity-50"
+              >
+                <div className="min-w-0">
+                  <p className="text-[13px] font-bold text-text-primary">{preset.name}</p>
+                  <p className="text-[11.5px] text-text-muted">
+                    {preset.description || "Clinic template"}
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10.5px] font-bold text-primary">
+                  Clinic · {(preset.medicines ?? []).length} meds
+                  {(preset.lab_orders ?? []).length > 0 ? ` · ${(preset.lab_orders ?? []).length} labs` : ""}
+                </span>
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* §1 — Lab panels modal. */}
+      <Dialog open={panelsOpen} onOpenChange={setPanelsOpen}>
+        <DialogContent size="default">
+          <DialogHeader>
+            <DialogTitle>Lab Panels</DialogTitle>
+            <DialogDescription>
+              One tap adds the whole panel; tests already ordered are skipped.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {LAB_PANELS.map((panel) => (
+              <button
+                key={panel.name}
+                type="button"
+                onClick={() => applyLabPanel(panel)}
+                disabled={!canManage}
+                className="flex w-full flex-wrap items-center justify-between gap-2 rounded-card border border-hairline p-3 text-left transition-colors hover:border-primary/40 disabled:opacity-50"
+              >
+                <div className="min-w-0">
+                  <p className="text-[13px] font-bold text-text-primary">{panel.name}</p>
+                  <p className="truncate text-[11.5px] text-text-muted">
+                    {panel.tests.map((t) => t.name).join(" · ")}
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full bg-app px-2 py-0.5 text-[10.5px] font-bold text-text-muted">
+                  {panel.tests.length} tests
+                </span>
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* §1 — Save draft as clinic template modal. */}
+      <Dialog open={saveTemplateOpen} onOpenChange={setSaveTemplateOpen}>
+        <DialogContent size="default">
+          <DialogHeader>
+            <DialogTitle>Save Draft as Template</DialogTitle>
+            <DialogDescription>
+              Stores the medicines, labs, advice and follow-up of this draft as
+              a reusable clinic template.
+            </DialogDescription>
+          </DialogHeader>
+          <div>
+            <label
+              htmlFor="derm-template-name"
+              className="text-ink mb-1 block text-[12.5px] font-bold"
+            >
+              Template name
+            </label>
+            <Input
+              id="derm-template-name"
+              value={templateName}
+              onChange={(event) => setTemplateName(event.target.value)}
+              placeholder="e.g. Clinic-standard acne regimen"
+              maxLength={80}
+            />
           </div>
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setPreviewOpen(false)}
+              onClick={() => setSaveTemplateOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={saveDraftAsTemplate}
+              disabled={saveTemplatePending}
               className="gap-1.5"
             >
-              <Pencil aria-hidden="true" className="size-3.5" />
-              Edit prescription
-            </Button>
-            <Button type="button" size="sm" onClick={printNow} className="gap-1.5">
-              <Printer aria-hidden="true" className="size-3.5" />
-              Print now
+              <Save aria-hidden="true" className="size-3.5" />
+              {saveTemplatePending ? "Saving…" : "Save Template"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* §4 — Historical prescription full detail modal (+ reprint). */}
+      <Dialog open={viewRx !== null} onOpenChange={(open) => { if (!open) setViewRx(null); }}>
+        <DialogContent size="wide" className="max-h-[85vh] overflow-y-auto">
+          {viewRx && (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  {viewRx.created_at.slice(0, 10)} · {protocolTitleOf(viewRx)}
+                </DialogTitle>
+                <DialogDescription>
+                  Full prescription as recorded on that visit.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 text-[12.5px]">
+                <div>
+                  <p className="text-ink mb-1 text-[11px] font-bold uppercase tracking-wide">
+                    Medicines ({viewRx.medicines?.length ?? 0})
+                  </p>
+                  <div className="space-y-1.5">
+                    {(viewRx.medicines ?? [])
+                      .filter((m) => m.name.trim())
+                      .map((m, i) => (
+                        <p key={`v-${i}`} className="leading-snug text-text-secondary">
+                          <span className="font-bold text-text-primary">
+                            {i + 1}. {m.name}
+                          </span>
+                          {m.route || m.form
+                            ? ` — ${[m.route, m.form].filter(Boolean).join(" / ")}`
+                            : ""}
+                          {m.frequency ? ` · ${m.frequency}` : ""}
+                          {m.duration ? ` · ${m.duration}` : ""}
+                          {m.unit ? ` · ${m.unit}` : ""}
+                          {m.instructions ? ` · ${m.instructions}` : ""}
+                        </p>
+                      ))}
+                  </div>
+                </div>
+                {(viewRx.lab_orders ?? []).filter((l) => l.test_name.trim()).length > 0 && (
+                  <div>
+                    <p className="text-ink mb-1 text-[11px] font-bold uppercase tracking-wide">
+                      Advised tests
+                    </p>
+                    {(viewRx.lab_orders ?? [])
+                      .filter((l) => l.test_name.trim())
+                      .map((l, i) => (
+                        <p key={`vl-${i}`} className="text-text-secondary">
+                          • {l.test_name}
+                          {l.notes ? ` — ${l.notes}` : ""}
+                        </p>
+                      ))}
+                  </div>
+                )}
+                {[
+                  { label: "Application instructions", value: viewRx.application_instructions },
+                  { label: "Patient advice", value: viewRx.patient_education },
+                  { label: "AM routine", value: viewRx.skincare_routine_am },
+                  { label: "PM routine", value: viewRx.skincare_routine_pm },
+                  { label: "Follow-up", value: viewRx.follow_up },
+                ]
+                  .filter((row) => row.value?.trim())
+                  .map((row) => (
+                    <div key={row.label}>
+                      <p className="text-ink mb-1 text-[11px] font-bold uppercase tracking-wide">
+                        {row.label}
+                      </p>
+                      <p className="whitespace-pre-wrap leading-relaxed text-text-secondary">
+                        {row.value}
+                      </p>
+                    </div>
+                  ))}
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setViewRx(null)}
+                >
+                  Close
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    setPrintToday({
+                      diagnosis: null,
+                      icdCode: null,
+                      procedures: [],
+                    });
+                    setPrintDraft(viewRx);
+                    setViewRx(null);
+                  }}
+                  className="gap-1.5"
+                >
+                  <Printer aria-hidden="true" className="size-3.5" />
+                  Re-print
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </>

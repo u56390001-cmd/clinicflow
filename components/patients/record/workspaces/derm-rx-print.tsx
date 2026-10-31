@@ -24,7 +24,7 @@ export type DermRxLetterhead = {
 export type DermRxPrintToday = {
   diagnosis: string | null;
   icdCode: string | null;
-  procedures: { name: string; bottleId: string | null }[];
+  procedures: { name: string; bottleId: string | null; pin: number | null }[];
 };
 
 export function DermRxPrint({
@@ -147,6 +147,11 @@ export function DermRxPrint({
         <span><strong>Age/Gender:</strong> {age ?? "—"} / {gender ?? "—"}</span>
         <span><strong>UHID:</strong> {patient.patient_code ?? "—"}</span>
         <span><strong>Date:</strong> {rx.created_at.slice(0, 10)}</span>
+        {rx.follow_up?.trim() && (
+          <span>
+            <strong>Follow-up:</strong> {rx.follow_up.trim()}
+          </span>
+        )}
       </div>
 
       {/* Diagnosis & procedures pulled from today's encounter */}
@@ -163,7 +168,9 @@ export function DermRxPrint({
             {today.procedures
               .map(
                 (p) =>
-                  `${p.name}${p.bottleId ? ` (Bottle ${p.bottleId})` : ""}`,
+                  `${p.name}${
+                    p.pin ? ` (Pin #${p.pin})` : ""
+                  }${p.bottleId ? ` (Bottle ${p.bottleId})` : ""}`,
               )
               .join("; ")}
           </p>

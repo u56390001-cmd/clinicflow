@@ -36,7 +36,6 @@ import {
   Loader2,
   MapPin,
   Plus,
-  Scissors,
   Sparkles,
   Stethoscope,
   Sun,
@@ -118,7 +117,6 @@ import type {
   DermExam,
   DermLesion,
   DermPhoto,
-  DermPrescription,
   PatientDirectoryRow,
 } from "@/types/database";
 import type { HistoryItem } from "@/types/history";
@@ -2657,9 +2655,9 @@ function RxTab({
     patient.known_allergies,
   ];
 
-  // Auto-import (§4): today's encounter diagnosis + procedures, pulled live
-  // from the Tab 2 exam row and the Tab 4 procedure logbook into the Rx
-  // builder header — one glance shows what this prescription is treating.
+  // Auto-import (§1 header badges): today's encounter diagnosis + procedures,
+  // pulled live from the Tab 2 exam row and the Tab 4 procedure logbook —
+  // lesion-linked procedures surface their body-map pin number.
   const today = new Date().toISOString().slice(0, 10);
   const examForContext =
     (visitId
@@ -2678,100 +2676,24 @@ function RxTab({
     procedures: todayProcedures.map((procedure) => ({
       name: procedure.procedure_name,
       bottleId: procedure.specimen_barcode ?? null,
+      pin: procedure.lesion_id
+        ? (derm.lesions.find((lesion) => lesion.id === procedure.lesion_id)
+            ?.pin_number ?? null)
+        : null,
     })),
   };
 
   return (
-    <div className="space-y-4">
-      {/* Auto-import summary badge (§4) — live from today's encounter tabs. */}
-      <RecordSection
-        title="Auto-imported from today's encounter"
-        meta={
-          <Badge className="border-primary/30 bg-primary/10 text-primary">
-            Live · Tab 2 + 4
-          </Badge>
-        }
-      >
-        {todayContext.diagnosis || todayContext.procedures.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-2">
-            {todayContext.diagnosis && (
-              <Badge className="gap-1 border-primary/30 bg-primary/10 text-primary">
-                <Stethoscope aria-hidden="true" className="size-3" />
-                {todayContext.diagnosis}
-                {todayContext.icdCode ? ` · ICD-10 ${todayContext.icdCode}` : ""}
-              </Badge>
-            )}
-            {todayContext.procedures.map((procedure) => (
-              <Badge
-                key={procedure.name}
-                className="gap-1 bg-app text-text-secondary"
-              >
-                <Scissors aria-hidden="true" className="size-3" />
-                {procedure.name}
-                {procedure.bottleId ? ` · Bottle ${procedure.bottleId}` : ""}
-              </Badge>
-            ))}
-          </div>
-        ) : (
-          <p className="text-[12.5px] text-text-muted">
-            {visitId
-              ? "No diagnosis or procedure recorded on today's encounter yet."
-              : "Recording a diagnosis (Tab 2) or a procedure (Tab 4) today will surface it here automatically."}
-          </p>
-        )}
-      </RecordSection>
-
-      <DermRxMeds
-        patientId={patient.id}
-        patient={patient}
-        prescription={latest}
-        today={todayContext}
-        allergies={allergies}
-        canManage={canManage}
-        visitId={visitId}
-      />
-
-      {derm.prescriptions.length > 1 && (
-        <div className="space-y-3">
-          <SpecialtyHeading
-            title="Previous prescriptions"
-            description="Newest first"
-          />
-          {derm.prescriptions.slice(1).map((rx) => (
-            <RecordSection
-              key={rx.id}
-              title={`${rx.created_at.slice(0, 10)} — ${
-                rx.topical_form
-                  ? `Topical ${TOPICAL_LABEL[rx.topical_form] ?? rx.topical_form}`
-                  : "Prescription"
-              }`}
-            >
-              <RxSummary rx={rx} />
-            </RecordSection>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-const TOPICAL_LABEL: Record<string, string> = {
-  cream: "Cream",
-  ointment: "Ointment",
-  gel: "Gel",
-  lotion: "Lotion",
-};
-
-function RxSummary({ rx }: { rx: DermPrescription }) {
-  return (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-      <RecordNote
-        label="Application instructions"
-        value={rx.application_instructions}
-      />
-      <RecordNote label="Patient education" value={rx.patient_education} />
-      <RecordNote label="AM routine" value={rx.skincare_routine_am} />
-      <RecordNote label="PM routine" value={rx.skincare_routine_pm} />
-    </div>
+    <DermRxMeds
+      patientId={patient.id}
+      patient={patient}
+      prescription={latest}
+      history={derm.prescriptions}
+      lesions={derm.lesions}
+      today={todayContext}
+      allergies={allergies}
+      canManage={canManage}
+      visitId={visitId}
+    />
   );
 }
