@@ -35,7 +35,6 @@ import {
   Images,
   Loader2,
   MapPin,
-  Pill,
   Plus,
   Sparkles,
   Stethoscope,
@@ -2635,8 +2634,6 @@ function ExamRow({
 /* the two are kept distinct so nothing is written twice.                     */
 /* ------------------------------------------------------------------------- */
 
-const TOPICAL_FORMS = ["Cream", "Ointment", "Gel", "Lotion"] as const;
-
 function RxTab({
   patient,
   derm,
@@ -2648,7 +2645,6 @@ function RxTab({
   canManage: boolean;
   visitId?: string | null;
 }) {
-  const router = useRouter();
   const latest = derm.prescriptions[0] ?? null;
   // Every allergy string this patient carries — the profile's drug/topical/
   // other fields plus the record-level known_allergies — in the order the
@@ -2660,174 +2656,77 @@ function RxTab({
     patient.known_allergies,
   ];
 
-  const [pending, setPending] = useState(false);
-  const [form, setForm] = useState<string[]>(
-    latest?.topical_form ? [latest.topical_form] : [],
+  // Auto-import (§4): today's encounter diagnosis + procedures, pulled live
+  // from the Tab 2 exam row and the Tab 4 procedure logbook into the Rx
+  // builder header — one glance shows what this prescription is treating.
+  const today = new Date().toISOString().slice(0, 10);
+  const examForContext =
+    (visitId
+      ? (derm.exams.find(
+          (exam) =>
+            exam.visit_id === visitId &&
+            exam.diagnosis?.trim(),
+        ) ?? null)
+      : null) ?? derm.exams.find((exam) => exam.exam_date === today) ?? null;
+  const todayProcedures = derm.procedures.filter(
+    (procedure) => procedure.procedure_date === today,
   );
-
-  const formValue =
-    (form[0] as Exclude<DermPrescription["topical_form"], null> | null) ?? null;
-
-  async function saveRx() {
-    if (!canManage) return;
-    setPending(true);
-    const result = await saveDermRxAction(
-      patient.id,
-      {
-        id: latest?.id ?? null,
-        topical_form: formValue,
-        application_instructions: latest?.application_instructions ?? null,
-        skincare_routine_am: latest?.skincare_routine_am ?? null,
-        skincare_routine_pm: latest?.skincare_routine_pm ?? null,
-        patient_education: latest?.patient_education ?? null,
-      },
-      visitId,
-    );
-    setPending(false);
-    if (result.ok) {
-      toast.success(latest ? "Prescription updated" : "Prescription saved");
-      router.refresh();
-    } else {
-      toast.error(result.message);
-    }
-  }
+  const todayContext = {
+    diagnosis: examForContext?.diagnosis?.trim() ?? null,
+    icdCode: examForContext?.icd_code?.trim() ?? null,
+    procedures: todayProcedures.map((procedure) => ({
+      name: procedure.procedure_name,
+      bottleId: procedure.specimen_barcode ?? null,
+    })),
+  };
 
   return (
     <div className="space-y-4">
+      {/* Auto-import summary badge (§4) — live from today's encounter tabs. */}
+      <RecordSection
+        title="Auto-imported from today's encounter"
+        meta={
+          <Badge className="border-primary/30 bg-primary/10 text-primary">
+            Live · Tab 2 + 4
+          </Badge>
+        }
+      >
+        {todayContext.diagnosis || todayContext.procedures.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {todayContext.diagnosis && (
+              <Badge className="bg-app text-text-secondary">
+                🩺 {todayContext.diagnosis}
+                {todayContext.icdCode ? ` (ICD-10 ${todayContext.icdCode})` : ""}
+              </Badge>
+            )}
+            {todayContext.procedures.map((procedure) => (
+              <Badge
+                key={procedure.name}
+                className="bg-app text-text-secondary"
+              >
+                ✂️ {procedure.name}
+                {procedure.bottleId ? ` · Bottle ${procedure.bottleId}` : ""}
+              </Badge>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[12.5px] text-text-muted">
+            {visitId
+              ? "No diagnosis or procedure recorded on today's encounter yet."
+              : "Recording a diagnosis (Tab 2) or a procedure (Tab 4) today will surface it here automatically."}
+          </p>
+        )}
+      </RecordSection>
+
       <DermRxMeds
         patientId={patient.id}
-        prescriptionId={latest?.id ?? null}
-        medicines={latest?.medicines ?? []}
-        labOrders={latest?.lab_orders ?? []}
-        skincareAm={latest?.skincare_routine_am ?? null}
-        skincarePm={latest?.skincare_routine_pm ?? null}
+        patient={patient}
+        prescription={latest}
+        today={todayContext}
         allergies={allergies}
         canManage={canManage}
         visitId={visitId}
       />
-
-      <RecordSection
-        title={
-          latest
-            ? `Dermatology prescription · ${latest.created_at.slice(0, 10)}`
-            : "Dermatology prescription"
-        }
-        meta={
-          <Badge className="bg-app text-text-secondary">
-            Topical & skincare
-          </Badge>
-        }
-      >
-        <ChipPicker
-          label="Topical form"
-          single
-          value={form}
-          onChange={setForm}
-          options={TOPICAL_FORMS}
-        />
-        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-          <AutosaveNote
-            label="Application instructions"
-            name="derm-rx-application"
-            value={latest?.application_instructions}
-            onSave={
-              canManage
-                ? async (value) =>
-                    saveDermRxAction(
-                      patient.id,
-                      {
-                        id: latest?.id ?? null,
-                        application_instructions: value || null,
-                        topical_form: formValue,
-                      },
-                      visitId,
-                    ).then((r) => r.ok)
-                : async () => true
-            }
-            rows={3}
-            placeholder="e.g. Apply a thin layer twice daily to affected area"
-          />
-          <AutosaveNote
-            label="Patient education"
-            name="derm-rx-education"
-            value={latest?.patient_education}
-            onSave={
-              canManage
-                ? async (value) =>
-                    saveDermRxAction(
-                      patient.id,
-                      {
-                        id: latest?.id ?? null,
-                        patient_education: value || null,
-                        topical_form: formValue,
-                      },
-                      visitId,
-                    ).then((r) => r.ok)
-                : async () => true
-            }
-            rows={3}
-            placeholder="e.g. Use sunscreen daily; avoid picking at lesions"
-          />
-          <AutosaveNote
-            label="Skincare routine — AM"
-            name="derm-rx-am"
-            value={latest?.skincare_routine_am}
-            onSave={
-              canManage
-                ? async (value) =>
-                    saveDermRxAction(
-                      patient.id,
-                      {
-                        id: latest?.id ?? null,
-                        skincare_routine_am: value || null,
-                        topical_form: formValue,
-                      },
-                      visitId,
-                    ).then((r) => r.ok)
-                : async () => true
-            }
-            rows={3}
-            placeholder="Cleanser → treatment → moisturiser → SPF"
-          />
-          <AutosaveNote
-            label="Skincare routine — PM"
-            name="derm-rx-pm"
-            value={latest?.skincare_routine_pm}
-            onSave={
-              canManage
-                ? async (value) =>
-                    saveDermRxAction(
-                      patient.id,
-                      {
-                        id: latest?.id ?? null,
-                        skincare_routine_pm: value || null,
-                        topical_form: formValue,
-                      },
-                      visitId,
-                    ).then((r) => r.ok)
-                : async () => true
-            }
-            rows={3}
-            placeholder="Cleanser → treatment → night moisturiser"
-          />
-        </div>
-        <div className="mt-4 flex justify-end">
-          <Button
-            type="button"
-            size="sm"
-            onClick={saveRx}
-            disabled={pending}
-            className="gap-1.5"
-          >
-            {pending ? (
-              <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
-            ) : (
-              <Pill aria-hidden="true" className="size-3.5" />
-            )}
-            {pending ? "Saving…" : "Save prescription"}
-          </Button>
-        </div>
-      </RecordSection>
 
       {derm.prescriptions.length > 1 && (
         <div className="space-y-3">
