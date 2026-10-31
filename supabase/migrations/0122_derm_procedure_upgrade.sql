@@ -56,7 +56,7 @@ create table if not exists public.derm_procedure_presets (
 create index if not exists derm_procedure_presets_clinic_idx
   on public.derm_procedure_presets (clinic_id, kind, created_at desc);
 
-create trigger if not exists derm_procedure_presets_updated_at
+create or replace trigger derm_procedure_presets_updated_at
   before update on public.derm_procedure_presets
   for each row execute function public.handle_updated_at();
 
