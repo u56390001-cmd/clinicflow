@@ -26,6 +26,7 @@ import type {
   DermPhoto,
   DermPrescription,
   DermProcedure,
+  DermProcedurePreset,
   DermProfile,
   PatientAlert,
   PatientBill,
@@ -143,14 +144,17 @@ export type PatientDermBundle = {
   lesions: DermLesion[];
   diagnoses: DermDiagnosis[];
   /**
-   * The clinic's machine registry (migration 0102) — clinic-scoped, not
-   * patient-scoped, loaded with the bundle so Tab 5 can render machine
-   * parameter profiles without a client round trip. Includes inactive rows;
-   * the procedure card only offers the active ones.
-   */
-  machines: ClinicMachine[];
-  /** Billing context for Tab 6 — bills, catalogue and doctor fees. */
-  billing: DermBillingBundle;
+ * The clinic's machine registry (migration 0102) — clinic-scoped, not
+ * patient-scoped, loaded with the bundle so Tab 5 can render machine
+ * parameter profiles without a client round trip. Includes inactive rows;
+ * the procedure card only offers the active ones.
+ */
+machines: ClinicMachine[];
+/** Clinic-level treatment recipes (migration 0122) — 1-tap parameter presets
+ * keyed by procedure kind; only active recipes are offered on the card. */
+presets: DermProcedurePreset[];
+/** Billing context for Tab 6 — bills, catalogue and doctor fees. */
+billing: DermBillingBundle;
 };
 
 const EMPTY_PSYCH: PatientPsychBundle = {
@@ -172,6 +176,7 @@ const EMPTY_DERM: PatientDermBundle = {
   lesions: [],
   diagnoses: [],
   machines: [],
+  presets: [],
   billing: { bills: [], services: [], doctors: [] },
 };
 
@@ -412,6 +417,7 @@ export async function fetchPatientRecord(
       lesionsRes,
       diagnosesRes,
       machinesRes,
+      presetsRes,
       billsRes,
       servicesRes,
       doctorsRes,
@@ -467,6 +473,13 @@ export async function fetchPatientRecord(
         .select("*")
         .eq("clinic_id", clinicId)
         .order("name", { ascending: true }),
+      supabase
+        .from("derm_procedure_presets")
+        .select("*")
+        .eq("clinic_id", clinicId)
+        .eq("is_active", true)
+        .order("kind")
+        .order("name", { ascending: true }),
       // Tab 6 billing: the patient's recent bills with their line items and
       // receipts (child embeds only — unambiguous; see lib/patient-billing-queries).
       supabase
@@ -502,6 +515,7 @@ export async function fetchPatientRecord(
       lesions: (lesionsRes.data as DermLesion[]) ?? [],
       diagnoses: (diagnosesRes.data as DermDiagnosis[]) ?? [],
       machines: (machinesRes.data as ClinicMachine[]) ?? [],
+      presets: (presetsRes.data as DermProcedurePreset[]) ?? [],
       billing: {
         bills: (billsRes.data as DermBillRow[]) ?? [],
         services: (servicesRes.data ?? []) as DermBillingBundle["services"],

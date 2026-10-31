@@ -403,6 +403,18 @@ const saveDermProcedureSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional()
     .or(z.literal("")),
+  // 0122 — physical specimen jar label (clinic barcode / bottle ID) +
+  // structured anaesthesia block + SAFE timeout checkbox.
+  specimen_barcode: z.string().trim().max(60).optional().or(z.literal("")),
+  anesthesia_agent: z
+    .string()
+    .trim()
+    .max(80)
+    .optional()
+    .or(z.literal("")),
+  anesthesia_epinephrine: z.boolean().optional().nullable(),
+  anesthesia_volume_ml: z.coerce.number().optional().nullable(),
+  safe_timeout: z.boolean().optional().nullable(),
 });
 
 const updateDermSpecimenStatusSchema = z.object({
@@ -2883,23 +2895,31 @@ export async function saveDermProcedureAction(
         ).replace(/-/g, "")}-${randomUUID().slice(0, 6).toUpperCase()}`
       : undefined;
 
-  const payload = {
-    procedure_name: rest.procedure_name,
-    procedure_date: rest.procedure_date || undefined,
-    notes: rest.notes || null,
-    consent_status: rest.consent_status,
-    procedure_kind: rest.procedure_kind || null,
-    lesion_id: rest.lesion_id || null,
-    body_site: rest.body_site || null,
-    params: rest.params ?? {},
-    aftercare: rest.aftercare || null,
-    complications: rest.complications || null,
-    specimen_type: rest.specimen_type || null,
-    specimen_lab: rest.specimen_lab || null,
-    specimen_status: rest.specimen_status ?? (isBiopsy ? "collected" : null),
-    specimen_dispatched_at: rest.specimen_dispatched_at || null,
-    ...(specimenId ? { specimen_id: specimenId } : {}),
-  };
+const payload = {
+  procedure_name: rest.procedure_name,
+  procedure_date: rest.procedure_date || undefined,
+  notes: rest.notes || null,
+  consent_status: rest.consent_status,
+  procedure_kind: rest.procedure_kind || null,
+  lesion_id: rest.lesion_id || null,
+  body_site: rest.body_site || null,
+  params: rest.params ?? {},
+  aftercare: rest.aftercare || null,
+  complications: rest.complications || null,
+  specimen_type: rest.specimen_type || null,
+  specimen_lab: rest.specimen_lab || null,
+  specimen_status: rest.specimen_status ?? (isBiopsy ? "collected" : null),
+  specimen_dispatched_at: rest.specimen_dispatched_at || null,
+  specimen_barcode: rest.specimen_barcode || null,
+  anesthesia_agent: rest.anesthesia_agent || null,
+  anesthesia_epinephrine: rest.anesthesia_epinephrine ?? null,
+  anesthesia_volume_ml:
+    typeof rest.anesthesia_volume_ml === "number"
+      ? rest.anesthesia_volume_ml || null
+      : null,
+  safe_timeout: rest.safe_timeout ?? false,
+  ...(specimenId ? { specimen_id: specimenId } : {}),
+};
 
   if (id) {
     const { error } = await g.supabase
@@ -2950,6 +2970,267 @@ export async function updateDermSpecimenStatusAction(
   if (error) return { ok: false, message: error.message };
   revalidatePath(APP_ROUTES.app.patients);
   return ok();
+}
+
+/* ------------------------------------------------------------------------- */
+/* Dermatology — procedure treatment recipes (1-tap presets) (migration 0122) */
+/* ------------------------------------------------------------------------- */
+
+const saveDermProcedurePresetSchema = z.object({
+  id: optionalUuid,
+  name: z.string().trim().min(1, "Give the recipe a name.").max(80),
+  kind: z.enum(PROCEDURE_KINDS),
+  params: z.record(z.string(), z.string().trim().max(240)).default({}),
+});
+
+export async function saveDermProcedurePresetAction(
+  raw: unknown,
+): Promise<ActionResult<string>> {
+  const parsed = saveDermProcedurePresetSchema.safeParse(raw);
+  if (!parsed.success) return err(firstIssue(parsed));
+  const g = await guard();
+  if (!g.ok) return g.result;
+
+  const { id, name, kind, params } = parsed.data;
+
+  const upsertData = {
+    clinic_id: g.clinicId,
+    name,
+    kind,
+    params,
+    ...(id ? { id } : {}),
+  };
+
+  const { error } = await g.supabase
+    .from("derm_procedure_presets")
+    .upsert(upsertData, { onConflict: "id" });
+  if (error) return { ok: false, message: error.message };
+  revalidatePath(APP_ROUTES.app.patients);
+  return ok();
+}
+
+export async function deleteDermProcedurePresetAction(
+  id: string,
+): Promise<ActionResult<string>> {
+  const parsed = idSchema.safeParse({ id });
+  if (!parsed.success) return err(firstIssue(parsed));
+  const g = await guard();
+  if (!g.ok) return g.result;
+
+  const { error } = await g.supabase
+    .from("derm_procedure_presets")
+    .delete()
+    .eq("id", id);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath(APP_ROUTES.app.patients);
+  return ok();
+}
+
+/**
+ * 0122 — push a procedure note to today's exam assessment and prescription
+ * (aftercare) note. This gives a clean structured snippet that flows into the
+ * prescription template and the encounter record.
+ */
+export async function pushProcedureNoteToPlanAction(
+  patientId: string,
+  procedureId: string,
+  visitId?: string | null,
+): Promise<ActionResult<{ examId: string; rxId: string }>> {
+  const idCheck = idSchema.safeParse({ id: patientId });
+  if (!idCheck.success)
+    return { ok: false, message: "Invalid patient ID." };
+  const g = await guard();
+  if (!g.ok) {
+    return g.result.ok
+      ? { ok: false, message: "Action blocked." }
+      : { ok: false, message: g.result.message };
+  }
+
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const todayStart = `${today}T00:00:00.000Z`;
+
+  const { data: procedure, error: procError } = await g.supabase
+    .from("derm_procedures")
+    .select(
+      "id, procedure_name, procedure_date, procedure_kind, body_site, params, lesion_id, specimen_id, specimen_type, specimen_barcode, anesthesia_agent, anesthesia_epinephrine, anesthesia_volume_ml, safe_timeout, aftercare",
+    )
+    .eq("id", procedureId)
+    .eq("clinic_id", g.clinicId)
+    .eq("patient_id", patientId)
+    .maybeSingle();
+  if (procError)
+    return { ok: false, message: procError.message };
+  if (!procedure)
+    return { ok: false, message: "Procedure not found." };
+
+  const lesionId = procedure.lesion_id;
+  let pinNumber: number | null = null;
+  if (lesionId) {
+    const { data: lesion } = await g.supabase
+      .from("derm_lesions")
+      .select("pin_number")
+      .eq("id", lesionId)
+      .eq("clinic_id", g.clinicId)
+      .maybeSingle();
+    pinNumber = lesion?.pin_number ?? null;
+  }
+
+  const paramsStr = Object.entries(procedure.params ?? {})
+    .map(([k, v]) => `${k}: ${v}`)
+    .join(", ");
+
+  const agentText = procedure.anesthesia_agent || "not specified";
+  const epiText =
+    procedure.anesthesia_epinephrine ? "with epinephrine" : "plain";
+  const volumeText = procedure.anesthesia_volume_ml
+    ? `${procedure.anesthesia_volume_ml} mL`
+    : "not specified";
+  const safeText = procedure.safe_timeout
+    ? "SAFE timeout verified"
+    : "SAFE timeout not verified";
+
+  const snippet = `PROCEDURE PERFORMED: ${procedure.procedure_name} on ${procedure.body_site || "unsited"}${pinNumber ? ` (Pin #${pinNumber})` : ""}. Anesthesia: ${volumeText} ${agentText} ${epiText}. Machine/Settings: ${procedure.params.machine || "not recorded"}${paramsStr ? ` (${paramsStr})` : ""}. Specimen Bottle ID: ${procedure.specimen_barcode || procedure.specimen_id || "not recorded"}. Aftercare: ${procedure.aftercare || "not recorded"}. ${safeText}.`;
+
+  let examId: string | null = null;
+  let rxId: string | null = null;
+
+  const doctorIdForExam = await doctorId(g.supabase, g.clinicId);
+
+  let examRow:
+    | {
+        id: string;
+        visit_id: string | null;
+        assessment: string | null;
+      }
+    | null = null;
+
+  if (visitId) {
+    examRow = (
+      await g.supabase
+        .from("derm_exams")
+        .select("id, visit_id, assessment")
+        .eq("clinic_id", g.clinicId)
+        .eq("patient_id", patientId)
+        .eq("visit_id", visitId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    ).data ?? null;
+  }
+
+  if (!examRow) {
+    examRow = (
+      await g.supabase
+        .from("derm_exams")
+        .select("id, visit_id, assessment")
+        .eq("clinic_id", g.clinicId)
+        .eq("patient_id", patientId)
+        .eq("exam_date", today)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    ).data ?? null;
+  }
+
+  if (examRow) {
+    const existing = examRow.assessment ?? "";
+    const merged = existing ? `${existing}\n\n---\n\n${snippet}` : snippet;
+    const { error: examError } = await g.supabase
+      .from("derm_exams")
+      .update({
+        assessment: merged,
+        doctor_id: doctorIdForExam,
+        visit_id: visitId ?? examRow.visit_id,
+        exam_date: today,
+        updated_at: now.toISOString(),
+      })
+      .eq("id", examRow.id);
+    if (examError)
+      return { ok: false, message: examError.message };
+    examId = examRow.id;
+  } else {
+    const { data: insertedExam, error: examError } = await g.supabase
+      .from("derm_exams")
+      .insert({
+        clinic_id: g.clinicId,
+        patient_id: patientId,
+        doctor_id: doctorIdForExam,
+        visit_id: visitId ?? null,
+        exam_date: today,
+        assessment: snippet,
+      })
+      .select("id")
+      .single();
+    if (examError)
+      return { ok: false, message: examError.message };
+    if (insertedExam) examId = insertedExam.id;
+  }
+
+  let rxRow:
+    | {
+        id: string;
+      }
+    | null = null;
+
+  const { data: rxList } = await g.supabase
+    .from("derm_prescriptions")
+    .select("id")
+    .eq("clinic_id", g.clinicId)
+    .eq("patient_id", patientId)
+    .gte("created_at", todayStart)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (rxList && rxList.length > 0) {
+    rxRow = { id: rxList[0].id };
+  }
+
+  if (rxRow) {
+    const existing = rxRow.id ? (await g.supabase
+      .from("derm_prescriptions")
+      .select("application_instructions")
+      .eq("id", rxRow.id)
+      .single()
+    ).data?.application_instructions ?? "" : "";
+    const merged = existing ? `${existing}\n\n---\n\n${snippet}` : snippet;
+    const { error: rxError } = await g.supabase
+      .from("derm_prescriptions")
+      .update({
+        application_instructions: merged,
+        doctor_id: doctorIdForExam,
+        visit_id: visitId ?? null,
+        updated_at: now.toISOString(),
+      })
+      .eq("id", rxRow.id);
+    if (rxError)
+      return { ok: false, message: rxError.message };
+    rxId = rxRow.id;
+  } else {
+    const { data: insertedRx, error: rxError } = await g.supabase
+      .from("derm_prescriptions")
+      .insert({
+        clinic_id: g.clinicId,
+        patient_id: patientId,
+        doctor_id: doctorIdForExam,
+        visit_id: visitId ?? null,
+        topical_form: null,
+        application_instructions: snippet,
+        skincare_routine_am: null,
+        skincare_routine_pm: null,
+        patient_education: null,
+        medicines: [],
+        lab_orders: [],
+      })
+      .select("id")
+      .single();
+    if (rxError)
+      return { ok: false, message: rxError.message };
+    if (insertedRx) rxId = insertedRx.id;
+  }
+
+  revalidatePath(APP_ROUTES.app.patients);
+  return { ok: true, data: { examId: examId ?? "", rxId: rxId ?? "" } };
 }
 
 export async function deleteDermProcedureAction(

@@ -1790,6 +1790,27 @@ export type DermProcedure = {
   specimen_lab: string | null;
   specimen_status: DermSpecimenStatus | null;
   specimen_dispatched_at: string | null;
+  /** Physical bottle / container barcode — migration 0122. */
+  specimen_barcode: string | null;
+  /** Structured anaesthesia block — migration 0122 (agent, epi, volume). */
+  anesthesia_agent: string | null;
+  anesthesia_epinephrine: boolean | null;
+  anesthesia_volume_ml: number | null;
+  /** SAFE procedural timeout verified — migration 0122. */
+  safe_timeout: boolean | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Dermatology — clinic-level treatment recipe (1-tap parameter presets),
+ *  migration 0122: "CO2 Laser — Acne Scars", "TCA Peel 20%", … */
+export type DermProcedurePreset = {
+  id: string;
+  clinic_id: string;
+  name: string;
+  kind: DermProcedureKind;
+  params: Record<string, string>;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -6757,6 +6778,11 @@ export type Database = {
           specimen_lab?: string | null;
           specimen_status?: DermSpecimenStatus | null;
           specimen_dispatched_at?: string | null;
+          specimen_barcode?: string | null;
+          anesthesia_agent?: string | null;
+          anesthesia_epinephrine?: boolean | null;
+          anesthesia_volume_ml?: number | null;
+          safe_timeout?: boolean | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -6781,6 +6807,11 @@ export type Database = {
           specimen_lab?: string | null;
           specimen_status?: DermSpecimenStatus | null;
           specimen_dispatched_at?: string | null;
+          specimen_barcode?: string | null;
+          anesthesia_agent?: string | null;
+          anesthesia_epinephrine?: boolean | null;
+          anesthesia_volume_ml?: number | null;
+          safe_timeout?: boolean | null;
           created_at?: never;
           updated_at?: string;
         };
@@ -6811,6 +6842,38 @@ export type Database = {
             columns: ["visit_id"];
             isOneToOne: false;
             referencedRelation: "visits";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      derm_procedure_presets: {
+        Row: DermProcedurePreset;
+        Insert: {
+          id?: string;
+          clinic_id: string;
+          name: string;
+          kind?: DermProcedureKind;
+          params?: Record<string, string>;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: never;
+          clinic_id?: never;
+          name?: string;
+          kind?: DermProcedureKind;
+          params?: Record<string, string>;
+          is_active?: boolean;
+          created_at?: never;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "derm_procedure_presets_clinic_id_fkey";
+            columns: ["clinic_id"];
+            isOneToOne: false;
+            referencedRelation: "clinics";
             referencedColumns: ["id"];
           },
         ];

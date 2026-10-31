@@ -36,6 +36,9 @@ import {
   deleteDermProcedureAction,
   saveDermProcedureAction,
   updateDermSpecimenStatusAction,
+  saveDermProcedurePresetAction,
+  deleteDermProcedurePresetAction,
+  pushProcedureNoteToPlanAction,
 } from "@/lib/actions/specialty-workspaces";
 import { cn } from "@/lib/utils";
 import type {
@@ -43,6 +46,7 @@ import type {
   DermLesion,
   DermProcedure,
   DermProcedureKind,
+  DermProcedurePreset,
   DermSpecimenStatus,
 } from "@/types/database";
 
@@ -105,21 +109,10 @@ const PARAM_FIELDS: Record<DermProcedureKind, FieldDef[]> = {
   ],
   minor_surgery: [
     { key: "technique", label: "Technique", placeholder: "e.g. excision" },
-    {
-      key: "anesthesia",
-      label: "Anaesthesia",
-      placeholder: "e.g. 2% lignocaine",
-    },
     { key: "suture", label: "Suture", placeholder: "e.g. 4-0 nylon" },
   ],
   biopsy: [
-    { key: "biopsy_type", label: "Biopsy type", placeholder: "e.g. punch" },
     { key: "technique", label: "Technique", placeholder: "e.g. 4 mm punch" },
-    {
-      key: "anesthesia",
-      label: "Anaesthesia",
-      placeholder: "e.g. 2% lignocaine",
-    },
   ],
   other: [],
 };
@@ -168,6 +161,22 @@ const KIND_LABEL: Record<string, string> = Object.fromEntries(
   PROCEDURE_KINDS.map((kind) => [kind.value, kind.label]),
 );
 
+const BIOPSY_TECHNIQUE_CHIPS: { value: string; label: string }[] = [
+  { value: "Punch 3mm", label: "Punch 3mm" },
+  { value: "Punch 4mm", label: "Punch 4mm" },
+  { value: "Shave", label: "Shave" },
+  { value: "Excision", label: "Excision" },
+  { value: "Incisional", label: "Incisional" },
+];
+
+const ANESTHESIA_AGENTS = [
+  { value: "Lidocaine 1%", label: "Lidocaine 1%" },
+  { value: "Lidocaine 2%", label: "Lidocaine 2%" },
+  { value: "Bupivacaine 0.5%", label: "Bupivacaine 0.5%" },
+  { value: "Topical LMX/EMLA", label: "Topical LMX/EMLA" },
+  { value: "None", label: "None / not required" },
+] as const;
+
 const EMPTY_FORM = {
   name: "",
   date: new Date().toISOString().slice(0, 10),
@@ -182,9 +191,16 @@ const EMPTY_FORM = {
   specimenLab: "",
   specimenStatus: "collected" as DermSpecimenStatus,
   specimenDispatchedAt: "",
+  specimenBarcode: "",
+  anesthesiaAgent: "",
+  anesthesiaEpi: null as boolean | null,
+  anesthesiaVolume: null as number | null,
+  safeTimeout: false,
+  siteAutoFilled: false,
   params: {} as Record<string, string>,
   /** Selected registry machine (client-only — history keeps the name snapshot). */
   machineId: "",
+  presetName: "",
 };
 
 /**
@@ -197,6 +213,7 @@ export function DermProcedures({
   procedures,
   lesions,
   machines,
+  presets,
   canManage,
   canManageClinic,
   visitId,
@@ -206,6 +223,8 @@ export function DermProcedures({
   lesions: DermLesion[];
   /** The clinic's machine registry (0102) — drives the parameter profiles. */
   machines: ClinicMachine[];
+  /** Clinic-level treatment recipes (0122) — 1-tap parameter presets. */
+  presets: DermProcedurePreset[];
   canManage: boolean;
   /** Owner/admin/clinic_admin — gates the machine registry manager. */
   canManageClinic?: boolean;
@@ -301,17 +320,27 @@ export function DermProcedures({
       lesionId: procedure.lesion_id ?? "",
       specimenType: procedure.specimen_type ?? "",
       specimenLab: procedure.specimen_lab ?? "",
-      specimenStatus:
-        (procedure.specimen_status as DermSpecimenStatus) ?? "collected",
-      specimenDispatchedAt: procedure.specimen_dispatched_at ?? "",
-      params: { ...procedure.params },
-      machineId:
-        machines.find(
-          (machine) => machine.name === (procedure.params.machine ?? ""),
-        )?.id ?? "",
-    });
-    setError(null);
-  }
+       specimenStatus:
+         (procedure.specimen_status as DermSpecimenStatus) ?? "collected",
+       specimenDispatchedAt: procedure.specimen_dispatched_at ?? "",
+       specimenBarcode: procedure.specimen_barcode ?? "",
+       anesthesiaAgent: procedure.anesthesia_agent ?? "",
+       anesthesiaEpi: procedure.anesthesia_epinephrine ?? null,
+       anesthesiaVolume:
+         typeof procedure.anesthesia_volume_ml === "number"
+           ? procedure.anesthesia_volume_ml
+           : null,
+       safeTimeout: procedure.safe_timeout ?? false,
+       siteAutoFilled: false,
+       params: { ...procedure.params },
+       machineId:
+         machines.find(
+           (machine) => machine.name === (procedure.params.machine ?? ""),
+         )?.id ?? "",
+       presetName: "",
+     });
+     setError(null);
+   }
 
   async function save() {
     if (!canManage) return;
@@ -335,22 +364,27 @@ export function DermProcedures({
         notes: form.notes,
         aftercare: form.aftercare,
         complications: form.complications,
-        specimen_type: form.specimenType,
-        specimen_lab: form.specimenLab,
-        specimen_status: form.kind === "biopsy" ? form.specimenStatus : "",
-        specimen_dispatched_at: form.specimenDispatchedAt,
-      },
-      visitId,
-    );
-    setPending(false);
-    if (result.ok) {
-      toast.success(editingId ? "Procedure updated" : "Procedure recorded");
-      reset();
-      router.refresh();
-    } else {
-      toast.error(result.message);
-    }
-  }
+         specimen_type: form.specimenType,
+         specimen_lab: form.specimenLab,
+         specimen_status: form.kind === "biopsy" ? form.specimenStatus : "",
+         specimen_dispatched_at: form.specimenDispatchedAt,
+         specimen_barcode: form.specimenBarcode || null,
+         anesthesia_agent: form.anesthesiaAgent || null,
+         anesthesia_epinephrine: form.anesthesiaEpi ?? null,
+         anesthesia_volume_ml: form.anesthesiaVolume ?? null,
+         safe_timeout: form.safeTimeout,
+       },
+       visitId,
+     );
+     setPending(false);
+     if (result.ok) {
+       toast.success(editingId ? "Procedure updated" : "Procedure recorded");
+       reset();
+       router.refresh();
+     } else {
+       toast.error(result.message);
+     }
+   }
 
   async function remove(id: string) {
     const result = await deleteDermProcedureAction(id);
@@ -378,7 +412,94 @@ export function DermProcedures({
     }
   }
 
+  async function pushProcedureNoteToPlan() {
+    if (!editingId) {
+      setError("Please save the procedure first.");
+      return;
+    }
+    setPending(true);
+    setError(null);
+    const result = await pushProcedureNoteToPlanAction(patientId, editingId, visitId);
+    setPending(false);
+    if (result.ok) {
+      toast.success("Procedure note pushed to assessment and prescription");
+      router.refresh();
+    } else {
+      toast.error(result.message);
+    }
+  }
+
+  async function savePreset() {
+    if (!canManageClinic) {
+      toast.error("You need clinic admin access to save a recipe.");
+      return;
+    }
+    if (!form.presetName.trim()) {
+      setError("Enter a name for this recipe.");
+      return;
+    }
+    setPending(true);
+    const result = await saveDermProcedurePresetAction({
+      id: undefined,
+      name: form.presetName.trim(),
+      kind: form.kind,
+      params: form.params,
+    });
+    setPending(false);
+    if (result.ok) {
+      toast.success("Treatment recipe saved");
+      set("presetName", "");
+      setError(null);
+      router.refresh();
+    } else {
+      toast.error(result.message);
+    }
+  }
+
+  function handleLesionChange(lesionId: string) {
+    set("lesionId", lesionId);
+    if (lesionId) {
+      const lesion = lesions.find((l) => l.id === lesionId);
+      if (lesion && lesion.body_region && !form.siteAutoFilled) {
+        set("bodySite", lesion.body_region);
+        set("siteAutoFilled", true);
+      }
+    } else {
+      set("siteAutoFilled", false);
+    }
+  }
+
+  async function deletePreset(presetId: string) {
+    if (!canManageClinic) {
+      toast.error("You need clinic admin access to delete a recipe.");
+      return;
+    }
+    setPending(true);
+    const result = await deleteDermProcedurePresetAction(presetId);
+    setPending(false);
+    if (result.ok) {
+      toast.success("Treatment recipe deleted");
+      router.refresh();
+    } else {
+      toast.error(result.message);
+    }
+  }
+
+  function loadPreset(preset: DermProcedurePreset) {
+    if (preset.kind !== form.kind) {
+      set("kind", preset.kind);
+    }
+    Object.keys(preset.params).forEach((key) => {
+      setParam(key, preset.params[key] ?? "");
+    });
+    set("presetName", preset.name);
+    set("siteAutoFilled", false);
+    setError(null);
+  }
+
   const activeMachines = machines.filter((machine) => machine.is_active);
+  /** 1-tap recipes for the currently selected procedure kind (0122). */
+  const kindPresets = presets.filter((preset) => preset.kind === form.kind);
   const selectedMachine =
     machines.find((machine) => machine.id === form.machineId) ?? null;
   /** The machine picker belongs on the laser/energy card (§9.3/§9.4). */
@@ -430,6 +551,30 @@ export function DermProcedures({
               </button>
             ))}
           </div>
+
+          {form.kind === "biopsy" && (
+            <div className="mb-3 flex flex-wrap items-center gap-1.5">
+              <span className="text-ink text-[12px] font-bold uppercase tracking-wide">
+                Biopsy technique
+              </span>
+              {BIOPSY_TECHNIQUE_CHIPS.map((chip) => (
+                <button
+                  key={chip.value}
+                  type="button"
+                  onClick={() => setParam("technique", chip.value)}
+                  aria-pressed={form.params.technique === chip.value}
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 text-[11.5px] font-medium transition-colors",
+                    form.params.technique === chip.value
+                      ? "border-primary bg-primary/10 font-semibold text-primary"
+                      : "border-hairline bg-app text-text-secondary hover:border-primary/40 hover:text-primary",
+                  )}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="mb-3 flex flex-wrap gap-1.5">
             {PRESET_NAMES.map((preset) => (
@@ -512,7 +657,7 @@ export function DermProcedures({
               <NativeSelect
                 id="derm-proc-lesion"
                 value={form.lesionId}
-                onChange={(event) => set("lesionId", event.target.value)}
+                onChange={(event) => handleLesionChange(event.target.value)}
               >
                 <option value="">Not linked</option>
                 {lesions.map((lesion) => (
@@ -539,6 +684,76 @@ export function DermProcedures({
                 Add custom parameter
               </button>
             </div>
+
+            {kindPresets.length > 0 && (
+              <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                <span className="text-[11.5px] font-semibold text-text-secondary">
+                  1-tap recipe:
+                </span>
+                {kindPresets.map((preset) => (
+                  <span
+                    key={preset.id}
+                    className={cn(
+                      "flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11.5px] font-medium transition-colors",
+                      "border-hairline bg-app text-text-secondary hover:border-primary/40 hover:text-primary",
+                    )}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => loadPreset(preset)}
+                      title={`Load preset into this card`}
+                    >
+                      {preset.name}
+                    </button>
+                    {canManageClinic && (
+                      <button
+                        type="button"
+                        onClick={() => deletePreset(preset.id)}
+                        aria-label={`Delete recipe ${preset.name}`}
+                        className="text-text-muted transition-colors hover:text-status-destructive"
+                      >
+                        <X aria-hidden="true" className="size-3" />
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {Object.keys(form.params).length > 0 && (
+              <div className="mb-3 flex flex-wrap items-end gap-2">
+                <div className="min-w-0 flex-1 sm:max-w-[240px]">
+                  <label
+                    htmlFor="derm-preset-save-name"
+                    className="mb-1 block text-[11.5px] font-semibold text-text-secondary"
+                  >
+                    Save current settings as recipe
+                  </label>
+                  <Input
+                    id="derm-preset-save-name"
+                    value={form.presetName}
+                    onChange={(event) =>
+                      set("presetName", event.target.value)
+                    }
+                    placeholder="e.g. CO2 Laser — Acne Scars"
+                    autoComplete="off"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={savePreset}
+                  disabled={
+                    pending ||
+                    !form.presetName.trim() ||
+                    Object.keys(form.params).length === 0
+                  }
+                >
+                  Save recipe
+                </Button>
+              </div>
+            )}
 
             {machineSelectVisible && (
               <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -748,13 +963,135 @@ export function DermProcedures({
                     }
                   />
                 </div>
+                <div>
+                  <label
+                    htmlFor="derm-spec-barcode"
+                    className="mb-1 block text-[11.5px] font-semibold text-text-secondary"
+                  >
+                    Container barcode / bottle ID
+                  </label>
+                  <Input
+                    id="derm-spec-barcode"
+                    value={form.specimenBarcode}
+                    onChange={(event) =>
+                      set("specimenBarcode", event.target.value)
+                    }
+                    placeholder="Scan or type the jar label"
+                    autoComplete="off"
+                  />
+                </div>
               </div>
               <p className="mt-2 text-[11px] text-text-muted">
-                A specimen ID is generated on save. This is the clinic&apos;s
-                own numbering â€” it is not a lab-issued barcode.
+                A specimen ID (SP-…) is generated on save; the container
+                barcode / bottle ID is the clinic&apos;s own jar label for the
+                lab requisition.
               </p>
             </div>
           )}
+
+          <div className="mt-4 rounded-card border border-hairline p-3">
+            <p className="text-ink mb-2 text-[12px] font-bold uppercase tracking-wide">
+              Anaesthesia &amp; safety verification
+            </p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <label
+                  htmlFor="derm-anes-agent"
+                  className="mb-1 block text-[11.5px] font-semibold text-text-secondary"
+                >
+                  Agent
+                </label>
+                <NativeSelect
+                  id="derm-anes-agent"
+                  value={form.anesthesiaAgent}
+                  onChange={(event) =>
+                    set("anesthesiaAgent", event.target.value)
+                  }
+                >
+                  <option value="">None recorded</option>
+                  {ANESTHESIA_AGENTS.map((agent) => (
+                    <option key={agent.value} value={agent.value}>
+                      {agent.label}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </div>
+              <div>
+                <span className="text-ink mb-1 block text-[11.5px] font-semibold text-text-secondary">
+                  Epinephrine
+                </span>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => set("anesthesiaEpi", true)}
+                    aria-pressed={form.anesthesiaEpi === true}
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+                      form.anesthesiaEpi === true
+                        ? "border-primary bg-primary/10 font-semibold text-primary"
+                        : "border-hairline bg-app text-text-secondary hover:border-primary/40 hover:text-primary",
+                    )}
+                  >
+                    With Epi (1:100k)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => set("anesthesiaEpi", false)}
+                    aria-pressed={form.anesthesiaEpi === false}
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+                      form.anesthesiaEpi === false
+                        ? "border-primary bg-primary/10 font-semibold text-primary"
+                        : "border-hairline bg-app text-text-secondary hover:border-primary/40 hover:text-primary",
+                    )}
+                  >
+                    Plain
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label
+                  htmlFor="derm-anes-volume"
+                  className="mb-1 block text-[11.5px] font-semibold text-text-secondary"
+                >
+                  Volume (mL)
+                </label>
+                <Input
+                  id="derm-anes-volume"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="999"
+                  value={form.anesthesiaVolume ?? ""}
+                  onChange={(event) =>
+                    set(
+                      "anesthesiaVolume",
+                      event.target.value === ""
+                        ? null
+                        : Number(event.target.value),
+                    )
+                  }
+                  placeholder="e.g. 2.0"
+                />
+              </div>
+            </div>
+            <label
+              htmlFor="derm-safe-timeout"
+              className="mt-3 flex cursor-pointer items-center gap-2 text-[12.5px] font-semibold text-text-secondary"
+            >
+              <input
+                id="derm-safe-timeout"
+                type="checkbox"
+                checked={form.safeTimeout}
+                onChange={(event) =>
+                  set("safeTimeout", event.target.checked)
+                }
+                className="size-4 accent-[var(--primary)]"
+              />
+              SAFE Procedural Timeout Verified (Patient ID, Site &amp; Consent
+              Confirmed)
+            </label>
+          </div>
 
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
@@ -833,32 +1170,49 @@ export function DermProcedures({
               {error}
             </p>
           )}
-          <div className="mt-4 flex justify-end gap-2">
-            {editingId && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={reset}
-                disabled={pending}
-              >
-                Cancel
-              </Button>
-            )}
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
             <Button
               type="button"
               size="sm"
-              onClick={save}
-              disabled={pending}
+              variant="outline"
               className="gap-1.5"
+              onClick={pushProcedureNoteToPlan}
+              disabled={pending || !editingId}
+              title={
+                editingId
+                  ? "Append a structured procedure note to today's assessment and prescription"
+                  : "Save the procedure first, then push"
+              }
             >
-              <Scissors aria-hidden="true" className="size-3.5" />
-              {pending
-                ? "Savingâ€¦"
-                : editingId
-                  ? "Update procedure"
-                  : "Record procedure"}
+              📋 Push Procedure Note to Prescription &amp; Record
             </Button>
+            <div className="flex justify-end gap-2">
+              {editingId && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={reset}
+                  disabled={pending}
+                >
+                  Cancel
+                </Button>
+              )}
+              <Button
+                type="button"
+                size="sm"
+                onClick={save}
+                disabled={pending}
+                className="gap-1.5"
+              >
+                <Scissors aria-hidden="true" className="size-3.5" />
+                {pending
+                  ? "Saving…"
+                  : editingId
+                    ? "Update procedure"
+                    : "Record procedure"}
+              </Button>
+            </div>
           </div>
         </RecordSection>
       )}
@@ -1359,6 +1713,24 @@ function ProcedureRow({
               procedure.consent_status}
           </Badge>
         )}
+        {procedure.safe_timeout && (
+          <Badge className="border-primary/30 bg-primary/10 text-primary">
+            SAFE timeout ✓
+          </Badge>
+        )}
+        {procedure.anesthesia_agent && (
+          <Badge className="bg-app text-text-secondary">
+            {procedure.anesthesia_agent}
+            {procedure.anesthesia_epinephrine === true
+              ? " + epi"
+              : procedure.anesthesia_epinephrine === false
+                ? " (plain)"
+                : ""}
+            {typeof procedure.anesthesia_volume_ml === "number"
+              ? ` · ${procedure.anesthesia_volume_ml} mL`
+              : ""}
+          </Badge>
+        )}
         {procedure.body_site && (
           <span className="text-[11.5px] text-text-secondary">
             {procedure.body_site}
@@ -1397,6 +1769,9 @@ function ProcedureRow({
             )}
             {procedure.specimen_lab && (
               <span>Lab: {procedure.specimen_lab}</span>
+            )}
+            {procedure.specimen_barcode && (
+              <span>Bottle ID: {procedure.specimen_barcode}</span>
             )}
             {procedure.specimen_dispatched_at && (
               <span>Dispatched: {procedure.specimen_dispatched_at}</span>

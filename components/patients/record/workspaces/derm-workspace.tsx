@@ -203,6 +203,7 @@ export function DermWorkspace({
           procedures={derm.procedures}
           lesions={derm.lesions}
           machines={derm.machines}
+          presets={derm.presets}
           canManage={canManage}
           canManageClinic={canManageClinic}
           visitId={activeVisitId}
