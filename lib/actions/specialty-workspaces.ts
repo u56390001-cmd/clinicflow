@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
+import { rxEnvelopeSchema } from "@/components/patients/record/workspaces/derm-rx/schema/rx-item";
 import { interpretationForScore, scoreTemplateAnswers, severityFromBands } from "@/lib/assessment-library";
 import {
   ClinicAiKeyMissingError,
@@ -492,7 +493,11 @@ const saveDermRxSchema = z.object({
   patient_education: note,
   // Revisit tag ("1 Week", "Post-Biopsy 10 Days", …) — migration 0123.
   follow_up: z.string().trim().max(80).optional().nullable().or(z.literal("")),
-  medicines: z.array(dermMedicineEntrySchema).optional(),
+  // medicines jsonb accepts either the legacy v1 MedicineEntry[] or the v2
+  // typed envelope (schema/rx-item.ts). Both shapes validate server-side.
+  medicines: z
+    .union([z.array(dermMedicineEntrySchema), rxEnvelopeSchema])
+    .optional(),
   lab_orders: z.array(dermLabOrderSchema).optional(),
 });
 
@@ -3452,6 +3457,9 @@ export async function saveDermRxAction(
   const payload = {
     ...values,
     topical_form: parsed.data.topical_form || null,
+    // The generated schema types `medicines` as the v1 MedicineEntry[]; v2
+    // envelopes are still valid jsonb, so cast honestly at the boundary.
+    medicines: values.medicines as unknown as Database["public"]["Tables"]["derm_prescriptions"]["Insert"]["medicines"],
   };
   // Editing the latest row (form passes its id back) vs. a fresh consultation.
   if (id) {
