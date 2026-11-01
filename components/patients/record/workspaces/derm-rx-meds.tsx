@@ -5,15 +5,18 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Clock,
+  Droplets,
   Eye,
   FlaskConical,
   MessageCircle,
+  Pill,
   Plus,
   Printer,
   RotateCcw,
   Save,
   Scissors,
-  Stethoscope,
+  Syringe,
+  Tag,
   X,
   Zap,
 } from "lucide-react";
@@ -374,6 +377,41 @@ const FOLLOW_UP_CHIPS = [
   "Post-Biopsy 10 Days",
 ] as const;
 
+/* ------------------------------------------------------------------------- */
+/* Quick advice presets (§2.3): one-tap instruction pills in three languages  */
+/* — the toggled text joins into Patient Education and flows to WhatsApp     */
+/* and the print sheet unchanged.                                            */
+/* ------------------------------------------------------------------------- */
+
+type AdviceLang = "en" | "roman" | "urdu";
+
+const ADVICE_LANGS: { key: AdviceLang; label: string }[] = [
+  { key: "en", label: "🇬🇧 English" },
+  { key: "roman", label: "🇵🇰 Roman Urdu" },
+  { key: "urdu", label: "🇵🇰 اردو (Urdu Script)" },
+];
+
+const ADVICE_LIBRARY: Record<AdviceLang, { chip: string; text: string }[]> = {
+  en: [
+    { chip: "🧼 Soap Substitutes Only", text: "Soap substitutes only" },
+    { chip: "🌙 Night Application", text: "Night application" },
+    { chip: "☀️ SPF 50 Daily", text: "Daily sunscreen SPF 50" },
+    { chip: "👕 Cotton Clothing", text: "Wear cotton clothing" },
+  ],
+  roman: [
+    { chip: "🧼 Soap Nahi — Cleanser", text: "Soap nahi — sirf cleanser use karna" },
+    { chip: "🌙 Raat Ko Lagana", text: "Raat ko lagana hai" },
+    { chip: "☀️ Roz SPF 50", text: "Roz sunscreen SPF 50 lagana hai" },
+    { chip: "👕 Sooti Kapde", text: "Sooti (cotton) kapde pehnna" },
+  ],
+  urdu: [
+    { chip: "🧼 صابن کے بجائے کلینزر", text: "صابن کے بجائے کلینزر استعمال کریں" },
+    { chip: "🌙 رات کو لگانا", text: "رات کو لگانا ہے" },
+    { chip: "☀️ روزانہ SPF 50", text: "روزانہ سن اسکرین SPF 50 لگائیں" },
+    { chip: "👕 سوتی کپڑے", text: "سوتی کپڑے پہنیں" },
+  ],
+};
+
 /** Multi-test bundles behind the ⚡ Lab Panels modal. */
 const LAB_PANELS: { name: string; tests: { name: string; notes: string }[] }[] = [
   {
@@ -572,7 +610,7 @@ function ChipButton({
       className={cn(
         "rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors disabled:opacity-50",
         selected
-          ? "border-primary bg-primary/10 font-semibold text-primary"
+          ? "border-primary bg-primary font-semibold text-white"
           : "border-hairline bg-app text-text-secondary hover:border-primary/40 hover:text-primary",
       )}
     >
@@ -624,23 +662,34 @@ function DermMedicineRow({
 
   return (
     <div className="rounded-card border border-hairline p-3">
-      {/* Row 1: medicine name (the one text field) + remove */}
-      <div className="flex items-end gap-2">
+      {/* §2.1 Card header: type icon + bold medicine-name heading (editable
+          in place, no boxed input) with Remove pinned top-right. */}
+      <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <label
-            htmlFor={`derm-med-name-${index}`}
-            className="text-ink mb-1 block text-[11.5px] font-bold"
-          >
-            Medicine
+          <label htmlFor={`derm-med-name-${index}`} className="sr-only">
+            Medicine name
           </label>
-          <Input
-            id={`derm-med-name-${index}`}
-            list={`derm-med-catalogue-${index}`}
-            value={medicine.name}
-            onChange={(event) => onChange(index, "name", event.target.value)}
-            placeholder="e.g. Adapalene 0.1% gel"
-            autoComplete="off"
-          />
+          <div className="flex items-center gap-1.5">
+            {topical ? (
+              <Droplets
+                aria-hidden="true"
+                className="size-4 shrink-0 text-primary"
+              />
+            ) : oral ? (
+              <Pill aria-hidden="true" className="size-4 shrink-0 text-primary" />
+            ) : (
+              <Syringe aria-hidden="true" className="size-4 shrink-0 text-primary" />
+            )}
+            <Input
+              id={`derm-med-name-${index}`}
+              list={`derm-med-catalogue-${index}`}
+              value={medicine.name}
+              onChange={(event) => onChange(index, "name", event.target.value)}
+              placeholder="Medicine name — e.g. Adapalene 0.1% gel"
+              autoComplete="off"
+              className="h-9 rounded-none border-0 bg-transparent px-0 text-[14px] font-bold text-text-primary shadow-none hover:border-0 focus:border-0 focus:outline-none focus:ring-0"
+            />
+          </div>
           {catalogueNames.length > 0 && (
             <datalist id={`derm-med-catalogue-${index}`}>
               {catalogueNames.map((name) => (
@@ -653,10 +702,10 @@ function DermMedicineRow({
           <button
             type="button"
             onClick={() => onRemove(index)}
-            aria-label={`Remove medicine ${index + 1}`}
-            className="mb-0.5 flex size-7 shrink-0 items-center justify-center rounded-control text-text-muted transition-colors hover:bg-app hover:text-status-destructive"
+            className="mt-0.5 flex shrink-0 items-center gap-1 rounded-full border border-hairline px-2.5 py-1 text-[11px] font-medium text-text-muted transition-colors hover:border-status-destructive hover:text-status-destructive"
           >
-            <X aria-hidden="true" className="size-3.5" />
+            <X aria-hidden="true" className="size-3" />
+            Remove
           </button>
         )}
       </div>
@@ -1028,6 +1077,7 @@ export function DermRxMeds({
   const [templateName, setTemplateName] = useState("");
   const [saveTemplatePending, setSaveTemplatePending] = useState(false);
   const [viewRx, setViewRx] = useState<DermPrescription | null>(null);
+  const [adviceLang, setAdviceLang] = useState<AdviceLang>("en");
 
   useEffect(() => {
     void getClinicLetterheadAction().then((result) => {
@@ -1330,78 +1380,30 @@ export function DermRxMeds({
         />
       )}
 
-      {/* §1 — compact header: context badges left, action buttons right. */}
-      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1.5">
-          {today.diagnosis ? (
-            <Badge className="border-status-info/30 bg-status-info/10 text-status-info">
-              <Stethoscope aria-hidden="true" className="size-3" />
-              Diagnosis: {today.diagnosis}
-              {today.icdCode ? ` (${today.icdCode})` : ""}
-            </Badge>
-          ) : (
-            <span className="block text-[12px] text-text-muted">
-              No diagnosis recorded today yet (Tab 2).
-            </span>
-          )}
-          {today.procedures.map((procedure) => (
-            <Badge
-              key={procedure.name}
-              className="border-violet-200 bg-violet-500/10 text-violet-600"
-            >
-              <Scissors aria-hidden="true" className="size-3" />
-              Procedure: {procedure.name}
-              {procedure.pin ? ` — Pin #${procedure.pin}` : ""}
-            </Badge>
-          ))}
-        </div>
-        {canManage && (
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setPresetsOpen(true)}
-              className="gap-1.5"
-            >
-              <Zap aria-hidden="true" className="size-3.5 text-primary" />
-              Presets &amp; Templates
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setTemplateName("");
-                setSaveTemplateOpen(true);
-              }}
-              className="gap-1.5"
-            >
-              <Save aria-hidden="true" className="size-3.5" />
-              Save Draft as Template
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={shareWhatsApp}
-              className="gap-1.5"
-            >
-              <MessageCircle aria-hidden="true" className="size-3.5" />
-              Send WhatsApp
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={saveAndPrint}
-              disabled={pending}
-              className="gap-1.5"
-            >
-              <Printer aria-hidden="true" className="size-3.5" />
-              {pending ? "Saving…" : "Save & Print Prescription"}
-            </Button>
-          </div>
+      {/* §2.4 — compact header: today's context as pill badges only; the
+          action buttons moved to the sticky bottom bar (Task-B1). */}
+      <div className="mb-3 flex flex-wrap items-center gap-1.5">
+        {today.diagnosis ? (
+          <Badge className="gap-1 border-status-info/30 bg-status-info/10 font-semibold text-status-info">
+            <Tag aria-hidden="true" className="size-3" />
+            Diagnosis: {today.diagnosis}
+            {today.icdCode ? ` (${today.icdCode})` : ""}
+          </Badge>
+        ) : (
+          <span className="text-[12px] text-text-muted">
+            No diagnosis recorded today yet (Tab 2).
+          </span>
         )}
+        {today.procedures.map((procedure) => (
+          <Badge
+            key={procedure.name}
+            className="gap-1 border-violet-200 bg-violet-500/10 text-violet-600"
+          >
+            <Scissors aria-hidden="true" className="size-3" />
+            Procedure: {procedure.name}
+            {procedure.pin ? ` — Pin #${procedure.pin}` : ""}
+          </Badge>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
@@ -1590,7 +1592,42 @@ export function DermRxMeds({
                   disabled={!canManage}
                 />
               </div>
+              {/* §2.3 + Task-B2 — language toggle + 1-tap advice pills.
+                  Toggled phrases join into the education text, which flows to
+                  WhatsApp + the print sheet unchanged. */}
               <div>
+                <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                  <span className="text-ink text-[10.5px] font-bold uppercase tracking-wide">
+                    Advice:
+                  </span>
+                  {ADVICE_LANGS.map((lang) => (
+                    <ChipButton
+                      key={lang.key}
+                      selected={adviceLang === lang.key}
+                      disabled={!canManage}
+                      onClick={() => setAdviceLang(lang.key)}
+                    >
+                      {lang.label}
+                    </ChipButton>
+                  ))}
+                </div>
+                <div
+                  dir={adviceLang === "urdu" ? "rtl" : "ltr"}
+                  className="mb-1.5 flex flex-wrap items-center gap-1.5"
+                >
+                  {ADVICE_LIBRARY[adviceLang].map((advice) => (
+                    <ChipButton
+                      key={advice.text}
+                      selected={labNoteOn(education, advice.text)}
+                      disabled={!canManage}
+                      onClick={() =>
+                        setEducation(toggleLabNote(education, advice.text))
+                      }
+                    >
+                      {advice.chip}
+                    </ChipButton>
+                  ))}
+                </div>
                 <label
                   htmlFor="derm-rx-education"
                   className="text-ink mb-1 block text-[11.5px] font-bold"
@@ -1600,6 +1637,7 @@ export function DermRxMeds({
                 <Textarea
                   id="derm-rx-education"
                   rows={3}
+                  dir={adviceLang === "urdu" ? "rtl" : "ltr"}
                   value={education}
                   onChange={(event) => setEducation(event.target.value)}
                   placeholder="e.g. Use sunscreen daily; avoid picking at lesions"
@@ -1665,25 +1703,6 @@ export function DermRxMeds({
           </RecordSection>
         </div>
       </div>
-
-      {/* §5 — Follow-up / revisit picker before saving. */}
-      <RecordSection
-        title="Follow-up / revisit"
-        meta={followUp ? <Badge className="bg-app text-text-secondary">{followUp}</Badge> : "Pick one"}
-      >
-        <div className="flex flex-wrap gap-1.5">
-          {FOLLOW_UP_CHIPS.map((chip) => (
-            <ChipButton
-              key={chip}
-              selected={followUp === chip}
-              disabled={!canManage}
-              onClick={() => setFollowUp(followUp === chip ? "" : chip)}
-            >
-              {chip}
-            </ChipButton>
-          ))}
-        </div>
-      </RecordSection>
 
       {/* §4 — Previous prescriptions: compact timeline (deduped by id). */}
       {historyRows.length > 0 && (
@@ -1758,6 +1777,75 @@ export function DermRxMeds({
             })}
           </div>
         </RecordSection>
+      )}
+
+      {/* §5 — Follow-up picker directly above the primary CTA. */}
+      <RecordSection
+        title="Follow-up / revisit"
+        meta={followUp ? <Badge className="bg-app text-text-secondary">{followUp}</Badge> : "Pick one"}
+      >
+        <div className="flex flex-wrap gap-1.5">
+          {FOLLOW_UP_CHIPS.map((chip) => (
+            <ChipButton
+              key={chip}
+              selected={followUp === chip}
+              disabled={!canManage}
+              onClick={() => setFollowUp(followUp === chip ? "" : chip)}
+            >
+              {chip}
+            </ChipButton>
+          ))}
+        </div>
+      </RecordSection>
+
+      {/* Task-B1 — sticky bottom-right action bar: secondary actions left,
+          primary "Save & Print Prescription" prominent on the far right. */}
+      {canManage && (
+        <div className="sticky bottom-0 z-10 -mx-1 mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-hairline bg-surface/95 px-2 py-3 backdrop-blur">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setPresetsOpen(true)}
+            className="gap-1.5"
+          >
+            <Zap aria-hidden="true" className="size-3.5 text-primary" />
+            Presets &amp; Templates
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setTemplateName("");
+              setSaveTemplateOpen(true);
+            }}
+            className="gap-1.5"
+          >
+            <Save aria-hidden="true" className="size-3.5" />
+            Save Draft as Template
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={shareWhatsApp}
+            className="gap-1.5"
+          >
+            <MessageCircle aria-hidden="true" className="size-3.5" />
+            Send WhatsApp
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={saveAndPrint}
+            disabled={pending}
+            className="gap-1.5 shadow-md"
+          >
+            <Printer aria-hidden="true" className="size-3.5" />
+            {pending ? "Saving…" : "Save & Print Prescription"}
+          </Button>
+        </div>
       )}
 
       {/* §1 — Preset picker modal (built-ins + clinic templates). */}
