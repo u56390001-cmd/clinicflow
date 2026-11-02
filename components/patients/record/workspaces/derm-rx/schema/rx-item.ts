@@ -36,7 +36,19 @@ export const frequencySchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("weekdays"),
-    days: z.array(z.number().int().min(0).max(6)).max(7),
+    days: z
+      .array(
+        z.union([
+          z.literal(0 as const),
+          z.literal(1 as const),
+          z.literal(2 as const),
+          z.literal(3 as const),
+          z.literal(4 as const),
+          z.literal(5 as const),
+          z.literal(6 as const),
+        ]),
+      )
+      .max(7),
   }),
   z.object({
     kind: z.literal("timesPerWeek"),
@@ -254,7 +266,9 @@ export function parseFrequency(text: string): Frequency {
     [/\bfri(?:day)?\b/, 5],
     [/\bsat(?:urday)?\b/, 6],
   ];
-  const days = dayNames.filter(([re]) => re.test(t)).map(([, d]) => d);
+  const days: Array<0 | 1 | 2 | 3 | 4 | 5 | 6> = dayNames
+    .filter(([re]) => re.test(t))
+    .map(([, d]) => d);
   if (days.length > 0) return { kind: "weekdays", days };
 
   if (/\b(?:qid|four\s*times\s*a\s*day|1-1-1-1)\b/.test(raw))
