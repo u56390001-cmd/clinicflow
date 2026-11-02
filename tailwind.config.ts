@@ -26,6 +26,12 @@ const config: Config = {
         canvas: "#f7f9f7",
         hairline: "#dce5e1",
         "hairline-soft": "#eef5f1",
+        /**
+         * Rx editor card tokens: input borders sit a notch stronger than
+         * hairlines (usability), card edges a notch softer (clustering).
+         */
+        "input-border": "#b9c9c1",
+        "card-line": "#e4eeea",
         chip: "#eef5f1",
         /** Teal tint surfaces — the reference's teal-50. */
         "primary-tint": "#dcebe3",

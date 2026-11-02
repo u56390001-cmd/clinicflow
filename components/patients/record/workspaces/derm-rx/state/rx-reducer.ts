@@ -18,6 +18,7 @@ export type RxState = {
 
 export type RxAction =
   | { type: "ADD_ITEM"; item: RxItem }
+  | { type: "INSERT_ITEM"; item: RxItem; at: number }
   | { type: "UPDATE_ITEM"; id: string; patch: Partial<RxItem> }
   | { type: "CHANGE_ROUTE"; id: string; route: RxRoute }
   | { type: "REMOVE_ITEM"; id: string }
@@ -46,7 +47,7 @@ export function newItemId(): string {
 const ROUTE_KEYS: Record<RxRoute, string[]> = {
   topical: ["form", "amount", "sites", "washOffMin", "strength"],
   oral: ["strength", "foodTiming"],
-  intralesional: ["concentration", "volumeMl", "repeatIntervalDays", "strength"],
+  intralesional: ["concentration", "volumeMl", "repeatIntervalDays", "sites", "strength"],
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -132,6 +133,7 @@ export function convertItemRoute(item: RxItem, route: RxRoute): RxItem {
           : undefined),
       volumeMl: undefined,
       repeatIntervalDays: undefined,
+      sites: maybe("sites"),
       strength: maybe("strength"),
     };
   }
@@ -155,6 +157,13 @@ export function rxReducer(state: RxState, action: RxAction): RxState {
         activeId: action.item.id,
         notice: null,
       };
+
+    case "INSERT_ITEM": {
+      const at = Math.max(0, Math.min(action.at, state.items.length));
+      const items = [...state.items];
+      items.splice(at, 0, action.item);
+      return { ...state, items, activeId: action.item.id, notice: null };
+    }
 
     case "UPDATE_ITEM": {
       let invalid = false;

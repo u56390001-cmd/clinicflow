@@ -148,7 +148,7 @@ export function FrequencyPicker({
               inputMode="numeric"
               aria-label="Times per day (1 to 3, more becomes SOS slots)"
               placeholder="Times/day"
-              className="h-8 w-28 border-input"
+              className="h-8 w-28 border-input-border"
             />
             <Button
               type="button"

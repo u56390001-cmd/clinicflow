@@ -121,7 +121,7 @@ export function DoseInput({
               inputMode="decimal"
               aria-label="Strength value"
               placeholder="2.5"
-              className="h-8 w-24 border-input"
+              className="h-8 w-24 border-input-border"
             />
             <select
               value={customUnit}
@@ -129,7 +129,7 @@ export function DoseInput({
                 setCustomUnit(event.target.value as (typeof UNIT_OPTIONS)[number])
               }
               aria-label="Strength unit"
-              className="h-8 rounded-lg border border-input bg-surface px-1.5 text-xs text-text-primary"
+              className="h-8 rounded-lg border border-input-border bg-surface px-1.5 text-xs text-text-primary"
             >
               {UNIT_OPTIONS.map((unit) => (
                 <option key={unit} value={unit}>

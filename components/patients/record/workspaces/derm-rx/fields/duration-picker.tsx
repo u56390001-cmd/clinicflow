@@ -135,7 +135,7 @@ export function DurationPicker({
               }
               inputMode="numeric"
               aria-label="Number of days, weeks or months"
-              className="h-8 w-20 border-input"
+              className="h-8 w-20 border-input-border"
             />
             <select
               value={customUnit}
@@ -143,7 +143,7 @@ export function DurationPicker({
                 setCustomUnit(event.target.value as "day" | "week" | "month")
               }
               aria-label="Duration unit"
-              className="h-8 rounded-lg border border-input bg-surface px-1.5 text-xs text-text-primary"
+              className="h-8 rounded-lg border border-input-border bg-surface px-1.5 text-xs text-text-primary"
             >
               <option value="day">days</option>
               <option value="week">weeks</option>

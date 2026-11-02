@@ -166,6 +166,7 @@ export const intralesionalItemSchema = z.strictObject({
   concentration: z.string().trim().max(80).optional(),
   volumeMl: z.number().min(0).max(20).optional(),
   repeatIntervalDays: z.number().int().min(1).max(180).optional(),
+  sites: z.array(z.string().trim().min(1).max(120)).max(8).optional(),
   strength: strengthSchema.optional(),
   frequency: frequencySchema,
   duration: durationSchema,

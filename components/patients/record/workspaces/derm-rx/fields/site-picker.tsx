@@ -106,7 +106,7 @@ export function SitePicker({
               onChange={(event) => setCustom(event.target.value)}
               placeholder="e.g. Back of the hand"
               aria-label="Custom site name"
-              className="h-8 border-input text-xs"
+              className="h-8 border-input-border text-xs"
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   event.preventDefault();
