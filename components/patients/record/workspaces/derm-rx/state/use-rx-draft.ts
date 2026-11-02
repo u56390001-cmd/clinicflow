@@ -1,13 +1,16 @@
 "use client";
 
 /**
- * `useRxDraft` — owns the medicine-list reducer plus its debounced autosave.
+ * `useRxDraft` — owns the medicine-list reducer, the extra draft meta, and
+ * their debounced autosave.
  *
  * Autosave contract: 2.5 s after the last change the whole draft (v2
- * envelope) is pushed through the injected `save` callback. State reports
- * `idle / saving / saved / error` plus a "Saved HH:MM" stamp; on failure the
- * draft stays dirty and `retry()` re-flushes immediately. A beforeunload
- * guard warns while there are unsaved changes.
+ * envelope + application/education/skincare/follow-up/labs meta) is pushed
+ * through the injected `save` callback, mapped onto the same DB columns the
+ * legacy builder used. State reports `idle / saving / saved / error` plus a
+ * "Saved HH:MM" stamp; on failure the draft stays dirty and `retry()`
+ * re-flushes immediately. A beforeunload guard warns while there are
+ * unsaved changes.
  */
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
@@ -20,9 +23,39 @@ export type DraftStatus = "idle" | "saving" | "saved" | "error";
 
 export type SaveResult = { ok: boolean; message?: string };
 
+export type LabRow = { test_name: string; notes: string };
+
 export type DraftSnapshot = {
   schema_version: 2;
   items: RxItem[];
+};
+
+export type DraftMeta = {
+  application: string;
+  education: string;
+  skincareAm: string[];
+  skincarePm: string[];
+  followUp: string;
+  labs: LabRow[];
+};
+
+const EMPTY_META: DraftMeta = {
+  application: "",
+  education: "",
+  skincareAm: [],
+  skincarePm: [],
+  followUp: "",
+  labs: [],
+};
+
+/** Payload shape handed to the save callback (schema field names). */
+export type DraftPayload = DraftSnapshot & {
+  application_instructions: string;
+  patient_education: string;
+  skincare_routine_am: string;
+  skincare_routine_pm: string;
+  follow_up: string;
+  lab_orders: LabRow[];
 };
 
 const AUTOSAVE_DEBOUNCE_MS = 2_500;
@@ -43,41 +76,69 @@ function stamp(date: Date): string {
 
 export function useRxDraft(options: {
   initialItems: RxItem[];
-  /** Persists the envelope (typically `saveDermRxAction` pre-bound). */
-  save: (snapshot: DraftSnapshot) => Promise<SaveResult>;
+  /** Initial meta from the existing prescription row. */
+  initialMeta?: Partial<DraftMeta>;
+  /** Persists the full payload (typically `saveDermRxAction` pre-bound). */
+  save: (payload: DraftPayload) => Promise<SaveResult>;
   /** Extra debounce override, mainly for tests. */
   debounceMs?: number;
 }) {
-  const { initialItems, save, debounceMs = AUTOSAVE_DEBOUNCE_MS } = options;
+  const { initialItems, initialMeta, save, debounceMs = AUTOSAVE_DEBOUNCE_MS } =
+    options;
 
   const [state, dispatch] = useReducer(rxReducer, {
     items: initialItems,
     activeId: initialItems.length > 0 ? initialItems[0]!.id : null,
     notice: null,
   });
+  const [meta, setMetaState] = useState<DraftMeta>({
+    ...EMPTY_META,
+    ...initialMeta,
+  });
   const [status, setStatus] = useState<DraftStatus>("idle");
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const lastSavedJson = useRef<string>(JSON.stringify(initialItems));
+  const lastSavedJson = useRef(
+    JSON.stringify({ items: initialItems, ...EMPTY_META, ...initialMeta }),
+  );
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const itemsJson = useMemo(() => JSON.stringify(state.items), [state.items]);
-  const dirty = itemsJson !== lastSavedJson.current;
+  const payloadJson = useMemo(
+    () => JSON.stringify({ items: state.items, ...meta }),
+    [state.items, meta],
+  );
+  const dirty = payloadJson !== lastSavedJson.current;
+
+  const setMeta = useCallback((patch: Partial<DraftMeta>) => {
+    setMetaState((current) => ({ ...current, ...patch }));
+  }, []);
 
   const flush = useCallback(async () => {
     if (timer.current) {
       clearTimeout(timer.current);
       timer.current = null;
     }
+    if (payloadJson === lastSavedJson.current) return;
     const envelope = toEnvelope(state.items);
     if (!envelope) return;
-    if (itemsJson === lastSavedJson.current) return;
+    const payload: DraftPayload = {
+      ...envelope,
+      application_instructions: meta.application,
+      patient_education: meta.education,
+      skincare_routine_am: meta.skincareAm.join("\n"),
+      skincare_routine_pm: meta.skincarePm.join("\n"),
+      follow_up: meta.followUp,
+      lab_orders: meta.labs.map((row) => ({
+        test_name: row.test_name,
+        notes: row.notes,
+      })),
+    };
     setStatus("saving");
     try {
-      const saved = await save(envelope);
+      const saved = await save(payload);
       if (saved.ok) {
-        lastSavedJson.current = itemsJson;
+        lastSavedJson.current = payloadJson;
         setSavedAt(stamp(new Date()));
         setStatus("saved");
         setNotice(null);
@@ -89,7 +150,7 @@ export function useRxDraft(options: {
       setStatus("error");
       setNotice("Save failed. Retry.");
     }
-  }, [save, itemsJson, state.items]);
+  }, [save, payloadJson, state.items, meta]);
 
   const retry = useCallback(() => {
     void flush();
@@ -97,7 +158,7 @@ export function useRxDraft(options: {
 
   // Debounced autosave.
   useEffect(() => {
-    if (itemsJson === lastSavedJson.current) return;
+    if (payloadJson === lastSavedJson.current) return;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(
       () => {
@@ -112,7 +173,7 @@ export function useRxDraft(options: {
         timer.current = null;
       }
     };
-  }, [itemsJson, flush, debounceMs]);
+  }, [payloadJson, flush, debounceMs]);
 
   // Surface the reducer-level route-notice through the hook consumer.
   useEffect(() => {
@@ -138,6 +199,8 @@ export function useRxDraft(options: {
   return {
     state,
     dispatch,
+    meta,
+    setMeta,
     dirty,
     status,
     savedAt,

@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * Derm Rx editor shell (Phase 3): 2/3 left editor + 1/3 sticky live preview.
+ * Derm Rx editor shell: 2/3 left editor + 1/3 sticky live preview.
  * Below `lg` the preview becomes a bottom sticky bar with a drawer.
- * Sections (AM/PM routine, investigations, advice, notes/follow-up, safety)
- * mount in Phase 4; this file owns layout, search, and the medicine list.
+ * Sections: search → medicine list → AM/PM routine → investigations →
+ * advice/education → notes → follow-up → safety review.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Eye, ServerCrash } from "lucide-react";
+import { Eye, ServerCrash, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -21,8 +21,13 @@ import { catalogFromNames, inferRouteFromName } from "./catalog/catalog-item";
 import { readRxItems, type RxItem, type RxRoute } from "./schema/rx-item";
 import { parseStrengthOrAmount } from "./schema/rx-item";
 import { newItemId } from "./state/rx-reducer";
-import { useRxDraft } from "./state/use-rx-draft";
+import { useRxDraft, type DraftPayload, type DraftMeta } from "./state/use-rx-draft";
 import { MedicineCard, summarizeItem } from "./rows/medicine-card";
+import { RoutineCard } from "./routine/routine-card";
+import { LabsCard } from "./labs/labs-card";
+import { AdviceCard } from "./advice/advice-card";
+import { FollowUpCard } from "./followup/follow-up-card";
+import { runSafetyChecks, safetySummary, type SafetyFinding } from "./safety/rules";
 
 export type DermRxEditorProps = {
   patientId: string;
@@ -37,6 +42,14 @@ export type DermRxEditorProps = {
   allergies: string[];
   canManage: boolean;
   visitId?: string | null;
+  /** Existing row fields that seed the non-medicine meta. */
+  initialMeta?: Partial<DraftMeta>;
+  /** Patient flags fed into the safety engine. */
+  pendingFlags?: { pregnancyRisk?: boolean; lactation?: boolean };
+  /** False → amber banner nudging the doctor to tag the Exam diagnosis. */
+  diagnosisTagged?: boolean;
+  /** Free-text diagnosis for advice suggestions. */
+  diagnosis?: string | null;
 };
 
 /** Catalogue row → starter RxItem with route-appropriate defaults. */
@@ -119,6 +132,10 @@ export function DermRxEditor(props: DermRxEditorProps) {
     allergies,
     canManage,
     visitId,
+    initialMeta,
+    pendingFlags,
+    diagnosisTagged,
+    diagnosis,
   } = props;
 
   const initialItems = useMemo(
@@ -126,13 +143,13 @@ export function DermRxEditor(props: DermRxEditorProps) {
     [medicinesValue],
   );
 
-  const save = async (snapshot: { schema_version: 2; items: RxItem[] }) => {
+  const save = async (payload: DraftPayload) => {
     try {
       const result = await saveDermRxAction(
         patientId,
         {
           id: prescriptionId ?? undefined,
-          medicines: snapshot,
+          ...payload,
         },
         visitId,
       );
@@ -147,9 +164,21 @@ export function DermRxEditor(props: DermRxEditorProps) {
 
   const draft = useRxDraft({
     initialItems,
+    initialMeta,
     save,
   });
   const { state, dispatch } = draft;
+
+  const safetyFindings = useMemo(
+    () =>
+      runSafetyChecks({
+        items: state.items,
+        allergies,
+        flags: pendingFlags,
+      }),
+    [state.items, allergies, pendingFlags],
+  );
+  const safetyTotals = safetySummary(safetyFindings);
 
   const catalogItems = useMemo(
     () => catalogFromNames(catalogNames),
@@ -310,6 +339,55 @@ export function DermRxEditor(props: DermRxEditorProps) {
             ))}
           </div>
         )}
+
+        {diagnosisTagged === false ? (
+          <a
+            href="?tab=derm_exam"
+            className="block rounded-xl border border-[#e8dcc2] bg-[#fbf7ee] px-3.5 py-2.5 text-xs text-[#8a6d1f] transition-colors hover:bg-[#f7efd8]"
+          >
+            Diagnosis tag abhi add nahi hui — Exam tab se tag karen. Print aur
+            history filtering is par depend karti hai.
+          </a>
+        ) : null}
+
+        <RoutineCard
+          items={state.items}
+          stepsAm={draft.meta.skincareAm}
+          stepsPm={draft.meta.skincarePm}
+          canManage={canManage}
+          onChangeStepsAm={(steps) => draft.setMeta({ skincareAm: steps })}
+          onChangeStepsPm={(steps) => draft.setMeta({ skincarePm: steps })}
+        />
+
+        <LabsCard
+          value={draft.meta.labs}
+          onChange={(labs) => draft.setMeta({ labs })}
+          canManage={canManage}
+        />
+
+        <AdviceCard
+          items={state.items}
+          diagnosis={diagnosis}
+          application={draft.meta.application}
+          education={draft.meta.education}
+          canManage={canManage}
+          onChangeApplication={(application) =>
+            draft.setMeta({ application })
+          }
+          onChangeEducation={(education) => draft.setMeta({ education })}
+        />
+
+        <FollowUpCard
+          value={draft.meta.followUp || null}
+          onChange={(followUp) => draft.setMeta({ followUp: followUp ?? "" })}
+          canManage={canManage}
+        />
+
+        <SafetySection
+          findings={safetyFindings}
+          totals={safetyTotals}
+          onJumpToItem={(id) => dispatch({ type: "SET_ACTIVE", id })}
+        />
       </div>
 
       {/* Right: live preview (desktop sticky) */}
@@ -422,4 +500,112 @@ function MobilePreviewButton({ items }: { items: RxItem[] }) {
 
 function BottomActionsSpacer() {
   return <div className="h-14 lg:hidden" aria-hidden />;
+}
+
+const SAFETY_STYLES: Record<
+  SafetyFinding["severity"],
+  { row: string; label: string; badge: string; text: string }
+> = {
+  block: {
+    row: "border-[#f0c9c1] bg-[#fdf1ee]",
+    label: "BLOCK",
+    badge: "bg-[#a33b2a] text-white",
+    text: "text-[#a33b2a]",
+  },
+  warn: {
+    row: "border-[#e8dcc2] bg-[#fbf7ee]",
+    label: "WARN",
+    badge: "bg-[#8a6d1f] text-white",
+    text: "text-[#8a6d1f]",
+  },
+  info: {
+    row: "border-card-line bg-app",
+    label: "INFO",
+    badge: "bg-primary/15 text-primary",
+    text: "text-primary",
+  },
+};
+
+function SafetySection({
+  findings,
+  totals,
+  onJumpToItem,
+}: {
+  findings: SafetyFinding[];
+  totals: { blocks: number; warns: number; infos: number };
+  onJumpToItem: (id: string) => void;
+}) {
+  const allClear =
+    findings.length === 0;
+  return (
+    <div className="rounded-xl border border-card-line bg-surface">
+      <div className="flex items-center justify-between border-b border-card-line px-3.5 py-2">
+        <p className="flex items-center gap-1.5 text-sm font-semibold text-text-primary">
+          <ShieldCheck className="h-4 w-4 text-primary" />
+          Safety review
+        </p>
+        <span className="flex gap-1.5 text-[10.5px] font-bold uppercase tracking-wide">
+          {totals.blocks > 0 ? (
+            <span className="rounded bg-[#a33b2a] px-1.5 py-0.5 text-white">
+              {totals.blocks} block
+            </span>
+          ) : null}
+          {totals.warns > 0 ? (
+            <span className="rounded bg-[#8a6d1f] px-1.5 py-0.5 text-white">
+              {totals.warns} warn
+            </span>
+          ) : null}
+          {allClear ? (
+            <span className="rounded bg-status-success/15 px-1.5 py-0.5 text-status-success">
+              All clear
+            </span>
+          ) : null}
+        </span>
+      </div>
+      {findings.length === 0 ? (
+        <p className="px-3.5 py-2.5 text-xs text-text-muted">
+          Koi conflict nahi — allergy, duplicate aur duration checks pass.
+        </p>
+      ) : (
+        <ul className="space-y-1 p-3">
+          {findings.map((finding) => {
+            const style = SAFETY_STYLES[finding.severity];
+            return (
+              <li key={finding.id}>
+                <div
+                  className={
+                    "flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 text-xs " +
+                    style.row
+                  }
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span
+                      className={
+                        "shrink-0 rounded px-1.5 py-0.5 text-[9.5px] font-bold uppercase " +
+                        style.badge
+                      }
+                    >
+                      {style.label}
+                    </span>
+                    <span className={"min-w-0 truncate " + style.text}>
+                      {finding.message}
+                    </span>
+                  </span>
+                  {finding.itemId ? (
+                    <button
+                      type="button"
+                      onClick={() => onJumpToItem(finding.itemId!)}
+                      className="shrink-0 rounded-md border border-hairline px-2 py-0.5 text-[11px] font-semibold text-text-muted hover:text-text-primary"
+                    >
+                      Go to row
+                    </button>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
 }
