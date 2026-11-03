@@ -18,7 +18,7 @@ import { saveDermRxAction } from "@/lib/actions/specialty-workspaces";
 import { MedicineCombobox } from "./catalog/medicine-combobox";
 import type { CatalogItem } from "./catalog/catalog-item";
 import { catalogFromNames, inferRouteFromName } from "./catalog/catalog-item";
-import { readRxItems, type RxItem, type RxRoute } from "./schema/rx-item";
+import { readRxItems, rxEnvelopeSchema, type RxItem, type RxRoute } from "./schema/rx-item";
 import { parseStrengthOrAmount } from "./schema/rx-item";
 import { newItemId } from "./state/rx-reducer";
 import { useRxDraft, type DraftPayload, type DraftMeta } from "./state/use-rx-draft";
@@ -28,6 +28,7 @@ import { LabsCard } from "./labs/labs-card";
 import { AdviceCard } from "./advice/advice-card";
 import { FollowUpCard } from "./followup/follow-up-card";
 import { runSafetyChecks, safetySummary, type SafetyFinding } from "./safety/rules";
+import { ReviewCard } from "./review/review-card";
 
 export type DermRxEditorProps = {
   patientId: string;
@@ -50,6 +51,11 @@ export type DermRxEditorProps = {
   diagnosisTagged?: boolean;
   /** Free-text diagnosis for advice suggestions. */
   diagnosis?: string | null;
+  /** Migration 0124 row state (Phase 5 Approve & Lock). */
+  rxStatus?: string | null;
+  rxVersion?: number | null;
+  /** RxTab refetches / switches the draft after approve or unlock. */
+  onRxChanged?: (newPrescriptionId: string | null) => void;
 };
 
 /** Catalogue row → starter RxItem with route-appropriate defaults. */
@@ -136,6 +142,9 @@ export function DermRxEditor(props: DermRxEditorProps) {
     pendingFlags,
     diagnosisTagged,
     diagnosis,
+    rxStatus,
+    rxVersion,
+    onRxChanged,
   } = props;
 
   const initialItems = useMemo(
@@ -179,6 +188,26 @@ export function DermRxEditor(props: DermRxEditorProps) {
     [state.items, allergies, pendingFlags],
   );
   const safetyTotals = safetySummary(safetyFindings);
+
+  const payloadForLock = (itemsForLock: RxItem[]): DraftPayload => {
+    const parsed = rxEnvelopeSchema.safeParse({
+      schema_version: 2 as const,
+      items: itemsForLock,
+    });
+    return {
+      schema_version: 2,
+      items: parsed.success ? parsed.data.items : itemsForLock,
+      application_instructions: draft.meta.application,
+      patient_education: draft.meta.education,
+      skincare_routine_am: draft.meta.skincareAm.join("\n"),
+      skincare_routine_pm: draft.meta.skincarePm.join("\n"),
+      follow_up: draft.meta.followUp,
+      lab_orders: draft.meta.labs.map((row) => ({
+        test_name: row.test_name,
+        notes: row.notes,
+      })),
+    };
+  };
 
   const catalogItems = useMemo(
     () => catalogFromNames(catalogNames),
@@ -387,6 +416,18 @@ export function DermRxEditor(props: DermRxEditorProps) {
           findings={safetyFindings}
           totals={safetyTotals}
           onJumpToItem={(id) => dispatch({ type: "SET_ACTIVE", id })}
+        />
+
+        <ReviewCard
+          patientId={patientId}
+          prescriptionId={prescriptionId}
+          items={state.items}
+          payloadForLock={payloadForLock}
+          status={rxStatus}
+          version={rxVersion}
+          findings={safetyFindings}
+          canManage={canManage}
+          onChanged={(newId) => onRxChanged?.(newId)}
         />
       </div>
 

@@ -3463,6 +3463,25 @@ export async function saveDermRxAction(
   };
   // Editing the latest row (form passes its id back) vs. a fresh consultation.
   if (id) {
+    // Phase 5 guard (migration 0124): an approved Rx never mutates in place —
+    // edit via Unlock, which creates a version+1 draft row.
+    const { data: locked } = await g.supabase
+      .from("derm_prescriptions")
+      .select("status")
+      .eq("id", id)
+      .eq("clinic_id", g.clinicId)
+      .eq("patient_id", patientId)
+      .maybeSingle();
+    if (
+      locked &&
+      (locked as unknown as { status: string | null }).status === "final"
+    ) {
+      return {
+        ok: false,
+        message:
+          "This prescription is approved/locked — use Unlock to start a new version.",
+      };
+    }
     const { error } = await g.supabase
       .from("derm_prescriptions")
       .update(payload)
@@ -3487,6 +3506,177 @@ export async function saveDermRxAction(
   });
   if (error) return { ok: false, message: error.message };
   return ok();
+}
+
+const dermRxIdSchema = z.object({ id: z.string().uuid() });
+
+/** Server-side snapshot copy — validates before ever touching the DB. */
+const approveDermRxSchema = z.object({
+  rx_id: dermRxIdSchema.shape.id,
+  snapshot: z.object({
+    medicines: rxEnvelopeSchema,
+    topical_form: z.enum(DERM_FORM).optional().nullable(),
+    application_instructions: note.default(""),
+    skincare_routine_am: note.default(""),
+    skincare_routine_pm: note.default(""),
+    patient_education: note.default(""),
+    follow_up: z.string().trim().max(80).optional().default(""),
+    lab_orders: z.array(dermLabOrderSchema).default([]),
+  }),
+});
+
+type DermRxVersionRow = {
+  id: string;
+  status: string | null;
+  version: number | null;
+  doctor_id: string | null;
+  visit_id: string | null;
+  medicines: Database["public"]["Tables"]["derm_prescriptions"]["Insert"]["medicines"];
+  lab_orders: Database["public"]["Tables"]["derm_prescriptions"]["Insert"]["lab_orders"];
+  application_instructions: string | null;
+  skincare_routine_am: string | null;
+  skincare_routine_pm: string | null;
+  patient_education: string | null;
+  follow_up: string | null;
+};
+
+/**
+ * Phase 5 — Approve & Lock: draft → final. **Server guard for migration
+ * 0124:** the row must still be a draft — approved Rx is immutable, edits go
+ * through unlock (which makes a version+1 draft). The approved payload is
+ * frozen in `snapshot` and an audit event is written.
+ */
+export async function approveDermRxAction(
+  patientId: string,
+  raw: unknown,
+): Promise<ActionResult<string>> {
+  const parsed = approveDermRxSchema.safeParse(raw);
+  if (!parsed.success) return err(firstIssue(parsed));
+  const g = await guard();
+  if (!g.ok) return g.result;
+
+  const { rx_id: rxId, snapshot } = parsed.data;
+  const { data: row } = await g.supabase
+    .from("derm_prescriptions")
+    .select("id, status, version")
+    .eq("id", rxId)
+    .eq("clinic_id", g.clinicId)
+    .eq("patient_id", patientId)
+    .maybeSingle();
+  if (!row) return { ok: false, message: "Prescription row not found." };
+  const versionRow = row as unknown as { id: string; status: string | null };
+  if (versionRow.status === "final") {
+    return { ok: false, message: "This prescription is already approved." };
+  }
+
+  const finalizedAt = new Date().toISOString();
+  // Migration 0124 columns (status/finalized_at/snapshot) are not yet in the
+  // generated types — honest single cast at the DB boundary.
+  const updatePayload = {
+    status: "final",
+    finalized_at: finalizedAt,
+    snapshot,
+  } as unknown as Database["public"]["Tables"]["derm_prescriptions"]["Update"];
+  const { error } = await g.supabase
+    .from("derm_prescriptions")
+    .update(updatePayload)
+    .eq("id", rxId)
+    .eq("clinic_id", g.clinicId)
+    .eq("patient_id", patientId);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath(APP_ROUTES.app.patients);
+  const user = (await g.supabase.auth.getUser()).data.user;
+  if (user) {
+    await logAuditEvent(
+      {
+        clinicId: g.clinicId,
+        userId: user.id,
+        action: "DERM_RX_APPROVED",
+        resourceType: "derm_prescription",
+        resourceId: rxId,
+        details: { finalizedAt },
+      },
+      { supabase: g.supabase },
+    );
+  }
+  return { ok: true, data: rxId };
+}
+
+/**
+ * Unlock an approved Rx by starting a new version: the final row stays
+ * untouched (its approved content is frozen) and a fresh draft row with
+ * version+1 carries the editable copy. Returns the new row id so the UI
+ * switches the editor onto it.
+ */
+export async function unlockDermRxAction(
+  patientId: string,
+  raw: unknown,
+): Promise<ActionResult<string>> {
+  const parsed = dermRxIdSchema.safeParse(raw);
+  if (!parsed.success) return err(firstIssue(parsed));
+  const g = await guard();
+  if (!g.ok) return g.result;
+
+  const { id: rxId } = parsed.data;
+  const { data: row } = await g.supabase
+    .from("derm_prescriptions")
+    .select(
+      "id, doctor_id, visit_id, medicines, lab_orders, application_instructions, skincare_routine_am, skincare_routine_pm, patient_education, follow_up, status, version",
+    )
+    .eq("id", rxId)
+    .eq("clinic_id", g.clinicId)
+    .eq("patient_id", patientId)
+    .maybeSingle();
+  if (!row) return { ok: false, message: "Prescription row not found." };
+  const prior = row as unknown as DermRxVersionRow;
+  if (prior.status !== "final") {
+    return { ok: false, message: "Only an approved Rx can be unlocked." };
+  }
+  const nextVersion = (prior.version ?? 1) + 1;
+
+  // Migration 0124 columns are not in the generated types — one honest cast.
+  const insertPayload = {
+    clinic_id: g.clinicId,
+    patient_id: patientId,
+    doctor_id: prior.doctor_id,
+    visit_id: prior.visit_id,
+    medicines: prior.medicines,
+    lab_orders: prior.lab_orders,
+    application_instructions: prior.application_instructions,
+    skincare_routine_am: prior.skincare_routine_am,
+    skincare_routine_pm: prior.skincare_routine_pm,
+    patient_education: prior.patient_education,
+    follow_up: prior.follow_up,
+    status: "draft",
+    version: nextVersion,
+  } as unknown as Database["public"]["Tables"]["derm_prescriptions"]["Insert"];
+  const { data: created, error } = await g.supabase
+    .from("derm_prescriptions")
+    .insert(insertPayload)
+    .select("id")
+    .single();
+  if (error || !created) {
+    return { ok: false, message: error?.message ?? "Unlock failed." };
+  }
+  const newId = created.id as string;
+
+  revalidatePath(APP_ROUTES.app.patients);
+  const user = (await g.supabase.auth.getUser()).data.user;
+  if (user) {
+    await logAuditEvent(
+      {
+        clinicId: g.clinicId,
+        userId: user.id,
+        action: "DERM_RX_UNLOCKED",
+        resourceType: "derm_prescription",
+        resourceId: newId,
+        details: { from: rxId, priorVersion: prior.version ?? 1, nextVersion },
+      },
+      { supabase: g.supabase },
+    );
+  }
+  return { ok: true, data: newId };
 }
 
 export async function saveDermLesionAction(
