@@ -21,7 +21,7 @@ import { rxReducer } from "./rx-reducer";
 
 export type DraftStatus = "idle" | "saving" | "saved" | "error";
 
-export type SaveResult = { ok: boolean; message?: string };
+export type SaveResult = { ok: boolean; message?: string; id?: string };
 
 export type LabRow = { test_name: string; notes: string };
 

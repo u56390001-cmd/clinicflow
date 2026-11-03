@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  itemToLegacyEntry,
+  legacyDurationChip,
+  legacyFrequencyChip,
   parseDuration,
   parseFrequency,
   parseLegacyItem,
@@ -293,5 +296,113 @@ describe("payload round-trip", () => {
 
     expect(readRxItems(null)).toEqual([]);
     expect(readRxItems({ junk: true })).toEqual([]);
+  });
+});
+
+describe("itemToLegacyEntry (template-save bridge)", () => {
+  const oral: Parameters<typeof itemToLegacyEntry>[0] = {
+    id: "t-1",
+    brand: "Isotretinoin",
+    generic: "isotretinoin",
+    isCustom: false,
+    route: "oral",
+    strength: { value: 20, unit: "mg" },
+    frequency: { kind: "daily", morning: 1, noon: 0, night: 1 },
+    duration: { kind: "fixed", value: 4, unit: "week" },
+    instruction: { mode: "custom", text: "Do not stop abruptly" },
+    substitutionAllowed: false,
+  };
+
+  it("renders an oral item into painless legacy chips", () => {
+    expect(itemToLegacyEntry(oral)).toMatchObject({
+      name: "Isotretinoin",
+      route: "Oral",
+      form: "",
+      frequency: "1-0-1 (BD)",
+      duration: "4 Weeks",
+      unit: "20 mg",
+      instructions: "Do not stop abruptly",
+    });
+  });
+
+  it("food-timing text is reconstructed from the structured field", () => {
+    const withTiming = {
+      ...oral,
+      instruction: { mode: "custom" as const, text: "After meals" },
+    };
+    const items = parseLegacyMedicines([itemToLegacyEntry(withTiming)]);
+    expect(items[0].route).toBe("oral");
+    if (items[0].route === "oral") {
+      expect(items[0].foodTiming).toBe("after");
+    }
+  });
+
+  it("renders a topical item with amount + titled form", () => {
+    const topical: Parameters<typeof itemToLegacyEntry>[0] = {
+      ...oral,
+      route: "topical",
+      brand: "Tretinoin",
+      form: "gel",
+      amount: "1 FTU",
+      sites: ["Face"],
+    };
+    const entry = itemToLegacyEntry(topical);
+    expect(entry.route).toBe("Topical");
+    expect(entry.form).toBe("Gel");
+    expect(entry.unit).toBe("1 FTU");
+  });
+
+  it("topical sites fold back into the Apply-to phrase", () => {
+    const single: Parameters<typeof itemToLegacyEntry>[0] = {
+      ...oral,
+      route: "topical",
+      form: "cream",
+      amount: "2 FTU",
+      sites: ["Pin #2 - Face"],
+      instruction: { mode: "custom", text: "thin layer only" },
+    };
+    expect(itemToLegacyEntry(single).instructions).toBe(
+      "Apply to Pin #2 - Face — thin layer only",
+    );
+
+    const siteless: Parameters<typeof itemToLegacyEntry>[0] = {
+      ...single,
+      sites: undefined,
+    };
+    expect(itemToLegacyEntry(siteless).instructions).toBe("thin layer only");
+  });
+
+  it("emits chips the parser reads straight back", () => {
+    const items = parseLegacyMedicines([itemToLegacyEntry(oral)]);
+    expect(items).toHaveLength(1);
+    expect(items[0].brand).toBe("Isotretinoin");
+    expect(items[0].frequency).toEqual(oral.frequency);
+    expect(items[0].duration).toEqual(oral.duration);
+    expect(items[0].instruction.mode).toBe("custom");
+    expect(items[0].instruction.text).toBe("Do not stop abruptly");
+  });
+
+  it("duration chip covers 1 / many and the exotic kinds", () => {
+    expect(
+      legacyDurationChip({ kind: "fixed", value: 1, unit: "week" }),
+    ).toBe("1 Week");
+    expect(
+      legacyDurationChip({ kind: "fixed", value: 6, unit: "month" }),
+    ).toBe("6 Months");
+    expect(legacyDurationChip({ kind: "continue" })).toBe("Continue");
+    expect(legacyDurationChip({ kind: "untilNextVisit" })).toBe(
+      "Until Next Visit",
+    );
+  });
+
+  it("frequency chip covers the non-daily kinds", () => {
+    expect(legacyFrequencyChip({ kind: "sos" })).toBe("SOS (PRN)");
+    expect(legacyFrequencyChip({ kind: "timesPerWeek", n: 3 })).toBe("3×/Week");
+    expect(legacyFrequencyChip({ kind: "everyNDays", n: 3 })).toBe(
+      "Every 3 Days",
+    );
+    expect(legacyFrequencyChip({ kind: "custom", text: "Ich mita hoon" })).toBe(
+      "Ich mita hoon",
+    );
   });
 });

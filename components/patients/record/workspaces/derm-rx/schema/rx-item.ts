@@ -494,3 +494,116 @@ export function readRxItems(value: unknown): RxItem[] {
   const envelope = rxEnvelopeSchema.safeParse(value);
   return envelope.success ? envelope.data.items : [];
 }
+
+/* ----------------------------------------------------------------------------
+ * v2 → v1 serialization (round-trip). Clinic Rx templates (0123) store the
+ * legacy MedicineEntry shape, so saving a template from the editor needs the
+ * typed item rendered back into chips. Every string it emits is one the
+ * parser above understands — parity is asserted in rx-item.test.ts.
+ * ------------------------------------------------------------------------- */
+
+const DAILY_SLOT_WORD: Record<string, string> = {
+  "1-0-0": "(Morning)",
+  "0-0-1": "(Night)",
+  "1-0-1": "(BD)",
+  "0-1-0": "(Noon)",
+  "1-1-1": "(TDS)",
+};
+
+export function legacyFrequencyChip(freq: Frequency): string {
+  switch (freq.kind) {
+    case "daily": {
+      const counts = `${freq.morning}-${freq.noon}-${freq.night}`;
+      const total = freq.morning + freq.noon + freq.night;
+      const word =
+        total > 2 || (freq.morning > 0 && freq.noon > 0 && freq.night > 0)
+          ? "(TDS)"
+          : (DAILY_SLOT_WORD[counts] ?? "");
+      return `${counts} ${word}`.trim();
+    }
+    case "weekdays": {
+      const names = [
+        "Sun",
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu",
+        "Fri",
+        "Sat",
+      ];
+      return freq.days.map((d) => names[d]).join("/");
+    }
+    case "timesPerWeek":
+      return `${freq.n}×/Week`;
+    case "everyNDays":
+      return `Every ${freq.n} Days`;
+    case "sos":
+      return "SOS (PRN)";
+    case "custom":
+      return freq.text;
+  }
+}
+
+export function legacyDurationChip(duration: Duration): string {
+  switch (duration.kind) {
+    case "fixed": {
+      const unit =
+        duration.unit === "day" ? "Day" : duration.unit === "week" ? "Week" : "Month";
+      return duration.value === 1 ? `1 ${unit}` : `${duration.value} ${unit}s`;
+    }
+    case "continue":
+      return "Continue";
+    case "untilNextVisit":
+      return "Until Next Visit";
+    case "custom":
+      return duration.text;
+  }
+}
+
+export function itemToLegacyEntry(item: RxItem): LegacyMedicineEntry {
+  const routeName =
+    item.route === "topical"
+      ? "Topical"
+      : item.route === "oral"
+        ? "Oral"
+        : "Intralesional";
+  const titleCase = (value: string) =>
+    value.charAt(0).toUpperCase() + value.slice(1);
+  const form =
+    item.route === "topical" ? titleCase(item.form ?? "cream") : "";
+  const unit =
+    "amount" in item
+      ? (item.amount ?? "")
+      : "strength" in item && item.strength
+        ? item.strength.unit === "%"
+          ? `${item.strength.value}%`
+          : `${item.strength.value} ${item.strength.unit}`
+        : "";
+  // Sites go back into the "Apply to <site> — <text>" phrase the parser
+  // reads. The legacy parser only extracts a single site phrase, so when a
+  // row carries multiple pins the extras ride along in trailing text.
+  const customText = item.instruction.mode === "custom" ? item.instruction.text : "";
+  const instructions =
+    item.route === "topical" && item.sites && item.sites.length > 0
+      ? (() => {
+          const lead = `Apply to ${item.sites[0]}`;
+          const rest = customText.replace(/^apply\s+to\s+.*$/i, "").trim();
+          if (item.sites.length === 1) {
+            return rest ? `${lead} — ${rest}` : lead;
+          }
+          const extra = item.sites.slice(1).join(", ");
+          return rest
+            ? `${lead} — ${rest} (also: ${extra})`
+            : `${lead} (also: ${extra})`;
+        })()
+      : customText;
+  return {
+    name: item.brand,
+    route: routeName,
+    form,
+    frequency: legacyFrequencyChip(item.frequency),
+    duration: legacyDurationChip(item.duration),
+    unit,
+    instructions,
+  };
+}

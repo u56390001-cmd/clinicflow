@@ -53,7 +53,8 @@ import {
 import { BodyMapPanel } from "@/components/patients/record/workspaces/derm-body-map-panel";
 import { PinPhotosPanel } from "@/components/patients/record/workspaces/derm-pin-photos";
 import { DermProcedures } from "@/components/patients/record/workspaces/derm-procedures";
-import { DermRxMeds } from "@/components/patients/record/workspaces/derm-rx-meds";
+import { DermRxEditor } from "@/components/patients/record/workspaces/derm-rx";
+import { useMedicineCatalogueNames } from "@/lib/rx-reference";
 import { DermSummary } from "@/components/patients/record/workspaces/derm-summary";
 import { DermPhotosTab } from "@/components/patients/record/workspaces/derm-photos-tab";
 import {
@@ -2644,6 +2645,8 @@ function RxTab({
   canManage: boolean;
   visitId?: string | null;
 }) {
+  const router = useRouter();
+  const catalogNames = useMedicineCatalogueNames();
   const latest = derm.prescriptions[0] ?? null;
   // Every allergy string this patient carries — the profile's drug/topical/
   // other fields plus the record-level known_allergies — in the order the
@@ -2653,7 +2656,7 @@ function RxTab({
     derm.profile?.topical_allergies,
     derm.profile?.allergies,
     patient.known_allergies,
-  ];
+  ].filter((value): value is string => Boolean(value?.trim()));
 
   // Auto-import (§1 header badges): today's encounter diagnosis + procedures,
   // pulled live from the Tab 2 exam row and the Tab 4 procedure logbook —
@@ -2683,17 +2686,62 @@ function RxTab({
     })),
   };
 
+  // Body-map lesion pins for topical site pickers (same string legacy built).
+  const lesionSites = derm.lesions.map((lesion) => {
+    const site = `Pin #${lesion.pin_number} — ${lesion.body_region}${
+      lesion.laterality ? ` (${lesion.laterality})` : ""
+    }`;
+    return site;
+  });
+
+  // Row fields written by migration 0124 are not in the generated types yet.
+  const latestRowMeta = latest
+    ? (latest as unknown as { status?: string | null; version?: number | null })
+    : null;
+
   return (
-    <DermRxMeds
+    <DermRxEditor
       patientId={patient.id}
-      patient={patient}
-      prescription={latest}
-      history={derm.prescriptions}
-      lesions={derm.lesions}
-      today={todayContext}
+      prescriptionId={latest?.id ?? null}
+      medicinesValue={latest?.medicines ?? null}
+      catalogNames={catalogNames}
+      lesionSites={lesionSites}
       allergies={allergies}
       canManage={canManage}
       visitId={visitId}
+      initialMeta={
+        latest
+          ? {
+              application: latest.application_instructions ?? "",
+              education: latest.patient_education ?? "",
+              skincareAm: (latest.skincare_routine_am ?? "").split("\n").filter(
+                Boolean,
+              ),
+              skincarePm: (latest.skincare_routine_pm ?? "").split("\n").filter(
+                Boolean,
+              ),
+              followUp: latest.follow_up ?? "",
+              labs: (latest.lab_orders ?? []).map((row) => ({
+                test_name: row.test_name,
+                notes: row.notes ?? "",
+              })),
+            }
+          : undefined
+      }
+      diagnosisTagged={Boolean(examForContext?.diagnosis?.trim())}
+      diagnosis={todayContext.diagnosis}
+      rxStatus={latestRowMeta?.status ?? null}
+      rxVersion={latestRowMeta?.version ?? null}
+      onRxChanged={() => router.refresh()}
+      patient={{
+        name: patient.name,
+        phone: patient.phone ?? null,
+        patient_code: patient.patient_code ?? null,
+        date_of_birth: patient.date_of_birth ?? null,
+        gender: patient.gender ?? null,
+      }}
+      historyRows={derm.prescriptions}
+      today={todayContext}
     />
   );
 }

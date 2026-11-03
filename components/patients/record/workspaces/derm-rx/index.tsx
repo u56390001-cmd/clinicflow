@@ -8,17 +8,39 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Eye, ServerCrash, ShieldCheck } from "lucide-react";
+import {
+  Eye,
+  MessageCircle,
+  Printer,
+  ServerCrash,
+  ShieldCheck,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { saveDermRxAction } from "@/lib/actions/specialty-workspaces";
+import {
+  getClinicLetterheadAction,
+  getCurrentClinicianInfoAction,
+  saveDermRxAction,
+} from "@/lib/actions/specialty-workspaces";
+import type { DermPrescription } from "@/types/database";
 
 import { MedicineCombobox } from "./catalog/medicine-combobox";
 import type { CatalogItem } from "./catalog/catalog-item";
 import { catalogFromNames, inferRouteFromName } from "./catalog/catalog-item";
-import { readRxItems, rxEnvelopeSchema, type RxItem, type RxRoute } from "./schema/rx-item";
+import type {
+  DermRxLetterhead,
+  DermRxPrintToday,
+} from "@/components/patients/record/workspaces/derm-rx-print";
+import {
+  readRxItems,
+  rxEnvelopeSchema,
+  parseLegacyMedicines,
+  itemToLegacyEntry,
+  type RxItem,
+  type RxRoute,
+} from "./schema/rx-item";
 import { parseStrengthOrAmount } from "./schema/rx-item";
 import { newItemId } from "./state/rx-reducer";
 import { useRxDraft, type DraftPayload, type DraftMeta } from "./state/use-rx-draft";
@@ -29,6 +51,27 @@ import { AdviceCard } from "./advice/advice-card";
 import { FollowUpCard } from "./followup/follow-up-card";
 import { runSafetyChecks, safetySummary, type SafetyFinding } from "./safety/rules";
 import { ReviewCard } from "./review/review-card";
+import { HistorySection } from "./history/history-section";
+import {
+  PresetsCard,
+  type PresetLoad,
+} from "./presets/presets-card";
+import { DermRxPrintSheet } from "./print/print-sheet";
+import { buildRxViewModel, documentToShareText } from "./render/view-model";
+
+export type DermRxEditorToday = {
+  diagnosis: string | null;
+  icdCode: string | null;
+  procedures: { name: string; bottleId: string | null; pin: number | null }[];
+};
+
+export type DermRxEditorPatient = {
+  name: string;
+  phone: string | null;
+  patient_code: string | null;
+  date_of_birth: string | null;
+  gender: string | null;
+};
 
 export type DermRxEditorProps = {
   patientId: string;
@@ -56,6 +99,12 @@ export type DermRxEditorProps = {
   rxVersion?: number | null;
   /** RxTab refetches / switches the draft after approve or unlock. */
   onRxChanged?: (newPrescriptionId: string | null) => void;
+  /** Contact & print/share needs */
+  patient: DermRxEditorPatient;
+  /** Earlier prescription rows for the history timeline. */
+  historyRows: DermPrescription[];
+  /** Today's encounter context for the print sheet. */
+  today: DermRxEditorToday;
 };
 
 /** Catalogue row → starter RxItem with route-appropriate defaults. */
@@ -145,6 +194,9 @@ export function DermRxEditor(props: DermRxEditorProps) {
     rxStatus,
     rxVersion,
     onRxChanged,
+    patient,
+    historyRows,
+    today,
   } = props;
 
   const initialItems = useMemo(
@@ -152,18 +204,30 @@ export function DermRxEditor(props: DermRxEditorProps) {
     [medicinesValue],
   );
 
+  // Adopted row id after the first insert (prop refresh is async; the ref
+  // keeps in-flight autosaves from inserting a second row meanwhile).
+  const adoptedIdRef = useRef<string | null>(prescriptionId);
+
   const save = async (payload: DraftPayload) => {
     try {
+      const effectiveId = prescriptionId ?? adoptedIdRef.current ?? undefined;
       const result = await saveDermRxAction(
         patientId,
         {
-          id: prescriptionId ?? undefined,
+          id: effectiveId,
           ...payload,
         },
         visitId,
       );
       if (result.ok) {
-        return { ok: true as const };
+        // First save inserted a new row — adopt its id so later autosaves
+        // update in place (prevents duplicate history rows), then let the
+        // parent refetch the bundle.
+        if (!effectiveId && result.data) {
+          adoptedIdRef.current = result.data;
+          onRxChanged?.(result.data);
+        }
+        return { ok: true as const, id: result.data };
       }
       return { ok: false as const, message: result.message };
     } catch {
@@ -208,6 +272,140 @@ export function DermRxEditor(props: DermRxEditorProps) {
       })),
     };
   };
+
+  // Keep the adopted-echo ref in sync when the parent passes a different row
+  // (approve → same row; unlock → brand new version row).
+  useEffect(() => {
+    adoptedIdRef.current = prescriptionId;
+  }, [prescriptionId]);
+
+  // --- Print / share plumbing (clinic letterhead + signing clinician) ---
+  const [letterhead, setLetterhead] = useState<DermRxLetterhead | null>(null);
+  const [clinician, setClinician] = useState("");
+  const [printTarget, setPrintTarget] = useState<DermPrescription | null>(null);
+  useEffect(() => {
+    void getClinicLetterheadAction().then((result) => {
+      if (result.ok) setLetterhead(result.data);
+    });
+    void getCurrentClinicianInfoAction().then((result) => {
+      if (result.ok) setClinician(result.data.name);
+    });
+  }, []);
+
+  /** Current draft rendered as a prescription row for print/share. */
+  const draftAsRow = (): DermPrescription | null => {
+    if (state.items.length === 0) return null;
+    const envelope = { schema_version: 2 as const, items: state.items };
+    return {
+      id: prescriptionId ?? adoptedIdRef.current ?? "",
+      clinic_id: "",
+      patient_id: patientId,
+      doctor_id: null,
+      visit_id: visitId ?? null,
+      medicines: envelope as unknown as DermPrescription["medicines"],
+      topical_form: null,
+      application_instructions: draft.meta.application || null,
+      skincare_routine_am: draft.meta.skincareAm.join("\n") || null,
+      skincare_routine_pm: draft.meta.skincarePm.join("\n") || null,
+      patient_education: draft.meta.education || null,
+      follow_up: draft.meta.followUp || null,
+      lab_orders: draft.meta.labs,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      status: "draft",
+      version: rxVersion ?? 1,
+    } as unknown as DermPrescription;
+  };
+
+  const printOrShare = () => {
+    const row = draftAsRow();
+    if (!row) {
+      toast.error("Pehle kam az kam ek medicine add karen.");
+      return null;
+    }
+    return row;
+  };
+
+  const printDraft = () => {
+    const row = printOrShare();
+    if (row) setPrintTarget(row);
+  };
+
+  const shareWhatsApp = () => {
+    const row = printOrShare();
+    if (!row) return;
+    const doc = buildRxViewModel({
+      locale: "roman",
+      items: state.items,
+      rxId: prescriptionId ?? adoptedIdRef.current,
+      version: rxVersion ?? 1,
+      issuedOn: row.created_at,
+      patient: {
+        name: patient.name,
+        code: patient.patient_code,
+        gender: patient.gender,
+      },
+      clinician: clinician || "Doctor",
+      diagnosis: today.diagnosis ?? diagnosis ?? null,
+      icdCode: today.icdCode ?? null,
+      procedures: today.procedures.map((p) => p.name),
+      meta: {
+        application: draft.meta.application,
+        education: draft.meta.education,
+        skincareAm: draft.meta.skincareAm,
+        skincarePm: draft.meta.skincarePm,
+      },
+      labs: draft.meta.labs,
+      followUp: draft.meta.followUp || null,
+    });
+    const text = documentToShareText(doc);
+    const phone = (patient.phone ?? "").replace(/\D/g, "");
+    const url = phone
+      ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
+      : `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  // --- Presets & Templates ---
+  const loadPreset = (load: PresetLoad) => {    if (!canManage) return;
+    const items = parseLegacyMedicines(load.medicines).map((item) => ({
+      ...item,
+      id: newItemId(),
+    }));
+    dispatch({ type: "RESET", items });
+    draft.setMeta({
+      application: load.application,
+      education: load.education,
+      skincareAm: load.skincareAm ? load.skincareAm.split("\n") : [],
+      skincarePm: load.skincarePm ? load.skincarePm.split("\n") : [],
+      followUp: load.followUp,
+      labs: load.labs.map((row) => ({
+        test_name: row.test_name,
+        notes: row.notes ?? "",
+      })),
+    });
+    toast.success(
+      items.length === parseLegacyMedicines(load.medicines).length
+        ? "Regimen loaded — chips phir se check kar len."
+        : `Regimen loaded (${parseLegacyMedicines(load.medicines).length - items.length} entry drop hui — template legacy format mein thi).`,
+    );
+  };
+
+  const templateDraft = () => {
+    if (state.items.length === 0) return null;
+    return {
+      medicines: state.items.map(itemToLegacyEntry),
+      labs: draft.meta.labs,
+      application: draft.meta.application,
+      skincareAm: draft.meta.skincareAm.join("\n"),
+      skincarePm: draft.meta.skincarePm.join("\n"),
+      education: draft.meta.education,
+      followUp: draft.meta.followUp,
+      medCount: state.items.length,
+    };
+  };
+
+  const historyItemsFor = (rx: DermPrescription) => readRxItems(rx.medicines);
 
   const catalogItems = useMemo(
     () => catalogFromNames(catalogNames),
@@ -305,6 +503,31 @@ export function DermRxEditor(props: DermRxEditorProps) {
               Save failed — Retry
             </Button>
           ) : null}
+          <div className="ms-auto flex flex-wrap items-center gap-1.5">
+            <PresetsCard
+              canManage={canManage}
+              onLoad={loadPreset}
+              templateDraft={templateDraft}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={printDraft}
+            >
+              <Printer className="h-3.5 w-3.5" />
+              Print
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={shareWhatsApp}
+            >
+              <MessageCircle className="h-3.5 w-3.5" />
+              WhatsApp
+            </Button>
+          </div>
         </div>
 
         {draft.notice ? (
@@ -429,6 +652,18 @@ export function DermRxEditor(props: DermRxEditorProps) {
           canManage={canManage}
           onChanged={(newId) => onRxChanged?.(newId)}
         />
+
+        <HistorySection
+          rows={historyRows}
+          currentId={prescriptionId}
+          canManage={canManage}
+          titleFor={historyTitleFor}
+          itemsFor={historyItemsFor}
+          onRepeat={(items) =>
+            dispatch({ type: "RESET", items })
+          }
+          onPrint={(rx) => setPrintTarget(rx)}
+        />
       </div>
 
       {/* Right: live preview (desktop sticky) */}
@@ -468,8 +703,42 @@ export function DermRxEditor(props: DermRxEditorProps) {
         <MobilePreviewButton items={state.items} />
       </div>
       <BottomActionsSpacer />
+
+      {printTarget ? (
+        <DermRxPrintSheet
+          rx={printTarget}
+          patient={{
+            name: patient.name,
+            patient_code: patient.patient_code,
+            date_of_birth: patient.date_of_birth,
+            gender: patient.gender,
+          }}
+          letterhead={letterhead}
+          clinician={clinician}
+          today={today as unknown as DermRxPrintToday}
+          locale="roman"
+          plainHeader
+          status={
+            (printTarget as unknown as { status?: string | null }).status ??
+            "draft"
+          }
+          version={
+            (printTarget as unknown as { version?: number | null }).version ??
+            1
+          }
+          variant="print"
+        />
+      ) : null}
     </div>
   );
+}
+
+/** Fuzzy protocol title: top 2 brand names (legacy `protocolTitleOf`). */
+function historyTitleFor(rx: DermPrescription): string {
+  const items = readRxItems(rx.medicines);
+  if (items.length === 0) return "Prescription";
+  const names = items.map((item) => item.brand);
+  return names.slice(0, 2).join(" + ") + (names.length > 2 ? " +" : "");
 }
 
 function MobilePreviewButton({ items }: { items: RxItem[] }) {

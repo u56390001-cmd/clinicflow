@@ -632,8 +632,8 @@ async function resolveEncounterVisitId(
   return data?.id ?? null;
 }
 
-function ok(): ActionResult<string> {
-  return { ok: true, data: "Saved" };
+function ok(data = "Saved"): ActionResult<string> {
+  return { ok: true, data };
 }
 
 function err(
@@ -3489,23 +3489,31 @@ export async function saveDermRxAction(
       .eq("clinic_id", g.clinicId)
       .eq("patient_id", patientId);
     if (error) return { ok: false, message: error.message };
-    return ok();
+    return ok(id);
   }
 
-  const { error } = await g.supabase.from("derm_prescriptions").insert({
-    clinic_id: g.clinicId,
-    patient_id: patientId,
-    doctor_id: await doctorId(g.supabase, g.clinicId),
-    visit_id: await resolveEncounterVisitId(
-      g.supabase,
-      g.clinicId,
-      patientId,
-      visitId,
-    ),
-    ...payload,
-  });
+  // Insert branch — return the new row id so the editor switches to in-place
+  // updates; without it each autosave used to insert another draft (the
+  // duplicate-history bug surfaced in Phase 0).
+  const { data: inserted, error } = await g.supabase
+    .from("derm_prescriptions")
+    .insert({
+      clinic_id: g.clinicId,
+      patient_id: patientId,
+      doctor_id: await doctorId(g.supabase, g.clinicId),
+      visit_id: await resolveEncounterVisitId(
+        g.supabase,
+        g.clinicId,
+        patientId,
+        visitId,
+      ),
+      ...payload,
+    })
+    .select("id")
+    .single();
   if (error) return { ok: false, message: error.message };
-  return ok();
+  const newId = (inserted as unknown as { id: string } | null)?.id;
+  return newId ? ok(newId) : ok();
 }
 
 const dermRxIdSchema = z.object({ id: z.string().uuid() });
