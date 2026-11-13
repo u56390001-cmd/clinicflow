@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { getCurrentClinic, canWriteClinic } from "@/lib/clinic-access";
+import { getEntitlements } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
 import { getOrCreateWebsite } from "@/lib/actions/website";
 import WebsiteBuilder from "@/components/website/website-builder";
@@ -47,6 +48,8 @@ export default async function WebsitePage() {
   if (!access) redirect("/app/clinic/new");
   if (!canWriteClinic(access.role)) redirect("/app/dashboard");
 
+  const { features } = await getEntitlements(supabase, access.clinic.id);
+  const canUseProTemplates = features.includes("pro_templates");
   const aiSettings = await readAiSettings(supabase, access.clinic.id);
 
   // Get or create the website row
@@ -71,6 +74,7 @@ export default async function WebsitePage() {
         clinicEmail={access.clinic.email ?? null}
         clinicAddress={access.clinic.address ?? null}
         clinicSlug={access.clinic.slug}
+        canUseProTemplates={canUseProTemplates}
         websiteId={row?.id ?? ""}
         initialConfig={defaults}
         initialImages={images}
@@ -116,6 +120,7 @@ export default async function WebsitePage() {
       clinicEmail={access.clinic.email ?? null}
       clinicAddress={access.clinic.address ?? null}
       clinicSlug={access.clinic.slug}
+      canUseProTemplates={canUseProTemplates}
       websiteId={result.data.website.id}
       initialConfig={result.data.config}
       initialImages={result.data.images}

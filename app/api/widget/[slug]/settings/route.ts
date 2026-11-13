@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { CLINIC_SLUG_REGEX } from "@/lib/constants";
+import { requireFeature } from "@/lib/entitlements";
 import { createWidgetClient } from "@/lib/supabase/widget";
 
 /**
@@ -70,6 +71,16 @@ export async function GET(
     .maybeSingle();
 
   if (!clinic) {
+    return NextResponse.json(UNAVAILABLE, { status: 403 });
+  }
+
+  const entitled = await requireFeature(
+    supabase,
+    clinic.id,
+    "ai_receptionist",
+    "AI Receptionist",
+  );
+  if (!entitled.ok) {
     return NextResponse.json(UNAVAILABLE, { status: 403 });
   }
 

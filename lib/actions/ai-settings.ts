@@ -1,6 +1,7 @@
 "use server";
 
 import { canWriteClinic, getCurrentClinic } from "@/lib/clinic-access";
+import { requireFeature } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
 import { createWidgetClient } from "@/lib/supabase/widget";
 import { aiSettingsSchema } from "@/lib/validation/schemas";
@@ -46,6 +47,13 @@ export async function saveAiSettingsAction(
   if (!canWriteClinic(access.role)) {
     return { ok: false, message: "Only owners and admins can configure the AI receptionist." };
   }
+  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "ai_receptionist",
+    "AI Receptionist",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
 
   const data = parsed.data;
 
@@ -161,6 +169,22 @@ export async function verifyLlmApiKeyAction(
   apiKey: string,
   model?: string | null,
 ): Promise<ActionResult> {
+  const supabase = await createClient();
+  const access = await getCurrentClinic(supabase);
+  if (!access) {
+    return { ok: false, message: "You must have a clinic to configure the AI receptionist." };
+  }
+  if (!canWriteClinic(access.role)) {
+    return { ok: false, message: "Only owners and admins can configure the AI receptionist." };
+  }
+  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "ai_receptionist",
+    "AI Receptionist",
+  );
+  if (!entitled.ok) return { ok: false, message: entitled.message };
+
   const result = await verifyLlmApiKey(provider, apiKey, model);
   if (!result.ok) {
     return { ok: false, message: result.message ?? "API key verification failed." };

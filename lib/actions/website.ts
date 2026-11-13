@@ -205,6 +205,16 @@ export async function saveWebsite(
     return { ok: false, message: "Only owners and admins can edit the website." };
   }
 
+  if (parsed.data.template !== "modern") {
+    const templates = await requireFeature(
+      supabase,
+      access.clinic.id,
+      "pro_templates",
+      "Premium website templates",
+    );
+    if (!templates.ok) return { ok: false, message: templates.message };
+  }
+
   // Run the validated payload back through `normalizeWebsiteConfig` rather than
   // casting it. Zod proves the *shape* is safe to store; normalization is what
   // fills in any slot the client legitimately omitted (a partial save from an
@@ -689,11 +699,12 @@ export async function connectWebsiteDomain(
   }
   if (!canWriteClinic(access.role)) {
     return { ok: false, message: "Only owners and admins can connect a domain." };
-  }  const entitled = await requireFeature(
+  }
+  const entitled = await requireFeature(
     supabase,
     access.clinic.id,
-    "website",
-    "Website builder",
+    "custom_domain",
+    "Custom domains",
   );
   if (!entitled.ok) return { ok: false, message: entitled.message };
 
@@ -753,13 +764,7 @@ export async function disconnectWebsiteDomain(): Promise<ActionResult> {
   }
   if (!canWriteClinic(access.role)) {
     return { ok: false, message: "Only owners and admins can disconnect a domain." };
-  }  const entitled = await requireFeature(
-    supabase,
-    access.clinic.id,
-    "website",
-    "Website builder",
-  );
-  if (!entitled.ok) return { ok: false, message: entitled.message };
+  }
 
   const { error } = await supabase
     .from("websites")
@@ -795,11 +800,12 @@ export async function verifyWebsiteDomain(): Promise<
   }
   if (!canWriteClinic(access.role)) {
     return { ok: false, message: "Only owners and admins can verify a domain." };
-  }  const entitled = await requireFeature(
+  }
+  const entitled = await requireFeature(
     supabase,
     access.clinic.id,
-    "website",
-    "Website builder",
+    "custom_domain",
+    "Custom domains",
   );
   if (!entitled.ok) return { ok: false, message: entitled.message };
 

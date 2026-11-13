@@ -7492,6 +7492,24 @@ export type Database = {
         };
         Returns: Receipt | null;
       };
+      /** 0059. Resolve a verified custom domain to its published website. */
+      resolve_website_domain: {
+        Args: {
+          p_domain: string;
+        };
+        Returns: {
+          website_id: string;
+          clinic_id: string;
+          slug: string;
+        }[];
+      };
+      /** 0125. Product-language alias for platform_admins membership. */
+      is_super_admin: {
+        Args: {
+          p_user_id?: string;
+        };
+        Returns: boolean;
+      };
     };
     Enums: {
       clinic_role: ClinicRole;

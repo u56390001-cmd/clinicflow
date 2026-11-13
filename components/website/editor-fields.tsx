@@ -191,7 +191,7 @@ export function Segmented<T extends string>({
 }: {
   label: string;
   value: T;
-  options: ReadonlyArray<{ value: T; label: string }>;
+  options: ReadonlyArray<{ value: T; label: string; locked?: boolean }>;
   onChange: (next: T) => void;
   hint?: string;
 }) {
@@ -213,15 +213,24 @@ export function Segmented<T extends string>({
                 type="button"
                 role="radio"
                 aria-checked={active}
+                aria-disabled={option.locked || undefined}
+                disabled={option.locked}
+                title={option.locked ? "Available on Clinic and Practice plans" : undefined}
                 onClick={() => onChange(option.value)}
                 className={cn(
-                  "flex-1 rounded-control px-2 py-1.5 text-xs font-medium transition-colors",
+                  "inline-flex flex-1 items-center justify-center gap-1 rounded-control px-2 py-1.5 text-xs font-medium transition-colors",
                   active
                     ? "bg-surface text-text-primary shadow-card"
                     : "text-text-muted hover:text-text-secondary",
+                  option.locked && "cursor-not-allowed opacity-50 hover:text-text-muted",
                 )}
               >
                 {option.label}
+                {option.locked ? (
+                  <span className="rounded bg-text-muted/10 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide">
+                    Pro
+                  </span>
+                ) : null}
               </button>
             );
           })}

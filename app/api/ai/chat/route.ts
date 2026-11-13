@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { buildWorkingHoursSummary, type RuleView } from "@/lib/appointments-view";
 import { canWriteClinic, getCurrentClinic } from "@/lib/clinic-access";
+import { requireFeature } from "@/lib/entitlements";
 import { resolveProviderForClinic, ClinicAiKeyMissingError } from "@/lib/ai/provider";
 import {
   ReceptionistProviderError,
@@ -77,6 +78,15 @@ export async function POST(req: NextRequest) {
   }
   if (!canWriteClinic(access.role)) {
     return NextResponse.json({ ok: false, error: "Only the clinic owner or an admin can use the AI receptionist." }, { status: 403 });
+  }
+  const entitled = await requireFeature(
+    supabase,
+    access.clinic.id,
+    "ai_receptionist",
+    "AI Receptionist",
+  );
+  if (!entitled.ok) {
+    return NextResponse.json({ ok: false, error: entitled.message }, { status: 403 });
   }
 
   const userLimit = envInt("AI_CHAT_RATE_LIMIT", 30);

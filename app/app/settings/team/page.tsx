@@ -5,6 +5,11 @@ import { ClinicEmptyState } from "@/components/app/clinic-empty-state";
 import { TeamManager } from "@/components/settings/team-manager";
 import { getCurrentClinic, canWriteClinic } from "@/lib/clinic-access";
 import { APP_ROUTES } from "@/lib/constants";
+import {
+  countTeamSeats,
+  getEntitlements,
+  teamSeatAllowance,
+} from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Team" };
@@ -32,6 +37,12 @@ export default async function TeamPage() {
     redirect(APP_ROUTES.app.dashboard);
   }
 
+  const [entitlements, seatUsage] = await Promise.all([
+    getEntitlements(supabase, access.clinic.id),
+    countTeamSeats(supabase, access.clinic.id),
+  ]);
+  const seatAllowance = teamSeatAllowance(entitlements);
+
   return (
     <div className="space-y-6">
       <div>
@@ -41,7 +52,12 @@ export default async function TeamPage() {
         </p>
       </div>
 
-      <TeamManager viewerRole={access.role} />
+      <TeamManager
+        viewerRole={access.role}
+        seatUsage={seatUsage}
+        seatAllowance={seatAllowance}
+        planName={entitlements.plan?.name ?? "current"}
+      />
     </div>
   );
 }

@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { ClinicEmptyState } from "@/components/app/clinic-empty-state";
 import { DoctorsTab } from "@/components/doctors/doctors-tab";
 import { canWriteClinic, getCurrentClinic } from "@/lib/clinic-access";
+import { APP_ROUTES } from "@/lib/constants";
+import { doctorSeatAllowance, getEntitlements } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Doctors" };
@@ -74,6 +76,12 @@ export default async function DoctorsPage() {
       .select("*")
       .eq("clinic_id", clinicId),
   ]);
+
+  const entitlements = await getEntitlements(supabase, clinicId);
+  const doctorAllowance = doctorSeatAllowance(entitlements);
+  const doctorCount = doctors?.length ?? 0;
+  const doctorSeatsFull =
+    doctorAllowance !== null && doctorCount >= doctorAllowance;
 
   // Working days per doctor: any weekday with a slot template, or an enabled
   // availability rule for that day (the doctor's own row or the clinic-wide
@@ -167,6 +175,26 @@ export default async function DoctorsPage() {
         </p>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-text-muted/30 bg-surface px-4 py-3">
+        <div>
+          <p className="text-sm font-medium text-secondary">
+            Doctor seats · {doctorCount} of{" "}
+            {doctorAllowance === null ? "unlimited" : doctorAllowance} used
+          </p>
+          <p className="text-xs text-text-muted">
+            {doctorSeatsFull
+              ? "Your plan is at its doctor-seat limit. Upgrade or buy an extra seat to add another doctor."
+              : `${entitlements.plan?.name ?? "Your plan"} includes these seats.`}
+          </p>
+        </div>
+        <a
+          href={APP_ROUTES.app.billing}
+          className="text-sm font-medium text-brand-cta-hover hover:underline"
+        >
+          {doctorSeatsFull ? "Upgrade or add a seat" : "Manage plan"}
+        </a>
+      </div>
+
       <DoctorsTab
         initialDoctors={doctors ?? []}
         initialSlotTemplates={slotTemplates ?? []}
@@ -184,6 +212,7 @@ export default async function DoctorsPage() {
         clinicAddress={access.clinic.address}
         clinicId={clinicId}
         canWrite={canWriteClinic(access.role)}
+        canAddDoctor={!doctorSeatsFull}
       />
     </div>
   );

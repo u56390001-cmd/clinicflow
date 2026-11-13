@@ -118,6 +118,7 @@ export function DoctorsTab({
   clinicAddress,
   clinicId,
   canWrite,
+  canAddDoctor,
 }: {
   initialDoctors: Doctor[];
   initialSlotTemplates: DoctorSlotTemplate[];
@@ -142,6 +143,8 @@ export function DoctorsTab({
   clinicAddress?: string | null;
   clinicId: string;
   canWrite: boolean;
+  /** False when the plan's doctor-seat allowance is already used up. */
+  canAddDoctor: boolean;
 }) {
   const [tab, setTab] = useState<Tab>("doctors");
   const [doctorMode, setDoctorMode] = useState<DoctorMode>({ view: "list" });
@@ -430,7 +433,15 @@ export function DoctorsTab({
               </div>
 
               {canWrite && (
-                <Button onClick={() => setDoctorMode({ view: "form", editing: null })}>
+                <Button
+                  onClick={() => setDoctorMode({ view: "form", editing: null })}
+                  disabled={!canAddDoctor}
+                  title={
+                    canAddDoctor
+                      ? undefined
+                      : "Your plan's doctor-seat allowance is full."
+                  }
+                >
                   <Stethoscope aria-hidden="true" />
                   Add doctor
                 </Button>
@@ -561,10 +572,12 @@ export function DoctorsTab({
                   : "Try a different search or clear the filters."
               }
               actionLabel={
-                canWrite && initialDoctors.length === 0 ? "Add doctor" : undefined
+                canWrite && canAddDoctor && initialDoctors.length === 0
+                  ? "Add doctor"
+                  : undefined
               }
               onAction={
-                canWrite && initialDoctors.length === 0
+                canWrite && canAddDoctor && initialDoctors.length === 0
                   ? () => setDoctorMode({ view: "form", editing: null })
                   : undefined
               }

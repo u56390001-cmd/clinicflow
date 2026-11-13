@@ -30,6 +30,24 @@ import { updateSession } from "@/lib/supabase/middleware";
  *   directly.
  */
 
+/** A host that belongs to the app itself rather than a clinic's custom domain. */
+function isPlatformHost(hostname: string): boolean {
+  if (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1" ||
+    hostname.endsWith(".localhost") ||
+    hostname.endsWith(".vercel.app")
+  ) {
+    return true;
+  }
+
+  const baseDomain = process.env.NEXT_PUBLIC_BASE_DOMAIN?.split(":")[0]?.toLowerCase();
+  if (!baseDomain) return false;
+
+  return hostname === baseDomain || hostname.endsWith(`.${baseDomain}`);
+}
+
 /** Paths that stay reachable while a clinic is still setting itself up. */
 function isSetupAllowlisted(pathname: string): boolean {
   return SETUP_ALLOWLIST_PREFIXES.some(
@@ -134,6 +152,33 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
   const host = request.headers.get("host") ?? "";
+  const hostname = host.split(":")[0]?.toLowerCase() ?? "";
+
+  // ------------------------------------------------------------------
+  // Custom-domain public website routing
+  // ------------------------------------------------------------------
+  // A verified custom domain serves the clinic's published site at `/`.
+  // Everything else (`/app`, `/api`, `/book`, auth) stays on the app so a
+  // patient can still follow a booking link without leaving the clinic domain.
+  if (pathname === "/" && hostname && !isPlatformHost(hostname)) {
+    const candidates = hostname.startsWith("www.")
+      ? [hostname, hostname.slice(4)]
+      : [hostname];
+
+    for (const candidate of candidates) {
+      const { data, error } = await supabase.rpc("resolve_website_domain", {
+        p_domain: candidate,
+      });
+      if (error) break;
+
+      const resolved = Array.isArray(data) ? data[0] : data;
+      if (resolved?.slug) {
+        const url = request.nextUrl.clone();
+        url.pathname = `/site/${resolved.slug}`;
+        return NextResponse.rewrite(url);
+      }
+    }
+  }
 
   // ------------------------------------------------------------------
   // Subdomain-based public website routing (production only)
@@ -176,6 +221,23 @@ export async function middleware(request: NextRequest) {
     url.pathname = APP_ROUTES.app.dashboard;
     url.searchParams.delete("next");
     return NextResponse.redirect(url);
+  }
+
+  // Platform administration is not a clinic role. A direct URL must fail
+  // closed, even when the page component forgets its own check.
+  if (isProtectedRoute && user && pathname.startsWith("/app/admin")) {
+    const { data: platformAdmin, error } = await supabase
+      .from("platform_admins")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (error || !platformAdmin) {
+      const url = request.nextUrl.clone();
+      url.pathname = APP_ROUTES.app.dashboard;
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
   }
 
   // ------------------------------------------------------------------

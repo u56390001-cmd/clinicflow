@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
 import { WebsiteTemplate } from "@/components/website/template-index";
+import { getEntitlements } from "@/lib/entitlements";
 import { createWidgetClient } from "@/lib/supabase/widget";
 import { CLINIC_SLUG_REGEX, getSiteUrl } from "@/lib/constants";
 import { siteRootStyle } from "@/components/website/site-sections";
@@ -37,6 +38,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     .maybeSingle();
 
   if (!clinic) return { title: "Website" };
+
+  const { features } = await getEntitlements(supabase, website.clinic_id);
+  if (!features.includes("website")) return { title: "Website" };
 
   // Editor-authored SEO wins over the derived default. Normalizing rather than
   // casting means a site saved before the SEO tab existed still gets sane
@@ -136,6 +140,20 @@ export default async function SitePage({ params }: Props) {
         <div className="text-center">
           <h1 className="text-2xl font-semibold text-slate-700">Website Not Available</h1>
           <p className="mt-2 text-slate-500">This clinic&apos;s website is temporarily unavailable.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const { features } = await getEntitlements(supabase, website.clinic_id);
+  if (!features.includes("website")) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold text-slate-700">Website Not Available</h1>
+          <p className="mt-2 text-slate-500">
+            This website is not available on the clinic&apos;s current plan.
+          </p>
         </div>
       </div>
     );

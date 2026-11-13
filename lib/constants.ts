@@ -85,6 +85,7 @@ export const APP_ROUTES = {
     adminBilling: "/app/admin/billing",
     adminPaymentMethods: "/app/admin/billing/payment-methods",
     adminRegistrations: "/app/admin/registrations",
+    adminSubscriptions: "/app/admin/subscriptions",
   },
   callback: "/auth/callback",
 } as const;

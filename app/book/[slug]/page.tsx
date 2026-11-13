@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 
 import { BookingPageForm } from "@/components/booking-page/booking-page-form";
 import { CLINIC_SLUG_REGEX } from "@/lib/constants";
+import { getEntitlements } from "@/lib/entitlements";
 import { createWidgetClient } from "@/lib/supabase/widget";
 
 /**
@@ -112,6 +113,17 @@ export default async function PublicBookingPage({ params }: Props) {
     // /app/booking-page dumped them on the login screen for a link that is
     // simply wrong.
     notFound();
+  }
+
+  const { features } = await getEntitlements(createWidgetClient(), clinic.id);
+  if (!features.includes("online_booking")) {
+    return (
+      <BookingUnavailable
+        heading="Online booking isn't available"
+        body={`Online booking is not included in ${clinic.name}'s current plan. Please call the clinic to arrange your appointment.`}
+        phone={clinic.phone}
+      />
+    );
   }
 
   // A clinic that paused bookings keeps its links alive, so a QR already

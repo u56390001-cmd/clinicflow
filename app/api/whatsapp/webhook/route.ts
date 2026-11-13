@@ -4,6 +4,7 @@ import { NextResponse, after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { checkRateLimit, envInt } from "@/lib/ai/rate-limit";
+import { getEntitlements } from "@/lib/entitlements";
 import type { Database } from "@/types/database";
 import {
   getClinicWhatsappCredentials,
@@ -133,6 +134,11 @@ async function handleInboundMessage(
       .maybeSingle(),
   ]);
   if (!clinic || !settings || !settings.whatsapp_enabled) return;
+
+  const { features } = await getEntitlements(supabase, clinic.id);
+  if (!features.includes("whatsapp") || !features.includes("ai_receptionist")) {
+    return;
+  }
 
   try {
     const credentials = await getClinicWhatsappCredentials(clinic.id);

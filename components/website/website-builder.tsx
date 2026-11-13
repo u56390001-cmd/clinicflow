@@ -44,6 +44,7 @@ type Props = {
   clinicEmail: string | null;
   clinicAddress: string | null;
   clinicSlug: string;
+  canUseProTemplates: boolean;
   websiteId: string;
   initialConfig: WebsiteConfig;
   initialImages: WebsiteImage[];
@@ -118,6 +119,7 @@ export default function WebsiteBuilder({
   clinicEmail,
   clinicAddress,
   clinicSlug,
+  canUseProTemplates,
   initialConfig,
   initialImages,
   initialStatus,
@@ -714,6 +716,7 @@ export default function WebsiteBuilder({
               onUpdateImages={handleImageUpdate}
               clinicId={clinicId}
               clinicSlug={clinicSlug}
+              canUseProTemplates={canUseProTemplates}
               collapsed={inspectorCollapsed}
               onToggleCollapsed={() => setInspectorCollapsed((previous) => !previous)}
             />

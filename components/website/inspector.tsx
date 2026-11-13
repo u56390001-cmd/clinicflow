@@ -74,6 +74,8 @@ type Props = {
   clinicId: string;
   /** Public path of this site, used to describe what a domain replaces. */
   clinicSlug: string;
+  /** Classic and Minimal are part of the premium template pack. */
+  canUseProTemplates: boolean;
   onUpdateConfig: (next: WebsiteConfig) => void;
   onUpdateImages: (next: WebsiteImage[]) => void;
   /** Collapsed to an icon rail. Owned by the builder, which sizes the column. */
@@ -87,6 +89,7 @@ export function Inspector({
   images,
   clinicId,
   clinicSlug,
+  canUseProTemplates,
   onUpdateConfig,
   onUpdateImages,
   collapsed,
@@ -158,7 +161,7 @@ export function Inspector({
               <ContentTab selectedSectionId={selectedSectionId} config={config} onUpdate={onUpdateConfig} />
             ) : null}
             {tab === "design" ? (
-              <DesignTab config={config} onUpdate={onUpdateConfig} />
+              <DesignTab config={config} onUpdate={onUpdateConfig} canUseProTemplates={canUseProTemplates} />
             ) : null}
             {tab === "images" ? (
               <div className="flex flex-col gap-4 px-4 py-4">
@@ -853,9 +856,11 @@ function FaqGroup({
 function DesignTab({
   config,
   onUpdate,
+  canUseProTemplates,
 }: {
   config: WebsiteConfig;
   onUpdate: (next: WebsiteConfig) => void;
+  canUseProTemplates: boolean;
 }) {
   const { theme } = config;
   const patch = (next: Partial<typeof theme>) => onUpdate({ ...config, theme: { ...theme, ...next } });
@@ -951,11 +956,18 @@ function DesignTab({
           value={config.template}
           options={[
             { value: "modern", label: "Modern" },
-            { value: "classic", label: "Classic" },
-            { value: "minimal", label: "Minimal" },
+            { value: "classic", label: "Classic", locked: !canUseProTemplates },
+            { value: "minimal", label: "Minimal", locked: !canUseProTemplates },
           ]}
-          onChange={(template) => onUpdate({ ...config, template })}
-          hint="Modern uses full-width images. Classic uses a tight column. Minimal is the lightest, with no backgrounds."
+          onChange={(template) => {
+            if (template !== "modern" && !canUseProTemplates) return;
+            onUpdate({ ...config, template });
+          }}
+          hint={
+            canUseProTemplates
+              ? "Modern uses full-width images. Classic uses a tight column. Minimal is the lightest, with no backgrounds."
+              : "Modern is included on your plan. Classic and Minimal are available on Clinic and Practice plans."
+          }
         />
       </InspectorGroup>
 

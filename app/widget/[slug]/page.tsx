@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
 import { WidgetChat } from "@/components/widget/widget-chat";
+import { getEntitlements } from "@/lib/entitlements";
 import { createWidgetClient } from "@/lib/supabase/widget";
 import { CLINIC_SLUG_REGEX } from "@/lib/constants";
 
@@ -50,6 +51,11 @@ export default async function WidgetPage({ params }: Props) {
     .maybeSingle();
 
   if (!clinic) {
+    return <WidgetUnavailable />;
+  }
+
+  const { features } = await getEntitlements(supabase, clinic.id);
+  if (!features.includes("ai_receptionist")) {
     return <WidgetUnavailable />;
   }
 

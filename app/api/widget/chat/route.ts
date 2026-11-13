@@ -11,6 +11,7 @@ import { checkRateLimit, envInt } from "@/lib/ai/rate-limit";
 import type { ReceptionistContext } from "@/lib/ai/system-prompt";
 import type { ToolContext } from "@/lib/ai/tools";
 import { logAppEvent } from "@/lib/observability";
+import { requireFeature } from "@/lib/entitlements";
 import { createWidgetClient } from "@/lib/supabase/widget";
 import { CLINIC_SLUG_REGEX } from "@/lib/constants";
 
@@ -129,6 +130,16 @@ export async function POST(req: NextRequest) {
   }
 
   if (!clinic) {
+    return NextResponse.json(UNAVAILABLE, { status: 403 });
+  }
+
+  const entitled = await requireFeature(
+    supabase,
+    clinic.id,
+    "ai_receptionist",
+    "AI Receptionist",
+  );
+  if (!entitled.ok) {
     return NextResponse.json(UNAVAILABLE, { status: 403 });
   }
 

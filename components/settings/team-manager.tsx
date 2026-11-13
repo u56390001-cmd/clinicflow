@@ -31,6 +31,7 @@ import {
 import type { ActionResult } from "@/types";
 import type { ClinicRole } from "@/types/database";
 import { ROLE_LABELS } from "@/lib/auth/rbac-config";
+import { APP_ROUTES } from "@/lib/constants";
 
 const ASSIGNABLE_ROLES: ClinicRole[] = [
   "clinic_admin",
@@ -53,7 +54,18 @@ type TeamData = {
   isAdmin: boolean;
 };
 
-export function TeamManager({ viewerRole }: { viewerRole: ClinicRole }) {
+export function TeamManager({
+  viewerRole,
+  seatUsage,
+  seatAllowance,
+  planName,
+}: {
+  viewerRole: ClinicRole;
+  seatUsage: number;
+  seatAllowance: number | null;
+  planName: string;
+}) {
+  const seatsFull = seatAllowance !== null && seatUsage >= seatAllowance;
   const [data, setData] = useState<TeamData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -100,7 +112,33 @@ export function TeamManager({ viewerRole }: { viewerRole: ClinicRole }) {
 
   return (
     <div className="space-y-6">
-      {isAdmin ? <InviteForm viewerRole={data.viewerRole} onInvited={load} /> : null}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-text-muted/30 bg-surface px-4 py-3">
+        <div>
+          <p className="text-sm font-medium text-secondary">
+            Team logins · {seatUsage} of{" "}
+            {seatAllowance === null ? "unlimited" : seatAllowance} used
+          </p>
+          <p className="text-xs text-text-muted">
+            {seatsFull
+              ? "Your plan is at its team-login limit. Remove someone or add an extra login to invite another teammate."
+              : `${planName} includes these logins. Pending invitations hold a seat.`}
+          </p>
+        </div>
+        <a
+          href={APP_ROUTES.app.billing}
+          className="text-sm font-medium text-brand-cta-hover hover:underline"
+        >
+          {seatsFull ? "Upgrade or add a login" : "Manage plan"}
+        </a>
+      </div>
+
+      {isAdmin ? (
+        <InviteForm
+          viewerRole={data.viewerRole}
+          onInvited={load}
+          atLimit={seatsFull}
+        />
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -272,9 +310,11 @@ function MemberRow({
 function InviteForm({
   viewerRole,
   onInvited,
+  atLimit,
 }: {
   viewerRole: ClinicRole;
   onInvited: () => void;
+  atLimit: boolean;
 }) {
   const [state, formAction] = useActionState<ActionResult<string> | null, FormData>(
     inviteTeamMemberAction,
@@ -337,7 +377,7 @@ function InviteForm({
                 ))}
               </NativeSelect>
             </div>
-            <SubmitButton>Send invite</SubmitButton>
+            <SubmitButton disabled={atLimit}>Send invite</SubmitButton>
           </div>
 
           <p className="text-xs text-text-muted">

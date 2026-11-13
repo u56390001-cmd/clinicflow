@@ -118,10 +118,10 @@ function NavLink({
         ) : null}
         {!collapsed && item.label}
         {locked && !collapsed ? (
-          <Lock
-            className="ml-auto size-3.5 shrink-0 text-brand-faint"
-            aria-hidden="true"
-          />
+          <span className="ml-auto inline-flex items-center gap-1 rounded bg-brand-canvas px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-brand-faint">
+            <Lock className="size-3 shrink-0" aria-hidden="true" />
+            Pro
+          </span>
         ) : null}
       </Link>
     </li>
@@ -222,7 +222,11 @@ export function AppSidebarShell({
   // intentionally not rendered. Settings + Help & Support are lifted out and
   // pinned to the foot of the rail.
   const items: NavItem[] = sections.flatMap((section) =>
-    section.items.map((item) => ({ label: item.label, href: item.href })),
+    section.items.map((item) => ({
+      label: item.label,
+      href: item.href,
+      locked: item.locked,
+    })),
   );
   const footerItems = items.filter((item) => FOOTER_HREFS.includes(item.href));
   const mainItems = items.filter((item) => !FOOTER_HREFS.includes(item.href));

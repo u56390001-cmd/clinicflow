@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import { ArrowLeft } from "lucide-react";
 
 import { CLINIC_SLUG_REGEX, getSiteUrl } from "@/lib/constants";
+import { getEntitlements } from "@/lib/entitlements";
 import { createWidgetClient } from "@/lib/supabase/widget";
 import { siteRootStyle } from "@/components/website/site-sections";
 import { SiteCta } from "@/components/website/site-ui";
@@ -72,6 +73,9 @@ async function load(params: Props["params"]): Promise<Loaded | null> {
     .eq("status", "published")
     .maybeSingle();
   if (!website) return null;
+
+  const { features } = await getEntitlements(supabase, website.clinic_id);
+  if (!features.includes("website")) return null;
 
   const [{ data: clinic }, { data: doctor }] = await Promise.all([
     supabase

@@ -58,6 +58,7 @@ type NavSection = {
 const ADMIN_NAV_SECTION: NavSection = {
   label: "Administration",
   items: [
+    { label: "Subscriptions", href: APP_ROUTES.app.adminSubscriptions },
     { label: "Registrations", href: APP_ROUTES.app.adminRegistrations },
     { label: "Payment submissions", href: APP_ROUTES.app.adminBilling },
     { label: "Payment methods", href: APP_ROUTES.app.adminPaymentMethods },

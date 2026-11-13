@@ -14,7 +14,7 @@ async function isPlatformAdmin(supabase: Awaited<ReturnType<typeof createClient>
 
   const { data } = await supabase
     .from("platform_admins")
-    .select("id")
+    .select("user_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
